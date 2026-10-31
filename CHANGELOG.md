@@ -63,6 +63,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   seeing the same commits and change IDs. They also record how jj stores
   change IDs and conflicts in Git commits. `just tools` installs the pinned
   jj versions.
+- README with the project's purpose, status, and development quick start.
 
 ### Changed
 
