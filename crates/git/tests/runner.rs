@@ -329,3 +329,44 @@ fn hex_to_bytes(hex: &str) -> Vec<u8> {
         .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
         .collect()
 }
+
+#[tokio::test]
+async fn create_bare_writes_config_and_renames_into_place() {
+    let f = fixture().await;
+    let data = f._dir.path().join("data");
+    let id = slath_core::ids::RepoId::new();
+    let path = slath_git::storage::create_bare(&f.runner, &data, id, "trunk")
+        .await
+        .unwrap();
+    assert_eq!(path, slath_git::storage::repo_path(&data, id));
+    let head = std::fs::read_to_string(path.join("HEAD")).unwrap();
+    assert_eq!(head.trim(), "ref: refs/heads/trunk");
+    let out = f
+        .runner
+        .repo(&path)
+        .args(["config", "get", "transfer.hideRefs"])
+        .run()
+        .await
+        .unwrap();
+    assert_eq!(out.stdout.trim_ascii_end(), b"refs/slath");
+    assert!(
+        std::fs::read_dir(data.join("repos/.tmp"))
+            .unwrap()
+            .next()
+            .is_none()
+    );
+    // Creating it twice fails instead of clobbering.
+    assert!(
+        slath_git::storage::create_bare(&f.runner, &data, id, "trunk")
+            .await
+            .is_err()
+    );
+    // A leftover temp dir from a crash doesn't block a new attempt.
+    let id2 = slath_core::ids::RepoId::new();
+    std::fs::create_dir_all(data.join(format!("repos/.tmp/{id2}.git/objects"))).unwrap();
+    slath_git::storage::create_bare(&f.runner, &data, id2, "main")
+        .await
+        .unwrap();
+    assert!(!data.join(format!("repos/.tmp/{id2}.git")).exists());
+    let _ = f.repo;
+}

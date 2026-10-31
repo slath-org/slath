@@ -11,8 +11,11 @@
 pub mod args;
 pub mod commit;
 pub mod error;
+pub mod hookipc;
 pub mod object;
 pub mod runner;
+pub mod storage;
+pub mod transport;
 pub mod version;
 
 pub use error::{GitError, LimitKind};
