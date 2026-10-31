@@ -8,7 +8,9 @@ This gets a clean Linux machine from zero to a green `just check`.
 
 - Rust via [rustup](https://rustup.rs). `rust-toolchain.toml` pins the version,
   and rustup installs it on first use.
-- Git ≥ 2.43.
+- The newest stable Git release (currently 2.56.0); before 1.0 Slath
+  requires it. `scripts/install-git.sh 2.56.0` builds it if your distribution
+  lags behind, and `SLATH_TEST_GIT` points the tests at it.
 - Python ≥ 3.11 (helper scripts and their tests).
 - Docker (with the compose plugin) or Podman (with `podman compose`) for the
   development database.

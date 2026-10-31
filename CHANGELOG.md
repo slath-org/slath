@@ -24,7 +24,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   `authz::check` stub with a table-driven matrix test.
 - `slath-git`: the hardened Git runner (scrubbed environment, fixed config,
   process-group kill on timeout/output cap/drop, concurrency semaphore,
-  Git ≥ 2.43 check), validators for user revisions, ref names, and paths, an
+  minimum Git version check), validators for user revisions, ref names, and paths, an
   object reader over `git cat-file --batch-command`, and a raw commit parser
   that round-trips commits byte for byte and exposes jj `change-id`.
 - CI workflow running `just check`, an MSRV build, and `scripts/guards.sh`,
@@ -46,3 +46,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Conformance harness: a nextest `ci` profile with JUnit output and
   `just conformance-report [--gate M<n>]`, which maps `conf_<area>_<nn>_*`
   tests to conformance cases and writes `target/conformance/report.{json,md}`.
+
+### Changed
+
+- Before 1.0, Slath requires the newest stable Git release (currently 2.56.0)
+  instead of 2.43, and the compatibility matrix pins only that release.

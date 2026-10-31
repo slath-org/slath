@@ -5,9 +5,13 @@
 use std::fmt;
 
 /// Minimum supported Git version on the server.
+///
+/// Before 1.0, Slath tracks the newest stable (non-RC) Git release. Raise this
+/// together with `tests/compat/versions.toml` when Git ships a new release. An
+/// older floor gets pinned for the 1.0 compatibility promise.
 pub const MIN_GIT_VERSION: GitVersion = GitVersion {
     major: 2,
-    minor: 43,
+    minor: 56,
     patch: 0,
 };
 
@@ -74,7 +78,8 @@ mod tests {
             })
         );
         assert_eq!(v("hg 6.0"), None);
-        assert!(v("git version 2.42.9").is_some_and(|v| v < MIN_GIT_VERSION));
-        assert!(v("git version 2.43.0").is_some_and(|v| v >= MIN_GIT_VERSION));
+        assert!(v("git version 2.55.9").is_some_and(|v| v < MIN_GIT_VERSION));
+        assert!(v("git version 2.56.0").is_some_and(|v| v >= MIN_GIT_VERSION));
+        assert!(v("git version 2.43.0").is_some_and(|v| v < MIN_GIT_VERSION));
     }
 }

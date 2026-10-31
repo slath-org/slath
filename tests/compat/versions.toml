@@ -5,11 +5,8 @@
 # Install with scripts/install-git.sh <version> / scripts/install-jj.sh <version>;
 # both verify the SHA-256 recorded here before using a download.
 
-# Git: minimum supported (2.43) and latest stable. Source tarballs from kernel.org.
-[[git]]
-version = "2.43.0"
-sha256 = "5446603e73d911781d259e565750dcd277a42836c8e392cac91cf137aa9b76ec"
-
+# Git: before 1.0, only the newest stable (non-RC) release, which is also the
+# server minimum (slath_git::version::MIN_GIT_VERSION). Source tarballs from kernel.org.
 [[git]]
 version = "2.56.0"
 sha256 = "26c56c296b38c0695b26fa95f475f1d01704d2d38e73465ca30b0b2f5dc789d3"
