@@ -130,7 +130,8 @@ pub async fn spawn_http_rpc(
         .await
 }
 
-/// Spawns a full-duplex `upload-pack`/`receive-pack` for SSH.
+/// Spawns a full-duplex `upload-pack`/`receive-pack` for SSH, attached to
+/// the caller's stdio.
 pub async fn spawn_ssh(
     runner: &Runner,
     git_dir: &Path,
@@ -140,7 +141,7 @@ pub async fn spawn_ssh(
 ) -> Result<GitChild, GitError> {
     invocation(runner, git_dir, service, git_protocol, hooks)
         .arg(git_dir)
-        .spawn()
+        .spawn_inherit()
         .await
 }
 

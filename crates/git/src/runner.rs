@@ -280,6 +280,26 @@ impl Invocation {
         })
     }
 
+    /// Spawns the process connected to this process's own stdin, stdout,
+    /// and stderr (used by `ssh-serve`, whose stdio is the SSH channel).
+    pub async fn spawn_inherit(self) -> Result<GitChild, GitError> {
+        let permit = Arc::clone(&self.runner.sem)
+            .acquire_owned()
+            .await
+            .map_err(|_| GitError::Closed)?;
+        let mut cmd = self.command();
+        cmd.stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        let child = cmd.spawn()?;
+        let group = ProcessGroup::new(&child);
+        Ok(GitChild {
+            child,
+            group,
+            _permit: permit,
+        })
+    }
+
     /// Runs to completion and returns the output whatever the exit status.
     /// Exceeding the timeout or the output cap kills the process group and
     /// returns [`GitError::Limit`].

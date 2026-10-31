@@ -14,6 +14,7 @@ pub mod error;
 pub mod hookipc;
 pub mod object;
 pub mod runner;
+pub mod ssh;
 pub mod storage;
 pub mod transport;
 pub mod version;
