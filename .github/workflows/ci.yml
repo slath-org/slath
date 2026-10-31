@@ -24,6 +24,22 @@ jobs:
     name: just check
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      # Queries are checked against the committed .sqlx/ data, not the live DB.
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,7 +49,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
-          tool: just,cargo-nextest,cargo-deny
+          tool: just,cargo-nextest,cargo-deny,sqlx-cli
+      - run: just migrate
       - run: just check
 
   guards:
@@ -64,3 +81,5 @@ jobs:
         with:
           key: msrv
       - run: cargo +"$MSRV" check --workspace --all-targets --locked
+        env:
+          SQLX_OFFLINE: "true"

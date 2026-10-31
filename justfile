@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: fmt-check clippy test deny license-deps guards
+check: fmt-check clippy test sqlx-check deny license-deps guards
 
 fmt-check:
     cargo fmt --all --check
@@ -26,6 +26,18 @@ clippy:
 # Run tests; pass extra nextest args, e.g. `just test -E 'test(name)'`.
 test *ARGS:
     cargo nextest run --workspace --locked --no-tests=pass {{ARGS}}
+
+# Regenerate .sqlx/ offline query data after changing a query (needs `just dev-db`).
+sqlx-prepare:
+    cargo sqlx prepare --workspace -- --all-targets
+
+# Fail if .sqlx/ is stale.
+sqlx-check:
+    cargo sqlx prepare --workspace --check -- --all-targets
+
+# Apply migrations to the development database.
+migrate:
+    cargo sqlx migrate run --source migrations
 
 # Dependency policy: licenses, advisories, bans, sources.
 deny:

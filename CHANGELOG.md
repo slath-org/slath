@@ -33,3 +33,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   positions. `scripts/guards_test.sh` checks that each guard fires.
 - Developer environment: `deploy/dev/compose.yml` (PostgreSQL 18),
   `just setup`, `just dev-db`, `.env.example`, and `docs/dev/setup.md`.
+- `slath-db`: connection pool, embedded migrations with a schema version check,
+  the first migration (`namespaces`, `users`, `reserved_names`, `jobs`,
+  `audit_events`, `instance_settings`), and the durable job queue with dedupe
+  keys, `SKIP LOCKED` leases, heartbeats, exponential backoff, a `dead` state,
+  `LISTEN/NOTIFY` wake-ups, and a worker pool.

@@ -25,8 +25,11 @@ nix = { version = "0.31", default-features = false, features = ["signal", "proce
 proptest = "1.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sqlx = { version = "0.9", default-features = false, features = ["json", "macros", "migrate", "postgres", "runtime-tokio", "time", "tls-rustls-ring-webpki", "uuid"] }
 tempfile = "3.27"
 thiserror = "2.0"
+time = "0.3"
+tracing = "0.1"
 tokio = { version = "1.54", features = ["io-util", "macros", "process", "rt", "sync", "time"] }
 uuid = { version = "1.29", features = ["v7", "serde"] }
 

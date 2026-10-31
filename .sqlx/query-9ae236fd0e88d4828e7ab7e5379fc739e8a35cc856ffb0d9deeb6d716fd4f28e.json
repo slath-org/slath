@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH inserted AS (\n            INSERT INTO jobs (queue, kind, payload, dedupe_key, run_at, max_attempts)\n            VALUES ($1, $2, $3, $4, COALESCE($5, now()), $6)\n            ON CONFLICT (dedupe_key) DO NOTHING\n            RETURNING id, queue\n        )\n        SELECT id AS \"id!\" FROM inserted, pg_notify($7, inserted.queue)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ae236fd0e88d4828e7ab7e5379fc739e8a35cc856ffb0d9deeb6d716fd4f28e"
+}
