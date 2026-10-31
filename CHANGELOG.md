@@ -18,3 +18,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   configuration (license allowlist, advisories, bans, sources), and
   `scripts/check_license_deps.py`, which fails when an Apache-2.0 workspace
   crate depends on an AGPL crate.
+- `slath-core` foundations: UUIDv7 ID newtypes, user/org/repo name validation
+  with reserved names, the redacting `Secret<T>` wrapper, authorization
+  types (`Subject`, `Action`, `Role`, `ResourceCtx`), and a deny-all
+  `authz::check` stub with a table-driven matrix test.

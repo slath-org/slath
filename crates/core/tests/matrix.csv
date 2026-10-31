@@ -1,0 +1,14 @@
+# Authorization matrix, checked by tests/matrix.rs.
+# subject: anon | user (active human, session) | suspended | bot
+# role: none | read | write | maintain | admin
+# expect: allow | deny_hidden (404) | deny_visible (403)
+# For now this lists only cells whose answer is always deny; the full matrix
+# arrives with the policy.
+action,visibility,state,subject,role,expect
+repo.read,private,active,anon,none,deny_hidden
+repo.read,private,active,user,none,deny_hidden
+repo.push,private,active,user,none,deny_hidden
+repo.delete,private,active,user,none,deny_hidden
+repo.read,public,deleting,anon,none,deny_hidden
+repo.read,private,deleting,user,admin,deny_hidden
+repo.read,private,active,suspended,admin,deny_hidden
