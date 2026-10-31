@@ -27,3 +27,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   Git ≥ 2.43 check), validators for user revisions, ref names, and paths, an
   object reader over `git cat-file --batch-command`, and a raw commit parser
   that round-trips commits byte for byte and exposes jj `change-id`.
+- CI workflow running `just check`, an MSRV build, and `scripts/guards.sh`,
+  which enforces SPDX headers, Git spawns only from the runner, no shells in
+  server code, no Askama `|safe`, and no third-party URLs in resource
+  positions. `scripts/guards_test.sh` checks that each guard fires.

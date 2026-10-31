@@ -8,7 +8,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: fmt-check clippy test deny license-deps
+check: fmt-check clippy test deny license-deps guards
 
 fmt-check:
     cargo fmt --all --check
@@ -31,3 +31,8 @@ deny:
 license-deps:
     python3 scripts/check_license_deps.py
     python3 -m unittest -q scripts/test_check_license_deps.py
+
+# Static guards (SPDX, Git spawns, shells, |safe, external URLs) and their tests.
+guards:
+    scripts/guards.sh
+    scripts/guards_test.sh
