@@ -9,6 +9,7 @@ edition = "2024"
 rust-version = "1.97"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/slath-org/slath"
+homepage = "https://slath.org"
 publish = false
 
 [workspace.dependencies]
