@@ -22,3 +22,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   with reserved names, the redacting `Secret<T>` wrapper, authorization
   types (`Subject`, `Action`, `Role`, `ResourceCtx`), and a deny-all
   `authz::check` stub with a table-driven matrix test.
+- `slath-git`: the hardened Git runner (scrubbed environment, fixed config,
+  process-group kill on timeout/output cap/drop, concurrency semaphore,
+  Git ≥ 2.43 check), validators for user revisions, ref names, and paths, an
+  object reader over `git cat-file --batch-command`, and a raw commit parser
+  that round-trips commits byte for byte and exposes jj `change-id`.
