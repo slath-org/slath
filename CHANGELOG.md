@@ -24,7 +24,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   `authz::check` stub with a table-driven matrix test.
 - `slath-git`: the hardened Git runner (scrubbed environment, fixed config,
   process-group kill on timeout/output cap/drop, concurrency semaphore,
-  minimum Git version check), validators for user revisions, ref names, and paths, an
+  a minimum Git version check that, before 1.0, requires the newest stable
+  Git release), validators for user revisions, ref names, and paths, an
   object reader over `git cat-file --batch-command`, and a raw commit parser
   that round-trips commits byte for byte and exposes jj `change-id`.
 - CI workflow running `just check`, an MSRV build, and `scripts/guards.sh`,
@@ -44,7 +45,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   `scripts/install-git.sh` and `scripts/install-jj.sh`, which install
   SHA-256-pinned versions from the `tests/compat/versions.toml` matrix.
 - Conformance harness: a nextest `ci` profile with JUnit output and
-  `just conformance-report [--gate M<n>]`, which maps `conf_<area>_<nn>_*`
+  `just conformance-report CASES [--gate <milestone>]`, which maps `conf_<area>_<nn>_*`
   tests to conformance cases and writes `target/conformance/report.{json,md}`.
 - `slath serve` (transport spike) serves Git smart HTTP for repositories
   listed in the config, with protocol v0/v2, gzip request bodies, and a
@@ -64,8 +65,3 @@ Before 1.0.0, minor versions may contain breaking changes.
   change IDs and conflicts in Git commits. `just tools` installs the pinned
   jj versions.
 - README with the project's purpose, status, and development quick start.
-
-### Changed
-
-- Before 1.0, Slath requires the newest stable Git release (currently 2.56.0)
-  instead of 2.43, and the compatibility matrix pins only that release.
