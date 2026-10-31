@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: fmt-check clippy test sqlx-check deny license-deps guards
+check: fmt-check clippy test sqlx-check deny license-deps py-test guards
 
 fmt-check:
     cargo fmt --all --check
@@ -46,7 +46,16 @@ deny:
 # Apache-2.0 crates must not depend on AGPL crates.
 license-deps:
     python3 scripts/check_license_deps.py
-    python3 -m unittest -q scripts/test_check_license_deps.py
+
+# Unit tests of the Python helper scripts.
+py-test:
+    python3 -m unittest -q scripts/test_*.py
+
+# Run all tests with JUnit output and map them to the cases in CASES (a
+# Markdown file with case tables). Pass `--gate M<n>` to fail unless that gate is met.
+conformance-report CASES *ARGS:
+    cargo nextest run --workspace --locked --profile ci --no-tests=pass || true
+    python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml {{ARGS}}
 
 # Static guards (SPDX, Git spawns, shells, |safe, external URLs) and their tests.
 guards:

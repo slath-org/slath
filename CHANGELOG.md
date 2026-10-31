@@ -43,3 +43,6 @@ Before 1.0.0, minor versions may contain breaking changes.
   refs and OIDs are identical on every run and across Git versions, plus
   `scripts/install-git.sh` and `scripts/install-jj.sh`, which install
   SHA-256-pinned versions from the `tests/compat/versions.toml` matrix.
+- Conformance harness: a nextest `ci` profile with JUnit output and
+  `just conformance-report [--gate M<n>]`, which maps `conf_<area>_<nn>_*`
+  tests to conformance cases and writes `target/conformance/report.{json,md}`.
