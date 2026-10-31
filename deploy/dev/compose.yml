@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Development services. Start with `just dev-db`; not for production.
+name: slath-dev
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18
+    environment:
+      POSTGRES_USER: slath
+      POSTGRES_PASSWORD: slath
+      POSTGRES_DB: slath
+    ports:
+      - "127.0.0.1:${SLATH_DEV_DB_PORT:-54329}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "slath", "-d", "slath"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    # sqlx::test creates one database per test; allow plenty of connections.
+    command: ["postgres", "-c", "max_connections=300", "-c", "fsync=off"]
+
+volumes:
+  pgdata:

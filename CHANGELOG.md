@@ -31,3 +31,5 @@ Before 1.0.0, minor versions may contain breaking changes.
   which enforces SPDX headers, Git spawns only from the runner, no shells in
   server code, no Askama `|safe`, and no third-party URLs in resource
   positions. `scripts/guards_test.sh` checks that each guard fires.
+- Developer environment: `deploy/dev/compose.yml` (PostgreSQL 18),
+  `just setup`, `just dev-db`, `.env.example`, and `docs/dev/setup.md`.
