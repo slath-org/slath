@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Subcommand;
-use slath_git::hookipc::{self, HOOK_TIMEOUT, Quarantine, RefUpdate, Request};
+use slath_git::ipc::{self, HOOK_TIMEOUT, Quarantine, RefUpdate, Request};
 
 #[derive(Debug, Clone, Copy, Subcommand)]
 pub enum HookKind {
@@ -66,7 +66,7 @@ pub fn run(kind: HookKind) -> ExitCode {
             },
             HookKind::PostReceive => Request::PostReceive { token, updates },
         };
-        hookipc::call(&socket, &request, HOOK_TIMEOUT).map_err(|e| e.to_string())
+        ipc::call(&socket, &request, HOOK_TIMEOUT).map_err(|e| e.to_string())
     })();
     match (kind, result) {
         (_, Ok(resp)) => {

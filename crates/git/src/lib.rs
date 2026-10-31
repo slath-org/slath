@@ -11,7 +11,7 @@
 pub mod args;
 pub mod commit;
 pub mod error;
-pub mod hookipc;
+pub mod ipc;
 pub mod object;
 pub mod runner;
 pub mod ssh;

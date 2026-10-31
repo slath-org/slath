@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Base config of the test sshd; the shipped deploy/sshd/slath.conf is mounted
+# into sshd_config.d at run time, so the tests exercise the real drop-in.
+Port 22
+HostKey /etc/ssh/ssh_host_ed25519_key
+UsePAM no
+PermitRootLogin no
+AllowUsers git
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+LogLevel VERBOSE
+Include /etc/ssh/sshd_config.d/*.conf

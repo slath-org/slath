@@ -52,6 +52,12 @@ Before 1.0.0, minor versions may contain breaking changes.
   (`slath hook`), which reach the server over a 0600 Unix socket, deny
   `refs/slath/**` and `refs/merge-requests/**`, and fail closed when the
   server can't be reached.
+- Git over SSH through OpenSSH: `slath ssh-keys` (the `AuthorizedKeysCommand`)
+  and `slath ssh-serve` (the forced command) ask `slath serve` over the IPC
+  socket and allow only `git-upload-pack`/`git-receive-pack` on repositories
+  the key may use. Shells, other commands, `git-upload-archive`, path tricks,
+  TTYs, and forwarding are refused. `deploy/sshd/slath.conf` is the sshd
+  drop-in, and the SSH tests run against a containerized sshd that uses it.
 
 ### Changed
 

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Messages between `slath hook` (spawned by Git) and `slath serve` over the
-//! IPC Unix socket.
+//! Messages between the helper commands (`slath hook`, `slath ssh-keys`,
+//! `slath ssh-serve`) and `slath serve` over the IPC Unix socket. Helpers
+//! never hold database credentials; everything they need comes from here.
 //!
 //! Framing: the client writes one JSON request line, the server answers with
 //! one JSON response line. Ref names are bytes and travel base64-encoded.
@@ -64,14 +65,72 @@ pub enum Request {
         token: String,
         updates: Vec<RefUpdate>,
     },
+    /// `AuthorizedKeysCommand`: find the key with this SHA-256 fingerprint.
+    LookupKey { fingerprint: String },
+    /// SSH forced command: may this key run `service` on the repository?
+    AuthorizeTransport {
+        key_id: String,
+        service: String,
+        namespace: String,
+        repo: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Response {
-    /// For pre-receive: whether the whole push may proceed.
+    /// Whether the request is granted (for pre-receive: the whole push).
     pub allow: bool,
-    /// Lines to show the user (Git prefixes them with `remote:`).
+    /// Lines to show the user (for hooks, Git prefixes them with `remote:`).
     pub messages: Vec<String>,
+    /// Answer to [`Request::LookupKey`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<AuthorizedKey>,
+    /// Answer to [`Request::AuthorizeTransport`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<TransportGrant>,
+}
+
+impl Response {
+    #[must_use]
+    pub fn allow() -> Self {
+        Self {
+            allow: true,
+            messages: Vec::new(),
+            key: None,
+            transport: None,
+        }
+    }
+
+    #[must_use]
+    pub fn deny(message: impl Into<String>) -> Self {
+        Self {
+            allow: false,
+            messages: vec![message.into()],
+            key: None,
+            transport: None,
+        }
+    }
+}
+
+/// A public key known to the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedKey {
+    pub key_id: String,
+    /// E.g. `ssh-ed25519`.
+    pub key_type: String,
+    /// The base64 key blob as in `authorized_keys`.
+    pub key_base64: String,
+}
+
+/// Everything `ssh-serve` needs to run Git for an authorized SSH request.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransportGrant {
+    pub git_dir: String,
+    pub git_binary: String,
+    pub home_dir: String,
+    pub hooks_dir: Option<String>,
+    /// Present for `git-receive-pack`.
+    pub hook_token: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]

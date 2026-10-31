@@ -88,6 +88,38 @@ pub struct Spike {
     pub token: Secret<String>,
     #[serde(default)]
     pub repos: Vec<SpikeRepo>,
+    #[serde(default)]
+    pub ssh_keys: Vec<SpikeSshKey>,
+}
+
+/// An SSH key and the spike repositories (`namespace/name`) it may use.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpikeSshKey {
+    pub id: String,
+    /// One `authorized_keys`-style line: `<type> <base64> [comment]`.
+    pub public_key: String,
+    #[serde(default)]
+    pub repos: Vec<String>,
+}
+
+impl SpikeSshKey {
+    /// Splits the key into type and base64 blob and computes the OpenSSH
+    /// fingerprint (`SHA256:` + unpadded base64 of the blob's SHA-256).
+    pub fn parse(&self) -> Result<(String, String, String), String> {
+        use base64::Engine;
+        use sha2::Digest;
+        let mut parts = self.public_key.split_whitespace();
+        let (Some(kind), Some(b64)) = (parts.next(), parts.next()) else {
+            return Err(format!("ssh key {}: expected '<type> <base64>'", self.id));
+        };
+        let blob = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .map_err(|e| format!("ssh key {}: {e}", self.id))?;
+        let digest = sha2::Sha256::digest(&blob);
+        let fp = base64::engine::general_purpose::STANDARD_NO_PAD.encode(digest);
+        Ok((kind.to_owned(), b64.to_owned(), format!("SHA256:{fp}")))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -165,5 +197,18 @@ mod tests {
         assert!(toml::from_str::<Config>(&reserved).is_err());
         let short = MINIMAL.replace("0123456789abcdef", "short");
         assert!(toml::from_str::<Config>(&short).is_err());
+    }
+
+    #[test]
+    fn ssh_key_fingerprints_match_openssh() {
+        // `ssh-keygen -lf` of this key prints the fingerprint below.
+        let key = SpikeSshKey {
+            id: "k".into(),
+            public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl test".into(),
+            repos: vec![],
+        };
+        let (kind, _, fp) = key.parse().unwrap();
+        assert_eq!(kind, "ssh-ed25519");
+        assert_eq!(fp, "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU");
     }
 }

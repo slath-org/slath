@@ -62,6 +62,13 @@ impl TestServer {
 
     #[must_use]
     pub fn start_with(repos: &[TestRepo]) -> Self {
+        Self::start_full(repos, "")
+    }
+
+    /// Starts a server hosting `repos`, with `extra` appended to the config
+    /// (e.g. `[[spike.ssh_keys]]` tables).
+    #[must_use]
+    pub fn start_full(repos: &[TestRepo], extra: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let mut cfg = format!(
             "[server]\nlisten = \"127.0.0.1:0\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
@@ -77,6 +84,7 @@ impl TestServer {
                 r.id, r.namespace, r.name
             );
         }
+        cfg += extra;
         let cfg_path = dir.path().join("slath.toml");
         std::fs::write(&cfg_path, cfg).unwrap();
         let log = std::fs::File::create(dir.path().join("server.log")).unwrap();

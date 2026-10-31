@@ -8,7 +8,6 @@
 //! response stream is dropped, which kills the Git process group.
 
 use std::io;
-use std::time::Duration;
 
 use async_compression::tokio::bufread::GzipDecoder;
 use axum::Router;
@@ -26,9 +25,6 @@ use tokio::io::{AsyncRead, AsyncWriteExt, BufReader};
 use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::{AppState, RepoEntry};
-
-/// How long a hook token stays valid (`limits.git_transport_idle_timeout`).
-const HOOK_TOKEN_TTL: Duration = Duration::from_secs(600);
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -205,7 +201,10 @@ async fn rpc(
     }
 
     let token = match service {
-        Service::ReceivePack => match state.hooks.mint(entry.git_dir.clone(), HOOK_TOKEN_TTL) {
+        Service::ReceivePack => match state
+            .hooks
+            .mint(entry.git_dir.clone(), crate::ipc::HOOK_TOKEN_TTL)
+        {
             Ok(t) => Some(t),
             Err(e) => return internal(&e),
         },

@@ -6,6 +6,7 @@
 mod config;
 mod hook;
 mod serve;
+mod ssh;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -32,6 +33,22 @@ enum Command {
         #[command(subcommand)]
         hook: hook::HookKind,
     },
+    /// sshd `AuthorizedKeysCommand`: print the authorized_keys line for a key.
+    SshKeys {
+        /// IPC socket of `slath serve`.
+        #[arg(long, default_value = ssh::DEFAULT_SOCKET)]
+        socket: PathBuf,
+        /// SHA-256 key fingerprint (sshd's `%f`).
+        fingerprint: String,
+    },
+    /// sshd forced command: serve one Git transport request.
+    SshServe {
+        /// IPC socket of `slath serve`.
+        #[arg(long, default_value = ssh::DEFAULT_SOCKET)]
+        socket: PathBuf,
+        #[arg(long)]
+        key_id: String,
+    },
 }
 
 fn main() -> ExitCode {
@@ -48,5 +65,10 @@ fn main() -> ExitCode {
     match cli.command {
         Command::Serve { config } => serve::run(&config),
         Command::Hook { hook } => hook::run(hook),
+        Command::SshKeys {
+            socket,
+            fingerprint,
+        } => ssh::keys(&socket, &fingerprint),
+        Command::SshServe { socket, key_id } => ssh::serve(&socket, &key_id),
     }
 }

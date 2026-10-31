@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `slath serve`.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -84,7 +85,7 @@ async fn serve(cfg: Config) -> Result<(), String> {
         cfg.git.binary.clone(),
         cfg.storage.data_dir.join("git-home"),
     );
-    rc.hooks_dir = Some(hooks_dir);
+    rc.hooks_dir = Some(hooks_dir.clone());
     let runner = Runner::new(rc).map_err(|e| e.to_string())?;
     let version = runner.check_version().await.map_err(|e| e.to_string())?;
     tracing::info!(%version, "git version ok");
@@ -105,11 +106,52 @@ async fn serve(cfg: Config) -> Result<(), String> {
         });
     }
 
+    let mut keys = HashMap::new();
+    for k in &cfg.spike.ssh_keys {
+        let (key_type, key_base64, fingerprint) = k.parse()?;
+        let repos = k
+            .repos
+            .iter()
+            .map(|r| {
+                r.split_once('/')
+                    .map(|(ns, name)| (ns.to_lowercase(), name.to_lowercase()))
+                    .ok_or_else(|| format!("ssh key {}: repo {r:?} must be namespace/name", k.id))
+            })
+            .collect::<Result<HashSet<_>, _>>()?;
+        let key = ipc::SshKey {
+            id: k.id.clone(),
+            key_type,
+            key_base64,
+            repos,
+        };
+        if keys.insert(fingerprint, key).is_some() {
+            return Err(format!("ssh key {} is listed twice", k.id));
+        }
+    }
+    let ctx = Arc::new(ipc::IpcContext {
+        hooks: Arc::new(ipc::HookRegistry::default()),
+        keys,
+        repos: repos
+            .iter()
+            .map(|r| {
+                (
+                    (r.namespace.to_lowercase(), r.name.to_lowercase()),
+                    r.git_dir.clone(),
+                )
+            })
+            .collect(),
+        git: ipc::GitPaths {
+            binary: cfg.git.binary.clone(),
+            home_dir: cfg.storage.data_dir.join("git-home"),
+            hooks_dir: Some(hooks_dir),
+        },
+    });
+
     let socket = cfg.storage.run_dir.join("slath.sock");
     let listener =
         ipc::bind(&socket).map_err(|e| format!("cannot bind {}: {e}", socket.display()))?;
-    let hooks = Arc::new(ipc::HookRegistry::default());
-    tokio::spawn(ipc::serve(listener, Arc::clone(&hooks)));
+    let hooks = Arc::clone(&ctx.hooks);
+    tokio::spawn(ipc::serve(listener, ctx));
 
     let state = AppState::new(runner, repos, cfg.spike.token, hooks, socket);
     let tcp = tokio::net::TcpListener::bind(cfg.server.listen)
