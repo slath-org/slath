@@ -58,6 +58,11 @@ Before 1.0.0, minor versions may contain breaking changes.
   the key may use. Shells, other commands, `git-upload-archive`, path tricks,
   TTYs, and forwarding are refused. `deploy/sshd/slath.conf` is the sshd
   drop-in, and the SSH tests run against a containerized sshd that uses it.
+- Jujutsu compatibility tests: `jj git clone` and `jj git push` over HTTPS and
+  SSH for every pinned jj version, with a second jj and a plain Git clone
+  seeing the same commits and change IDs. They also record how jj stores
+  change IDs and conflicts in Git commits. `just tools` installs the pinned
+  jj versions.
 
 ### Changed
 

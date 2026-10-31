@@ -6,3 +6,4 @@
 
 mod git_http;
 mod git_ssh;
+mod jj;

@@ -69,6 +69,10 @@ setup:
     [ -f .env ] || cp .env.example .env
     @echo "Tools installed. Make sure ~/.cargo/bin is on PATH."
 
+# Install the pinned jj versions the compatibility tests run against.
+tools:
+    for v in $(python3 -c 'import tomllib; print(" ".join(e["version"] for e in tomllib.load(open("tests/compat/versions.toml", "rb"))["jj"]))'); do scripts/install-jj.sh "$v"; done
+
 # Start the development PostgreSQL and wait until it accepts connections.
 dev-db:
     {{engine}} compose -f deploy/dev/compose.yml up -d --wait postgres

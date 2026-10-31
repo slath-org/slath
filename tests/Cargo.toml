@@ -24,6 +24,7 @@ path = "compat/main.rs"
 
 [dependencies]
 flate2.workspace = true
+slath-git.workspace = true
 tempfile.workspace = true
 
 [lints]

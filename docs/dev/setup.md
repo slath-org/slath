@@ -21,10 +21,15 @@ This gets a clean Linux machine from zero to a green `just check`.
 cargo install --locked just     # once, if you don't have just yet
 just setup                      # installs cargo-nextest, cargo-deny, sqlx-cli; creates .env
 just dev-db                     # starts PostgreSQL 18 on 127.0.0.1:54329
+just tools                      # installs the pinned jj versions for the compat tests
 just check                      # fmt, clippy, tests, cargo deny, guards
 ```
 
 `cargo install` puts binaries in `~/.cargo/bin`, which must be on `PATH`.
+
+The compatibility tests also need Docker (or Podman, via
+`SLATH_CONTAINER_ENGINE=podman`) for the SSH server fixture. Set
+`SLATH_SKIP_SSH_TESTS=1` or `SLATH_SKIP_JJ_TESTS=1` to skip those suites.
 
 ## Configuration
 
