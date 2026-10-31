@@ -1,0 +1,24 @@
+[package]
+name = "slath-tests"
+description = "Cross-crate integration, compatibility, and security tests"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+path = "common/lib.rs"
+
+[[test]]
+name = "fixtures"
+path = "fixtures_determinism.rs"
+
+[dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

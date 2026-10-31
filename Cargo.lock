@@ -1180,6 +1180,13 @@ name = "slath-service"
 version = "0.0.0"
 
 [[package]]
+name = "slath-tests"
+version = "0.0.0"
+dependencies = [
+ "tempfile",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

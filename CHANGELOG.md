@@ -38,3 +38,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   `audit_events`, `instance_settings`), and the durable job queue with dedupe
   keys, `SKIP LOCKED` leases, heartbeats, exponential backoff, a `dead` state,
   `LISTEN/NOTIFY` wake-ups, and a worker pool.
+- Deterministic fixture generators (`tests/fixtures/make_*.sh`: basic, unicode,
+  binary/symlink/exec, merges, tags, signed, submodule, deep history) whose
+  refs and OIDs are identical on every run and across Git versions, plus
+  `scripts/install-git.sh` and `scripts/install-jj.sh`, which install
+  SHA-256-pinned versions from the `tests/compat/versions.toml` matrix.

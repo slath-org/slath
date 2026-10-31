@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Client/server version matrix for the compatibility suite.
+# Install with scripts/install-git.sh <version> / scripts/install-jj.sh <version>;
+# both verify the SHA-256 recorded here before using a download.
+
+# Git: minimum supported (2.43) and latest stable. Source tarballs from kernel.org.
+[[git]]
+version = "2.43.0"
+sha256 = "5446603e73d911781d259e565750dcd277a42836c8e392cac91cf137aa9b76ec"
+
+[[git]]
+version = "2.56.0"
+sha256 = "26c56c296b38c0695b26fa95f475f1d01704d2d38e73465ca30b0b2f5dc789d3"
+
+# Jujutsu: current stable plus the previous two releases (all >= 0.30).
+# Static musl release binaries from GitHub.
+[[jj]]
+version = "0.46.0"
+sha256.x86_64 = "fce0271158e665ceb82dc66c5eb95b1728649094e9133074f3b5baece345fc08"
+sha256.aarch64 = "80e28f7501c11e50e0ca06cd6a1fa1d982cff9cc59bfe4411a9d36aa501d867e"
+
+[[jj]]
+version = "0.45.1"
+sha256.x86_64 = "f35438350b5d61963aac5dd74ede510b31d6b9690769d1a6268cf058cc825f72"
+sha256.aarch64 = "7349a43dd5a20dbc998b10114daa0ee63d2ab863fb822c7eb6b0ebca5903cc69"
+
+[[jj]]
+version = "0.44.0"
+sha256.x86_64 = "0a07bab4641a55fd2bc2fd1563ba3a3f9a577584086ad74086a1c5b69b3ffce9"
+sha256.aarch64 = "60d42fa2a9abaa445eff10cd2087458562aaad5a54b90309e5a3787ecc985ff2"
