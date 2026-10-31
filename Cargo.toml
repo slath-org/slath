@@ -1,0 +1,30 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.0.0"
+authors = ["Erich Seifert"]
+edition = "2024"
+rust-version = "1.97"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/slath-org/slath"
+publish = false
+
+[workspace.dependencies]
+slath-core = { path = "crates/core" }
+slath-db = { path = "crates/db" }
+slath-git = { path = "crates/git" }
+slath-markup = { path = "crates/markup" }
+slath-auth = { path = "crates/auth" }
+slath-service = { path = "crates/service" }
+slath-http = { path = "crates/http" }
+slath-ci = { path = "crates/ci" }
+
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
