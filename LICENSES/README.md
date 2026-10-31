@@ -1,6 +1,6 @@
 # Licenses
 
-Copyright © 2026 Erich Seifert
+Copyright © 2026 Erich Seifert <dev@erichseifert.de>
 
 | License | Applies to |
 |---|---|

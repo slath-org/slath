@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Erich Seifert
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Integration tests for the hardened runner and the object reader.
 //! They need a system Git at `/usr/bin/git` (or `$SLATH_TEST_GIT`).

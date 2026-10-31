@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: 2026 Erich Seifert
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Fail if an Apache-2.0 workspace crate depends on an AGPL workspace crate.
 

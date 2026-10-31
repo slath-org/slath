@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Erich Seifert
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! A wrapper that keeps secrets out of logs.
 

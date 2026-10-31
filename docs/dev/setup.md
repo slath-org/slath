@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 Erich Seifert -->
+<!-- SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> -->
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 # Developer setup
 

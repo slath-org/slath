@@ -4,7 +4,7 @@ members = ["crates/*", "apps/*"]
 
 [workspace.package]
 version = "0.0.0"
-authors = ["Erich Seifert"]
+authors = ["Erich Seifert <dev@erichseifert.de>"]
 edition = "2024"
 rust-version = "1.97"
 license = "AGPL-3.0-or-later"

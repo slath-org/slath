@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2026 Erich Seifert
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Tests for guards.sh: a clean tree passes, and each deliberate violation fails
