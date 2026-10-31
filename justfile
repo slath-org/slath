@@ -8,7 +8,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: fmt-check clippy test
+check: fmt-check clippy test deny license-deps
 
 fmt-check:
     cargo fmt --all --check
@@ -22,3 +22,12 @@ clippy:
 # Run tests; pass extra nextest args, e.g. `just test -E 'test(name)'`.
 test *ARGS:
     cargo nextest run --workspace --locked --no-tests=pass {{ARGS}}
+
+# Dependency policy: licenses, advisories, bans, sources.
+deny:
+    cargo deny check
+
+# Apache-2.0 crates must not depend on AGPL crates.
+license-deps:
+    python3 scripts/check_license_deps.py
+    python3 -m unittest -q scripts/test_check_license_deps.py

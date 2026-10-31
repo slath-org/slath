@@ -14,3 +14,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   `service`, `http`, and `ci` crates and the `slath` binary, workspace lints
   (`unsafe_code` forbidden, `unwrap`/`expect` denied outside tests), and a
   `justfile` whose `just check` runs formatting, Clippy, and tests.
+- License policy: license texts under `LICENSES/`, a `cargo deny`
+  configuration (license allowlist, advisories, bans, sources), and
+  `scripts/check_license_deps.py`, which fails when an Apache-2.0 workspace
+  crate depends on an AGPL crate.
