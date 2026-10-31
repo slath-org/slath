@@ -17,7 +17,12 @@ path = "common/lib.rs"
 name = "fixtures"
 path = "fixtures_determinism.rs"
 
+[[test]]
+name = "compat"
+path = "compat/main.rs"
+
 [dependencies]
+flate2.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -46,6 +46,12 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Conformance harness: a nextest `ci` profile with JUnit output and
   `just conformance-report [--gate M<n>]`, which maps `conf_<area>_<nn>_*`
   tests to conformance cases and writes `target/conformance/report.{json,md}`.
+- `slath serve` (transport spike) serves Git smart HTTP for repositories
+  listed in the config, with protocol v0/v2, gzip request bodies, and a
+  static token. Pushes go through managed `pre-receive`/`post-receive` hooks
+  (`slath hook`), which reach the server over a 0600 Unix socket, deny
+  `refs/slath/**` and `refs/merge-requests/**`, and fail closed when the
+  server can't be reached.
 
 ### Changed
 
