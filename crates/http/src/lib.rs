@@ -95,11 +95,19 @@ pub fn router(state: AppState) -> axum::Router {
     let body_limit = state.config.limits.http_max_body_bytes.as_usize();
     let pages = ui::router()
         .fallback(ui::fallback)
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::maintenance_guard,
+        ))
         .layer(from_fn_with_state(state.clone(), auth::csrf))
         .layer(from_fn_with_state(state.clone(), auth::resolve))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
     let api = api::router()
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::maintenance_guard,
+        ))
         .layer(from_fn_with_state(state.clone(), api::support::api_context))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));

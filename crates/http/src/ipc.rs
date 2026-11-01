@@ -285,6 +285,13 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
                     .inc("slath_hook_denials_total", "reason=\"invalid_token\"");
                 return Response::deny("slath: push rejected: invalid or expired hook token");
             };
+            if let Some(reason) = ctx.services.maintenance().reason() {
+                ctx.metrics
+                    .inc("slath_hook_denials_total", "reason=\"maintenance\"");
+                return Response::deny(format!(
+                    "slath: push rejected: maintenance in progress ({reason}); try again in a few minutes"
+                ));
+            }
             let v = ctx
                 .services
                 .pre_receive(&grant, &updates, &quarantine)
@@ -298,8 +305,7 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
             Response {
                 allow: v.denied.is_empty(),
                 messages: v.messages,
-                key: None,
-                exit_code: None,
+                ..Response::allow()
             }
         }
         Request::PostReceive { token, updates } => {
@@ -333,6 +339,14 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
                 }
             }
         }
+        Request::Status => Response {
+            status: Some(Box::new(slath_git::ipc::ServerStatus {
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+                schema: slath_db::REQUIRED_SCHEMA,
+                maintenance: ctx.services.maintenance().is_on(),
+            })),
+            ..Response::allow()
+        },
         // Handled by `handle_conn`, which owns the connection.
         Request::SshSession { .. } => Response::deny("slath: malformed request"),
     }

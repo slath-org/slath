@@ -8,3 +8,5 @@ mod backup;
 mod compose;
 mod fixture;
 mod maintenance;
+mod upgrade;
+mod upgrade_matrix;

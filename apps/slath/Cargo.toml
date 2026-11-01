@@ -14,7 +14,8 @@ publish.workspace = true
 axum.workspace = true
 clap.workspace = true
 figment.workspace = true
-nix.workspace = true
+nix = { workspace = true, features = ["fs"] }
+rust-embed.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -24,9 +25,12 @@ slath-db.workspace = true
 slath-git.workspace = true
 slath-http.workspace = true
 slath-service.workspace = true
+sqlx.workspace = true
 time.workspace = true
+uuid.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 toml.workspace = true
+toml_edit.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 

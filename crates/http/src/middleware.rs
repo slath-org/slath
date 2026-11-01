@@ -122,11 +122,14 @@ pub async fn security_headers(
         }
     };
     set(h, header::X_CONTENT_TYPE_OPTIONS, "nosniff");
-    set(
-        h,
-        header::REFERRER_POLICY,
-        "strict-origin-when-cross-origin",
-    );
+    // Pages with tokens in their URL set the stricter `no-referrer`.
+    if h.get(header::REFERRER_POLICY).map(HeaderValue::as_bytes) != Some(b"no-referrer") {
+        set(
+            h,
+            header::REFERRER_POLICY,
+            "strict-origin-when-cross-origin",
+        );
+    }
     if state.config.server.public_url.is_https() {
         set(h, header::STRICT_TRANSPORT_SECURITY, "max-age=31536000");
     }
@@ -288,6 +291,31 @@ fn moved_location(path: &str, query: Option<&str>, new: &str) -> Option<String> 
         loc.push_str(q);
     }
     Some(loc)
+}
+
+/// Read-only maintenance (an upgrade is running): requests that change
+/// something get 503 with the reason; reads keep working.
+pub async fn maintenance_guard(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    use axum::http::Method;
+    let maint = state.services.maintenance();
+    if maint.is_on() && !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        let mut e = AppError::with_code(
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "maintenance",
+            "Maintenance in progress",
+        )
+        .detail(format!(
+            "Slath is read-only while maintenance runs ({}). Try again in a few minutes.",
+            maint.reason().unwrap_or_default()
+        ));
+        e.0.retry_after = Some(60);
+        return axum::response::IntoResponse::into_response(e);
+    }
+    next.run(req).await
 }
 
 #[cfg(test)]

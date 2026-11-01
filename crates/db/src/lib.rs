@@ -6,12 +6,18 @@
 
 pub mod audit;
 pub mod backup;
+pub mod bgmigrations;
+pub mod email_tokens;
 pub mod idempotency;
+pub mod invitations;
 pub mod jobs;
+pub mod mfa;
 pub mod orgs;
 pub mod refs;
 pub mod repos;
+pub mod secrets;
 pub mod sessions;
+pub mod settings;
 pub mod ssh_keys;
 pub mod tokens;
 pub mod users;
@@ -26,7 +32,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 9;
+pub const REQUIRED_SCHEMA: i32 = 15;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
@@ -47,11 +53,16 @@ pub enum DbError {
          run `slath migrate` (or `slath upgrade`) first"
     )]
     SchemaBehind { found: i32, required: i32 },
-    #[error(
-        "database schema is version {found}, newer than this binary ({required}); \
-         install a newer Slath or restore the pre-upgrade backup"
-    )]
-    SchemaAhead { found: i32, required: i32 },
+    #[error("database schema is version {found}, newer than this binary ({required}). {guidance}")]
+    SchemaAhead {
+        found: i32,
+        required: i32,
+        /// How to get back: names the upgrade and its backup when known.
+        guidance: String,
+    },
+    /// A background migration's own code failed.
+    #[error("background migration {0}: {1}")]
+    BackgroundMigration(&'static str, String),
     /// A backup can't be taken or restored.
     #[error("{0}")]
     Backup(String),
@@ -150,6 +161,30 @@ pub async fn schema_version(pool: &PgPool) -> Result<Option<i32>, DbError> {
     Ok(v)
 }
 
+/// What to tell someone running an older binary on a newer schema.
+async fn downgrade_guidance(pool: &PgPool, schema: i32) -> String {
+    const GENERIC: &str =
+        "Install the newer Slath, or restore the pre-upgrade backup with the version that made it.";
+    let row: Option<(Option<String>, String, Option<String>)> = sqlx::query_as(
+        "SELECT from_version, to_version, backup_path FROM upgrade_history
+         WHERE to_schema = $1 AND outcome = 'success' ORDER BY started_at DESC LIMIT 1",
+    )
+    .bind(schema)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None);
+    match row {
+        Some((from, to, Some(path))) => format!(
+            "This database was upgraded to schema {schema} by v{to}. Restore the pre-upgrade backup at {path} to return to v{}.",
+            from.as_deref().unwrap_or("the previous version")
+        ),
+        Some((_, to, None)) => format!(
+            "This database was upgraded to schema {schema} by v{to} without a backup. Install v{to} or newer."
+        ),
+        None => GENERIC.to_owned(),
+    }
+}
+
 /// Fails unless the database schema is exactly [`REQUIRED_SCHEMA`].
 pub async fn check_schema(pool: &PgPool) -> Result<(), DbError> {
     let found = schema_version(pool).await?.unwrap_or(0);
@@ -162,6 +197,7 @@ pub async fn check_schema(pool: &PgPool) -> Result<(), DbError> {
         std::cmp::Ordering::Greater => Err(DbError::SchemaAhead {
             found,
             required: REQUIRED_SCHEMA,
+            guidance: downgrade_guidance(pool, found).await,
         }),
     }
 }

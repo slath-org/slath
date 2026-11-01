@@ -18,21 +18,29 @@ use crate::output::{OutputFormat, fail, print_json, runtime};
 
 /// Opens the database and builds the services for one command.
 pub async fn services(path: &Path) -> Result<Services, String> {
+    let svc = services_unchecked(path).await?;
+    slath_db::check_schema(&svc.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(svc)
+}
+
+/// Like [`services`] without the schema check (for `upgrade`, which
+/// migrates with them).
+pub async fn services_unchecked(path: &Path) -> Result<Services, String> {
     let cfg = config::load(path)?;
     let url = config::database_url(&cfg)?;
     let mut pc = slath_db::PoolConfig::new(url);
     pc.max_connections = 2;
+    // A one-shot command can wait for a busy database.
+    pc.acquire_timeout = std::time::Duration::from_secs(30);
     let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
-    slath_db::check_schema(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    // Commands don't issue CSRF tokens; any key will do.
-    let key = slath_auth::MasterKey::generate().map_err(|e| e.to_string())?;
+    let (key, old) = config::load_keys(&cfg)?;
     let home = cfg.storage.data_dir.join("git-home");
     std::fs::create_dir_all(&home).map_err(|e| format!("cannot create {}: {e}", home.display()))?;
     let runner = slath_git::Runner::new(slath_git::RunnerConfig::new(cfg.git.binary.clone(), home))
         .map_err(|e| e.to_string())?;
-    Ok(Services::new(pool, Arc::new(cfg.cfg), &key, runner))
+    Ok(Services::new(pool, Arc::new(cfg.cfg), &key, runner).with_old_keys(&key, &old))
 }
 
 /// A readable description of a service error for the terminal.
@@ -195,5 +203,207 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+/// `slath admin rotate-key`: re-encrypts every secret with the current key
+/// and retires keys nothing uses any more.
+pub fn rotate_key(path: &Path, batch: i64, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        svc.rotate_keys(batch).await.map_err(|e| describe(&e))
+    });
+    match result {
+        Ok(report) => {
+            let ok = report.failed.is_empty();
+            match format {
+                OutputFormat::Text => {
+                    println!(
+                        "re-encrypted {} value(s) with master key {}",
+                        report.reencrypted, report.current_key
+                    );
+                    for k in &report.retired {
+                        println!(
+                            "retired key {k}; its file can be removed from secrets.old_key_files"
+                        );
+                    }
+                    for f in &report.failed {
+                        eprintln!("slath: {} row {}: {}", f.table, f.row, f.error);
+                    }
+                    if !ok {
+                        eprintln!(
+                            "slath: {} value(s) were not re-encrypted; add the missing key files to \
+                             secrets.old_key_files and run this command again",
+                            report.failed.len()
+                        );
+                    }
+                }
+                OutputFormat::Json => print_json(&json!({"ok": ok, "rotation": report})),
+            }
+            if ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
+fn bg_json(s: &slath_db::bgmigrations::Status) -> serde_json::Value {
+    let now = time::OffsetDateTime::now_utc();
+    json!({
+        "name": s.name,
+        "introduced_in": s.introduced_in,
+        "state": s.state.as_str(),
+        "processed": s.processed,
+        "total_estimate": s.total_estimate,
+        "percent": s.percent(),
+        "eta_seconds": s.eta(now).map(|d| d.as_secs()),
+        "last_error": s.last_error,
+    })
+}
+
+/// `slath admin background-migrations …`.
+pub fn background_migrations(cmd: crate::BgCommand) -> ExitCode {
+    use crate::BgCommand as B;
+    use slath_db::bgmigrations::Control;
+    let (config, format) = match &cmd {
+        B::List { config, output }
+        | B::Run { config, output }
+        | B::Pause { config, output, .. }
+        | B::Resume { config, output, .. }
+        | B::Retry { config, output, .. } => (config.clone(), *output),
+    };
+    let path = config::resolve_path(config);
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result: Result<Vec<slath_db::bgmigrations::Status>, String> = rt.block_on(async {
+        let svc = services(&path).await?;
+        svc.register_background_migrations()
+            .await
+            .map_err(|e| describe(&e))?;
+        let control = match &cmd {
+            B::Pause { name, .. } => Some((name, Control::Pause)),
+            B::Resume { name, .. } => Some((name, Control::Resume)),
+            B::Retry { name, .. } => Some((name, Control::Retry)),
+            B::List { .. } | B::Run { .. } => None,
+        };
+        if let Some((name, c)) = control {
+            svc.control_background_migration(&Subject::System, name, c)
+                .await
+                .map_err(|e| match e {
+                    ServiceError::NotFound => format!("no background migration named {name}"),
+                    other => describe(&other),
+                })?;
+        }
+        if matches!(cmd, B::Run { .. }) {
+            svc.run_background_migrations(&|| false)
+                .await
+                .map_err(|e| describe(&e))?;
+        }
+        svc.background_migration_status(&Subject::System)
+            .await
+            .map_err(|e| describe(&e))
+    });
+    match result {
+        Ok(list) => {
+            match format {
+                OutputFormat::Text if list.is_empty() => println!("no background migrations"),
+                OutputFormat::Text => {
+                    let now = time::OffsetDateTime::now_utc();
+                    for s in &list {
+                        let progress = match (s.percent(), s.total_estimate) {
+                            (Some(p), Some(t)) => format!("{p}% ({}/{t})", s.processed),
+                            _ => format!("{} processed", s.processed),
+                        };
+                        let eta = s
+                            .eta(now)
+                            .map(|d| format!(", about {} s left", d.as_secs()))
+                            .unwrap_or_default();
+                        println!("{:<32} {:<8} {progress}{eta}", s.name, s.state.as_str());
+                        if let Some(e) = &s.last_error {
+                            println!("    error: {e}");
+                        }
+                    }
+                }
+                OutputFormat::Json => print_json(&json!({
+                    "ok": true,
+                    "background_migrations": list.iter().map(bg_json).collect::<Vec<_>>(),
+                })),
+            }
+            if list
+                .iter()
+                .any(|s| s.state == slath_db::bgmigrations::State::Failed)
+            {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
+/// `slath admin send-test-email --to ADDR`: sends synchronously and reports
+/// the SMTP server's answer.
+pub fn send_test_email(path: &Path, to: &str, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        if !svc.email_enabled() {
+            return Err("email is not configured (set [smtp] host)".to_owned());
+        }
+        let email = svc.test_email(to).map_err(|e| describe(&e))?;
+        let id = uuid::Uuid::now_v7().to_string();
+        svc.deliver(&email, &id).await.map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(()) => {
+            match format {
+                OutputFormat::Text => println!("test message sent to {to}"),
+                OutputFormat::Json => print_json(&json!({"ok": true, "to": to})),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
+/// `slath admin reset-mfa --username NAME`.
+pub fn reset_mfa(path: &Path, username: &str, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        svc.reset_mfa(&Subject::System, username)
+            .await
+            .map_err(|e| match e {
+                ServiceError::NotFound => format!("no user named {username}"),
+                other => describe(&other),
+            })
+    });
+    match result {
+        Ok(()) => {
+            match format {
+                OutputFormat::Text => println!(
+                    "removed the second factors of {username} and signed them out; they can sign in with their password"
+                ),
+                OutputFormat::Json => print_json(&json!({"ok": true, "username": username})),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
     }
 }

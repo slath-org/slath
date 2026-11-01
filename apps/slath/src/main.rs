@@ -11,6 +11,8 @@ mod hook;
 mod output;
 mod serve;
 mod ssh;
+mod upgrade;
+mod upgrade_notes;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -36,6 +38,30 @@ enum Command {
         /// Apply pending database migrations before starting.
         #[arg(long)]
         migrate: bool,
+    },
+    /// Upgrade the database and data directory to this version: preflight,
+    /// automatic backup, migrations, verification. `--check` only reports.
+    Upgrade {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Only run the preflight and show the plan; change nothing.
+        #[arg(long)]
+        check: bool,
+        /// Skip the automatic pre-upgrade backup (not recommended).
+        #[arg(long)]
+        no_backup: bool,
+        /// Where to write the backup (default: <data_dir>/backups).
+        #[arg(long)]
+        backup_dir: Option<PathBuf>,
+        /// Don't ask for confirmation.
+        #[arg(long)]
+        yes: bool,
+        /// Confirm that a required manual action from the upgrade notes is
+        /// done (repeat for several).
+        #[arg(long = "accept-action")]
+        accept_actions: Vec<String>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
     },
     /// Apply pending database migrations.
     Migrate {
@@ -137,6 +163,13 @@ enum BackupCommand {
 
 #[derive(Subcommand)]
 enum ConfigCommand {
+    /// Rewrite a configuration file's deprecated keys to their
+    /// replacements, keeping comments (the old file is kept as FILE.bak).
+    Migrate {
+        file: PathBuf,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Validate the configuration and the environment (Git, directories,
     /// database, master key).
     Check {
@@ -155,6 +188,43 @@ enum AdminCommand {
         /// Write the key to this file (mode 0600); fails if it exists.
         #[arg(long)]
         output: Option<PathBuf>,
+    },
+    /// Remove a user's second factors (lost device) and sign them out.
+    /// Audited; the user is notified by email.
+    ResetMfa {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        username: String,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Send the test message now (checks the [smtp] settings).
+    SendTestEmail {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Recipient.
+        #[arg(long)]
+        to: String,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Inspect and control background migrations.
+    BackgroundMigrations {
+        #[command(subcommand)]
+        command: BgCommand,
+    },
+    /// Re-encrypt secrets stored in the database with the current master
+    /// key. Put the previous key file into secrets.old_key_files first.
+    /// Safe to interrupt and run again.
+    RotateKey {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Rows per batch.
+        #[arg(long, default_value_t = 100)]
+        batch: i64,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
     },
     /// Create a user account (bootstrap and recovery). Without
     /// --password-stdin, a random password is generated and printed once.
@@ -178,6 +248,49 @@ enum AdminCommand {
     },
 }
 
+#[derive(Subcommand)]
+pub enum BgCommand {
+    /// Show every background migration with progress and ETA.
+    List {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Stop a migration after its current batch.
+    Pause {
+        name: String,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Continue a paused migration.
+    Resume {
+        name: String,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Run a failed migration again from where it stopped.
+    Retry {
+        name: String,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Run pending migrations to the end in the foreground (the server
+    /// does this by itself; this is for maintenance windows).
+    Run {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+}
+
 fn main() -> ExitCode {
     // Git runs the managed hooks through symlinks named after the hook, so
     // `pre-receive`/`post-receive` as argv[0] means "run that hook". This
@@ -191,6 +304,25 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Serve { config, migrate } => serve::run(&config::resolve_path(config), migrate),
+        Command::Upgrade {
+            config,
+            check,
+            no_backup,
+            backup_dir,
+            yes,
+            accept_actions,
+            output,
+        } => upgrade::run(
+            &config::resolve_path(config),
+            &upgrade::Opts {
+                check,
+                no_backup,
+                backup_dir,
+                yes,
+                accept_actions,
+                output,
+            },
+        ),
         Command::Migrate {
             config,
             dry_run,
@@ -199,10 +331,35 @@ fn main() -> ExitCode {
         Command::Config {
             command: ConfigCommand::Check { config, output },
         } => check::config_check(&config::resolve_path(config), output),
+        Command::Config {
+            command: ConfigCommand::Migrate { file, output },
+        } => check::config_migrate(&file, output),
         Command::Version { json, config } => check::version(json, config),
         Command::Admin {
             command: AdminCommand::GenKey { output },
         } => check::gen_key(output.as_deref()),
+        Command::Admin {
+            command:
+                AdminCommand::ResetMfa {
+                    config,
+                    username,
+                    output,
+                },
+        } => admin::reset_mfa(&config::resolve_path(config), &username, output),
+        Command::Admin {
+            command: AdminCommand::SendTestEmail { config, to, output },
+        } => admin::send_test_email(&config::resolve_path(config), &to, output),
+        Command::Admin {
+            command: AdminCommand::BackgroundMigrations { command },
+        } => admin::background_migrations(command),
+        Command::Admin {
+            command:
+                AdminCommand::RotateKey {
+                    config,
+                    batch,
+                    output,
+                },
+        } => admin::rotate_key(&config::resolve_path(config), batch, output),
         Command::Admin {
             command:
                 AdminCommand::CreateUser {

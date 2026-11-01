@@ -61,6 +61,7 @@ fn socket_group(cfg: &Config) -> Result<String, String> {
     };
     let mut private = vec![cfg.storage.data_dir.clone()];
     private.extend(cfg.secrets.master_key_file.iter().cloned());
+    private.extend(cfg.secrets.old_key_files.iter().cloned());
     private.extend(cfg.database.url_file.iter().cloned());
     let exposed: Vec<String> = private
         .iter()
@@ -162,6 +163,14 @@ pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
                 .map_err(|e| e.to_string()),
         );
     }
+    for old in &cfg.secrets.old_key_files {
+        push(
+            "old_key",
+            MasterKey::load(old)
+                .map(|k| format!("{} (key id {}, for rotation)", old.display(), k.id()))
+                .map_err(|e| e.to_string()),
+        );
+    }
     let all_ok = items.iter().all(|i| i.ok);
     match format {
         OutputFormat::Text => {
@@ -169,10 +178,14 @@ pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
                 let mark = if i.ok { "ok  " } else { "FAIL" };
                 println!("{mark} {:<11} {}", i.name, i.detail);
             }
+            for w in &cfg.warnings {
+                println!("warn config      {w}");
+            }
         }
         OutputFormat::Json => print_json(&json!({
             "ok": all_ok,
             "checks": items.iter().map(|i| json!({"name": i.name, "ok": i.ok, "detail": i.detail})).collect::<Vec<_>>(),
+            "warnings": cfg.warnings,
         })),
     }
     if all_ok {
@@ -212,6 +225,7 @@ pub fn migrate(path: &Path, dry_run: bool, format: OutputFormat) -> ExitCode {
         rt.block_on(async {
             let mut pc = slath_db::PoolConfig::new(url);
             pc.max_connections = 2;
+            pc.acquire_timeout = std::time::Duration::from_secs(30);
             let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
             let pending = slath_db::pending_migrations(&pool)
                 .await
@@ -274,6 +288,28 @@ pub fn gen_key(output: Option<&Path>) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => fail(OutputFormat::Text, &e.to_string()),
+    }
+}
+
+/// `slath config migrate FILE`: rewrites deprecated keys (backup in `FILE.bak`).
+pub fn config_migrate(path: &Path, format: OutputFormat) -> ExitCode {
+    match config::migrate_file(path) {
+        Ok(changes) => {
+            match format {
+                OutputFormat::Text if changes.is_empty() => {
+                    println!("{} uses no deprecated keys", path.display());
+                }
+                OutputFormat::Text => {
+                    for c in &changes {
+                        println!("{c}");
+                    }
+                    println!("previous version saved as {}.bak", path.display());
+                }
+                OutputFormat::Json => print_json(&json!({"ok": true, "changes": changes})),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
     }
 }
 

@@ -91,6 +91,18 @@ pub enum Request {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         git_protocol: Option<String>,
     },
+    /// Whether a server is running, and which (`slath upgrade`). Reveals
+    /// only the version and maintenance state.
+    Status,
+}
+
+/// Answer to [`Request::Status`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServerStatus {
+    pub version: String,
+    pub schema: i32,
+    /// The server has seen the maintenance flag.
+    pub maintenance: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,6 +117,9 @@ pub struct Response {
     /// Second answer to [`Request::SshSession`]: Git's exit code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// Answer to [`Request::Status`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<Box<ServerStatus>>,
 }
 
 impl Response {
@@ -115,6 +130,7 @@ impl Response {
             messages: Vec::new(),
             key: None,
             exit_code: None,
+            status: None,
         }
     }
 
@@ -125,6 +141,7 @@ impl Response {
             messages: vec![message.into()],
             key: None,
             exit_code: None,
+            status: None,
         }
     }
 }
@@ -180,7 +197,20 @@ pub fn ssh_session(
 }
 
 fn connect(socket: &Path, request: &Request, timeout: Duration) -> Result<UnixStream, IpcError> {
-    let mut stream = UnixStream::connect(socket)?;
+    // A full accept backlog (a busy server) answers EAGAIN; wait a little.
+    let deadline = std::time::Instant::now() + timeout.min(Duration::from_secs(5));
+    let mut stream = loop {
+        match UnixStream::connect(socket) {
+            Ok(s) => break s,
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
     let mut line = serde_json::to_vec(request)?;

@@ -41,7 +41,7 @@ const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
 const COPY_ATTEMPTS: usize = 5;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Manifest {
+pub(crate) struct Manifest {
     format: u32,
     slath_version: String,
     schema_version: i32,
@@ -320,10 +320,21 @@ pub fn create(
     }
 }
 
-async fn create_inner(
+pub(crate) async fn create_inner(
     config_path: &Path,
     output: &Path,
     include_secrets: bool,
+) -> Result<Manifest, String> {
+    create_with(config_path, output, include_secrets, false).await
+}
+
+/// Like [`create_inner`]; with `older_schema`, a database at an older
+/// schema is backed up too (the pre-upgrade backup).
+pub(crate) async fn create_with(
+    config_path: &Path,
+    output: &Path,
+    include_secrets: bool,
+    older_schema: bool,
 ) -> Result<Manifest, String> {
     let cfg = config::load(config_path)?;
     match std::fs::read_dir(output) {
@@ -348,9 +359,11 @@ async fn create_inner(
     // A one-shot command can wait for a busy database.
     pc.acquire_timeout = std::time::Duration::from_secs(30);
     let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
-    slath_db::check_schema(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    match slath_db::check_schema(&pool).await {
+        Ok(()) => {}
+        Err(slath_db::DbError::SchemaBehind { found, .. }) if older_schema && found > 0 => {}
+        Err(e) => return Err(e.to_string()),
+    }
     let runner = runner(&cfg)?;
     let git_version = runner
         .check_version()

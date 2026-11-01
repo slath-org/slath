@@ -29,6 +29,41 @@ pub const REPO_CONFIG: &[(&str, &str)] = &[
     ("uploadpack.allowAnySHA1InWant", "false"),
 ];
 
+/// Version of [`REPO_CONFIG`]. Bump it when the config changes: a
+/// background migration named after it re-applies the config to every
+/// existing repository (`slath.configVersion` records what a repository has).
+pub const REPO_CONFIG_VERSION: u32 = 1;
+
+/// Writes [`REPO_CONFIG`] and the config version into a repository unless
+/// it already has the current version. Returns whether it wrote anything.
+pub async fn apply_config(runner: &Runner, git_dir: &Path) -> Result<bool, GitError> {
+    let current = runner
+        .repo(git_dir)
+        .args(["config", "get", "slath.configVersion"])
+        .output()
+        .await
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok());
+    if current.as_deref().map(str::trim) == Some(REPO_CONFIG_VERSION.to_string().as_str()) {
+        return Ok(false);
+    }
+    for (key, value) in REPO_CONFIG {
+        runner
+            .repo(git_dir)
+            .args(["config", "set", key, value])
+            .run()
+            .await?;
+    }
+    runner
+        .repo(git_dir)
+        .args(["config", "set", "slath.configVersion"])
+        .arg(REPO_CONFIG_VERSION.to_string())
+        .run()
+        .await?;
+    Ok(true)
+}
+
 /// `<data_dir>/repos/<id[0..2]>/<id>.git`.
 #[must_use]
 pub fn repo_path(data_dir: &Path, id: RepoId) -> PathBuf {
@@ -71,13 +106,7 @@ pub async fn create_bare(
         .arg(initial)
         .run()
         .await?;
-    for (key, value) in REPO_CONFIG {
-        runner
-            .repo(&tmp)
-            .args(["config", "set", key, value])
-            .run()
-            .await?;
-    }
+    apply_config(runner, &tmp).await?;
     if let Some(parent) = final_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }

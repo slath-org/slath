@@ -23,6 +23,9 @@ pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
         }
     };
     init_logging(&cfg);
+    for w in &cfg.warnings {
+        tracing::warn!(warning = %w, "deprecated configuration");
+    }
     let rt = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -33,7 +36,7 @@ pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match rt.block_on(serve(cfg, migrate)) {
+    match rt.block_on(serve(config_path, cfg, migrate)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             tracing::error!(error = %e, "serve failed");
@@ -57,7 +60,7 @@ fn init_logging(cfg: &Config) {
 
 /// Prepares `<data_dir>` and the managed hooks directory. The hooks are
 /// symlinks to this binary; `main` dispatches on their names.
-fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
+pub(crate) fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
     let data = &cfg.storage.data_dir;
     for dir in [
         data.join("git-home"),
@@ -80,16 +83,23 @@ fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
     Ok(hooks)
 }
 
-async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
+async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), String> {
     let hooks_dir = prepare_dirs(&cfg)?;
     let socket_gid = crate::config::socket_gid(&cfg)?;
     let mut pc = slath_db::PoolConfig::new(crate::config::database_url(&cfg)?);
     pc.max_connections = cfg.database.max_connections;
-    let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
+    // Startup work (preflight, migrations, checks) may wait longer for a
+    // connection than requests, which should fail fast; it gets its own pool.
+    let mut boot_pc = slath_db::PoolConfig::new(crate::config::database_url(&cfg)?);
+    boot_pc.max_connections = 4;
+    boot_pc.acquire_timeout = std::time::Duration::from_secs(30);
+    let boot = connect_patiently(&boot_pc).await?;
     if migrate {
-        slath_db::migrate(&pool).await.map_err(|e| e.to_string())?;
+        crate::upgrade::serve_migrate(config_path, &cfg, &boot)
+            .await
+            .map_err(|e| format!("migrating: {e}"))?;
     }
-    slath_db::check_schema(&pool)
+    slath_db::check_schema(&boot)
         .await
         .map_err(|e| e.to_string())?;
     let mut rc = RunnerConfig::new(
@@ -104,17 +114,16 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let version = runner.check_version().await.map_err(|e| e.to_string())?;
     tracing::info!(%version, "git version ok");
 
-    let master = match &cfg.secrets.master_key_file {
-        Some(path) => slath_auth::MasterKey::load(path).map_err(|e| e.to_string())?,
-        None => {
-            let path = cfg.storage.data_dir.join("instance.key");
-            tracing::warn!(path = %path.display(), "secrets.master_key_file is not set; using a generated key in data_dir");
-            slath_auth::MasterKey::load_or_create(&path).map_err(|e| e.to_string())?
-        }
-    };
+    let (master, old_keys) = crate::config::load_keys(&cfg)?;
+    slath_db::secrets::register_key(&boot, master.id())
+        .await
+        .map_err(|e| format!("recording the master key: {e}"))?;
+    boot.close().await;
+    let pool = connect_patiently(&pc).await?;
     let cfg = Arc::new(cfg.cfg);
     let services =
-        slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master, runner.clone());
+        slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master, runner.clone())
+            .with_old_keys(&master, &old_keys);
     let metrics: Arc<slath_http::metrics::Metrics> = Arc::default();
     let hooks: Arc<ipc::HookRegistry> = Arc::default();
     let socket = cfg.storage.run_dir.join("slath.sock");
@@ -185,6 +194,57 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
             }
         });
     }
+    if let Err(e) = state.services.on_server_start().await {
+        // Not fatal: the maintenance poller picks the flag up shortly.
+        tracing::warn!(error = %e, "recording the server start failed");
+    }
+    {
+        // Maintenance mode (set by `slath upgrade` in the database).
+        let svc = state.services.clone();
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(2));
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        if let Err(e) = svc.refresh_maintenance().await {
+                            tracing::warn!(error = %e, "reading the maintenance flag failed");
+                        }
+                    }
+                    _ = stop.changed() => return,
+                }
+            }
+        });
+    }
+    {
+        // Background migrations: registered at startup, then worked through
+        // batch by batch; checked again every minute (resume, retry).
+        let svc = state.services.clone();
+        let stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            match svc.register_background_migrations().await {
+                Ok(new) if !new.is_empty() => {
+                    tracing::info!(migrations = ?new, "background migrations registered");
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!(error = %e, "registering background migrations failed"),
+            }
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+            let mut changed = stop.clone();
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        let stop = stop.clone();
+                        let stopped = move || *stop.borrow();
+                        if let Err(e) = svc.run_background_migrations(&stopped).await {
+                            tracing::warn!(error = %e, "background migrations failed");
+                        }
+                    }
+                    _ = changed.changed() => return,
+                }
+            }
+        });
+    }
     {
         // The reconciler: at startup for recently pushed repositories, then
         // every maintenance.reconcile_interval for all of them.
@@ -243,6 +303,24 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let _ = stop_tx.send(true);
     let _ = workers.await;
     result
+}
+
+/// Connects to the database, retrying for up to a minute: at startup the
+/// database may still be starting (containers) or busy.
+async fn connect_patiently(pc: &slath_db::PoolConfig) -> Result<slath_db::PgPool, String> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let mut wait = std::time::Duration::from_millis(250);
+    loop {
+        match slath_db::connect(pc).await {
+            Ok(pool) => return Ok(pool),
+            Err(e) if std::time::Instant::now() < deadline => {
+                tracing::warn!(error = %e, "database not reachable yet; retrying");
+                tokio::time::sleep(wait).await;
+                wait = (wait * 2).min(std::time::Duration::from_secs(5));
+            }
+            Err(e) => return Err(format!("connecting to the database: {e}")),
+        }
+    }
 }
 
 async fn shutdown_signal() {
