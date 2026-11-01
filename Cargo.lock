@@ -3511,6 +3511,7 @@ version = "0.1.1"
 dependencies = [
  "ammonia",
  "comrak",
+ "sha2 0.11.1",
  "syntect",
 ]
 
@@ -3528,6 +3529,7 @@ dependencies = [
  "slath-core",
  "slath-db",
  "slath-git",
+ "slath-markup",
  "sqlx",
  "tempfile",
  "thiserror 2.0.21",

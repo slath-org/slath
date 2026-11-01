@@ -22,6 +22,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - During an upgrade a running server becomes read-only: pages show a banner, and saving and pushing are refused with a message.
 - `serve --migrate` runs the same preflight and refuses to migrate when a check fails or a manual upgrade step is required.
 - An older binary on an upgraded database names the upgrade and the backup to restore.
+- Issues: open, edit, close with a reason, reopen, and comment, with a timeline of changes, in the web UI and the API.
+- References in issues and comments (`#12`, `owner/repo#12`, `@name`, commit IDs) link only for people who can read the target.
 - Branch protection: block force pushes and deletion, limit who may push directly, and require merge requests with an audited admin bypass.
 - Teams: organization owners group members into teams, and repository administrators give teams a role.
 - Organizations can require two-factor authentication for access to their repositories and give every member read access.

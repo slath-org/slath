@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           WHERE r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $2\n                OR slath_can_read(r.id, $1::uuid))\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -157,12 +157,21 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "issues_enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "issues_enabled"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Bool",
         "Int8",
         "Int8"
       ]
@@ -182,8 +191,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "a513911202206ea56ae71a5da9e3a628da4decb72df5a0eb4459444ec52ce18c"
+  "hash": "03b43f6d9c80147747fbd4c4ff004220ecffb05bc304cb56c3f4fdfcc338d325"
 }

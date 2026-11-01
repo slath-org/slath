@@ -25,3 +25,23 @@ branch, the strictest setting of each applies.
 A refused push changes nothing: no ref moves and nothing is recorded. Tags
 aren't affected by branch rules (moving or deleting a tag needs the
 maintain role). Changes to rules are recorded in the audit log.
+
+## Issues
+
+Every repository has issues unless they are turned off. Issues and merge
+requests share one sequence of numbers per repository, so `#12` is never
+ambiguous.
+
+- Anyone who can read the repository and is signed in can open issues and
+  comment. Authors edit and close their own issues and edit their own
+  comments; the write role edits and closes any issue; the maintain role
+  also hides and deletes others' comments (recorded in the audit log).
+- Markdown in issues and comments links references: `#12` and
+  `owner/repo#12` (issues), `@name` (people), and commit IDs (7 to 40
+  hexadecimal characters, or `owner/repo@abc1234`). A reference shows the
+  target's title and state only to people who can read it; for everyone
+  else it stays plain text and reveals nothing. A reference to another
+  issue adds "mentioned this in" to that issue, shown only to people who
+  can read where the mention was made.
+- Titles have up to 256 characters; descriptions and comments are limited
+  by `limits.text_max_bytes` (256 KiB by default).

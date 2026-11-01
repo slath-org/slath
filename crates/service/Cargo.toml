@@ -21,6 +21,7 @@ slath-auth.workspace = true
 slath-core.workspace = true
 slath-db.workspace = true
 slath-git.workspace = true
+slath-markup.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 time.workspace = true

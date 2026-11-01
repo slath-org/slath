@@ -820,3 +820,160 @@ fieldset.field {
   gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
+
+/* Page headings with an action next to them */
+.page-heading,
+.issue-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+.page-heading h1,
+.issue-heading h1 {
+  margin: 0;
+}
+.narrow-wide {
+  max-width: 48rem;
+}
+.form-wide {
+  max-width: 48rem;
+}
+.form-wide textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  line-height: var(--leading-code);
+}
+.count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.empty-state {
+  padding-block: var(--space-6);
+  text-align: center;
+}
+
+/* Issue and merge request lists */
+.item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  border-block-start: var(--border-width) solid var(--border);
+}
+.item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding-block: var(--space-2);
+  border-block-end: var(--border-width) solid var(--border);
+}
+.item-state {
+  display: inline-flex;
+  padding-block-start: var(--space-1);
+}
+.item-state-open {
+  color: var(--success);
+}
+.item-state-closed {
+  color: var(--text-secondary);
+}
+.item-main {
+  flex: 1;
+  min-width: 0;
+}
+.item-title {
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.item-meta {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.item-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Issue view */
+.issue {
+  max-width: var(--content-max);
+}
+.issue-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.state-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid;
+  border-radius: var(--radius-sm);
+  font-weight: var(--weight-medium);
+}
+.state-open {
+  border-color: var(--success);
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+.state-closed {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.timeline-comment article {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.comment-header {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--border-width) solid var(--border);
+  background: var(--surface-subtle);
+  border-start-start-radius: var(--radius-md);
+  border-start-end-radius: var(--radius-md);
+}
+.timeline-comment .markdown,
+.timeline-comment article > p {
+  padding: var(--space-3);
+  margin: 0;
+}
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) var(--space-2);
+}
+.timeline-event {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-3);
+  color: var(--text-secondary);
+}
+.timeline-event a {
+  overflow-wrap: anywhere;
+}
+.issue-state-form {
+  margin-block-start: var(--space-4);
+}
+.markdown a.ref-closed {
+  color: var(--text-secondary);
+}

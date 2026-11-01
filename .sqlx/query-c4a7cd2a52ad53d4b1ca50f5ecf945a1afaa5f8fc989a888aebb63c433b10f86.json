@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -157,11 +157,21 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "issues_enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "issues_enabled"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Int8"
       ]
     },
@@ -180,8 +190,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "f33055d3e360fbcb0065fb1767793f0c3536cb5b6fab6792c1e259eb7f2f2250"
+  "hash": "c4a7cd2a52ad53d4b1ca50f5ecf945a1afaa5f8fc989a888aebb63c433b10f86"
 }

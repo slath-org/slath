@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="narrow-wide">
+<h1>{{ heading }}</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="{{ action }}" class="form form-wide" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- if let Some(t) = title %}
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ t }}" maxlength="256" required
+      {%- if self.error("title").is_some() %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
+    {%- if let Some(e) = self.error("title") %}
+    <p id="title-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  <div class="field">
+    <label for="body">{% if title.is_some() %}Description{% else %}Comment{% endif %}</label>
+    <textarea id="body" name="body" rows="12"
+      {%- if self.error("body").is_some() %} aria-invalid="true" aria-describedby="body-error"{% endif %}>{{ body }}</textarea>
+    {%- if let Some(e) = self.error("body") %}
+    <p id="body-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="button-row"><button type="submit" class="button button-primary">Save</button> <a class="button button-quiet" href="{{ back }}">Cancel</a></div>
+</form>
+</div>
+{% endblock %}

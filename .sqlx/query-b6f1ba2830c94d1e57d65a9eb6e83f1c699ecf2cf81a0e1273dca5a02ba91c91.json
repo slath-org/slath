@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.id = $1",
   "describe": {
     "columns": [
       {
@@ -157,11 +157,22 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "issues_enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "issues_enabled"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -179,8 +190,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "4047cfc25c576ecdc3d51cf6075062def52ad3f879206b70ef1a30b761258b2b"
+  "hash": "b6f1ba2830c94d1e57d65a9eb6e83f1c699ecf2cf81a0e1273dca5a02ba91c91"
 }

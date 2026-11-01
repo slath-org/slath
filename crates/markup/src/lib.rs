@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 mod highlight;
+pub mod refs;
 
 use std::collections::HashSet;
 
@@ -194,6 +195,58 @@ fn valid_class(value: &str, prefix: &str) -> bool {
 #[must_use]
 pub fn sanitize_html(html: &str) -> String {
     sanitizer().clean(html).to_string()
+}
+
+static CACHE: std::sync::LazyLock<refs::Cache> =
+    std::sync::LazyLock::new(|| refs::Cache::new(4096));
+
+/// Renders untrusted Markdown to sanitized HTML with reference markers
+/// (see [`refs`]): the viewer-independent part, cached by source, context,
+/// options, and renderer version. Pass the result through
+/// [`refs::resolve`] for the viewer before showing it.
+#[must_use]
+pub fn render_with_refs(
+    src: &str,
+    opts: MarkdownOptions,
+    ctx: Option<&refs::RefContext>,
+) -> std::sync::Arc<str> {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(RENDERER_VERSION.to_be_bytes());
+    h.update([u8::from(opts.external_images)]);
+    if let Some(c) = ctx {
+        h.update(c.ns.as_bytes());
+        h.update([0]);
+        h.update(c.repo.as_bytes());
+    }
+    h.update([1]);
+    h.update(src.as_bytes());
+    let key: [u8; 32] = h.finalize().into();
+    CACHE.get_or(key, || render(src, opts, ctx))
+}
+
+fn render(src: &str, opts: MarkdownOptions, ctx: Option<&refs::RefContext>) -> String {
+    let src = reveal_bidi(src);
+    let options = comrak_options();
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, &src, &options);
+    if !opts.external_images {
+        for node in root.descendants() {
+            let mut data = node.data_mut();
+            if let comrak::nodes::NodeValue::Image(link) = &data.value
+                && is_external(&link.url)
+            {
+                let link = link.clone();
+                data.value = comrak::nodes::NodeValue::Link(link);
+            }
+        }
+    }
+    refs::mark(&arena, root, ctx);
+    let mut html = String::new();
+    if comrak::format_html(root, &options, &mut html).is_err() {
+        return String::new();
+    }
+    sanitizer().clean(&html).to_string()
 }
 
 /// Renders untrusted Markdown to sanitized HTML.

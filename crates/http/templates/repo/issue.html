@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ issue.title }} · Issue #{{ issue.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="issue">
+<div class="issue-heading">
+  <h1><bdi>{{ issue.title }}</bdi> <span class="text-secondary">#{{ issue.number }}</span></h1>
+  {%- if perms.edit %}
+  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/edit">Edit</a>
+  {%- endif %}
+</div>
+<p class="issue-status">
+  <span class="state-label state-{{ issue.state }}">{% call m::icon(ctx, state_icon) %}{% endcall %}{% if issue.state == "open" %}Open{% else %}Closed{% if let Some(r) = issue.state_reason %} ({{ reason_text }}){% endif %}{% endif %}</span>
+  <span class="text-secondary">{% if let Some(a) = issue.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} opened this <time datetime="{{ created.iso }}">{{ created.text }}</time> · {{ issue.comments }} comment{% if issue.comments != 1 %}s{% endif %}</span>
+</p>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<ol class="timeline">
+  <li class="timeline-comment">
+    <article aria-label="Description">
+      <header class="comment-header">{% if let Some(a) = issue.author %}<a href="/{{ a }}"><strong>{{ a }}</strong></a>{% else %}<strong>A deleted user</strong>{% endif %} <span class="text-secondary">wrote <time datetime="{{ created.iso }}">{{ created.text }}</time></span></header>
+      <div class="markdown" hx-ignore>{% if body_empty %}<p class="text-secondary">No description.</p>{% else %}{{ body_html }}{% endif %}</div>
+    </article>
+  </li>
+  {%- for item in timeline %}
+  {%- match item %}
+  {%- when TimelineView::Comment with (c) %}
+  <li class="timeline-comment" id="comment-{{ c.id }}">
+    <article aria-label="Comment by {{ c.author_text }}">
+      <header class="comment-header"><strong>{{ c.author_text }}</strong> <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
+      {%- if c.deleted %}
+      <p class="text-secondary">This comment was deleted.</p>
+      {%- else if c.html_empty %}
+      <p class="text-secondary">This comment was hidden by a moderator.</p>
+      {%- else %}
+      <div class="markdown" hx-ignore>{{ c.html }}</div>
+      {%- endif %}
+      {%- if !c.deleted && (c.own || perms.moderate) %}
+      <div class="comment-actions">
+        {%- if c.own %}
+        <a class="button button-quiet" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/edit">Edit<span class="visually-hidden"> comment</span></a>
+        {%- endif %}
+        {%- if perms.moderate %}
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/{% if c.hidden %}unhide{% else %}hide{% endif %}" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button button-quiet">{% if c.hidden %}Unhide{% else %}Hide{% endif %}<span class="visually-hidden"> comment</span></button>
+        </form>
+        {%- endif %}
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button button-quiet">Delete<span class="visually-hidden"> comment</span></button>
+        </form>
+      </div>
+      {%- endif %}
+    </article>
+  </li>
+  {%- when TimelineView::Event with (e) %}
+  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some(href) = e.link %} <a href="{{ href }}">{{ e.link_text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  {%- endmatch %}
+  {%- endfor %}
+</ol>
+{%- if perms.comment %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments" class="form form-wide comment-form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="comment-body">Add a comment</label>
+    <textarea id="comment-body" name="body" rows="6" required></textarea>
+  </div>
+  <div class="button-row"><button type="submit" class="button button-primary">Comment</button></div>
+</form>
+{%- else if ctx.user.is_none() %}
+<p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to comment.</p>
+{%- endif %}
+{%- if perms.close %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/state" class="form issue-state-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- if issue.state == "open" %}
+  <input type="hidden" name="state" value="closed">
+  <div class="field">
+    <label for="reason">Close as</label>
+    <select id="reason" name="reason">
+      <option value="completed">Completed</option>
+      <option value="not_planned">Not planned</option>
+      <option value="duplicate">Duplicate</option>
+    </select>
+  </div>
+  <div><button type="submit" class="button">Close issue</button></div>
+  {%- else %}
+  <input type="hidden" name="state" value="open">
+  <div><button type="submit" class="button">Reopen issue</button></div>
+  {%- endif %}
+</form>
+{%- endif %}
+</div>
+{% endblock %}

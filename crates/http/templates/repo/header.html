@@ -5,6 +5,9 @@
   <nav class="tabs" aria-label="Repository">
     <ul>
       <li><a href="/{{ header.namespace }}/{{ header.name }}"{% if header.tab == "code" %} aria-current="page"{% endif %}>Code</a></li>
+      {%- if header.issues %}
+      <li><a href="/{{ header.namespace }}/{{ header.name }}/issues"{% if header.tab == "issues" %} aria-current="page"{% endif %}>Issues</a></li>
+      {%- endif %}
       <li><a href="/{{ header.namespace }}/{{ header.name }}/commits"{% if header.tab == "commits" %} aria-current="page"{% endif %}>Commits</a></li>
       <li><a href="/{{ header.namespace }}/{{ header.name }}/branches"{% if header.tab == "branches" %} aria-current="page"{% endif %}>Branches</a></li>
       <li><a href="/{{ header.namespace }}/{{ header.name }}/tags"{% if header.tab == "tags" %} aria-current="page"{% endif %}>Tags</a></li>

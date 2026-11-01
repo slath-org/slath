@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE comments SET hidden_at = CASE WHEN $2 THEN now() ELSE NULL END\n         WHERE id = $1 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f026fcb4f3945532938c1b4ed8a5d887708e6256c2b0015215fe45ca16e09151"
+}

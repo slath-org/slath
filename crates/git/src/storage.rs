@@ -226,6 +226,29 @@ pub async fn is_ancestor(
     }
 }
 
+/// The full ID of the commit an abbreviated (or full) hex ID names, if
+/// exactly one commit matches.
+pub async fn resolve_commit_prefix(
+    runner: &Runner,
+    git_dir: &Path,
+    prefix: &str,
+) -> Result<Option<String>, GitError> {
+    if !(4..=40).contains(&prefix.len()) || !prefix.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Ok(None);
+    }
+    let out = runner
+        .repo(git_dir)
+        .args(["rev-parse", "--verify", "--quiet", "--end-of-options"])
+        .arg(format!("{}^{{commit}}", prefix.to_ascii_lowercase()))
+        .output()
+        .await?;
+    if !out.status.success() {
+        return Ok(None);
+    }
+    let full = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    Ok((full.len() == 40 && full.bytes().all(|b| b.is_ascii_hexdigit())).then_some(full))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

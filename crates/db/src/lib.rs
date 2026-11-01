@@ -10,6 +10,7 @@ pub mod bgmigrations;
 pub mod email_tokens;
 pub mod idempotency;
 pub mod invitations;
+pub mod issues;
 pub mod jobs;
 pub mod mfa;
 pub mod orgs;
@@ -34,7 +35,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 17;
+pub const REQUIRED_SCHEMA: i32 = 18;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");

@@ -13,6 +13,7 @@ publish.workspace = true
 [dependencies]
 ammonia.workspace = true
 comrak.workspace = true
+sha2.workspace = true
 syntect.workspace = true
 
 [lints]

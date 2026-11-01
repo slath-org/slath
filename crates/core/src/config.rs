@@ -313,6 +313,8 @@ pub struct Limits {
     /// Request bodies (API and UI); pushes are limited separately.
     pub http_max_body_bytes: Bytes,
     pub attachment_max_bytes: Bytes,
+    /// Issue and merge request descriptions and comments.
+    pub text_max_bytes: Bytes,
     /// Maximum `limit` of list endpoints.
     pub api_page_max: usize,
     pub archive_timeout: Dur,
@@ -351,6 +353,7 @@ impl Default for Limits {
             review_max_commits: 250,
             http_max_body_bytes: Bytes(10 * MIB),
             attachment_max_bytes: Bytes(25 * MIB),
+            text_max_bytes: Bytes(256 * 1024),
             api_page_max: 100,
             archive_timeout: Dur::secs(120),
             archive_max_concurrent: 4,

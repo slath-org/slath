@@ -1,0 +1,182 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.state,\n                  i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id\n                     AND c.deleted_at IS NULL) AS \"comments!\"\n           FROM issues i LEFT JOIN users u ON u.id = i.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE i.repo_id = $1\n             AND ($2::text IS NULL OR i.state = $2)\n             AND ($3::uuid IS NULL OR i.author_id = $3)\n             AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM issue_assignees a WHERE a.issue_id = i.id AND a.user_id = $4))\n             AND (SELECT count(*) FROM issue_labels l WHERE l.issue_id = i.id AND l.label_id = ANY($5)) = cardinality($5)\n             AND ($6::uuid IS NULL OR i.milestone_id = $6)\n           ORDER BY CASE WHEN $7 THEN i.updated_at ELSE i.created_at END DESC, i.number DESC\n           OFFSET $8 LIMIT $9",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "repo_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "author_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "author",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "body",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "state_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "state_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "milestone_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "milestone_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "closed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "closed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "comments!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "UuidArray",
+        "Uuid",
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "3620a79282fc37e5eb2ccf574ae08036c4b2343722d377ac99f5e8391685ae21"
+}

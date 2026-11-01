@@ -8,6 +8,7 @@ pub mod admin;
 pub mod browse;
 pub mod design;
 pub mod identicon;
+pub mod issues;
 pub mod passkeys;
 pub mod profiles;
 pub mod recovery;
@@ -337,6 +338,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(registration::router())
         .merge(passkeys::router())
         .merge(teams::router())
+        .merge(issues::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())

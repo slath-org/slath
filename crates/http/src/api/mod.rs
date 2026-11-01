@@ -5,6 +5,7 @@
 //! is generated from these handlers ([`openapi`]) and committed as
 //! `docs/api/openapi.json`.
 
+pub mod issues;
 pub mod orgs;
 pub mod repos;
 pub mod support;
@@ -151,10 +152,12 @@ impl utoipa::Modify for SecurityAddon {
         repos::list_branches, repos::list_tags, repos::list_commits, repos::get_commit, repos::get_tree, repos::get_blob,
         repos::list_collaborators, repos::put_collaborator, repos::delete_collaborator,
         repos::list_protections, repos::post_protection, repos::delete_protection,
+        issues::list_issues, issues::create_issue, issues::get_issue, issues::update_issue,
+        issues::list_comments, issues::create_comment, issues::update_comment, issues::delete_comment,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
-    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"))
+    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"))
 )]
 pub struct ApiDoc;
 
@@ -179,5 +182,6 @@ pub fn router() -> Router<AppState> {
         .merge(user::router())
         .merge(orgs::router())
         .merge(repos::router())
+        .merge(issues::router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

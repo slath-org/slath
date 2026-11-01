@@ -7,6 +7,8 @@ chevron-down
 chevron-right
 circle-alert
 circle-check
+circle-dot
+circle-x
 clock
 copy
 download
@@ -15,6 +17,7 @@ eye
 eye-off
 file
 file-code
+flag
 folder
 git-branch
 git-commit-horizontal
@@ -28,6 +31,7 @@ lock
 log-in
 log-out
 menu
+message-square
 monitor
 moon
 pencil

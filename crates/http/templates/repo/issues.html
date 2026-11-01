@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Issues · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="page-heading">
+  <h1>Issues</h1>
+  {%- if can_create %}
+  <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/issues/new">New issue</a>
+  {%- endif %}
+</div>
+<nav class="tabs" aria-label="Issue state">
+  <ul>
+    <li><a href="?state=open"{% if state == "open" %} aria-current="page"{% endif %}>Open <span class="count">{{ open }}</span></a></li>
+    <li><a href="?state=closed"{% if state == "closed" %} aria-current="page"{% endif %}>Closed <span class="count">{{ closed }}</span></a></li>
+    <li><a href="?state=all"{% if state == "all" %} aria-current="page"{% endif %}>All</a></li>
+  </ul>
+</nav>
+{%- if issues.is_empty() %}
+<p class="text-secondary empty-state">{% if state == "closed" %}No closed issues.{% else if state == "all" %}No issues yet.{% else %}No open issues.{% endif %}</p>
+{%- else %}
+<ul class="item-list">
+{%- for i in issues %}
+  <li class="item-row">
+    <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state }}</span></span>
+    <div class="item-main">
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ i.number }}"><bdi>{{ i.title }}</bdi></a>
+      <p class="item-meta text-secondary">#{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% else %}a deleted user{% endif %}</p>
+    </div>
+    {%- if i.comments > 0 %}
+    <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if let Some(n) = next %}
+<p><a class="button" href="{{ n }}">Next page</a></p>
+{%- endif %}
+{% endblock %}

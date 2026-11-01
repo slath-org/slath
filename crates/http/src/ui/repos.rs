@@ -70,7 +70,9 @@ pub struct RepoHeader {
     pub private: bool,
     pub archived: bool,
     pub can_admin: bool,
-    /// Which tab is active: `code`, `settings`.
+    /// The repository has issues.
+    pub issues: bool,
+    /// Which tab is active: `code`, `issues`, `settings`, ….
     pub tab: &'static str,
 }
 
@@ -83,6 +85,7 @@ impl RepoHeader {
             private: a.repo.visibility == Visibility::Private,
             archived: a.repo.state == RepoState::Archived,
             can_admin: a.can(subject, Action::RepoSettings),
+            issues: a.repo.issues_enabled,
             tab,
         }
     }

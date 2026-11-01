@@ -58,6 +58,7 @@ fn concrete(template: &str, missing: bool, head: &str) -> String {
             "{org}" => if missing { "noorg" } else { "acme" }.to_owned(),
             "{name}" | "{user}" => "alice".to_owned(),
             "{team}" => "devs".to_owned(),
+            "{n}" | "{number}" => "1".to_owned(),
             "{op}" if template.contains("/settings/state/") => "archive".to_owned(),
             "{op}" => "suspend".to_owned(),
             "{id}" => "0192f1a2-3b4c-7d5e-8f60-718293a4b5c6".to_owned(),
