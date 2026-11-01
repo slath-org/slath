@@ -109,6 +109,42 @@ jobs:
           path: target/e2e/
           retention-days: 7
 
+  container:
+    name: container install and offline rendering
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: container
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: just,cargo-nextest
+      - run: docker build -t slath:test .
+      - run: just test-compose
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: container-results
+          path: |
+            target/compose.log
+            target/e2e/offline-results/
+          retention-days: 7
+
   guards:
     name: guards
     runs-on: ubuntu-24.04

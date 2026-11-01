@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# TLS in front of Slath (`docker compose --profile tls up -d`). Set
+# SLATH_PUBLIC_URL=https://<SLATH_DOMAIN> and trust the proxy in Slath:
+# SLATH__SERVER__TRUSTED_PROXIES must cover the compose network.
+
+{$SLATH_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy slath:3000
+}

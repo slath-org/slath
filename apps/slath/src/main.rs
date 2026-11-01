@@ -149,8 +149,13 @@ enum ConfigCommand {
 
 #[derive(Subcommand)]
 enum AdminCommand {
-    /// Print a new master key (store it with mode 0600).
-    GenKey,
+    /// Print a new master key (store it with mode 0600), or write it to a
+    /// new file with --output.
+    GenKey {
+        /// Write the key to this file (mode 0600); fails if it exists.
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
     /// Create a user account (bootstrap and recovery). Without
     /// --password-stdin, a random password is generated and printed once.
     CreateUser {
@@ -196,8 +201,8 @@ fn main() -> ExitCode {
         } => check::config_check(&config::resolve_path(config), output),
         Command::Version { json, config } => check::version(json, config),
         Command::Admin {
-            command: AdminCommand::GenKey,
-        } => check::gen_key(),
+            command: AdminCommand::GenKey { output },
+        } => check::gen_key(output.as_deref()),
         Command::Admin {
             command:
                 AdminCommand::CreateUser {

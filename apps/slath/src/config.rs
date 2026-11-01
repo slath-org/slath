@@ -142,6 +142,17 @@ mod tests {
         result.unwrap()
     }
 
+    /// The shipped example and container configurations stay valid.
+    #[test]
+    fn shipped_configs_load() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for file in ["deploy/slath.example.toml", "deploy/docker/slath.toml"] {
+            let text = std::fs::read_to_string(root.join(file)).unwrap();
+            let cfg = load_str(&text, &[]).unwrap_or_else(|e| panic!("{file}: {e}"));
+            assert!(cfg.secrets.master_key_file.is_some(), "{file}");
+        }
+    }
+
     #[test]
     fn minimal_config_gets_defaults() {
         let cfg = load_str(MINIMAL, &[]).unwrap();

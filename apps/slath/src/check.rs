@@ -195,10 +195,28 @@ pub fn migrate(path: &Path, dry_run: bool, format: OutputFormat) -> ExitCode {
     }
 }
 
-pub fn gen_key() -> ExitCode {
-    match MasterKey::generate() {
-        Ok(k) => {
-            print!("{}", k.encode());
+pub fn gen_key(output: Option<&Path>) -> ExitCode {
+    let Some(path) = output else {
+        return match MasterKey::generate() {
+            Ok(k) => {
+                print!("{}", k.encode());
+                ExitCode::SUCCESS
+            }
+            Err(e) => fail(OutputFormat::Text, &e.to_string()),
+        };
+    };
+    if path.exists() {
+        return fail(
+            OutputFormat::Text,
+            &format!(
+                "{} already exists; refusing to replace a master key",
+                path.display()
+            ),
+        );
+    }
+    match MasterKey::load_or_create(path) {
+        Ok(_) => {
+            eprintln!("master key written to {}", path.display());
             ExitCode::SUCCESS
         }
         Err(e) => fail(OutputFormat::Text, &e.to_string()),

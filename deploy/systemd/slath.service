@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# /etc/systemd/system/slath.service. See docs/admin/install.md.
+
+[Unit]
+Description=Slath code forge
+Documentation=https://slath.org/docs/
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=slath
+Group=slath
+Environment=SLATH_CONFIG=/etc/slath/slath.toml
+ExecStart=/usr/bin/slath serve
+Restart=on-failure
+RestartSec=5s
+# /run/slath holds the IPC socket for sshd's helper commands. Keep it
+# traversable for the group, which the `git` SSH user shares.
+RuntimeDirectory=slath
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=restart
+StateDirectory=slath
+StateDirectoryMode=0750
+UMask=0027
+
+# Hardening. Slath only needs its state and runtime directories.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/slath /run/slath
+
+[Install]
+WantedBy=multi-user.target

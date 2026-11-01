@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+target/
+web/node_modules/
+web/dist/
+web/public/icons.svg
+tests/e2e/node_modules/
+.git/
+.env
+**/*.swp

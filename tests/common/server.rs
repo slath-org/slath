@@ -476,7 +476,7 @@ impl Instance {
         let port = free_port();
         let mut cfg = format!(
             "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
-             [database]\nurl = \"{db_url}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
+             [database]\nurl = \"{db_url}\"\nmax_connections = 5\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
              [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
             data = dir.path().join("data").display(),
             run = dir.path().join("run").display(),

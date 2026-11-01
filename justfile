@@ -41,6 +41,11 @@ test-backup-restore:
     cargo build --locked -p slath --bins
     cargo nextest run --locked -p slath-tests --test ops -E 'test(/backup|restore/)'
 
+# Install conformance with deploy/compose plus the offline render check of the
+# release image (`docker build -t slath:test .` first, or set SLATH_IMAGE).
+test-compose:
+    scripts/test-compose.sh
+
 fmt-check:
     cargo fmt --all --check
 

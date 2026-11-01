@@ -216,3 +216,15 @@ Before 1.0.0, minor versions may contain breaking changes.
   mismatches; they recreate repositories with Slath's own Git config, never
   the backup's, check connectivity, and reconcile the database. `just
   test-backup-restore` runs the restore drill. See `docs/admin/backup.md`.
+- Release container image (`Dockerfile`): the slath binary with the UI
+  embedded, a pinned Git built from source, OpenSSH, and tini; runs as an
+  unprivileged `slath` user, with `git` as the SSH login on the same UID.
+- `deploy/compose/`: PostgreSQL, Slath, and sshd with a one-shot master key
+  setup and an optional Caddy TLS profile; `deploy/systemd/` with a hardened
+  unit and a sysusers file; `deploy/slath.example.toml`; and the install guide
+  `docs/admin/install.md`. `slath admin gen-key --output FILE` writes a new
+  master key with mode 0600 and never replaces an existing one.
+- `just test-compose` follows the install guide end to end (create the admin
+  with the CLI, a repository through the API, clone over HTTP and SSH) and
+  then renders every page of the release image in a browser with outbound
+  networking disabled, failing on any request that leaves the origin.
