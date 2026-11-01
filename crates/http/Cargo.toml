@@ -35,9 +35,11 @@ time.workspace = true
 tokio-util.workspace = true
 tower.workspace = true
 tracing.workspace = true
+utoipa.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 

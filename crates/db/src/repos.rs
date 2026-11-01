@@ -478,3 +478,36 @@ pub async fn active_ids_pushed_since(
     .await?;
     Ok(rows.into_iter().map(RepoId::from_uuid).collect())
 }
+
+/// Repositories a viewer can see in any namespace (filtered in SQL),
+/// ordered by full name. `viewer` is `None` for anonymous visitors.
+pub async fn list_visible(
+    exec: impl PgExecutor<'_>,
+    viewer: Option<UserId>,
+    site_admin: bool,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<Repo>, DbError> {
+    let viewer = viewer.map(|v| *v.as_uuid());
+    let rows = sqlx::query!(
+        r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
+                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at
+           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
+           WHERE r.state <> 'deleting' AND (
+                r.visibility = 'public' OR $2
+                OR EXISTS (SELECT 1 FROM repo_collaborators c WHERE c.repo_id = r.id AND c.user_id = $1)
+                OR EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.namespace_id = r.namespace_id)
+                OR EXISTS (SELECT 1 FROM organizations o JOIN org_members m ON m.org_id = o.id
+                           WHERE o.namespace_id = r.namespace_id AND m.user_id = $1
+                             AND (m.role = 'owner' OR o.default_member_role <> 'none')))
+           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4"#,
+        viewer,
+        site_admin,
+        offset,
+        limit,
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| to_repo!(r)).collect())
+}

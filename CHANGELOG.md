@@ -186,3 +186,14 @@ Before 1.0.0, minor versions may contain breaking changes.
   streamed from `git archive` with the same access rules as the code
   browser, limited by `limits.archive_timeout`, a size cap, and
   `limits.archive_max_concurrent`.
+- REST API (`/api/v1`) for the current user, SSH keys, tokens (list and
+  revoke; creation stays in the browser), organizations and members, and
+  repositories with settings, collaborators, branches, tags, history,
+  commits, trees, and file contents. List endpoints use HMAC-signed cursors
+  with a `Link` header; requests are rate limited per token or IP
+  (`RateLimit-*` headers); every mutating request accepts `Idempotency-Key`
+  (identical retries replay the stored response, a reused key with a
+  different request gets 422, a duplicate still in progress gets 409).
+  The OpenAPI document is served at `/api/v1/openapi.json` and committed as
+  `docs/api/openapi.json`; `just api-check` keeps them in sync, and contract
+  tests validate real responses against it.

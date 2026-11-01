@@ -34,6 +34,7 @@ flate2 = "1.1"
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
+jsonschema = { version = "0.60", default-features = false }
 hkdf = "0.13"
 hmac = "0.13"
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
@@ -57,6 +58,7 @@ toml = "1.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 ureq = { version = "3.5", default-features = false }
 unicode-normalization = "0.1"
+utoipa = { version = "6", features = ["time", "uuid"] }
 uuid = { version = "1.29", features = ["v7", "serde"] }
 
 [workspace.lints.rust]

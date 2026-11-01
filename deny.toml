@@ -30,6 +30,8 @@ allow = [
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    # MIT without the attribution clause (fluent-uri via jsonschema, tests only).
+    "MIT-0",
     "MPL-2.0",
     "Unicode-3.0",
     # Unicode data tables (finl_unicode via comrak); permissive, like Unicode-3.0.

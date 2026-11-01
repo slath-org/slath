@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::missing_panics_doc)]
 
+pub mod contract;
 pub mod fixtures;
 pub mod http;
 pub mod server;

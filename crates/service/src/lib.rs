@@ -32,6 +32,8 @@ pub struct Services {
     pub pool: PgPool,
     pub config: Arc<Config>,
     pub csrf: Arc<Csrf>,
+    /// Signs API pagination cursors (an HMAC like the CSRF tokens).
+    pub cursors: Arc<Csrf>,
     pub runner: slath_git::Runner,
 }
 
@@ -47,6 +49,7 @@ impl Services {
             pool,
             config,
             csrf: Arc::new(Csrf::new(master.derive("csrf"))),
+            cursors: Arc::new(Csrf::new(master.derive("api-cursor"))),
             runner,
         }
     }

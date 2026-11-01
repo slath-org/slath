@@ -36,6 +36,8 @@ pub struct AppState {
     pub ipc_socket: PathBuf,
     pub services: slath_service::Services,
     pub trusted_proxies: Arc<auth::TrustedProxies>,
+    /// API rate limits per principal.
+    pub api_limits: Arc<api::support::RateLimiter>,
     /// Limits concurrent archive downloads (`limits.archive_max_concurrent`).
     pub archives: Arc<tokio::sync::Semaphore>,
 }
@@ -54,6 +56,7 @@ impl AppState {
     pub fn new(p: StateParts, metrics: Arc<metrics::Metrics>) -> Result<Self, String> {
         let trusted_proxies = auth::TrustedProxies::parse(&p.config.server.trusted_proxies)?;
         Ok(Self {
+            api_limits: Arc::default(),
             archives: Arc::new(tokio::sync::Semaphore::new(
                 p.config.limits.archive_max_concurrent.max(1),
             )),
@@ -83,6 +86,7 @@ pub fn router(state: AppState) -> axum::Router {
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
     let api = api::router()
+        .layer(from_fn_with_state(state.clone(), api::support::api_context))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
     let probes = axum::Router::new()

@@ -607,3 +607,51 @@ impl Services {
             .join(format!("{id}.git"))
     }
 }
+
+impl Services {
+    /// Repositories the subject can see in any namespace, by full name.
+    pub async fn list_visible_repos(
+        &self,
+        subject: &Subject,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<Repo>> {
+        let (viewer, admin, restricted) = match subject {
+            Subject::User {
+                id,
+                state: UserState::Active,
+                is_site_admin,
+                credential,
+                ..
+            } => match credential {
+                Credential::Token {
+                    repo_ids: Some(ids),
+                    ..
+                } => (None, false, Some(ids.clone())),
+                _ => (Some(*id), *is_site_admin, None),
+            },
+            _ => (None, false, None),
+        };
+        let offset = i64::try_from(offset).unwrap_or(i64::MAX);
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        let mut repos = match &restricted {
+            // A repository-restricted token sees its repositories plus public ones.
+            Some(ids) => {
+                let owner = match subject {
+                    Subject::User { id, .. } => Some(*id),
+                    _ => None,
+                };
+                let mut all =
+                    slath_db::repos::list_visible(&self.pool, owner, false, 0, 10_000).await?;
+                all.retain(|r| r.visibility == Visibility::Public || ids.contains(&r.id));
+                all.into_iter()
+                    .skip(usize::try_from(offset).unwrap_or(0))
+                    .take(usize::try_from(limit).unwrap_or(0))
+                    .collect()
+            }
+            None => slath_db::repos::list_visible(&self.pool, viewer, admin, offset, limit).await?,
+        };
+        repos.retain(|r| r.state != RepoState::Deleting);
+        Ok(repos)
+    }
+}

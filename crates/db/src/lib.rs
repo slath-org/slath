@@ -4,6 +4,7 @@
 //! version check, and the durable job queue.
 #![forbid(unsafe_code)]
 
+pub mod idempotency;
 pub mod jobs;
 pub mod orgs;
 pub mod refs;
@@ -23,7 +24,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 6;
+pub const REQUIRED_SCHEMA: i32 = 7;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
