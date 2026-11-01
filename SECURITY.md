@@ -38,9 +38,13 @@ Please give us a reasonable chance to fix the issue before you disclose it.
 
 ## Supported versions
 
-Slath is in early development and hasn't made a release yet, so only the
-`main` branch is supported. Until 1.0, security fixes go into the latest
-pre-release only. From 1.0 on, they go into the latest minor release.
+| Version | Supported |
+| --- | --- |
+| 0.1.x | Yes |
+| `main` | Yes |
+
+Until 1.0, security fixes go into the latest minor release only. From 1.0
+on, they go into the latest two minor releases.
 
 ## Scope
 

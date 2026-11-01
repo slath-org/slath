@@ -41,6 +41,11 @@ test-backup-restore:
     cargo build --locked -p slath --bins
     cargo nextest run --locked -p slath-tests --test ops -E 'test(/backup|restore/)'
 
+# Write tests/fixtures/schema/v<version>.sql (schema and data of a populated
+# instance) when preparing a release. Needs the dev database container.
+schema-fixture:
+    cargo nextest run --locked -p slath-tests --test ops --run-ignored only -E 'test(write_schema_fixture)'
+
 # Install conformance with deploy/compose plus the offline render check of the
 # release image (`docker build -t slath:test .` first, or set SLATH_IMAGE).
 test-compose:
@@ -98,9 +103,12 @@ py-test:
 
 # Run all tests with JUnit output and map them to the cases in CASES (a
 # Markdown file with case tables). Pass `--gate M<n>` to fail unless that gate is met.
+# Browser and compose results are included when `just test-e2e` and
+# `just test-compose` have written them.
 conformance-report CASES *ARGS:
     cargo nextest run --workspace --locked --profile ci --no-tests=pass || true
-    python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml {{ARGS}}
+    python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml \
+        $(for f in target/e2e/junit.xml target/compose/junit.xml; do [ -f "$f" ] && printf -- '--junit %s ' "$f"; done) {{ARGS}}
 
 # Static guards (SPDX, Git spawns, shells, |safe, external URLs) and their tests.
 guards:

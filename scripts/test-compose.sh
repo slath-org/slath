@@ -50,7 +50,9 @@ printf '%s' "$ADMIN_PASSWORD" | compose exec -T slath \
 
 SLATH_COMPOSE_URL="$SLATH_PUBLIC_URL" SLATH_COMPOSE_SSH_PORT="$SSH_PORT" \
     SLATH_COMPOSE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-    cargo nextest run --locked -p slath-tests --test ops --run-ignored only -E 'test(conf_ops_01)'
+    cargo nextest run --locked --profile ci -p slath-tests --test ops --run-ignored only -E 'test(conf_ops_01)'
+# Kept for `just conformance-report` (the next ci-profile run overwrites the original).
+mkdir -p target/compose && cp target/nextest/ci/junit.xml target/compose/junit.xml
 
 scripts/test-offline.sh "$SLATH_IMAGE"
 echo "compose: ok"

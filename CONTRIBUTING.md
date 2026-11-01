@@ -54,7 +54,8 @@ check, the helper script tests, and the static guards.
 - If you change a SQL query, run `just sqlx-prepare` and commit the updated
   `.sqlx/` data.
 - Add a line under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for every
-  change users or operators will notice.
+  change users or operators will notice. Each entry is one line of at most
+  200 characters; split bigger changes into several entries.
 - Update the documentation the change affects.
 
 ### Rules the guards enforce

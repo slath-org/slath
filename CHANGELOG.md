@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-01
+
+First release: self-hosted Git and Jujutsu hosting for small teams.
+
 ### Added
 
 - Cargo workspace with the `core`, `db`, `git`, `markup`, `auth`, `service`, `http`, and `ci` crates, the `slath` binary, strict workspace lints, and `just check`.
@@ -87,3 +91,6 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 - API tokens without `user:read` could list the user's organizations and their members.
 - API tokens without `repo:read` could list the user's private repositories.
+
+[Unreleased]: https://github.com/slath-org/slath/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/slath-org/slath/releases/tag/v0.1.0

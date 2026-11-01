@@ -227,7 +227,7 @@ fn conf_sec_01_tree_path_traversal_variants() {
 /// (symlink in a repository used to overwrite files), Forgejo
 /// CVE-2025-68937 (symlink following when serving files).
 #[test]
-fn conf_sec_08_symlink_raw_returns_target_text() {
+fn conf_sec_04_symlink_raw_returns_target_text() {
     let s = TestServer::start();
     let git = GitClient::new();
     let d = tempfile::tempdir().unwrap();

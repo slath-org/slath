@@ -6,4 +6,5 @@
 
 mod backup;
 mod compose;
+mod fixture;
 mod maintenance;

@@ -200,6 +200,15 @@ impl TestServer {
     }
 
     fn launch(dir: tempfile::TempDir, db: TestDb, env: &[(&str, &str)]) -> Self {
+        Self::launch_attempt(dir, db, env, 1)
+    }
+
+    fn launch_attempt(
+        dir: tempfile::TempDir,
+        db: TestDb,
+        env: &[(&str, &str)],
+        attempt: u32,
+    ) -> Self {
         let cfg_path = dir.path().join("slath.toml");
         let log = std::fs::File::create(dir.path().join("server.log")).unwrap();
         let mut child = Command::new(slath_bin())
@@ -222,7 +231,25 @@ impl TestServer {
         });
         let Ok(addr) = rx.recv_timeout(Duration::from_secs(30)) else {
             let _ = child.kill();
+            let _ = child.wait();
             let log = std::fs::read_to_string(dir.path().join("server.log")).unwrap_or_default();
+            // The free port picked earlier can be taken by another process
+            // before the server binds it; move to a new port and try again.
+            if log.contains("Address already in use") && attempt < 5 {
+                let cfg = std::fs::read_to_string(&cfg_path).unwrap();
+                let old = cfg
+                    .split("listen = \"127.0.0.1:")
+                    .nth(1)
+                    .and_then(|r| r.split('"').next())
+                    .unwrap()
+                    .to_owned();
+                let cfg = cfg.replace(
+                    &format!("127.0.0.1:{old}"),
+                    &format!("127.0.0.1:{}", free_port()),
+                );
+                std::fs::write(&cfg_path, cfg).unwrap();
+                return Self::launch_attempt(dir, db, env, attempt + 1);
+            }
             panic!("slath serve did not start:\n{log}");
         };
         Self {

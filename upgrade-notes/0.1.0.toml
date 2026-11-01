@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrade notes for 0.1.0, the first release. There is nothing to upgrade
+# from: install it fresh (docs/admin/install.md). Later releases list the
+# required manual actions, background migrations, and deprecations here.
+
+version = "0.1.0"
+schema_version = 9
+min_upgrade_from = "0.1.0"

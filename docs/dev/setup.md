@@ -52,5 +52,9 @@ To use Podman instead of Docker when both are installed, set
 | `just fmt` | Format all code |
 | `just web` | Rebuild the UI bundle after changing `web/src` |
 | `just test-e2e -g name` | Run matching browser tests; `E2E_LOCAL=1` runs Playwright without its container |
+| `just css-lint` | Check CSS against the design-token rules |
+| `just test-backup-restore` | Run the backup and restore drill |
+| `docker build -t slath:test . && just test-compose` | Install with Docker Compose as the guide says, then render every page offline |
+| `just schema-fixture` | Write the release schema and data fixture |
 | `just dev-db-stop` | Stop PostgreSQL, keeping its data |
 | `just dev-db-reset` | Delete the development database volume |

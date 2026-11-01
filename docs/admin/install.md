@@ -11,6 +11,13 @@ old), and OpenSSH for Git over SSH. There are two supported ways to run it:
 [containers with Docker Compose](#docker-compose) and [systemd on a Linux
 host](#systemd).
 
+Both start from the release's source:
+
+```sh
+git clone --branch v0.1.0 https://github.com/slath-org/slath.git
+cd slath
+```
+
 ## Docker Compose
 
 `deploy/compose/` runs PostgreSQL, Slath, and sshd. The image contains a
@@ -102,10 +109,14 @@ validates the result.
    usermod --password '*' git
    ```
 
-3. **Binary and configuration:**
+3. **Binary and configuration.** Build the binary with Rust and Node.js
+   (versions in [docs/dev/setup.md](../dev/setup.md)), or copy it out of the
+   container image (`/usr/bin/slath`):
 
    ```sh
-   install -m 0755 slath /usr/bin/slath
+   (cd web && npm ci && npm run build)
+   cargo build --release --locked -p slath
+   install -m 0755 target/release/slath /usr/bin/slath
    install -d -m 0750 -o root -g slath /etc/slath
    install -m 0640 -o root -g slath deploy/slath.example.toml /etc/slath/slath.toml
    # edit /etc/slath/slath.toml: public_url, git.binary, ...
