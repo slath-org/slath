@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Commits · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1>Commits{% if !path.is_empty() %} for <code>{{ path }}</code>{% endif %}</h1>
+{% include "repo/ref_line.html" %}
+{%- if commits.is_empty() %}
+<p class="text-secondary">No commits.</p>
+{%- else %}
+<ol class="commit-list">
+{%- for c in commits %}
+  <li>
+    <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ c.oid }}" class="commit-subject">{{ c.subject }}</a>
+    <p class="text-secondary">{{ c.author }} · <time datetime="{{ c.time.iso }}">{{ c.time.text }}</time> · <code>{{ c.short }}</code></p>
+  </li>
+{%- endfor %}
+</ol>
+{%- endif %}
+<nav aria-label="Pages" class="pager">
+  {%- if let Some(p) = prev_href %}<a href="{{ p }}" rel="prev">Newer</a>{% endif %}
+  <span class="text-secondary">Page {{ page }}</span>
+  {%- if let Some(n) = next_href %}<a href="{{ n }}" rel="next">Older</a>{% endif %}
+</nav>
+{% endblock %}

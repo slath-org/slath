@@ -1,0 +1,3 @@
+<p class="ref-line text-secondary">{{ reference.kind }} <strong>{{ reference.name }}</strong>
+{%- if reference.kind != "Commit" %} at <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ reference.commit }}"><code>{{ reference.short }}</code></a>{% endif %}
+· <a href="/{{ header.namespace }}/{{ header.name }}/branches">Branches</a> · <a href="/{{ header.namespace }}/{{ header.name }}/tags">Tags</a></p>

@@ -267,27 +267,6 @@ pub async fn repo_home(
     }))
 }
 
-/// Until the code browser renders content, a non-empty repository's home
-/// shows the same header and clone URLs.
-pub(crate) fn non_empty_home(
-    a: &RepoAccess,
-    subject: &Subject,
-    ctx: PageCtx,
-    https_url: String,
-    ssh_url: String,
-) -> impl Template {
-    RepoHome {
-        header: RepoHeader::new(a, subject, "code"),
-        description: a.repo.description.clone(),
-        can_push: a.can(subject, Action::RepoPush),
-        default_branch: a.repo.default_branch.clone(),
-        ctx,
-        https_url,
-        ssh_url,
-        empty: false,
-    }
-}
-
 #[derive(Template)]
 #[template(path = "repo/settings_general.html")]
 struct GeneralSettings<'a> {

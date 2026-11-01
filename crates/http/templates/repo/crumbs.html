@@ -1,0 +1,7 @@
+<nav aria-label="Path" class="crumbs">
+  <ol>
+  {%- for c in crumbs %}
+    <li>{% if loop.last %}<span aria-current="page">{{ c.name }}</span>{% else %}<a href="{{ c.href }}">{{ c.name }}</a>{% endif %}</li>
+  {%- endfor %}
+  </ol>
+</nav>

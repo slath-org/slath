@@ -9,7 +9,9 @@
 #![forbid(unsafe_code)]
 
 pub mod args;
+pub mod browse;
 pub mod commit;
+pub mod diff;
 pub mod error;
 pub mod ipc;
 pub mod object;

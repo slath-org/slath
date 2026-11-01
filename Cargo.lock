@@ -2114,6 +2114,7 @@ dependencies = [
  "slath-core",
  "slath-db",
  "slath-git",
+ "slath-markup",
  "slath-service",
  "subtle",
  "tempfile",

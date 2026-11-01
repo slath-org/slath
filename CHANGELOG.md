@@ -173,3 +173,12 @@ Before 1.0.0, minor versions may contain breaking changes.
   highlighting with CSS classes only, themed through the syntax tokens;
   binary detection; and visible markers for text-direction control
   characters. An XSS corpus with snapshots pins the output down.
+- Code browser: the repository home shows the default branch's files and
+  README; tree and file views with breadcrumbs, highlighted code with line
+  anchors and permalinks, raw files, paginated history (per path), commits
+  with their diff (limited by `diff_max_files`/`diff_max_lines`, with a
+  notice), and branch and tag lists. `/tree/<ref>/<path>` resolves the
+  longest existing branch, then tag, then commit ID; non-UTF-8 file and ref
+  names work. Raw files are served as text, as allowlisted images (by their
+  bytes), or as downloads (HTML, SVG, XML, and anything else), always with a
+  sandbox CSP; symlinks are shown and served as their target text.

@@ -142,7 +142,12 @@ fn sanitizer() -> ammonia::Builder<'static> {
         .add_tag_attributes("a", ["href", "id"].iter())
         .add_tag_attributes("img", ["src", "alt", "width", "height"].iter())
         .add_tag_attributes("source", ["srcset", "media", "type"].iter())
-        .add_tag_attributes("input", ["type", "checked", "disabled"].iter())
+        .add_tag_attributes(
+            "input",
+            ["type", "checked", "disabled", "aria-label"].iter(),
+        )
+        // Task list checkboxes need an accessible name.
+        .set_tag_attribute_value("input", "aria-label", "Task")
         .add_tag_attributes("code", ["class"].iter())
         .add_tag_attributes("ol", ["start"].iter())
         .add_tag_attributes("td", ["align"].iter())

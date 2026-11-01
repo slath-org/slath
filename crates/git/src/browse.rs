@@ -1,0 +1,345 @@
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Read-only operations for the code browser: refs, ref resolution, trees,
+//! blobs, history, and diffs. User input only reaches Git as validated
+//! full ref names or object IDs after `--end-of-options`, and as paths
+//! after `--`.
+
+use std::collections::HashSet;
+use std::path::Path;
+
+use crate::args::{RefName, RepoPath};
+use crate::error::GitError;
+use crate::object::{Blob, ObjectId, ObjectReader, TreeEntry};
+use crate::runner::Runner;
+
+/// The ID of the empty tree (base for a root commit's diff).
+pub const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefKind {
+    Branch,
+    Tag,
+    Commit,
+}
+
+/// A branch or tag with its commit.
+#[derive(Debug, Clone)]
+pub struct RefInfo {
+    /// Short name (without `refs/heads/` or `refs/tags/`); may be non-UTF-8.
+    pub name: Vec<u8>,
+    pub commit: ObjectId,
+    /// Unix time of the commit (branches) or tag.
+    pub time: i64,
+    pub subject: String,
+}
+
+/// Lists branches or tags, newest first, at most `limit`.
+pub async fn list_refs(
+    runner: &Runner,
+    git_dir: &Path,
+    kind: RefKind,
+    limit: usize,
+) -> Result<Vec<RefInfo>, GitError> {
+    let prefix = match kind {
+        RefKind::Branch => "refs/heads/",
+        RefKind::Tag => "refs/tags/",
+        RefKind::Commit => return Ok(Vec::new()),
+    };
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "for-each-ref",
+            "--sort=-creatordate",
+            &format!("--count={limit}"),
+            "--format=%(objectname)%00%(*objectname)%00%(refname)%00%(creatordate:unix)%00%(contents:subject)",
+            prefix,
+        ])
+        .run()
+        .await?;
+    let mut refs = Vec::new();
+    for line in out.stdout.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
+        let f: Vec<&[u8]> = line.splitn(5, |&b| b == 0).collect();
+        if f.len() < 5 {
+            continue;
+        }
+        let target = if f[1].is_empty() { f[0] } else { f[1] };
+        let Ok(commit) = ObjectId::parse(target) else {
+            continue;
+        };
+        refs.push(RefInfo {
+            name: f[2]
+                .strip_prefix(prefix.as_bytes())
+                .unwrap_or(f[2])
+                .to_vec(),
+            commit,
+            time: std::str::from_utf8(f[3])
+                .ok()
+                .and_then(|t| t.parse().ok())
+                .unwrap_or(0),
+            subject: String::from_utf8_lossy(f[4]).into_owned(),
+        });
+    }
+    Ok(refs)
+}
+
+/// The commit a full ref (or object ID) points to, or `None`.
+pub async fn resolve_commit(
+    runner: &Runner,
+    git_dir: &Path,
+    rev: &[u8],
+) -> Result<Option<ObjectId>, GitError> {
+    let mut arg = rev.to_vec();
+    arg.extend_from_slice(b"^{commit}");
+    let out = runner
+        .repo(git_dir)
+        .args(["rev-parse", "--verify", "--quiet", "--end-of-options"])
+        .arg_bytes(&arg)
+        .output()
+        .await?;
+    if !out.status.success() {
+        return Ok(None);
+    }
+    Ok(ObjectId::parse(out.stdout.trim_ascii()).ok())
+}
+
+/// A `ref/path` from a URL, resolved.
+#[derive(Debug, Clone)]
+pub struct RefPath {
+    pub kind: RefKind,
+    /// The short ref name (or the object ID).
+    pub name: Vec<u8>,
+    pub commit: ObjectId,
+    pub path: RepoPath,
+}
+
+/// Resolves `<ref>/<path>` by the longest existing branch, then tag, then a
+/// full commit ID. Short names never reach Git: candidates are matched
+/// against the listed refs first and then resolved as full ref names.
+pub async fn resolve_ref_path(
+    runner: &Runner,
+    git_dir: &Path,
+    ref_and_path: &[u8],
+) -> Result<Option<RefPath>, GitError> {
+    let segments: Vec<&[u8]> = ref_and_path.split(|&b| b == b'/').collect();
+    if segments.is_empty() || segments[0].is_empty() {
+        return Ok(None);
+    }
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "for-each-ref",
+            "--format=%(refname)",
+            "refs/heads/",
+            "refs/tags/",
+        ])
+        .run()
+        .await?;
+    let names: HashSet<&[u8]> = out
+        .stdout
+        .split(|&b| b == b'\n')
+        .filter(|l| !l.is_empty())
+        .collect();
+    for (prefix, kind) in [
+        (&b"refs/heads/"[..], RefKind::Branch),
+        (&b"refs/tags/"[..], RefKind::Tag),
+    ] {
+        for i in (1..=segments.len()).rev() {
+            let short = segments[..i].join(&b'/');
+            let mut full = prefix.to_vec();
+            full.extend_from_slice(&short);
+            if !names.contains(full.as_slice()) || RefName::parse(full.clone()).is_err() {
+                continue;
+            }
+            let Some(commit) = resolve_commit(runner, git_dir, &full).await? else {
+                return Ok(None);
+            };
+            let path =
+                RepoPath::parse(segments[i..].join(&b'/')).map_err(GitError::InvalidArgument)?;
+            return Ok(Some(RefPath {
+                kind,
+                name: short,
+                commit,
+                path,
+            }));
+        }
+    }
+    if let Ok(oid) = ObjectId::parse(segments[0])
+        && let Some(commit) = resolve_commit(runner, git_dir, oid.as_str().as_bytes()).await?
+    {
+        let path = RepoPath::parse(segments[1..].join(&b'/')).map_err(GitError::InvalidArgument)?;
+        return Ok(Some(RefPath {
+            kind: RefKind::Commit,
+            name: oid.as_str().as_bytes().to_vec(),
+            commit,
+            path,
+        }));
+    }
+    Ok(None)
+}
+
+/// What a path in a commit's tree is.
+#[derive(Debug, Clone)]
+pub enum PathObject {
+    Tree(Vec<TreeEntry>),
+    Blob { entry: TreeEntry },
+}
+
+/// Walks `path` from the commit's root tree.
+pub async fn lookup_path(
+    reader: &mut ObjectReader,
+    commit: &ObjectId,
+    path: &RepoPath,
+) -> Result<Option<PathObject>, GitError> {
+    let raw = reader.read_raw_commit(commit).await?;
+    let tree = raw
+        .tree()
+        .ok_or(GitError::Protocol("commit without tree"))?;
+    let mut tree_oid = ObjectId::parse(tree).map_err(GitError::Protocol)?;
+    if path.is_root() {
+        return Ok(Some(PathObject::Tree(sorted(
+            reader.read_tree(&tree_oid).await?,
+        ))));
+    }
+    let parts: Vec<&[u8]> = path
+        .as_bytes()
+        .split(|&b| b == b'/')
+        .filter(|p| !p.is_empty())
+        .collect();
+    for (i, part) in parts.iter().enumerate() {
+        let entries = reader.read_tree(&tree_oid).await?;
+        let Some(e) = entries.into_iter().find(|e| e.name.as_slice() == *part) else {
+            return Ok(None);
+        };
+        let last = i + 1 == parts.len();
+        match e.kind() {
+            crate::object::EntryKind::Tree => {
+                tree_oid = e.oid.clone();
+                if last {
+                    return Ok(Some(PathObject::Tree(sorted(
+                        reader.read_tree(&tree_oid).await?,
+                    ))));
+                }
+            }
+            // Symlinks and submodules are never followed.
+            _ if last => return Ok(Some(PathObject::Blob { entry: e })),
+            _ => return Ok(None),
+        }
+    }
+    Ok(None)
+}
+
+/// Directories first, then files, by name.
+fn sorted(mut entries: Vec<TreeEntry>) -> Vec<TreeEntry> {
+    entries.sort_by(|a, b| {
+        let da = a.kind() == crate::object::EntryKind::Tree;
+        let db = b.kind() == crate::object::EntryKind::Tree;
+        db.cmp(&da).then_with(|| a.name.cmp(&b.name))
+    });
+    entries
+}
+
+/// Reads a blob if it's at most `limit` bytes.
+pub async fn read_blob(
+    reader: &mut ObjectReader,
+    oid: &ObjectId,
+    limit: usize,
+) -> Result<Blob, GitError> {
+    reader.read_blob(oid, limit).await
+}
+
+/// One commit in a history listing.
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    pub oid: ObjectId,
+    pub parents: Vec<ObjectId>,
+    pub author_name: String,
+    pub author_email: String,
+    pub author_time: i64,
+    pub subject: String,
+}
+
+/// History from `commit` (optionally limited to `path`), `skip`/`max` for paging.
+pub async fn log(
+    runner: &Runner,
+    git_dir: &Path,
+    commit: &ObjectId,
+    path: &RepoPath,
+    skip: usize,
+    max: usize,
+) -> Result<Vec<LogEntry>, GitError> {
+    let mut inv = runner.repo(git_dir).args([
+        "log",
+        "--no-color",
+        "-z",
+        "--format=%H%x00%P%x00%an%x00%ae%x00%at%x00%s",
+        &format!("--skip={skip}"),
+        &format!("--max-count={max}"),
+        "--end-of-options",
+        commit.as_str(),
+        "--",
+    ]);
+    if !path.is_root() {
+        inv = inv.arg_bytes(path.as_bytes());
+    }
+    let out = inv.run().await?;
+    let fields: Vec<&[u8]> = out.stdout.split(|&b| b == 0).collect();
+    let mut entries = Vec::new();
+    for chunk in fields.chunks(6) {
+        if chunk.len() < 6 {
+            break;
+        }
+        let Ok(oid) = ObjectId::parse(chunk[0].trim_ascii()) else {
+            continue;
+        };
+        entries.push(LogEntry {
+            oid,
+            parents: chunk[1]
+                .split(|&b| b == b' ')
+                .filter_map(|p| ObjectId::parse(p).ok())
+                .collect(),
+            author_name: String::from_utf8_lossy(chunk[2]).into_owned(),
+            author_email: String::from_utf8_lossy(chunk[3]).into_owned(),
+            author_time: std::str::from_utf8(chunk[4])
+                .ok()
+                .and_then(|t| t.parse().ok())
+                .unwrap_or(0),
+            subject: String::from_utf8_lossy(chunk[5]).into_owned(),
+        });
+    }
+    Ok(entries)
+}
+
+/// The unified diff of `commit` against its first parent (or the empty tree).
+pub async fn commit_diff(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+    max_bytes: usize,
+) -> Result<(Vec<u8>, bool), GitError> {
+    let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
+    let result = runner
+        .repo(git_dir)
+        .config("core.quotePath", "false")
+        .args([
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "-M",
+            "--full-index",
+            "--patch",
+            "--end-of-options",
+            base,
+            commit.as_str(),
+        ])
+        .max_output(max_bytes)
+        .run()
+        .await;
+    match result {
+        Ok(out) => Ok((out.stdout, false)),
+        Err(GitError::Limit(crate::LimitKind::Output)) => Ok((Vec::new(), true)),
+        Err(e) => Err(e),
+    }
+}

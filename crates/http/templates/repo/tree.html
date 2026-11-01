@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1 class="visually-hidden">{{ title }}</h1>
+{%- if let Some(d) = description %}
+<p>{{ d }}</p>
+{%- endif %}
+{%- if let Some((https_url, ssh_url)) = clone %}
+<div class="clone-urls">
+  <div class="field"><label for="clone-https">Clone with HTTPS</label><input id="clone-https" type="text" value="{{ https_url }}" readonly spellcheck="false"></div>
+  <div class="field"><label for="clone-ssh">Clone with SSH</label><input id="clone-ssh" type="text" value="{{ ssh_url }}" readonly spellcheck="false"></div>
+</div>
+{%- endif %}
+{% include "repo/ref_line.html" %}
+{% include "repo/crumbs.html" %}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Files">
+<table class="table file-list">
+  <caption class="visually-hidden">Files and directories</caption>
+  <thead><tr><th scope="col">Name</th><th scope="col">Type</th></tr></thead>
+  <tbody>
+  {%- for e in entries %}
+    <tr>
+      <td><a href="{{ e.href }}">{% call m::icon(ctx, e.icon) %}{% endcall %} {{ e.name }}</a></td>
+      <td class="text-secondary">{{ e.kind }}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+<p><a href="{{ commits_href }}">History</a></p>
+{%- if let Some(r) = readme %}
+<section class="readme" aria-labelledby="readme-heading">
+  <h2 id="readme-heading">{{ r.name }}</h2>
+  {%- if let Some(html) = r.html %}
+  <div class="markdown" hx-ignore>{{ html }}</div>
+  {%- else %}
+  <pre class="code-view" tabindex="0">{{ r.text }}</pre>
+  {%- endif %}
+</section>
+{%- endif %}
+{% endblock %}

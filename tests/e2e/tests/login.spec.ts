@@ -37,5 +37,5 @@ test("conf_a11y_04_sign_in_by_keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   await page.keyboard.type(USERS.alice.password);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("link", { name: "alice", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true })).toBeVisible();
 });

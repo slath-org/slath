@@ -407,3 +407,195 @@ fieldset.field {
   font-family: var(--font-mono);
   font-size: var(--code-size);
 }
+
+/* Code browser */
+.ref-line {
+  margin: 0 0 var(--space-2);
+}
+.crumbs ol {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+}
+.crumbs li + li::before {
+  content: "/";
+  color: var(--text-secondary);
+  margin-right: var(--space-1);
+}
+.crumbs a {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+}
+.file-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+}
+.readme {
+  margin-top: var(--space-5);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+}
+.markdown {
+  font-size: var(--text-long);
+  line-height: var(--leading-long);
+  overflow-wrap: anywhere;
+}
+.markdown img {
+  max-width: 100%;
+}
+.markdown pre {
+  overflow-x: auto;
+  padding: var(--space-3);
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm);
+}
+.markdown table {
+  border-collapse: collapse;
+}
+.markdown th,
+.markdown td {
+  border: var(--border-width) solid var(--border);
+  padding: var(--space-1) var(--space-2);
+}
+.code-wrap {
+  overflow-x: auto;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0 0 var(--space-4);
+  background: var(--surface);
+}
+.code-table,
+.diff-table {
+  border-collapse: collapse;
+  width: 100%;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.code-table th,
+.diff-table .line-no {
+  width: 1%;
+  text-align: right;
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-weight: var(--weight-regular);
+  user-select: none;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.code-table td,
+.diff-table td {
+  padding: 0 var(--space-2);
+  white-space: pre;
+}
+.code-table code,
+.diff-table code {
+  font-size: inherit;
+}
+.line-no {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.code-table tr:target {
+  background: var(--selection);
+}
+.diff-table thead th {
+  text-align: left;
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+}
+.diff-add {
+  background: var(--diff-add-bg);
+}
+.diff-del {
+  background: var(--diff-del-bg);
+}
+.diff-marker {
+  width: 1%;
+  user-select: none;
+}
+.diff-file {
+  margin: var(--space-5) 0;
+}
+.diff-file-title {
+  font-size: var(--text-base);
+}
+.skip-file {
+  display: inline-block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+.diff-index {
+  list-style: none;
+  padding: 0;
+}
+.diff-index li {
+  min-height: var(--target-min);
+}
+.commit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.commit-list li {
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--border);
+}
+.commit-list p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.commit-subject {
+  font-weight: var(--weight-semibold);
+}
+.commit-body {
+  white-space: pre-wrap;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+}
+.pager {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+.pager a {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+}
+.file-actions a {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+}
+.code-table a.line-no {
+  display: inline-block;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  line-height: var(--target-min);
+}
+.code-table td {
+  line-height: var(--target-min);
+}
+@media (pointer: coarse) {
+  .code-table a.line-no {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    line-height: 2.75rem;
+  }
+  .code-table td {
+    line-height: 2.75rem;
+  }
+}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1>{{ heading }}</h1>
+{%- if refs.is_empty() %}
+<p class="text-secondary">None yet.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="refs-caption">
+<table class="table">
+  <caption id="refs-caption" class="visually-hidden">{{ heading }}</caption>
+  <thead><tr><th scope="col">Name</th><th scope="col">Latest commit</th><th scope="col">Updated</th></tr></thead>
+  <tbody>
+  {%- for r in refs %}
+    <tr>
+      <td><a href="{{ r.href }}">{{ r.name }}</a>{% if r.default %} <span class="badge">Default</span>{% endif %}</td>
+      <td><a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit }}"><code>{{ r.short }}</code></a> {{ r.subject }}</td>
+      <td><time datetime="{{ r.time.iso }}">{{ r.time.text }}</time></td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

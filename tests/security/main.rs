@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod auth;
+mod browse;
 mod git;
 mod headers;
 mod keys;

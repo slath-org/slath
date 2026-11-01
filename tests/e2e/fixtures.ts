@@ -54,7 +54,7 @@ export async function tapOrClick(_page: Page, target: Locator): Promise<void> {
 /** Accounts created by slath-e2e-server. */
 export const USERS = {
   admin: { name: "sysadmin", password: "e2e admin password" },
-  alice: { name: "alice", password: "e2e alice password" },
+  alice: { name: "alice", password: "slath test password" },
 } as const;
 
 /** Signs in through the login form. */
@@ -63,7 +63,7 @@ export async function signIn(page: Page, user: { name: string; password: string 
   await page.getByLabel("Username").fill(user.name);
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("link", { name: user.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: user.name, exact: true })).toBeVisible();
 }
 
 interface Fixtures {

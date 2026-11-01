@@ -168,6 +168,37 @@ impl<S: Send + Sync> FromRequestParts<S> for HxRequest {
     }
 }
 
+/// HTML produced by `slath-markup` (sanitized Markdown, escaped and
+/// highlighted code). Templates output it unescaped; nothing else may
+/// construct it.
+#[derive(Debug, Clone)]
+pub struct MarkupHtml(String);
+
+impl MarkupHtml {
+    /// Sanitized Markdown.
+    #[must_use]
+    pub fn markdown(src: &str, external_images: bool) -> Self {
+        Self(slath_markup::render_markdown(
+            src,
+            slath_markup::MarkdownOptions { external_images },
+        ))
+    }
+
+    /// Wraps output of `slath_markup` functions that escape their input.
+    #[must_use]
+    pub fn from_markup(html: String) -> Self {
+        Self(html)
+    }
+}
+
+impl std::fmt::Display for MarkupHtml {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl askama::filters::HtmlSafe for MarkupHtml {}
+
 /// A timestamp for templates: `<time datetime="{iso}">{text}</time>` (UTC).
 #[derive(Debug, Clone)]
 pub struct Time {
@@ -276,6 +307,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())
+        .merge(browse::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())
