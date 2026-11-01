@@ -14,6 +14,7 @@ mod git;
 mod headers;
 mod issues;
 mod keys;
+mod m2_surfaces;
 mod mfa;
 mod notifications;
 mod oidc;
