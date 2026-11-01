@@ -10,262 +10,80 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
-- Cargo workspace (edition 2024) with the `core`, `db`, `git`, `markup`, `auth`,
-  `service`, `http`, and `ci` crates and the `slath` binary, workspace lints
-  (`unsafe_code` forbidden, `unwrap`/`expect` denied outside tests), and a
-  `justfile` whose `just check` runs formatting, Clippy, and tests.
-- License policy: license texts under `LICENSES/`, a `cargo deny`
-  configuration (license allowlist, advisories, bans, sources), and
-  `scripts/check_license_deps.py`, which fails when an Apache-2.0 workspace
-  crate depends on an AGPL crate.
-- `slath-core` foundations: UUIDv7 ID newtypes, user/org/repo name validation
-  with reserved names, the redacting `Secret<T>` wrapper, authorization
-  types (`Subject`, `Action`, `Role`, `ResourceCtx`), and a deny-all
-  `authz::check` stub with a table-driven matrix test.
-- `slath-git`: the hardened Git runner (scrubbed environment, fixed config,
-  process-group kill on timeout/output cap/drop, concurrency semaphore,
-  a minimum Git version check that, before 1.0, requires the newest stable
-  Git release), validators for user revisions, ref names, and paths, an
-  object reader over `git cat-file --batch-command`, and a raw commit parser
-  that round-trips commits byte for byte and exposes jj `change-id`.
-- CI workflow running `just check`, an MSRV build, and `scripts/guards.sh`,
-  which enforces SPDX headers, Git spawns only from the runner, no shells in
-  server code, no Askama `|safe`, and no third-party URLs in resource
-  positions. `scripts/guards_test.sh` checks that each guard fires.
-- Developer environment: `deploy/dev/compose.yml` (PostgreSQL 18),
-  `just setup`, `just dev-db`, `.env.example`, and `docs/dev/setup.md`.
-- `slath-db`: connection pool, embedded migrations with a schema version check,
-  the first migration (`namespaces`, `users`, `reserved_names`, `jobs`,
-  `audit_events`, `instance_settings`), and the durable job queue with dedupe
-  keys, `SKIP LOCKED` leases, heartbeats, exponential backoff, a `dead` state,
-  `LISTEN/NOTIFY` wake-ups, and a worker pool.
-- Deterministic fixture generators (`tests/fixtures/make_*.sh`: basic, unicode,
-  binary/symlink/exec, merges, tags, signed, submodule, deep history) whose
-  refs and OIDs are identical on every run and across Git versions, plus
-  `scripts/install-git.sh` and `scripts/install-jj.sh`, which install
-  SHA-256-pinned versions from the `tests/compat/versions.toml` matrix.
-- Conformance harness: a nextest `ci` profile with JUnit output and
-  `just conformance-report CASES [--gate <milestone>]`, which maps `conf_<area>_<nn>_*`
-  tests to conformance cases and writes `target/conformance/report.{json,md}`.
-- Git smart HTTP with protocol v0/v2 and gzip request bodies. Pushes go through managed `pre-receive`/`post-receive` hooks
-  (`slath hook`), which reach the server over a 0600 Unix socket, deny
-  `refs/slath/**` and `refs/merge-requests/**`, and fail closed when the
-  server can't be reached.
-- Git over SSH through OpenSSH: `slath ssh-keys` (the `AuthorizedKeysCommand`)
-  and `slath ssh-serve` (the forced command) ask `slath serve` over the IPC
-  socket and allow only `git-upload-pack`/`git-receive-pack` on repositories
-  the key may use. Shells, other commands, `git-upload-archive`, path tricks,
-  TTYs, and forwarding are refused. `deploy/sshd/slath.conf` is the sshd
-  drop-in, and the SSH tests run against a containerized sshd that uses it.
-- Jujutsu compatibility tests: `jj git clone` and `jj git push` over HTTPS and
-  SSH for every pinned jj version, with a second jj and a plain Git clone
-  seeing the same commits and change IDs. They also record how jj stores
-  change IDs and conflicts in Git commits. `just tools` installs the pinned
-  jj versions.
+- Cargo workspace with the `core`, `db`, `git`, `markup`, `auth`, `service`, `http`, and `ci` crates, the `slath` binary, strict workspace lints, and `just check`.
+- License texts under `LICENSES/`, a `cargo deny` policy, and a check that no Apache-2.0 crate depends on an AGPL crate.
+- Core types: UUIDv7 IDs, name validation with reserved names, the redacting `Secret<T>`, and authorization types.
+- Hardened Git runner: scrubbed environment, fixed config, timeouts, output caps, concurrency limit, and a check for the newest stable Git.
+- Validators for revisions, ref names, and paths; an object reader over `git cat-file`; a byte-exact commit parser that exposes jj change IDs.
+- CI running `just check`, an MSRV build, and `scripts/guards.sh`, which enforces SPDX headers, no shells, no `|safe`, and no third-party URLs.
+- Developer environment: PostgreSQL 18 via `deploy/dev/compose.yml`, `just setup`, `just dev-db`, and `docs/dev/setup.md`.
+- Database layer: connection pool, embedded migrations with a schema version check, and the first schema.
+- Durable job queue with dedupe keys, `SKIP LOCKED` leases, heartbeats, exponential backoff, a dead state, and `LISTEN/NOTIFY` wake-ups.
+- Deterministic Git fixture generators with identical OIDs on every run, and installers for SHA-256-pinned Git and jj versions.
+- Conformance harness: JUnit output and `just conformance-report`, which maps `conf_*` tests to conformance cases.
+- Git smart HTTP (protocol v0 and v2) with managed pre- and post-receive hooks that talk to the server over a 0600 Unix socket and fail closed.
+- Git over SSH through OpenSSH: `slath ssh-keys` and `slath ssh-serve` allow only fetch and push on permitted repositories; shells and forwarding are refused.
+- `deploy/sshd/slath.conf`, the sshd drop-in, tested against a containerized sshd.
+- Jujutsu compatibility tests: `jj git clone` and `jj git push` over HTTPS and SSH for every pinned jj version.
 - README with the project's purpose, status, and development quick start.
-- Configuration loading: a TOML file overridden by `SLATH__<SECTION>__<KEY>`
-  environment variables, typed sections with defaults, every limit under
-  `[limits]`, durations (`30s`, `1h`) and sizes (`10MiB`), the database URL
-  from `url` or `url_file`, and errors that name unknown or invalid keys.
-- `slath config check` (Git version, writable `data_dir`, database
-  connectivity and schema, master key permissions), `slath version [--json]`,
-  `slath migrate [--dry-run]`, and `slath admin gen-key`. Administrative
-  commands accept `--output json`.
-- HTTP server foundations: request IDs (`X-Request-Id`), structured access
-  logs, Prometheus metrics on a separate listener, a request body limit,
-  security headers on every response with a fresh CSP nonce per response,
-  RFC 9457 problem JSON for API errors and HTML error pages for the UI,
-  `/-/healthz`, `/-/readyz` (database, schema, `data_dir`, job workers), and
-  `/-/csp-report`. `serve` now needs the database and accepts `--migrate`.
-- UI shell: Askama templates with a base layout (landmarks, skip link,
-  page titles), the UI bundle built from `web/` with Vite (htmx 4 with the
-  `hx-csp` extension, CSRF header, accessible swaps, error toasts) and
-  embedded in the binary under content-hashed URLs, and a development-only
-  component catalog at `/-/design`. A guard rejects htmx elements without the
-  nonce macro and eval-based htmx features.
-- Browser tests (`just test-e2e`): Playwright in Chromium, Firefox, and
-  WebKit, each in light and dark themes on desktop and touch viewports, with
-  axe-core accessibility checks and failures on third-party requests, CSP
-  violations, and stripped htmx elements.
-- Weave design tokens (`web/src/tokens.json` → `web/src/tokens.css`):
-  light, dark, and high-contrast color sets (following
-  `prefers-color-scheme`, `prefers-contrast`, and a server-rendered override),
-  semantic success/warning/error/info colors, diff tints with word-level
-  emphasis, syntax colors, typography, spacing, radii, elevation, motion, and
-  density. `just tokens-check` (part of `just check`) verifies every declared
-  color pair's contrast and that semantic colors stay distinct from the
-  accent.
-- Bundled fonts and icons: Source Sans 3 (Adobe's variable WOFF2, unmodified)
-  and JetBrains Mono (subset), both OFL-1.1, with metric-matched fallback
-  faces so font loading doesn't shift the layout, the regular face
-  preloaded, and ligatures off in code. A Lucide (ISC) icon sprite holds only
-  the allowlisted icons. `scripts/fonts.py` rebuilds the fonts from pinned,
-  SHA-256-checked releases. `THIRD-PARTY-NOTICES.md` lists every bundled
-  component, and `just check` fails if one is missing.
-- Local accounts and sign-in: `slath admin create-user` (with
-  `--password-stdin`, or a generated password printed once), Argon2id password
-  hashes (upgraded on sign-in when parameters change), a password policy of
-  12–1024 characters after NFC normalization, sign-in and sign-out pages, and
-  sessions stored as SHA-256 hashes of a random 256-bit cookie value with idle
-  and absolute expiry. Failed sign-ins are throttled per account and per IP
-  without revealing whether an account exists. Every state-changing browser
-  request needs a same-origin `Sec-Fetch-Site` (or `Origin`) and a CSRF token.
-  Redirects after sign-in only go to local paths. The sign-in page explains
-  how to create the first administrator on an empty instance.
-- Account settings: profile (display name, a locally generated identicon
-  avatar), password change (signs out all other sessions), and a sessions list
-  with per-session sign-out and "sign out everywhere". Sensitive actions need
-  sudo mode: a password confirmation that lasts 15 minutes and returns to the
-  page the user came from.
-- Personal access tokens (`slath_pat_` + 43 base62 characters): created in
-  sudo mode under Settings → Access tokens with a name, scopes, and expiry,
-  shown once, stored only as a SHA-256 hash with a display prefix, and
-  revocable. The API under `/api/v1` authenticates with
-  `Authorization: Bearer` tokens only and ignores cookies; expired, revoked,
-  and unknown tokens get 401. `GET /api/v1/version` and `GET /api/v1/user`
-  are the first endpoints.
-- SSH keys under Settings → SSH keys (sudo mode): Ed25519, ECDSA, the
-  security-key variants, and RSA of at least 3072 bits. DSA keys, shorter RSA
-  keys, certificates, private keys, and keys whose data doesn't match their
-  type are rejected with an explanation. A key can belong to only one
-  account, and the error for a duplicate doesn't reveal whose it is.
-- Organizations: any user can create one (or only site administrators, with
-  `auth.users_can_create_orgs = false`) and becomes its owner. Owners add
-  members, change roles, and edit the profile; the last owner can't leave or
-  be demoted. Members can see the member list. Users and organizations share
-  one case-insensitive namespace, and profile pages live at `/<name>`.
-- Repositories: create (in your namespace or an organization you belong to;
-  the bare repository is initialized in a temporary directory and renamed
-  into place), browse the empty-repository page with clone URLs and push
-  instructions, and manage settings: description, default branch,
-  visibility (sudo mode), rename (old names redirect people who can read
-  the repository, and nobody else), archive, collaborators with read, write,
-  maintain, or admin roles, and deletion (sudo mode; invisible at once, then
-  moved to the trash and purged after `maintenance.deleted_repo_days`).
-- Authorization policy for every repository action: roles, public reads,
-  archived repositories, token scopes and repository restrictions, and
-  "not found" for anything a subject can't see. A 1444-cell matrix test
-  pins it down.
-- Git over HTTPS and SSH now serve the repositories in the database.
-  HTTPS authenticates with a personal access token as the password (account
-  passwords are refused with a hint), fetches public repositories
-  anonymously, and answers private and non-existent repositories with the
-  same 401 (anonymous) or 404 (signed in). SSH keys come from the database
-  through an exact fingerprint lookup. Renamed repositories redirect Git
-  clients who can read them. Transfers have an idle timeout, and pushes are
-  limited by `limits.push_max_bytes`.
-- The push policy: refs under `refs/slath/` and `refs/merge-requests/` and
-  anything but branches and tags are refused, pushes need write access
-  (re-checked with the push's own token or key), archived repositories are
-  read-only, and moving or deleting tags needs the maintain role. One refused
-  update rejects the whole push. Accepted pushes are recorded (push events,
-  ref updates, and the ref snapshot), and push options aren't accepted.
-- The reconciler: Git is the source of truth for refs. `slath fsck` compares
-  every repository's refs with the database (and finds missing data and
-  orphaned directories); `--reconcile` records the differences as pushes with
-  transport `reconcile`. `slath serve` reconciles recently pushed
-  repositories at startup and all of them every
-  `maintenance.reconcile_interval`.
-- `slath-markup`: Markdown rendering (GitHub-flavored, raw HTML disabled)
-  sanitized by an allowlist without scripts, event handlers, inline styles,
-  `data-*`/`hx-*` attributes, or non-http(s)/mailto links; external images
-  can be turned into links (`ui.external_images = false`); syntax
-  highlighting with CSS classes only, themed through the syntax tokens;
-  binary detection; and visible markers for text-direction control
-  characters. An XSS corpus with snapshots pins the output down.
-- Code browser: the repository home shows the default branch's files and
-  README; tree and file views with breadcrumbs, highlighted code with line
-  anchors and permalinks, raw files, paginated history (per path), commits
-  with their diff (limited by `diff_max_files`/`diff_max_lines`, with a
-  notice), and branch and tag lists. `/tree/<ref>/<path>` resolves the
-  longest existing branch, then tag, then commit ID; non-UTF-8 file and ref
-  names work. Raw files are served as text, as allowlisted images (by their
-  bytes), or as downloads (HTML, SVG, XML, and anything else), always with a
-  sandbox CSP; symlinks are shown and served as their target text.
-- Archive downloads (`/<ns>/<repo>/archive/<ref>.tar.gz` and `.zip`),
-  streamed from `git archive` with the same access rules as the code
-  browser, limited by `limits.archive_timeout`, a size cap, and
-  `limits.archive_max_concurrent`.
-- REST API (`/api/v1`) for the current user, SSH keys, tokens (list and
-  revoke; creation stays in the browser), organizations and members, and
-  repositories with settings, collaborators, branches, tags, history,
-  commits, trees, and file contents. List endpoints use HMAC-signed cursors
-  with a `Link` header; requests are rate limited per token or IP
-  (`RateLimit-*` headers); every mutating request accepts `Idempotency-Key`
-  (identical retries replay the stored response, a reused key with a
-  different request gets 422, a duplicate still in progress gets 409).
-  The OpenAPI document is served at `/api/v1/openapi.json` and committed as
-  `docs/api/openapi.json`; `just api-check` keeps them in sync, and contract
-  tests validate real responses against it.
-- An append-only audit log (database trigger; only the retention purge, run
-  hourly by `slath serve`, may delete) recording sign-ins, failed sign-ins,
-  password changes, sudo, tokens, SSH keys, organizations and members, and
-  repository creation, settings, collaborators, deletion, and restore, with
-  actor and client address and never any secret.
-- Site administration under `/-/admin` (users, organizations, repositories,
-  audit log, health): create users with a one-time generated password,
-  suspend (which signs the user out everywhere and revokes their tokens) and
-  reactivate, grant and revoke administration, and restore repositories from
-  the trash. Changes need sudo mode; everyone else gets "not found".
-  Organization owners see their organization's audit log at `/<org>/-/audit`.
-- `slath backup create` and `slath backup restore`. Backups run while the
-  server is serving: one consistent database snapshot (no `pg_dump` needed),
-  repository refs and objects, the configuration without secrets, and a
-  manifest with counts and SHA-256 checksums. Restores verify the whole
-  backup first and refuse links, unlisted files, unsafe paths, and checksum
-  mismatches; they recreate repositories with Slath's own Git config, never
-  the backup's, check connectivity, and reconcile the database. `just
-  test-backup-restore` runs the restore drill. See `docs/admin/backup.md`.
-- Release container image (`Dockerfile`): the slath binary with the UI
-  embedded, a pinned Git built from source, OpenSSH, and tini; runs as an
-  unprivileged `slath` user, with `git` as the SSH login on the same UID.
-- `deploy/compose/`: PostgreSQL, Slath, and sshd with a one-shot master key
-  setup and an optional Caddy TLS profile; `deploy/systemd/` with a hardened
-  unit and a sysusers file; `deploy/slath.example.toml`; and the install guide
-  `docs/admin/install.md`. `slath admin gen-key --output FILE` writes a new
-  master key with mode 0600 and never replaces an existing one.
-- `just test-compose` follows the install guide end to end (create the admin
-  with the CLI, a repository through the API, clone over HTTP and SSH) and
-  then renders every page of the release image in a browser with outbound
-  networking disabled, failing on any request that leaves the origin.
-- Repository maintenance: after 50 pushes, or a day after the last run if
-  anything was pushed, a `repo.maintenance` job runs `git gc` (unreachable
-  objects are pruned after two weeks; everything reachable from any ref,
-  including internal ones, stays) and records the repository's size. Runs
-  never overlap on one repository. Every push also updates the recorded
-  size and warns the pusher when a repository exceeds
-  `limits.repo_soft_quota_bytes`.
-- Every HTTP route is registered with an access marker (public, public
-  read, own account, resource, Git, site admin); Clippy rejects routes
-  without one. A security test requests every route with every method as an
-  anonymous visitor and as an unrelated user, checks each marker's promise,
-  compares private resources with missing ones byte for byte, and verifies
-  that nothing changed. Another test drives the authorization matrix through
-  the web UI, raw files, archives, the API, and Git over HTTP and SSH, and a
-  log test checks that passwords, tokens, cookies, CSRF tokens, the database
-  password, and the master key never reach the log, even at debug level.
-- Regression tests modeled on recent advisories in other forges and in Git:
-  option and revision injection through ref names, SSH command, path, and
-  environment variants, key lookup and `authorized_keys` output injection,
-  encoded path traversal, symlinks, malformed trees, hostile restores,
-  bounded archives, route enumeration and suffix variants, byte-identical
-  404s on every surface, token scopes and repository restrictions,
-  cross-user IDs, revocation and visibility changes, raw content types,
-  XSS payloads in names and messages, CSRF, open redirects, forwarded
-  headers, and setup endpoints.
-- Appearance: a menu in the header switches the theme (system, light, dark)
-  and density for everyone, saved in cookies or, when signed in, in the
-  account; **Settings → Appearance** also sets the code font size. The
-  server renders the choice into the page, so the first paint is right.
-  Touch screens get 44 px targets in every density.
-- Weave components: menus, dialogs, drawers, toasts with live regions,
-  loading and error states, all on the development component catalog. A
-  stylelint check (`just css-lint`) rejects raw colors, font sizes, spacing,
-  and shadows outside the design tokens.
+- TOML configuration with `SLATH__<SECTION>__<KEY>` overrides, typed defaults, all limits under `[limits]`, and errors naming unknown keys.
+- `slath config check`, `slath version`, `slath migrate`, and `slath admin gen-key`; admin commands accept `--output json`.
+- HTTP server basics: request IDs, access logs, Prometheus metrics on a separate listener, body limits, and security headers with a CSP nonce.
+- RFC 9457 problem JSON for API errors, HTML error pages for the UI, and `/-/healthz`, `/-/readyz`, and `/-/csp-report`.
+- UI shell: Askama layouts with landmarks and skip link, and a Vite bundle (htmx 4 with `hx-csp`) embedded under content-hashed URLs.
+- Development-only component catalog at `/-/design`.
+- Browser tests (`just test-e2e`) in Chromium, Firefox, and WebKit, light and dark, desktop and touch, with axe accessibility checks.
+- Weave design tokens: light, dark, and high-contrast colors plus typography, spacing, radii, motion, and density, with contrast checks.
+- Bundled Source Sans 3 and JetBrains Mono fonts (OFL-1.1) with metric-matched fallbacks, and a Lucide (ISC) icon sprite.
+- `THIRD-PARTY-NOTICES.md` lists every bundled component; `just check` fails if one is missing.
+- Local accounts: `slath admin create-user`, Argon2id password hashes, and a 12–1024 character password policy.
+- Sign-in and sign-out with hashed session cookies, idle and absolute expiry, and throttling per account and per IP.
+- CSRF protection for every state-changing browser request: same-origin checks plus a token.
+- Account settings: display name, generated avatar, password change, and a sessions list with sign-out per session or everywhere.
+- Sudo mode: sensitive actions ask for the password again, valid for 15 minutes.
+- Personal access tokens with scopes and expiry, shown once and stored only as a hash.
+- `/api/v1` accepts only `Authorization: Bearer` tokens and ignores cookies.
+- SSH keys in account settings: Ed25519, ECDSA, security keys, and RSA of at least 3072 bits; weak or malformed keys are rejected with a reason.
+- Organizations with owners and members, a protected last owner, and profile pages at `/<name>`.
+- Users and organizations share one case-insensitive namespace.
+- Repositories: create in your namespace or an organization, with clone URLs and push instructions on the empty-repository page.
+- Repository settings: description, default branch, visibility, rename with redirects for readers, archive, and collaborators with roles.
+- Repository deletion: invisible at once, then kept in the trash for `maintenance.deleted_repo_days` before it's purged.
+- Authorization policy for every repository action, pinned by a 1444-cell matrix test; invisible resources answer "not found".
+- Git over HTTPS and SSH serve repositories from the database; HTTPS uses tokens as passwords, and private and missing repos look the same.
+- Push policy: internal refs are refused, pushes need write access, archived repos are read-only, and moving tags needs the maintain role.
+- Accepted pushes are recorded as push events, ref updates, and a ref snapshot.
+- Reconciler: `slath fsck --reconcile` and `slath serve` repair database refs that differ from Git.
+- Markdown rendering with an allowlist sanitizer, CSS-class syntax highlighting, and visible text-direction controls; pinned by an XSS corpus.
+- Code browser: files, README, highlighted code with line anchors, history, commits with diffs, and branch and tag lists.
+- Raw files are served as text, verified images, or downloads, always with a sandbox CSP; symlinks are served as their target text.
+- Archive downloads as `.tar.gz` and `.zip`, with the code browser's access rules, a timeout, a size cap, and a concurrency limit.
+- REST API for the user, keys, tokens, organizations, members, repositories, settings, collaborators, refs, history, and file contents.
+- API cursor pagination with `Link` headers, rate limits with `RateLimit-*` headers, and `Idempotency-Key` on mutating requests.
+- OpenAPI document at `/api/v1/openapi.json`, committed as `docs/api/openapi.json`; contract tests check real responses against it.
+- Append-only audit log of sign-ins, passwords, sudo, tokens, keys, organizations, and repositories, with no secrets; old entries are purged.
+- Site administration at `/-/admin`: create, suspend, and promote users, restore deleted repositories, and view the audit log and health.
+- Suspending a user signs them out everywhere and revokes their tokens.
+- Organization owners see their organization's audit log at `/<org>/-/audit`.
+- `slath backup create` takes a consistent backup while the server runs, without `pg_dump`, with a checksummed manifest.
+- `slath backup restore` verifies the whole backup first, never takes repository config from it, and reconciles afterwards.
+- `docs/admin/backup.md` and `just test-backup-restore`, the restore drill.
+- Release container image with the embedded UI, a pinned Git, and OpenSSH, running as an unprivileged user.
+- `deploy/compose/` (PostgreSQL, Slath, sshd, optional Caddy TLS), `deploy/systemd/`, `deploy/slath.example.toml`, and `docs/admin/install.md`.
+- `slath admin gen-key --output FILE` writes a new master key with mode 0600 and never replaces an existing one.
+- `just test-compose` follows the install guide end to end and renders every page of the image with outbound networking disabled.
+- Repository maintenance runs `git gc` after 50 pushes or daily, never twice at once on a repository, and records the repository size.
+- Pushes warn when a repository exceeds `limits.repo_soft_quota_bytes`.
+- Every HTTP route declares its access level; Clippy rejects routes without one.
+- Security tests sweep every route as anonymous and as a stranger, and check the authorization matrix on every surface, including SSH.
+- A log test checks that passwords, tokens, cookies, and keys never reach the log, even at debug level.
+- Regression tests modeled on recent advisories in other forges and in Git, covering injection, traversal, authorization, XSS, and CSRF.
+- Appearance menu in the header for theme and density, saved in cookies or the account, and rendered by the server for the first paint.
+- Settings → Appearance sets theme, density, and code font size; touch screens get 44 px targets in every density.
+- Weave components: menus, dialogs, drawers, toasts, and loading and error states, shown on the component catalog.
+- `just css-lint` rejects raw colors, font sizes, spacing, and shadows outside the design tokens.
 
 ### Fixed
 
-- API tokens without `user:read` could list the user's organizations and
-  organization members, and tokens without `repo:read` could list the
-  user's private repositories. The API's OpenAPI document now declares the
-  scope each operation needs.
+- API tokens without `user:read` could list the user's organizations and their members.
+- API tokens without `repo:read` could list the user's private repositories.
