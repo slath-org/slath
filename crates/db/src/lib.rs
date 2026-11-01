@@ -6,6 +6,7 @@
 
 pub mod jobs;
 pub mod sessions;
+pub mod ssh_keys;
 pub mod tokens;
 pub mod users;
 pub mod worker;
@@ -19,7 +20,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 3;
+pub const REQUIRED_SCHEMA: i32 = 4;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");

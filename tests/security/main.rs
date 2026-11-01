@@ -6,5 +6,6 @@
 
 mod auth;
 mod headers;
+mod keys;
 mod settings;
 mod tokens;

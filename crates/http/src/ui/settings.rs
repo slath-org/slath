@@ -535,6 +535,122 @@ async fn revoke_token(
     Ok(Redirect::to("/-/settings/tokens?status=token-revoked").into_response())
 }
 
+struct KeyView {
+    id: String,
+    title: String,
+    key_type: String,
+    fingerprint: String,
+    created: Time,
+    last_used: Option<Time>,
+}
+
+#[derive(Template)]
+#[template(path = "settings/keys.html")]
+struct KeysPage<'a> {
+    ctx: PageCtx,
+    tab: &'static str,
+    keys: Vec<KeyView>,
+    message: Option<&'a str>,
+    errors: Vec<FieldError>,
+    title: String,
+    key: String,
+}
+
+impl KeysPage<'_> {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+async fn keys_view(
+    state: &AppState,
+    session: &slath_service::sessions::Session,
+) -> Result<Vec<KeyView>, AppError> {
+    Ok(state
+        .services
+        .list_keys(&session.subject)
+        .await?
+        .into_iter()
+        .map(|k| KeyView {
+            id: k.id.to_string(),
+            title: k.title,
+            key_type: k.key_type,
+            fingerprint: k.fingerprint,
+            created: k.created_at.into(),
+            last_used: k.last_used_at.map(Into::into),
+        })
+        .collect())
+}
+
+async fn keys_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    let keys = keys_view(&state, &session).await?;
+    Ok(render(&KeysPage {
+        ctx,
+        tab: "keys",
+        keys,
+        message: status_message(q.status.as_deref()),
+        errors: Vec::new(),
+        title: String::new(),
+        key: String::new(),
+    }))
+}
+
+#[derive(Deserialize)]
+struct KeyForm {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    key: String,
+}
+
+async fn add_key(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+    Form(f): Form<KeyForm>,
+) -> Result<Response, AppError> {
+    match state
+        .services
+        .add_key(&session.subject, true, &f.title, &f.key)
+        .await
+    {
+        Ok(_) => Ok(Redirect::to("/-/settings/keys?status=key-added").into_response()),
+        Err(e) => {
+            let errors = field_errors(e)?;
+            let keys = keys_view(&state, &session).await?;
+            let mut res = render(&KeysPage {
+                ctx,
+                tab: "keys",
+                keys,
+                message: None,
+                errors,
+                title: f.title,
+                key: f.key,
+            });
+            *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
+            Ok(res)
+        }
+    }
+}
+
+async fn remove_key(
+    State(state): State<AppState>,
+    Sudo(session): Sudo,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .remove_key(&session.subject, true, id)
+        .await?;
+    Ok(Redirect::to("/-/settings/keys?status=key-removed").into_response())
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
@@ -548,6 +664,8 @@ pub fn router() -> Router<AppState> {
         .route("/-/settings/sessions", get(sessions))
         .route("/-/settings/sessions/revoke-all", post(revoke_all))
         .route("/-/settings/sessions/{id}/revoke", post(revoke_session))
+        .route("/-/settings/keys", get(keys_page).post(add_key))
+        .route("/-/settings/keys/{id}/delete", post(remove_key))
         .route("/-/settings/tokens", get(tokens_page).post(create_token))
         .route("/-/settings/tokens/{id}/revoke", post(revoke_token))
         .route("/-/sudo", get(sudo_page).post(sudo_submit))

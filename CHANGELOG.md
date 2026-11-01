@@ -126,3 +126,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   `Authorization: Bearer` tokens only and ignores cookies; expired, revoked,
   and unknown tokens get 401. `GET /api/v1/version` and `GET /api/v1/user`
   are the first endpoints.
+- SSH keys under Settings → SSH keys (sudo mode): Ed25519, ECDSA, the
+  security-key variants, and RSA of at least 3072 bits. DSA keys, shorter RSA
+  keys, certificates, private keys, and keys whose data doesn't match their
+  type are rejected with an explanation. A key can belong to only one
+  account, and the error for a duplicate doesn't reveal whose it is.

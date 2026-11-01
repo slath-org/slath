@@ -1,0 +1,56 @@
+{% extends "settings/layout.html" %}
+{% block title %}SSH keys{% endblock %}
+{% block settings %}
+<h1>SSH keys</h1>
+<p>SSH keys let you clone and push over SSH. Each key belongs to exactly one account.</p>
+{% include "settings/errors.html" %}
+{%- if keys.is_empty() %}
+<p class="text-secondary">You have no SSH keys.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="keys-caption">
+<table class="table">
+  <caption id="keys-caption" class="visually-hidden">Your SSH keys</caption>
+  <thead>
+    <tr><th scope="col">Title</th><th scope="col">Fingerprint</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+  {%- for k in keys %}
+    <tr>
+      <td>{{ k.title }}</td>
+      <td><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
+      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time></td>
+      <td>{% if let Some(u) = k.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
+      <td>
+        <form method="post" action="/-/settings/keys/{{ k.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> {{ k.title }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h2>Add a key</h2>
+<form method="post" action="/-/settings/keys" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="key">Public key</label>
+    <textarea id="key" name="key" rows="4" required spellcheck="false" autocapitalize="none" aria-describedby="key-hint{% if self.error("key").is_some() %} key-error{% endif %}"
+      {%- if self.error("key").is_some() %} aria-invalid="true"{% endif %}>{{ key }}</textarea>
+    <p id="key-hint" class="hint">The contents of your <code>.pub</code> file, e.g. <code>~/.ssh/id_ed25519.pub</code>. Ed25519 and ECDSA keys and RSA keys of at least 3072 bits are accepted.</p>
+    {%- if let Some(e) = self.error("key") %}
+    <p id="key-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ title }}" maxlength="100" aria-describedby="title-hint"
+      {%- if self.error("title").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="title-hint" class="hint">Optional. Defaults to the key's comment.</p>
+  </div>
+  <div><button type="submit" class="button button-primary">Add key</button></div>
+</form>
+{% endblock %}

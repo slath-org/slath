@@ -6,6 +6,7 @@
 pub mod csrf;
 pub mod master_key;
 pub mod password;
+pub mod ssh_key;
 pub mod token;
 
 pub use master_key::MasterKey;
