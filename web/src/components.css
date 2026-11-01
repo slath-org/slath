@@ -185,3 +185,100 @@ textarea[aria-invalid="true"] {
     border: var(--border-width) solid ButtonText;
   }
 }
+
+/* Sidebar layout (settings, admin) */
+.with-sidebar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+.sidebar {
+  flex: 0 0 12rem;
+}
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sidebar a {
+  display: flex;
+  align-items: center;
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.sidebar a:hover {
+  background: var(--surface-subtle);
+}
+.sidebar a[aria-current="page"] {
+  background: var(--selection);
+  font-weight: var(--weight-semibold);
+  box-shadow: inset calc(var(--space-1) - 1px) 0 0 var(--accent);
+}
+.sidebar-content {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+/* Tables */
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 var(--space-4);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: var(--leading-dense);
+}
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: middle;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border);
+  height: var(--row-height);
+}
+.table th {
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.form-actions {
+  margin: var(--space-4) 0;
+}
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+.profile-avatar img {
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--border);
+}
+.profile-avatar p {
+  margin: 0;
+}
+
+.error-summary ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+.error-summary li a,
+.error-summary p a {
+  display: inline-block;
+  min-height: var(--target-min);
+  padding-block: var(--space-1);
+}

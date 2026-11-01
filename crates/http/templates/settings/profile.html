@@ -1,0 +1,27 @@
+{% extends "settings/layout.html" %}
+{% block title %}Profile settings{% endblock %}
+{% block settings %}
+<h1>Profile</h1>
+{% include "settings/errors.html" %}
+<div class="profile-avatar">
+  <img src="/-/avatars/{{ name }}.svg" alt="" width="64" height="64">
+  <p class="text-secondary">Your avatar is generated from your username. Uploading a picture will come later.</p>
+</div>
+<form method="post" action="/-/settings/profile" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" type="text" value="{{ name }}" readonly aria-describedby="username-hint">
+    <p id="username-hint" class="hint">Usernames can't be changed yet.</p>
+  </div>
+  <div class="field">
+    <label for="display_name">Display name</label>
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100" autocomplete="name"
+      {%- if let Some(e) = self.error("display_name") %} aria-invalid="true" aria-describedby="display_name-error"{% endif %}>
+    {%- if let Some(e) = self.error("display_name") %}
+    <p id="display_name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Save profile</button></div>
+</form>
+{% endblock %}

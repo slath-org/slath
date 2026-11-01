@@ -1,0 +1,28 @@
+{% extends "settings/layout.html" %}
+{% block title %}Password{% endblock %}
+{% block settings %}
+<h1>Password</h1>
+{% include "settings/errors.html" %}
+<p>Changing your password signs out all your other sessions.</p>
+<form method="post" action="/-/settings/security/password" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="new_password">New password</label>
+    <input id="new_password" name="new_password" type="password" autocomplete="new-password" required aria-describedby="new_password-hint{% if self.error("new_password").is_some() %} new_password-error{% endif %}"
+      {%- if self.error("new_password").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="new_password-hint" class="hint">At least 12 characters. A phrase of several words works well.</p>
+    {%- if let Some(e) = self.error("new_password") %}
+    <p id="new_password-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="confirm_password">Confirm new password</label>
+    <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required
+      {%- if let Some(e) = self.error("confirm_password") %} aria-invalid="true" aria-describedby="confirm_password-error"{% endif %}>
+    {%- if let Some(e) = self.error("confirm_password") %}
+    <p id="confirm_password-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Change password</button></div>
+</form>
+{% endblock %}

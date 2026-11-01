@@ -114,3 +114,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   request needs a same-origin `Sec-Fetch-Site` (or `Origin`) and a CSRF token.
   Redirects after sign-in only go to local paths. The sign-in page explains
   how to create the first administrator on an empty instance.
+- Account settings: profile (display name, a locally generated identicon
+  avatar), password change (signs out all other sessions), and a sessions list
+  with per-session sign-out and "sign out everywhere". Sensitive actions need
+  sudo mode: a password confirmation that lasts 15 minutes and returns to the
+  page the user came from.

@@ -5,6 +5,8 @@
 
 pub mod account;
 pub mod design;
+pub mod identicon;
+pub mod settings;
 
 use askama::Template;
 use axum::extract::{FromRequestParts, Request};
@@ -163,6 +165,31 @@ impl<S: Send + Sync> FromRequestParts<S> for HxRequest {
     }
 }
 
+/// A timestamp for templates: `<time datetime="{iso}">{text}</time>` (UTC).
+#[derive(Debug, Clone)]
+pub struct Time {
+    pub iso: String,
+    pub text: String,
+}
+
+impl From<time::OffsetDateTime> for Time {
+    fn from(t: time::OffsetDateTime) -> Self {
+        let t = t.to_offset(time::UtcOffset::UTC);
+        let iso = t
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
+        let text = format!(
+            "{:04}-{:02}-{:02} {:02}:{:02} UTC",
+            t.year(),
+            u8::from(t.month()),
+            t.day(),
+            t.hour(),
+            t.minute()
+        );
+        Self { iso, text }
+    }
+}
+
 /// Renders a template as an HTML response.
 pub fn render(t: &impl Template) -> Response {
     match t.render() {
@@ -233,6 +260,7 @@ pub fn router() -> axum::Router<AppState> {
     let r = axum::Router::new()
         .route("/", get(home))
         .merge(account::router())
+        .merge(settings::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())

@@ -6,3 +6,4 @@
 
 mod auth;
 mod headers;
+mod settings;

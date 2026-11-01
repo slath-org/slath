@@ -224,3 +224,72 @@ pub async fn purge_attempts(exec: impl PgExecutor<'_>) -> Result<u64, DbError> {
             .await?;
     Ok(r.rows_affected())
 }
+
+/// One session in a user's session list.
+#[derive(Debug, Clone)]
+pub struct SessionSummary {
+    pub id_hash: Vec<u8>,
+    pub created_at: OffsetDateTime,
+    pub last_seen_at: OffsetDateTime,
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+/// The user's live sessions, most recently used first.
+pub async fn list_for_user(
+    exec: impl PgExecutor<'_>,
+    user: UserId,
+    idle: time::Duration,
+) -> Result<Vec<SessionSummary>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT id_hash, created_at, last_seen_at, host(ip) AS ip, user_agent FROM sessions
+           WHERE user_id = $1 AND expires_at > now() AND last_seen_at > now() - $2::interval
+           ORDER BY last_seen_at DESC LIMIT 200"#,
+        user.as_uuid(),
+        sqlx::postgres::types::PgInterval::try_from(idle).map_err(|_| DbError::Invalid("idle"))?,
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| SessionSummary {
+            id_hash: r.id_hash,
+            created_at: r.created_at,
+            last_seen_at: r.last_seen_at,
+            ip: r.ip,
+            user_agent: r.user_agent,
+        })
+        .collect())
+}
+
+/// Deletes one of the user's own sessions.
+pub async fn delete_for_user(
+    exec: impl PgExecutor<'_>,
+    user: UserId,
+    id_hash: &[u8],
+) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "DELETE FROM sessions WHERE user_id = $1 AND id_hash = $2",
+        user.as_uuid(),
+        id_hash
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+/// Starts (or extends) sudo mode for a session.
+pub async fn set_sudo(
+    exec: impl PgExecutor<'_>,
+    id_hash: &[u8],
+    until: OffsetDateTime,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE sessions SET sudo_until = $2 WHERE id_hash = $1",
+        id_hash,
+        until
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

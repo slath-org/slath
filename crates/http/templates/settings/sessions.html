@@ -1,0 +1,34 @@
+{% extends "settings/layout.html" %}
+{% block title %}Sessions{% endblock %}
+{% block settings %}
+<h1>Sessions</h1>
+<p>These browsers are signed in to your account.</p>
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="sessions-caption">
+<table class="table">
+  <caption id="sessions-caption" class="visually-hidden">Signed-in sessions</caption>
+  <thead>
+    <tr><th scope="col">Browser</th><th scope="col">IP address</th><th scope="col">Signed in</th><th scope="col">Last active</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+  {%- for s in sessions %}
+    <tr>
+      <td>{{ s.agent }}{% if s.current %} <strong class="badge">This browser</strong>{% endif %}</td>
+      <td class="numeric">{{ s.ip }}</td>
+      <td><time datetime="{{ s.created.iso }}">{{ s.created.text }}</time></td>
+      <td><time datetime="{{ s.last_seen.iso }}">{{ s.last_seen.text }}</time></td>
+      <td>
+        <form method="post" action="/-/settings/sessions/{{ s.id }}/revoke" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Sign out<span class="visually-hidden"> {% if s.current %}this browser{% else %}session from {{ s.ip }}{% endif %}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+<form method="post" action="/-/settings/sessions/revoke-all" class="form-actions">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button button-danger">Sign out everywhere</button>
+</form>
+{% endblock %}

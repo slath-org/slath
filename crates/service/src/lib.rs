@@ -10,6 +10,7 @@
 pub mod accounts;
 pub mod error;
 pub mod sessions;
+pub mod settings;
 
 use std::sync::Arc;
 

@@ -459,3 +459,47 @@ mod tests {
         assert_eq!(form_field(b"a=1", "_csrf"), None);
     }
 }
+
+/// A signed-in session in sudo mode. Without sudo mode, the request is
+/// redirected to the confirmation page, which returns to the page the user
+/// was on (for GET) or came from (for form posts).
+#[derive(Debug, Clone)]
+pub struct Sudo(pub Session);
+
+impl FromRequestParts<AppState> for Sudo {
+    type Rejection = Response;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let session = match parts.extensions.get::<MaybeSession>() {
+            Some(MaybeSession(Some(s))) => s.clone(),
+            _ => return Err(AppError::unauthenticated().into_response()),
+        };
+        if session.in_sudo() {
+            return Ok(Self(session));
+        }
+        let back = if parts.method == Method::GET {
+            parts
+                .uri
+                .path_and_query()
+                .map_or("/", |p| p.as_str())
+                .to_owned()
+        } else {
+            // Return to the page with the form, if it was ours.
+            let origin = state.config.server.public_url.origin();
+            parts
+                .headers
+                .get(header::REFERER)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|r| r.strip_prefix(origin))
+                .map_or_else(|| "/-/settings".to_owned(), str::to_owned)
+        };
+        let next = safe_next(Some(&back));
+        let target = format!(
+            "/-/sudo?next={}",
+            percent_encoding::utf8_percent_encode(&next, percent_encoding::NON_ALPHANUMERIC)
+        );
+        Err(axum::response::Redirect::to(&target).into_response())
+    }
+}

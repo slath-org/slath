@@ -211,3 +211,34 @@ impl<'a> Problem<'a> {
         }
     }
 }
+
+impl From<slath_service::ServiceError> for AppError {
+    fn from(e: slath_service::ServiceError) -> Self {
+        use slath_service::ServiceError as S;
+        match e {
+            S::NotFound => Self::not_found(),
+            S::Forbidden => Self::forbidden(),
+            S::Unauthenticated => Self::unauthenticated(),
+            S::SudoRequired => Self::with_code(
+                StatusCode::FORBIDDEN,
+                "sudo_required",
+                "Confirm your password",
+            )
+            .detail("This action needs a recent password confirmation."),
+            S::Conflict(what) => Self::conflict(what),
+            S::Invalid(errors) => Self::validation(
+                errors
+                    .into_iter()
+                    .map(|f| FieldError {
+                        field: f.field,
+                        code: f.code,
+                        message: f.message,
+                    })
+                    .collect(),
+            ),
+            S::RateLimited { retry_after } => Self::rate_limited(retry_after),
+            S::Unavailable => Self::unavailable(),
+            S::Internal(msg) => Self::internal(&msg),
+        }
+    }
+}

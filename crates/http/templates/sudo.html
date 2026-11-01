@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Confirm your password{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Confirm your password</h1>
+<p>This action is sensitive. Confirm your password to continue; you won't be asked again for 15 minutes.</p>
+{% if let Some(e) = error -%}
+<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2>There is a problem</h2>
+  <p><a href="#password">{{ e }}</a></p>
+</div>
+{%- endif %}
+<form method="post" action="/-/sudo" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  {%- if let Some(user) = ctx.user %}
+  <input type="text" name="username" value="{{ user.name }}" autocomplete="username" hidden>
+  {%- endif %}
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div><button type="submit" class="button button-primary">Confirm</button></div>
+</form>
+</div>
+{% endblock %}

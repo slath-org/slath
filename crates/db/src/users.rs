@@ -177,3 +177,38 @@ pub async fn set_password_hash(
     .await?;
     Ok(())
 }
+
+/// Updates the profile fields a user edits themselves.
+pub async fn update_profile(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    display_name: Option<&str>,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET display_name = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        display_name
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// The stored password hash of a user.
+pub async fn password_hash(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+) -> Result<Option<String>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT password_hash FROM users WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?
+    .flatten())
+}
+
+/// Looks up a user by name (case-insensitive).
+pub async fn get_by_name(exec: impl PgExecutor<'_>, name: &str) -> Result<Option<User>, DbError> {
+    Ok(find_for_login(exec, name).await?.map(|r| r.user))
+}
