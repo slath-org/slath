@@ -36,6 +36,8 @@ pub struct AppState {
     pub ipc_socket: PathBuf,
     pub services: slath_service::Services,
     pub trusted_proxies: Arc<auth::TrustedProxies>,
+    /// Limits concurrent archive downloads (`limits.archive_max_concurrent`).
+    pub archives: Arc<tokio::sync::Semaphore>,
 }
 
 /// Everything [`AppState::new`] needs.
@@ -52,6 +54,9 @@ impl AppState {
     pub fn new(p: StateParts, metrics: Arc<metrics::Metrics>) -> Result<Self, String> {
         let trusted_proxies = auth::TrustedProxies::parse(&p.config.server.trusted_proxies)?;
         Ok(Self {
+            archives: Arc::new(tokio::sync::Semaphore::new(
+                p.config.limits.archive_max_concurrent.max(1),
+            )),
             trusted_proxies: Arc::new(trusted_proxies),
             services: p.services,
             config: p.config,

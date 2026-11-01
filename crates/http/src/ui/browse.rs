@@ -944,6 +944,115 @@ async fn refs(
     }))
 }
 
+/// `GET /{ns}/{repo}/archive/{ref}.tar.gz|.zip`: a streamed `git archive`
+/// of the ref, bounded by `limits.archive_timeout`, a size cap, and
+/// `limits.archive_max_concurrent`.
+async fn archive(
+    State(state): State<AppState>,
+    session: MaybeSession,
+    raw: RawRepoPath,
+) -> Result<Response, AppError> {
+    use futures_util::StreamExt;
+    let subject = session.subject();
+    let (ns, repo, rest) = params(&raw);
+    let (name, format, ext, ct) = if let Some(n) = rest.strip_suffix(b".tar.gz") {
+        (n, "tar.gz", "tar.gz", "application/gzip")
+    } else if let Some(n) = rest.strip_suffix(b".zip") {
+        (n, "zip", "zip", "application/zip")
+    } else {
+        return Err(AppError::not_found());
+    };
+    let a = access(&state, &subject, &ns, &repo).await?;
+    let r = resolve(&state, &a, name).await?;
+    if !r.path.is_root() {
+        return Err(AppError::not_found());
+    }
+    let Ok(permit) = std::sync::Arc::clone(&state.archives).try_acquire_owned() else {
+        return Err(AppError::with_code(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "busy",
+            "Too many downloads",
+        )
+        .detail("Too many archives are being prepared. Try again shortly."));
+    };
+    let short = &r.commit.as_str()[..12];
+    let prefix = format!("{}-{short}/", a.repo.name);
+    let mut child = state
+        .runner
+        .repo(&state.services.repo_path(a.repo.id))
+        .args([
+            "archive",
+            &format!("--format={format}"),
+            &format!("--prefix={prefix}"),
+            "--end-of-options",
+            r.commit.as_str(),
+        ])
+        .spawn()
+        .await
+        .map_err(|e| AppError::internal(&e))?;
+    let (stdin, stdout, stderr) = child.take_stdio().map_err(|e| AppError::internal(&e))?;
+    drop(stdin);
+    tokio::spawn(async move {
+        let mut e = stderr;
+        let mut sink = Vec::new();
+        let _ = tokio::io::AsyncReadExt::read_to_end(&mut e, &mut sink).await;
+    });
+    let limits = &state.config.limits;
+    let deadline = tokio::time::Instant::now() + limits.archive_timeout.get();
+    let cap = limits.push_max_bytes.get();
+    let out = tokio_util::io::ReaderStream::new(stdout);
+    // The stream owns the child and the permit; dropping it kills Git.
+    let stream = futures_util::stream::unfold(
+        (out, Some((child, permit)), 0u64),
+        move |(mut out, mut guard, sent)| async move {
+            guard.as_ref()?;
+            match tokio::time::timeout_at(deadline, out.next()).await {
+                Ok(Some(Ok(chunk))) if sent + chunk.len() as u64 <= cap => {
+                    let sent = sent + chunk.len() as u64;
+                    Some((Ok(chunk), (out, guard, sent)))
+                }
+                Ok(None) => {
+                    if let Some((mut c, _p)) = guard.take() {
+                        let _ = c.wait().await;
+                    }
+                    None
+                }
+                Ok(Some(Err(e))) => {
+                    drop(guard.take());
+                    Some((Err(e), (out, None, sent)))
+                }
+                _ => {
+                    drop(guard.take());
+                    Some((
+                        Err(std::io::Error::other("archive timed out or grew too large")),
+                        (out, None, sent),
+                    ))
+                }
+            }
+        },
+    );
+    let mut res = axum::body::Body::from_stream(stream).into_response();
+    let h = res.headers_mut();
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
+    if let Ok(v) = HeaderValue::from_str(&format!(
+        "attachment; filename=\"{}-{short}.{ext}\"",
+        download_name(a.repo.name.as_bytes())
+    )) {
+        h.insert(header::CONTENT_DISPOSITION, v);
+    }
+    h.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("sandbox; default-src 'none'"),
+    );
+    let cache = if a.repo.visibility == Visibility::Private {
+        "private, no-store"
+    } else {
+        "no-cache"
+    };
+    h.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
+    Ok(res)
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -953,6 +1062,7 @@ pub fn router() -> Router<AppState> {
         .route("/{ns}/{repo}/commits", get(commits))
         .route("/{ns}/{repo}/commits/{*rest}", get(commits))
         .route("/{ns}/{repo}/commit/{rest}", get(commit))
+        .route("/{ns}/{repo}/archive/{*rest}", get(archive))
         .route(
             "/{ns}/{repo}/branches",
             get(

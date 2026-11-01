@@ -300,3 +300,68 @@ fn conf_git_03_browser_routes_hide_private_repositories() {
         }
     }
 }
+
+#[test]
+fn conf_git_03_archives_match_git_archive_and_respect_access() {
+    let s = TestServer::start();
+    let _d = push_fixture(&s, "binary");
+    let mut a = alice(&s);
+    let oid =
+        s.db.query_one("SELECT oid FROM git_refs WHERE name = 'refs/heads/main'::bytea");
+    let short = &oid[..12];
+    let zip = a.get("/alice/demo/archive/main.zip");
+    assert_eq!(zip.status, 200);
+    assert_eq!(zip.header("content-type"), Some("application/zip"));
+    assert_eq!(
+        zip.header("content-disposition"),
+        Some(format!("attachment; filename=\"demo-{short}.zip\"").as_str())
+    );
+    assert_eq!(zip.header("cache-control"), Some("private, no-store"));
+    let git = GitClient::new();
+    let want = git
+        .cmd(&s.repo_path(&DEMO))
+        .args([
+            "archive",
+            "--format=zip",
+            &format!("--prefix=demo-{short}/"),
+            &oid,
+        ])
+        .output()
+        .unwrap();
+    assert!(want.status.success());
+    assert_eq!(zip.bytes, want.stdout, "identical to git archive");
+    let tgz = a.get(&format!("/alice/demo/archive/{oid}.tar.gz"));
+    assert_eq!(tgz.status, 200);
+    let mut tar = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(&tgz.bytes[..]), &mut tar)
+        .unwrap();
+    let want = git
+        .cmd(&s.repo_path(&DEMO))
+        .args([
+            "archive",
+            "--format=tar",
+            &format!("--prefix=demo-{short}/"),
+            &oid,
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(tar, want.stdout);
+    // Unknown refs, paths, formats, and option-like names find nothing.
+    for p in [
+        "/alice/demo/archive/nope.zip",
+        "/alice/demo/archive/main/bin.zip",
+        "/alice/demo/archive/main.tar",
+        "/alice/demo/archive/--output=x.zip",
+        "/alice/demo/archive/--exec=id.tar.gz",
+    ] {
+        assert_eq!(a.get(p).status, 404, "{p}");
+    }
+    // Private repositories: nothing for others.
+    s.create_user("mallory", PASSWORD, false);
+    let mut m = s.login("mallory", PASSWORD);
+    assert_eq!(m.get("/alice/demo/archive/main.zip").status, 404);
+    assert_eq!(
+        s.client().get("/alice/demo/archive/main.tar.gz").status,
+        404
+    );
+}

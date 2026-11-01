@@ -1,3 +1,4 @@
 <p class="ref-line text-secondary">{{ reference.kind }} <strong>{{ reference.name }}</strong>
 {%- if reference.kind != "Commit" %} at <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ reference.commit }}"><code>{{ reference.short }}</code></a>{% endif %}
-· <a href="/{{ header.namespace }}/{{ header.name }}/branches">Branches</a> · <a href="/{{ header.namespace }}/{{ header.name }}/tags">Tags</a></p>
+· <a href="/{{ header.namespace }}/{{ header.name }}/branches">Branches</a> · <a href="/{{ header.namespace }}/{{ header.name }}/tags">Tags</a>
+· Download <a href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.tar.gz">tar.gz</a>, <a href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.zip">zip</a></p>

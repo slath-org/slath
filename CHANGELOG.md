@@ -182,3 +182,7 @@ Before 1.0.0, minor versions may contain breaking changes.
   names work. Raw files are served as text, as allowlisted images (by their
   bytes), or as downloads (HTML, SVG, XML, and anything else), always with a
   sandbox CSP; symlinks are shown and served as their target text.
+- Archive downloads (`/<ns>/<repo>/archive/<ref>.tar.gz` and `.zip`),
+  streamed from `git archive` with the same access rules as the code
+  browser, limited by `limits.archive_timeout`, a size cap, and
+  `limits.archive_max_concurrent`.
