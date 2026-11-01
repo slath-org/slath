@@ -35,5 +35,6 @@ mod surfaces;
 mod teams;
 mod tokens;
 mod vuln_git;
+mod vuln_m2;
 mod vuln_rbac;
 mod vuln_web;
