@@ -21,6 +21,7 @@ use axum::response::{Html, IntoResponse, Response};
 use crate::AppState;
 use crate::error::{AppError, ErrorInfo};
 use crate::middleware::Nonce;
+use crate::routes::{Access, RouteExt};
 
 /// The signed-in user as the page header shows them.
 #[derive(Debug, Clone)]
@@ -303,14 +304,18 @@ pub async fn fallback() -> AppError {
 pub fn router() -> axum::Router<AppState> {
     use axum::routing::get;
     let r = axum::Router::new()
-        .route("/", get(home))
+        .route_as("/", Access::Public, get(home))
         .merge(account::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())
         .merge(browse::router())
         .merge(admin::router())
-        .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
+        .route_as(
+            "/-/assets/{hash}/{*file}",
+            Access::Public,
+            get(crate::assets::serve),
+        );
     if cfg!(debug_assertions) {
         r.merge(design::router())
     } else {

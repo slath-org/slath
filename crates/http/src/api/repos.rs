@@ -20,6 +20,7 @@ use super::support::{PageParams, page};
 use super::{ApiSubject, ApiUser};
 use crate::AppState;
 use crate::error::{AppError, FieldError};
+use crate::routes::{Access, RouteExt};
 
 fn ts(t: time::OffsetDateTime) -> String {
     crate::ui::Time::from(t).iso
@@ -734,23 +735,54 @@ pub async fn delete_collaborator(
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
-        .route("/api/v1/repos", get(list_repos).post(create_repo))
-        .route(
+        .route_as(
+            "/api/v1/repos",
+            Access::PublicRead,
+            get(list_repos).post(create_repo),
+        )
+        .route_as(
             "/api/v1/repos/{ns}/{repo}",
+            Access::Resource,
             get(get_repo).patch(update_repo).delete(delete_repo),
         )
-        .route("/api/v1/repos/{ns}/{repo}/branches", get(list_branches))
-        .route("/api/v1/repos/{ns}/{repo}/tags", get(list_tags))
-        .route("/api/v1/repos/{ns}/{repo}/commits", get(list_commits))
-        .route("/api/v1/repos/{ns}/{repo}/commits/{oid}", get(get_commit))
-        .route("/api/v1/repos/{ns}/{repo}/tree/{ref}", get(get_tree))
-        .route("/api/v1/repos/{ns}/{repo}/blob/{ref}", get(get_blob))
-        .route(
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/branches",
+            Access::Resource,
+            get(list_branches),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/tags",
+            Access::Resource,
+            get(list_tags),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/commits",
+            Access::Resource,
+            get(list_commits),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/commits/{oid}",
+            Access::Resource,
+            get(get_commit),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/tree/{ref}",
+            Access::Resource,
+            get(get_tree),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/blob/{ref}",
+            Access::Resource,
+            get(get_blob),
+        )
+        .route_as(
             "/api/v1/repos/{ns}/{repo}/collaborators",
+            Access::Resource,
             get(list_collaborators),
         )
-        .route(
+        .route_as(
             "/api/v1/repos/{ns}/{repo}/collaborators/{user}",
+            Access::Resource,
             axum::routing::put(put_collaborator).delete(delete_collaborator),
         )
 }

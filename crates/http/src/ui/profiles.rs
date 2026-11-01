@@ -16,6 +16,7 @@ use super::{PageCtx, Time, render};
 use crate::AppState;
 use crate::auth::{MaybeSession, RequireSession};
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 #[derive(Deserialize, Default)]
 pub struct StatusQuery {
@@ -454,14 +455,27 @@ async fn org_settings_save(
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
-        .route("/-/orgs/new", get(new_org))
-        .route("/-/orgs", post(create_org))
-        .route("/{ns}", get(profile))
-        .route("/{org}/-/members", get(members).post(add_member))
-        .route("/{org}/-/members/{user}/role", post(set_role))
-        .route("/{org}/-/members/{user}/remove", post(remove_member))
-        .route(
+        .route_as("/-/orgs/new", Access::Account, get(new_org))
+        .route_as("/-/orgs", Access::Account, post(create_org))
+        .route_as("/{ns}", Access::Public, get(profile))
+        .route_as(
+            "/{org}/-/members",
+            Access::Resource,
+            get(members).post(add_member),
+        )
+        .route_as(
+            "/{org}/-/members/{user}/role",
+            Access::Resource,
+            post(set_role),
+        )
+        .route_as(
+            "/{org}/-/members/{user}/remove",
+            Access::Resource,
+            post(remove_member),
+        )
+        .route_as(
             "/{org}/-/settings",
+            Access::Resource,
             get(org_settings).post(org_settings_save),
         )
 }

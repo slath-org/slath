@@ -13,6 +13,7 @@ use super::ApiUser;
 use super::support::{PageParams, page};
 use crate::AppState;
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 fn ts(t: time::OffsetDateTime) -> String {
     crate::ui::Time::from(t).iso
@@ -216,9 +217,25 @@ pub async fn revoke_token(
 pub fn router() -> Router<AppState> {
     use axum::routing::{delete, get};
     Router::new()
-        .route("/api/v1/user", get(current_user))
-        .route("/api/v1/user/keys", get(list_keys).post(add_key))
-        .route("/api/v1/user/keys/{id}", delete(remove_key))
-        .route("/api/v1/user/tokens", get(list_tokens).post(create_token))
-        .route("/api/v1/user/tokens/{id}", delete(revoke_token))
+        .route_as("/api/v1/user", Access::Account, get(current_user))
+        .route_as(
+            "/api/v1/user/keys",
+            Access::Account,
+            get(list_keys).post(add_key),
+        )
+        .route_as(
+            "/api/v1/user/keys/{id}",
+            Access::Account,
+            delete(remove_key),
+        )
+        .route_as(
+            "/api/v1/user/tokens",
+            Access::Account,
+            get(list_tokens).post(create_token),
+        )
+        .route_as(
+            "/api/v1/user/tokens/{id}",
+            Access::Account,
+            delete(revoke_token),
+        )
 }

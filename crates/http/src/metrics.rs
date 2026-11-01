@@ -4,6 +4,7 @@
 //! patterns (never concrete paths), methods, status classes, and fixed
 //! reason strings. No repository names or user IDs ever become labels.
 
+use crate::routes::{Access, RouteExt};
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::sync::Mutex;
@@ -140,8 +141,9 @@ impl Metrics {
 
 /// The metrics listener's router (`GET /metrics`).
 pub fn router(metrics: std::sync::Arc<Metrics>) -> axum::Router {
-    axum::Router::new().route(
+    axum::Router::new().route_as(
         "/metrics",
+        Access::Public,
         axum::routing::get(move || {
             let m = std::sync::Arc::clone(&metrics);
             async move {

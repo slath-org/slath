@@ -21,6 +21,7 @@ use utoipa::{OpenApi, ToSchema};
 
 use crate::AppState;
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 /// The subject of an API request: anonymous without `Authorization`, the
 /// token's user with a valid bearer token. Any other `Authorization` value
@@ -172,10 +173,10 @@ async fn openapi_json() -> Response {
 pub fn router() -> Router<AppState> {
     use axum::routing::{any, get};
     Router::new()
-        .route("/api/v1/version", get(version))
-        .route("/api/v1/openapi.json", get(openapi_json))
+        .route_as("/api/v1/version", Access::Public, get(version))
+        .route_as("/api/v1/openapi.json", Access::Public, get(openapi_json))
         .merge(user::router())
         .merge(orgs::router())
         .merge(repos::router())
-        .route("/api/{*rest}", any(fallback))
+        .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

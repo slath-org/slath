@@ -18,6 +18,7 @@ use super::{PageCtx, Time, render};
 use crate::AppState;
 use crate::auth::{MaybeSession, Sudo};
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 const PER_PAGE: usize = 100;
 
@@ -477,13 +478,25 @@ async fn index(State(state): State<AppState>, session: MaybeSession) -> Result<R
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
-        .route("/-/admin", get(index))
-        .route("/-/admin/users", get(users).post(create_user))
-        .route("/-/admin/users/{name}/{op}", post(user_action))
-        .route("/-/admin/orgs", get(orgs))
-        .route("/-/admin/repos", get(repos))
-        .route("/-/admin/repos/{id}/restore", post(restore))
-        .route("/-/admin/audit", get(audit))
-        .route("/-/admin/health", get(health))
-        .route("/{org}/-/audit", get(org_audit))
+        .route_as("/-/admin", Access::SiteAdmin, get(index))
+        .route_as(
+            "/-/admin/users",
+            Access::SiteAdmin,
+            get(users).post(create_user),
+        )
+        .route_as(
+            "/-/admin/users/{name}/{op}",
+            Access::SiteAdmin,
+            post(user_action),
+        )
+        .route_as("/-/admin/orgs", Access::SiteAdmin, get(orgs))
+        .route_as("/-/admin/repos", Access::SiteAdmin, get(repos))
+        .route_as(
+            "/-/admin/repos/{id}/restore",
+            Access::SiteAdmin,
+            post(restore),
+        )
+        .route_as("/-/admin/audit", Access::SiteAdmin, get(audit))
+        .route_as("/-/admin/health", Access::SiteAdmin, get(health))
+        .route_as("/{org}/-/audit", Access::Resource, get(org_audit))
 }

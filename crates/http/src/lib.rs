@@ -13,11 +13,13 @@ pub mod health;
 pub mod ipc;
 pub mod metrics;
 pub mod middleware;
+pub mod routes;
 pub mod ui;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::routes::{Access, RouteExt};
 use axum::extract::DefaultBodyLimit;
 use slath_core::config::Config;
 use slath_db::PgPool;
@@ -74,10 +76,22 @@ impl AppState {
     }
 }
 
+/// Liveness, readiness, and CSP reports.
+fn probes() -> axum::Router<AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route_as("/-/healthz", Access::Public, get(health::healthz))
+        .route_as("/-/readyz", Access::Public, get(health::readyz))
+        .route_as(
+            "/-/csp-report",
+            Access::Public,
+            post(health::csp_report).layer(DefaultBodyLimit::max(64 * 1024)),
+        )
+}
+
 /// The complete router.
 pub fn router(state: AppState) -> axum::Router {
     use axum::middleware::from_fn_with_state;
-    use axum::routing::get;
     let body_limit = state.config.limits.http_max_body_bytes.as_usize();
     let pages = ui::router()
         .fallback(ui::fallback)
@@ -89,16 +103,9 @@ pub fn router(state: AppState) -> axum::Router {
         .layer(from_fn_with_state(state.clone(), api::support::api_context))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
-    let probes = axum::Router::new()
-        .route("/-/healthz", get(health::healthz))
-        .route("/-/readyz", get(health::readyz))
-        .route(
-            "/-/csp-report",
-            axum::routing::post(health::csp_report).layer(DefaultBodyLimit::max(64 * 1024)),
-        );
     axum::Router::new()
         .merge(githttp::router())
-        .merge(probes)
+        .merge(probes())
         .merge(api)
         .merge(pages)
         .layer(from_fn_with_state(

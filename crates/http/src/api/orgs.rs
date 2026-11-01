@@ -17,6 +17,7 @@ use super::support::{PageParams, page};
 use super::{ApiSubject, ApiUser};
 use crate::AppState;
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 #[derive(Serialize, ToSchema)]
 pub struct Org {
@@ -255,11 +256,24 @@ pub async fn delete_member(
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
-        .route("/api/v1/orgs", get(list_orgs).post(create_org))
-        .route("/api/v1/orgs/{org}", get(get_org).patch(update_org))
-        .route("/api/v1/orgs/{org}/members", get(list_members))
-        .route(
+        .route_as(
+            "/api/v1/orgs",
+            Access::PublicRead,
+            get(list_orgs).post(create_org),
+        )
+        .route_as(
+            "/api/v1/orgs/{org}",
+            Access::PublicRead,
+            get(get_org).patch(update_org),
+        )
+        .route_as(
+            "/api/v1/orgs/{org}/members",
+            Access::Resource,
+            get(list_members),
+        )
+        .route_as(
             "/api/v1/orgs/{org}/members/{user}",
+            Access::Resource,
             get(get_member).put(put_member).delete(delete_member),
         )
 }

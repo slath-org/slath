@@ -36,12 +36,21 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio_util::io::{ReaderStream, StreamReader};
 
 use crate::AppState;
+use crate::routes::{Access, RouteExt};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/{ns}/{repo}/info/refs", get(info_refs))
-        .route("/{ns}/{repo}/git-upload-pack", post(upload_pack))
-        .route("/{ns}/{repo}/git-receive-pack", post(receive_pack))
+        .route_as("/{ns}/{repo}/info/refs", Access::Git, get(info_refs))
+        .route_as(
+            "/{ns}/{repo}/git-upload-pack",
+            Access::Git,
+            post(upload_pack),
+        )
+        .route_as(
+            "/{ns}/{repo}/git-receive-pack",
+            Access::Git,
+            post(receive_pack),
+        )
 }
 
 #[derive(Deserialize)]

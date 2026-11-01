@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use super::{HxRequest, PageCtx, render_hx};
 use crate::AppState;
+use crate::routes::{Access, RouteExt};
 
 #[derive(Deserialize)]
 pub struct DemoQuery {
@@ -56,5 +57,5 @@ pub async fn catalog(ctx: PageCtx, hx: HxRequest, Query(q): Query<DemoQuery>) ->
 }
 
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new().route("/-/design", axum::routing::get(catalog))
+    axum::Router::new().route_as("/-/design", Access::Public, axum::routing::get(catalog))
 }

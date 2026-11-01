@@ -17,6 +17,7 @@ use super::{PageCtx, Time, render};
 use crate::AppState;
 use crate::auth::{RequireSession, Sudo, safe_next, session_cookie_name, set_cookie};
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 #[derive(Deserialize, Default)]
 pub struct StatusQuery {
@@ -654,20 +655,53 @@ async fn remove_key(
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
-        .route(
+        .route_as(
             "/-/settings",
+            Access::Account,
             get(|| async { Redirect::to("/-/settings/profile") }),
         )
-        .route("/-/settings/profile", get(profile).post(profile_save))
-        .route("/-/settings/security", get(security))
-        .route("/-/settings/security/password", post(change_password))
-        .route("/-/settings/sessions", get(sessions))
-        .route("/-/settings/sessions/revoke-all", post(revoke_all))
-        .route("/-/settings/sessions/{id}/revoke", post(revoke_session))
-        .route("/-/settings/keys", get(keys_page).post(add_key))
-        .route("/-/settings/keys/{id}/delete", post(remove_key))
-        .route("/-/settings/tokens", get(tokens_page).post(create_token))
-        .route("/-/settings/tokens/{id}/revoke", post(revoke_token))
-        .route("/-/sudo", get(sudo_page).post(sudo_submit))
-        .route("/-/avatars/{file}", get(avatar))
+        .route_as(
+            "/-/settings/profile",
+            Access::Account,
+            get(profile).post(profile_save),
+        )
+        .route_as("/-/settings/security", Access::Account, get(security))
+        .route_as(
+            "/-/settings/security/password",
+            Access::Account,
+            post(change_password),
+        )
+        .route_as("/-/settings/sessions", Access::Account, get(sessions))
+        .route_as(
+            "/-/settings/sessions/revoke-all",
+            Access::Account,
+            post(revoke_all),
+        )
+        .route_as(
+            "/-/settings/sessions/{id}/revoke",
+            Access::Account,
+            post(revoke_session),
+        )
+        .route_as(
+            "/-/settings/keys",
+            Access::Account,
+            get(keys_page).post(add_key),
+        )
+        .route_as(
+            "/-/settings/keys/{id}/delete",
+            Access::Account,
+            post(remove_key),
+        )
+        .route_as(
+            "/-/settings/tokens",
+            Access::Account,
+            get(tokens_page).post(create_token),
+        )
+        .route_as(
+            "/-/settings/tokens/{id}/revoke",
+            Access::Account,
+            post(revoke_token),
+        )
+        .route_as("/-/sudo", Access::Account, get(sudo_page).post(sudo_submit))
+        .route_as("/-/avatars/{file}", Access::Public, get(avatar))
 }

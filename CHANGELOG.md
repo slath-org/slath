@@ -235,3 +235,12 @@ Before 1.0.0, minor versions may contain breaking changes.
   never overlap on one repository. Every push also updates the recorded
   size and warns the pusher when a repository exceeds
   `limits.repo_soft_quota_bytes`.
+- Every HTTP route is registered with an access marker (public, public
+  read, own account, resource, Git, site admin); Clippy rejects routes
+  without one. A security test requests every route with every method as an
+  anonymous visitor and as an unrelated user, checks each marker's promise,
+  compares private resources with missing ones byte for byte, and verifies
+  that nothing changed. Another test drives the authorization matrix through
+  the web UI, raw files, archives, the API, and Git over HTTP and SSH, and a
+  log test checks that passwords, tokens, cookies, CSRF tokens, the database
+  password, and the master key never reach the log, even at debug level.

@@ -1,2 +1,8 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+# Every HTTP route carries an access marker (crates/http/src/routes.rs).
+disallowed-methods = [
+    { path = "axum::Router::route", reason = "use slath_http::routes::RouteExt::route_as with an access marker" },
+    { path = "axum::Router::route_service", reason = "register routes with route_as and an access marker" },
+    { path = "axum::Router::nest", reason = "register routes with route_as and an access marker" },
+]

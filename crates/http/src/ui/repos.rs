@@ -17,6 +17,7 @@ use super::{PageCtx, render};
 use crate::AppState;
 use crate::auth::{MaybeSession, RequireSession, Sudo};
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 /// A repository in a list (profile pages, explore).
 #[derive(Debug, Clone)]
@@ -686,31 +687,48 @@ async fn delete_repo(
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
-        .route("/-/new", get(new_repo).post(create_repo))
-        .route("/{ns}/{repo}", get(repo_home))
-        .route(
+        .route_as("/-/new", Access::Account, get(new_repo).post(create_repo))
+        .route_as("/{ns}/{repo}", Access::Resource, get(repo_home))
+        .route_as(
             "/{ns}/{repo}/settings",
+            Access::Resource,
             get(|Path((ns, repo)): Path<(String, String)>| async move {
                 Redirect::to(&format!("/{ns}/{repo}/settings/general"))
             }),
         )
-        .route(
+        .route_as(
             "/{ns}/{repo}/settings/general",
+            Access::Resource,
             get(settings_general).post(save_general),
         )
-        .route("/{ns}/{repo}/settings/visibility", post(save_visibility))
-        .route("/{ns}/{repo}/settings/rename", post(rename))
-        .route("/{ns}/{repo}/settings/state/{op}", post(archive))
-        .route(
+        .route_as(
+            "/{ns}/{repo}/settings/visibility",
+            Access::Resource,
+            post(save_visibility),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/rename",
+            Access::Resource,
+            post(rename),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/state/{op}",
+            Access::Resource,
+            post(archive),
+        )
+        .route_as(
             "/{ns}/{repo}/settings/access",
+            Access::Resource,
             get(settings_access_page).post(add_collaborator),
         )
-        .route(
+        .route_as(
             "/{ns}/{repo}/settings/access/{user}/remove",
+            Access::Resource,
             post(remove_collaborator),
         )
-        .route(
+        .route_as(
             "/{ns}/{repo}/settings/danger",
+            Access::Resource,
             get(settings_danger).post(delete_repo),
         )
 }

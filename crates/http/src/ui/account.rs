@@ -18,6 +18,7 @@ use crate::auth::{
     set_cookie,
 };
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 #[derive(Template)]
 #[template(path = "login.html")]
@@ -145,6 +146,10 @@ pub async fn logout(
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
-        .route("/-/login", get(login_page).post(login_submit))
-        .route("/-/logout", post(logout))
+        .route_as(
+            "/-/login",
+            Access::Public,
+            get(login_page).post(login_submit),
+        )
+        .route_as("/-/logout", Access::Public, post(logout))
 }

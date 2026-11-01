@@ -26,6 +26,7 @@ use super::{MarkupHtml, PageCtx, Time, render};
 use crate::AppState;
 use crate::auth::MaybeSession;
 use crate::error::AppError;
+use crate::routes::{Access, RouteExt};
 
 /// Percent-encodes a path for URLs, keeping `/` and unreserved characters.
 #[must_use]
@@ -1056,23 +1057,33 @@ async fn archive(
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
-        .route("/{ns}/{repo}/tree/{*rest}", get(tree))
-        .route("/{ns}/{repo}/blob/{*rest}", get(blob))
-        .route("/{ns}/{repo}/raw/{*rest}", get(raw))
-        .route("/{ns}/{repo}/commits", get(commits))
-        .route("/{ns}/{repo}/commits/{*rest}", get(commits))
-        .route("/{ns}/{repo}/commit/{rest}", get(commit))
-        .route("/{ns}/{repo}/archive/{*rest}", get(archive))
-        .route(
+        .route_as("/{ns}/{repo}/tree/{*rest}", Access::Resource, get(tree))
+        .route_as("/{ns}/{repo}/blob/{*rest}", Access::Resource, get(blob))
+        .route_as("/{ns}/{repo}/raw/{*rest}", Access::Resource, get(raw))
+        .route_as("/{ns}/{repo}/commits", Access::Resource, get(commits))
+        .route_as(
+            "/{ns}/{repo}/commits/{*rest}",
+            Access::Resource,
+            get(commits),
+        )
+        .route_as("/{ns}/{repo}/commit/{rest}", Access::Resource, get(commit))
+        .route_as(
+            "/{ns}/{repo}/archive/{*rest}",
+            Access::Resource,
+            get(archive),
+        )
+        .route_as(
             "/{ns}/{repo}/branches",
+            Access::Resource,
             get(
                 |s: State<AppState>, c: PageCtx, m: MaybeSession, r: RawRepoPath| {
                     refs(s.0, c, m, r, RefKind::Branch)
                 },
             ),
         )
-        .route(
+        .route_as(
             "/{ns}/{repo}/tags",
+            Access::Resource,
             get(
                 |s: State<AppState>, c: PageCtx, m: MaybeSession, r: RawRepoPath| {
                     refs(s.0, c, m, r, RefKind::Tag)
