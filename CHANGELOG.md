@@ -89,3 +89,11 @@ Before 1.0.0, minor versions may contain breaking changes.
   WebKit, each in light and dark themes on desktop and touch viewports, with
   axe-core accessibility checks and failures on third-party requests, CSP
   violations, and stripped htmx elements.
+- Weave design tokens (`web/src/tokens.json` → `web/src/tokens.css`):
+  light, dark, and high-contrast color sets (following
+  `prefers-color-scheme`, `prefers-contrast`, and a server-rendered override),
+  semantic success/warning/error/info colors, diff tints with word-level
+  emphasis, syntax colors, typography, spacing, radii, elevation, motion, and
+  density. `just tokens-check` (part of `just check`) verifies every declared
+  color pair's contrast and that semantic colors stay distinct from the
+  accent.

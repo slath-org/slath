@@ -1,0 +1,29 @@
+{
+  "$comment": "Color pairs checked by scripts/check_contrast.py in every token set of tokens.json. Text needs 4.5:1, large text and UI boundaries 3:1. 'distinct' pairs must be at least min_delta_e apart (OKLab distance x 100).",
+  "contrast": [
+    {"fg": ["text", "text-secondary"], "bg": ["bg", "surface", "surface-subtle", "selection"], "min": 4.5},
+    {"fg": "link", "bg": ["bg", "surface", "surface-subtle", "selection"], "min": 4.5},
+    {"fg": "accent-fg", "bg": ["accent", "accent-hover"], "min": 4.5},
+    {"fg": "accent", "bg": ["bg", "surface", "surface-subtle"], "min": 3},
+    {"fg": ["control-border", "focus-ring"], "bg": ["bg", "surface", "surface-subtle"], "min": 3},
+    {"fg": "focus-ring", "bg": "selection", "min": 3},
+    {"fg": "success-fg", "bg": ["success-bg", "bg", "surface"], "min": 4.5},
+    {"fg": "warning-fg", "bg": ["warning-bg", "bg", "surface"], "min": 4.5},
+    {"fg": "error-fg", "bg": ["error-bg", "bg", "surface"], "min": 4.5},
+    {"fg": "info-fg", "bg": ["info-bg", "bg", "surface"], "min": 4.5},
+    {"fg": "success", "bg": ["success-bg", "bg", "surface"], "min": 3},
+    {"fg": "warning", "bg": ["warning-bg", "bg", "surface"], "min": 3},
+    {"fg": "error", "bg": ["error-bg", "bg", "surface"], "min": 3},
+    {"fg": "info", "bg": ["info-bg", "bg", "surface"], "min": 3},
+    {"fg": "danger-fg", "bg": ["danger", "danger-hover"], "min": 4.5},
+    {"fg": ["text", "text-secondary"], "bg": ["diff-add-bg", "diff-del-bg"], "min": 4.5},
+    {"fg": "text", "bg": ["diff-add-emph", "diff-del-emph"], "min": 4.5},
+    {"fg": ["syn-comment", "syn-keyword", "syn-string", "syn-number", "syn-function", "syn-type", "syn-constant", "syn-tag", "syn-attribute", "syn-punctuation"], "bg": ["surface", "diff-add-bg", "diff-del-bg"], "min": 4.5}
+  ],
+  "distinct": [
+    {"a": ["success", "warning", "error", "info"], "b": "accent", "min_delta_e": 10},
+    {"a": "success", "b": ["warning", "error", "info"], "min_delta_e": 10},
+    {"a": "warning", "b": ["error", "info"], "min_delta_e": 10},
+    {"a": "error", "b": "info", "min_delta_e": 10}
+  ]
+}

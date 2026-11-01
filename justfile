@@ -12,7 +12,17 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: web fmt-check clippy test sqlx-check deny license-deps py-test guards
+check: tokens-check web fmt-check clippy test sqlx-check deny license-deps py-test guards
+
+# Regenerate web/src/tokens.css from web/src/tokens.json.
+tokens:
+    python3 scripts/build_tokens.py
+    python3 scripts/check_contrast.py
+
+# Fail if tokens.css is stale or any declared color pair lacks contrast.
+tokens-check:
+    python3 scripts/build_tokens.py --check
+    python3 scripts/check_contrast.py
 
 # Build the UI bundle (web/ -> web/dist), which the server embeds. Needs Node.js >= 22.
 web:
