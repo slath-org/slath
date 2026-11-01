@@ -358,6 +358,183 @@ async fn avatar(Path(file): Path<String>) -> Result<Response, AppError> {
         .into_response())
 }
 
+/// A token row for the template.
+struct TokenView {
+    id: String,
+    name: String,
+    prefix: String,
+    scopes: String,
+    created: Time,
+    last_used: Option<Time>,
+    expires: Option<Time>,
+    state: &'static str,
+}
+
+#[derive(Template)]
+#[template(path = "settings/tokens.html")]
+struct TokensPage<'a> {
+    ctx: PageCtx,
+    tab: &'static str,
+    tokens: Vec<TokenView>,
+    message: Option<&'a str>,
+    errors: Vec<FieldError>,
+    scopes: Vec<(&'static str, &'static str, bool)>,
+    expiry: Vec<(String, String, bool)>,
+    name: String,
+    /// A token that was just created, shown once.
+    created: Option<String>,
+}
+
+impl TokensPage<'_> {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+fn scope_choices(is_admin: bool, chosen: &[String]) -> Vec<(&'static str, &'static str, bool)> {
+    slath_core::authz::Scope::ALL
+        .iter()
+        .filter(|s| is_admin || **s != slath_core::authz::Scope::Admin)
+        .map(|s| {
+            (
+                s.as_str(),
+                s.description(),
+                chosen.iter().any(|c| c == s.as_str()),
+            )
+        })
+        .collect()
+}
+
+fn expiry_choices(chosen: Option<u32>) -> Vec<(String, String, bool)> {
+    slath_service::tokens::EXPIRY_CHOICES
+        .iter()
+        .map(|c| match c {
+            Some(d) => (d.to_string(), format!("{d} days"), *c == chosen),
+            None => ("never".to_owned(), "No expiry".to_owned(), chosen.is_none()),
+        })
+        .collect()
+}
+
+async fn tokens_view(
+    state: &AppState,
+    session: &slath_service::sessions::Session,
+) -> Result<Vec<TokenView>, AppError> {
+    let list = state.services.list_tokens(&session.subject).await?;
+    Ok(list
+        .into_iter()
+        .map(|t| TokenView {
+            id: t.id.to_string(),
+            state: if t.revoked {
+                "Revoked"
+            } else if t.expired {
+                "Expired"
+            } else {
+                "Active"
+            },
+            name: t.name,
+            prefix: t.prefix,
+            scopes: t
+                .scopes
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            created: t.created_at.into(),
+            last_used: t.last_used_at.map(Into::into),
+            expires: t.expires_at.map(Into::into),
+        })
+        .collect())
+}
+
+async fn tokens_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    let tokens = tokens_view(&state, &session).await?;
+    Ok(render(&TokensPage {
+        ctx,
+        tab: "tokens",
+        tokens,
+        message: status_message(q.status.as_deref()),
+        errors: Vec::new(),
+        scopes: scope_choices(session.row.is_admin, &["repo:read".to_owned()]),
+        expiry: expiry_choices(Some(slath_service::tokens::DEFAULT_EXPIRY_DAYS)),
+        name: String::new(),
+        created: None,
+    }))
+}
+
+async fn create_token(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+    body: axum::body::Bytes,
+) -> Result<Response, AppError> {
+    let pairs = crate::auth::form_pairs(&body);
+    let get = |k: &str| pairs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
+    let name = get("name").unwrap_or_default();
+    let scopes: Vec<String> = pairs
+        .iter()
+        .filter(|(n, _)| n == "scopes")
+        .map(|(_, v)| v.clone())
+        .collect();
+    let expiry = match get("expires").as_deref() {
+        Some("never") => None,
+        Some(d) => Some(d.parse::<u32>().unwrap_or(0)),
+        None => Some(slath_service::tokens::DEFAULT_EXPIRY_DAYS),
+    };
+    let result = state
+        .services
+        .create_token(
+            &session,
+            slath_service::tokens::NewToken {
+                name: name.clone(),
+                scopes: scopes.clone(),
+                expires_in_days: expiry,
+                repo_ids: None,
+            },
+        )
+        .await;
+    let (created, errors, status) = match result {
+        Ok((secret, _)) => (Some(secret.into_inner()), Vec::new(), StatusCode::OK),
+        Err(e) => (None, field_errors(e)?, StatusCode::UNPROCESSABLE_ENTITY),
+    };
+    let ok = created.is_some();
+    let tokens = tokens_view(&state, &session).await?;
+    let mut res = render(&TokensPage {
+        ctx,
+        tab: "tokens",
+        tokens,
+        message: None,
+        errors,
+        scopes: scope_choices(session.row.is_admin, if ok { &[] } else { &scopes }),
+        expiry: expiry_choices(if ok {
+            Some(slath_service::tokens::DEFAULT_EXPIRY_DAYS)
+        } else {
+            expiry
+        }),
+        name: if ok { String::new() } else { name },
+        created,
+    });
+    *res.status_mut() = status;
+    // The token appears in this response only: keep it out of every cache.
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(res)
+}
+
+async fn revoke_token(
+    State(state): State<AppState>,
+    RequireSession(session): RequireSession,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state.services.revoke_token(&session.subject, id).await?;
+    Ok(Redirect::to("/-/settings/tokens?status=token-revoked").into_response())
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
@@ -371,6 +548,8 @@ pub fn router() -> Router<AppState> {
         .route("/-/settings/sessions", get(sessions))
         .route("/-/settings/sessions/revoke-all", post(revoke_all))
         .route("/-/settings/sessions/{id}/revoke", post(revoke_session))
+        .route("/-/settings/tokens", get(tokens_page).post(create_token))
+        .route("/-/settings/tokens/{id}/revoke", post(revoke_token))
         .route("/-/sudo", get(sudo_page).post(sudo_submit))
         .route("/-/avatars/{file}", get(avatar))
 }

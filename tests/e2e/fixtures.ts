@@ -71,7 +71,7 @@ interface Fixtures {
   guard: { foreignRequests: string[]; cspViolations: string[]; stripped: string[]; allowStrip: boolean };
 }
 
-export const test = base.extend<Fixtures>({
+export const test: ReturnType<typeof base.extend<Fixtures>> = base.extend<Fixtures>({
   baseURL: async ({}, use) => {
     const url = process.env.SLATH_E2E_URL;
     if (!url) throw new Error("SLATH_E2E_URL is not set (global setup failed?)");
@@ -103,8 +103,21 @@ export const test = base.extend<Fixtures>({
         });
       });
       await use(guard);
+      // WebKit's built-in <select> rendering reports an inline-style CSP
+      // violation of its own (reproduced with a bare <select> under
+      // style-src 'self'). It isn't page content, so on WebKit pages that
+      // contain a <select> exactly these two messages are ignored; Chromium
+      // and Firefox still check those pages fully.
+      let violations = guard.cspViolations;
+      if (test.info().project.name.startsWith("webkit") && !page.isClosed() && (await page.locator("select").count()) > 0) {
+        violations = violations.filter(
+          (v) =>
+            !v.startsWith("Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline'") &&
+            v !== "Content Security Policy violation: style-src-attr inline",
+        );
+      }
       expect(guard.foreignRequests, "requests to other origins").toEqual([]);
-      expect(guard.cspViolations, "CSP violations").toEqual([]);
+      expect(violations, "CSP violations").toEqual([]);
       if (!guard.allowStrip) {
         expect(guard.stripped, "htmx:security:strip (unstamped htmx element)").toEqual([]);
       }

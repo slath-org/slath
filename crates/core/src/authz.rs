@@ -76,6 +76,80 @@ pub enum Scope {
     Admin,
 }
 
+/// Error for an unknown scope string.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("unknown scope")]
+pub struct UnknownScope;
+
+impl Scope {
+    pub const ALL: &'static [Scope] = &[
+        Self::RepoRead,
+        Self::RepoWrite,
+        Self::IssuesWrite,
+        Self::MrsWrite,
+        Self::StatusesWrite,
+        Self::UserRead,
+        Self::UserWrite,
+        Self::Admin,
+    ];
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RepoRead => "repo:read",
+            Self::RepoWrite => "repo:write",
+            Self::IssuesWrite => "issues:write",
+            Self::MrsWrite => "mrs:write",
+            Self::StatusesWrite => "statuses:write",
+            Self::UserRead => "user:read",
+            Self::UserWrite => "user:write",
+            Self::Admin => "admin",
+        }
+    }
+
+    /// What the scope allows, for people choosing scopes.
+    #[must_use]
+    pub const fn description(self) -> &'static str {
+        match self {
+            Self::RepoRead => "Read repositories (clone, fetch, browse, API reads)",
+            Self::RepoWrite => "Read and push to repositories, change repository settings",
+            Self::IssuesWrite => "Create and edit issues and comments",
+            Self::MrsWrite => "Create, review, and merge merge requests",
+            Self::StatusesWrite => "Report commit statuses",
+            Self::UserRead => "Read your profile, keys, and tokens",
+            Self::UserWrite => "Change your profile and SSH keys",
+            Self::Admin => "Site administration (site administrators only)",
+        }
+    }
+
+    /// True if a token with `self` grants `other` (`repo:write` includes `repo:read`).
+    #[must_use]
+    pub fn implies(self, other: Scope) -> bool {
+        self == other
+            || matches!(
+                (self, other),
+                (Self::RepoWrite, Self::RepoRead) | (Self::UserWrite, Self::UserRead)
+            )
+    }
+}
+
+impl FromStr for Scope {
+    type Err = UnknownScope;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|x| x.as_str() == s)
+            .ok_or(UnknownScope)
+    }
+}
+
+impl fmt::Display for Scope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// How the subject authenticated: a session (full user rights) or a token
 /// (rights capped by its scopes and optional repository list).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,6 +400,17 @@ mod tests {
             assert_eq!(a.as_str().parse::<Action>(), Ok(*a));
         }
         assert_eq!("repo.nope".parse::<Action>(), Err(UnknownAction));
+    }
+
+    #[test]
+    fn scope_strings_round_trip() {
+        for s in Scope::ALL {
+            assert_eq!(s.as_str().parse::<Scope>(), Ok(*s));
+        }
+        assert!(Scope::RepoWrite.implies(Scope::RepoRead));
+        assert!(!Scope::RepoRead.implies(Scope::RepoWrite));
+        assert!(Scope::UserWrite.implies(Scope::UserRead));
+        assert_eq!("repo".parse::<Scope>(), Err(UnknownScope));
     }
 
     #[test]

@@ -245,6 +245,16 @@ impl LoginError {
     }
 }
 
+impl Services {
+    /// The acting user's own account (`user:read` for tokens).
+    pub async fn current_user(&self, subject: &Subject) -> Result<slath_db::users::User> {
+        let id = crate::tokens::user_with_scope(subject, slath_core::authz::Scope::UserRead)?;
+        slath_db::users::get(&self.pool, id)
+            .await?
+            .ok_or(ServiceError::NotFound)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

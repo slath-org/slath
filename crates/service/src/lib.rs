@@ -11,6 +11,7 @@ pub mod accounts;
 pub mod error;
 pub mod sessions;
 pub mod settings;
+pub mod tokens;
 
 use std::sync::Arc;
 

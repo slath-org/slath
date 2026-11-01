@@ -119,3 +119,10 @@ Before 1.0.0, minor versions may contain breaking changes.
   with per-session sign-out and "sign out everywhere". Sensitive actions need
   sudo mode: a password confirmation that lasts 15 minutes and returns to the
   page the user came from.
+- Personal access tokens (`slath_pat_` + 43 base62 characters): created in
+  sudo mode under Settings → Access tokens with a name, scopes, and expiry,
+  shown once, stored only as a SHA-256 hash with a display prefix, and
+  revocable. The API under `/api/v1` authenticates with
+  `Authorization: Bearer` tokens only and ignores cookies; expired, revoked,
+  and unknown tokens get 401. `GET /api/v1/version` and `GET /api/v1/user`
+  are the first endpoints.

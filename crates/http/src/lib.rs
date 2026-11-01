@@ -7,6 +7,7 @@
 //! onto database-backed repositories and tokens with the service layer.
 #![forbid(unsafe_code)]
 
+pub mod api;
 pub mod assets;
 pub mod auth;
 pub mod error;
@@ -106,6 +107,9 @@ pub fn router(state: AppState) -> axum::Router {
         .layer(from_fn_with_state(state.clone(), auth::resolve))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
+    let api = api::router()
+        .layer(from_fn_with_state(state.clone(), middleware::render_errors))
+        .layer(DefaultBodyLimit::max(body_limit));
     let probes = axum::Router::new()
         .route("/-/healthz", get(health::healthz))
         .route("/-/readyz", get(health::readyz))
@@ -116,6 +120,7 @@ pub fn router(state: AppState) -> axum::Router {
     axum::Router::new()
         .merge(githttp::router())
         .merge(probes)
+        .merge(api)
         .merge(pages)
         .layer(from_fn_with_state(
             state.clone(),

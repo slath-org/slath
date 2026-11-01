@@ -353,6 +353,21 @@ pub async fn csrf(State(state): State<AppState>, req: Request, next: Next) -> Re
         .await
 }
 
+/// All `(name, value)` pairs of a URL-encoded form body, in order.
+#[must_use]
+pub fn form_pairs(body: &[u8]) -> Vec<(String, String)> {
+    body.split(|&b| b == b'&')
+        .filter(|p| !p.is_empty())
+        .filter_map(|pair| {
+            let (k, v) = match pair.iter().position(|&b| b == b'=') {
+                Some(i) => (&pair[..i], &pair[i + 1..]),
+                None => (pair, &b""[..]),
+            };
+            Some((url_decode(k)?, url_decode(v)?))
+        })
+        .collect()
+}
+
 /// The first value of `name` in a URL-encoded form body.
 #[must_use]
 pub fn form_field(body: &[u8], name: &str) -> Option<String> {
