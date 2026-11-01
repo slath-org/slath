@@ -6,6 +6,7 @@
 {% include "repo/issues_nav.html" %}
 <div class="page-heading">
   <h1>Issues</h1>
+  <a class="button" href="/-/search?type=issues&amp;repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}">{% call m::icon(ctx, "search") %}{% endcall %}Search issues</a>
   {%- if can_create %}
   <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/issues/new">New issue</a>
   {%- endif %}

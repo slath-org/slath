@@ -3537,6 +3537,161 @@
         ]
       }
     },
+    "/api/v1/search/issues": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Issues (titles, descriptions, and comments) you can read, best match first.",
+        "operationId": "api_issues",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "path",
+            "description": "Search terms: words, `\"phrases\"`, `-excluded`, `or`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "description": "Limit to one repository (`owner/repo`).",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueHitPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/search/repos": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Repositories you can see whose name or description contains the query.",
+        "operationId": "api_repos",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "path",
+            "description": "Part of a repository's name or description.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoHitPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/user": {
       "get": {
         "tags": [
@@ -4351,6 +4506,56 @@
           }
         }
       },
+      "IssueHitJson": {
+        "type": "object",
+        "description": "A matching issue.",
+        "required": [
+          "repository",
+          "number",
+          "title",
+          "state",
+          "updated_at"
+        ],
+        "properties": {
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repository": {
+            "type": "string",
+            "description": "`owner/repo`."
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "IssueHitPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueHitJson"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "IssuePage": {
         "type": "object",
         "required": [
@@ -4990,6 +5195,53 @@
           "visibility": {
             "type": "string",
             "description": "`public` or `private`."
+          }
+        }
+      },
+      "RepoHitJson": {
+        "type": "object",
+        "description": "A matching repository.",
+        "required": [
+          "namespace",
+          "name",
+          "visibility"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "description": "`public` or `private`."
+          }
+        }
+      },
+      "RepoHitPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepoHitJson"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

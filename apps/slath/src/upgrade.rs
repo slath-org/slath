@@ -279,6 +279,30 @@ async fn preflight(
         ),
         Err(e) => p.push("postgres", Mark::Fail, e),
     }
+    // Extensions the migrations enable (PostgreSQL's contrib modules).
+    let missing: Vec<String> = sqlx::query_scalar(
+        "SELECT x FROM unnest(ARRAY['citext', 'pg_trgm']) x
+          WHERE NOT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = x)",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    if missing.is_empty() {
+        p.push(
+            "extensions",
+            Mark::Ok,
+            "citext, pg_trgm available".to_owned(),
+        );
+    } else {
+        p.push(
+            "extensions",
+            Mark::Fail,
+            format!(
+                "PostgreSQL extension(s) {} not installed; install PostgreSQL's contrib modules",
+                missing.join(", ")
+            ),
+        );
+    }
     let home = {
         let h = cfg.storage.data_dir.join("git-home");
         if h.is_dir() { h } else { PathBuf::from("/") }

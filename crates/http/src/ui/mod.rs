@@ -16,6 +16,7 @@ pub mod profiles;
 pub mod recovery;
 pub mod registration;
 pub mod repos;
+pub mod search;
 pub mod settings;
 pub mod teams;
 
@@ -343,6 +344,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(issues::router())
         .merge(labels::router())
         .merge(notifications::router())
+        .merge(search::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())

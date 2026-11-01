@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{% if searched %}{{ q }} · {% endif %}Search{% endblock %}
+{% block content %}
+<h1>Search</h1>
+<form method="get" action="/-/search" class="form search-form" role="search">
+  <div class="field">
+    <label for="q">Search {% if !repo.is_empty() %}issues in {{ repo }}{% else if kind == "repos" %}repositories{% else %}issues{% endif %}</label>
+    <input id="q" name="q" type="search" value="{{ q }}" maxlength="200" aria-describedby="q-hint">
+    <p id="q-hint" class="hint">{% if kind == "repos" %}Part of a name or description.{% else %}Words, "exact phrases", -excluded words, or alternatives with or.{% endif %}</p>
+  </div>
+  <input type="hidden" name="type" value="{{ kind }}">
+  {%- if !repo.is_empty() %}
+  <input type="hidden" name="repo" value="{{ repo }}">
+  {%- endif %}
+  <div><button type="submit" class="button button-primary">{% call m::icon(ctx, "search") %}{% endcall %}Search</button></div>
+</form>
+<nav class="tabs" aria-label="What to search">
+  <ul>
+    <li><a href="/-/search?q={{ q|urlencode }}&type=issues"{% if kind == "issues" %} aria-current="page"{% endif %}>Issues</a></li>
+    <li><a href="/-/search?q={{ q|urlencode }}&type=repos"{% if kind == "repos" %} aria-current="page"{% endif %}>Repositories</a></li>
+  </ul>
+</nav>
+{%- if !searched %}
+<p class="text-secondary empty-state">Enter what you're looking for.</p>
+{%- else if kind == "repos" %}
+  {%- if repos.is_empty() %}
+<p class="text-secondary empty-state">No repositories match.</p>
+  {%- else %}
+<ul class="item-list">
+  {%- for r in repos %}
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="/{{ r.full }}"><bdi>{{ r.full }}</bdi></a>{% if r.private %} <span class="badge">Private</span>{% endif %}
+      {%- if let Some(d) = r.description %}
+      <p class="item-meta text-secondary">{{ d }}</p>
+      {%- endif %}
+    </div>
+  </li>
+  {%- endfor %}
+</ul>
+  {%- endif %}
+{%- else %}
+  {%- if issues.is_empty() %}
+<p class="text-secondary empty-state">No issues match.</p>
+  {%- else %}
+<ul class="item-list">
+  {%- for i in issues %}
+  <li class="item-row">
+    <span class="item-state item-state-{% if i.open %}open{% else %}closed{% endif %}">{% if i.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if i.open %}open{% else %}closed{% endif %}</span></span>
+    <div class="item-main">
+      <a class="item-title" href="{{ i.href }}"><bdi>{{ i.title }}</bdi></a>
+      <p class="item-meta text-secondary">{{ i.repo }}#{{ i.number }} · updated <time datetime="{{ i.updated.iso }}">{{ i.updated.text }}</time></p>
+    </div>
+  </li>
+  {%- endfor %}
+</ul>
+  {%- endif %}
+{%- endif %}
+{%- if let Some(n) = next %}
+<p><a class="button" href="{{ n }}">Next page</a></p>
+{%- endif %}
+{% endblock %}

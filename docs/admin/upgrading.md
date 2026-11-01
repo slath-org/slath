@@ -95,6 +95,12 @@ one show a notice until it has finished.
   or right after upgrading, then sign in again with a code. The `slath
   admin` commands keep working. To keep the old behaviour, set
   `require_mfa_for_admins = false` (not recommended).
+- **PostgreSQL's `pg_trgm` extension.** Search needs it, and the upgrade
+  enables it in the Slath database (`CREATE EXTENSION pg_trgm`). It is a
+  trusted extension, so the database owner may create it, but it must be
+  installed: it ships with PostgreSQL's contrib modules (the official
+  container images and Debian/Ubuntu packages include them; on RHEL-based
+  systems install `postgresql-contrib`).
 
 ## Before 0.2.0
 

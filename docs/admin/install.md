@@ -113,7 +113,9 @@ validates the result.
 
 ## systemd
 
-1. **PostgreSQL:** create a database `slath` owned by a role `slath`.
+1. **PostgreSQL:** create a database `slath` owned by a role `slath`. The
+   contrib modules must be installed (Slath enables `pg_trgm` and `citext`;
+   on RHEL-based systems install `postgresql-contrib`).
 
 2. **Users:** a service account `slath`, which owns the data, and the SSH
    login `git`, a separate user (see [Users and

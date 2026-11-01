@@ -11,6 +11,8 @@ for (const [path, heading] of [
   ["/-/settings/notifications", "Notifications"],
   ["/-/notifications", "Notifications"],
   ["/-/notifications?all=true", "Notifications"],
+  ["/-/search?q=demo", "Search"],
+  ["/-/search?q=demo&type=repos", "Search"],
   ["/-/sudo?next=/", "Confirm your password"],
 ] as const) {
   test(`conf_a11y_01_settings_page_accessible ${path}`, async ({ page }) => {

@@ -21,6 +21,7 @@
     <a class="site-name" href="/">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
+      <a href="/-/search">{% call m::icon(ctx, "search") %}{% endcall %}Search</a>
       <details class="menu" id="appearance-menu">
         <summary class="button button-quiet">{% call m::icon(ctx, "sun") %}{% endcall %}<span>Appearance</span></summary>
         <form method="post" action="/-/appearance" class="menu-panel" data-theme-form>

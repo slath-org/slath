@@ -57,6 +57,23 @@ ambiguous.
 - Titles have up to 256 characters; descriptions and comments are limited
   by `limits.text_max_bytes` (256 KiB by default).
 
+### Search
+
+- `/-/search` (the Search link in the header) finds issues by words in
+  their title, description, or comments, and repositories by part of their
+  name or description. Issues accept `"exact phrases"`, `-excluded` words,
+  and `or`. Each repository's issue list links to a search limited to it.
+- Results contain only what the searcher can read: the database filters
+  before ranking and paging, so private matches are never counted and
+  pages are always full. Deleted and hidden comments don't match.
+- The API offers the same with `GET /api/v1/search/issues?q=&repo=` and
+  `GET /api/v1/search/repos?q=`. A token without `repo:read` searches like
+  an anonymous visitor.
+- Search uses PostgreSQL's full-text search with the language-neutral
+  `simple` configuration (words are matched exactly, without stemming) and
+  the `pg_trgm` extension, which the upgrade enables. It is part of
+  PostgreSQL's standard contrib modules.
+
 ### Notifications
 
 - People are notified about issues they opened, commented on, or are

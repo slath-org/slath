@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH q AS (SELECT websearch_to_tsquery('simple', $1) AS query),\n           visible AS (\n               SELECT r.id FROM repositories r\n                WHERE r.state <> 'deleting' AND r.issues_enabled\n                  AND ($6::uuid IS NULL OR r.id = $6)\n                  AND (r.visibility = 'public' OR $3\n                       OR (slath_can_read(r.id, $2::uuid)\n                           AND ($4::uuid[] IS NULL OR r.id = ANY($4))))\n           ),\n           hits AS (\n               SELECT i.id, ts_rank(i.search, q.query) AS rank FROM issues i, q\n                WHERE i.repo_id IN (SELECT id FROM visible) AND i.search @@ q.query\n               UNION ALL\n               SELECT c.subject_id, ts_rank(c.search, q.query) * 0.5 FROM comments c, q\n                WHERE c.repo_id IN (SELECT id FROM visible) AND c.subject_kind = 'issue'\n                  AND c.deleted_at IS NULL AND c.hidden_at IS NULL AND c.search @@ q.query\n           ),\n           best AS (SELECT id, max(rank) AS rank FROM hits GROUP BY id)\n           SELECT n.name::text || '/' || r.name::text AS \"repo!\", i.number, i.title, i.state, i.updated_at\n             FROM best b JOIN issues i ON i.id = b.id\n             JOIN repositories r ON r.id = i.repo_id JOIN namespaces n ON n.id = r.namespace_id\n            ORDER BY b.rank DESC, i.updated_at DESC, i.id\n           OFFSET $7 LIMIT $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Bool",
+        "UuidArray",
+        "Int8",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "66eb3111090fa7a037872d6d1107b02ddc8b6b0a50e779eebef35fd37e75214e"
+}

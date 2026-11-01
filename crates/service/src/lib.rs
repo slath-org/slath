@@ -32,6 +32,7 @@ pub mod recovery;
 pub mod references;
 pub mod registration;
 pub mod repos;
+pub mod search;
 pub mod secrets;
 pub mod sessions;
 pub mod settings;

@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text AS \"namespace!\", r.name::text AS \"name!\", r.description, r.visibility\n             FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n            WHERE r.state <> 'deleting'\n              AND (r.visibility = 'public' OR $3\n                   OR (slath_can_read(r.id, $2::uuid) AND ($4::uuid[] IS NULL OR r.id = ANY($4))))\n              AND (r.name::text ILIKE $1 OR r.description ILIKE $1\n                   OR (n.name::text || '/' || r.name::text) ILIKE $1)\n            ORDER BY greatest(similarity(r.name::text, $5), similarity(coalesce(r.description, ''), $5)) DESC,\n                     lower(n.name::text), lower(r.name::text)\n           OFFSET $6 LIMIT $7",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "namespace!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "visibility"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Bool",
+        "UuidArray",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      true,
+      false
+    ]
+  },
+  "hash": "317eb4994ca52c49f9d1a25c1003e6b73fa74a84cc43a112b3cd76286df5be3b"
+}

@@ -26,6 +26,7 @@ mod references;
 mod registration;
 mod repos;
 mod routes;
+mod search;
 mod settings;
 mod ssh;
 mod surfaces;

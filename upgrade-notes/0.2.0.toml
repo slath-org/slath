@@ -5,10 +5,15 @@
 # with `slath upgrade` (docs/admin/upgrading.md).
 
 version = "0.2.0"
-schema_version = 20
+schema_version = 21
 min_upgrade_from = "0.1.0"
 
 [[action]]
 id = "admin-mfa"
 severity = "recommended"
 text = "Administrators need two-factor authentication to use administration (auth.require_mfa_for_admins, on by default): set it up under Settings → Security before upgrading, or keep administration through `slath admin` commands"
+
+[[action]]
+id = "pg-trgm"
+severity = "recommended"
+text = "PostgreSQL's contrib modules must be installed: the upgrade enables the pg_trgm extension for search (docs/admin/upgrading.md#from-01x-to-020)"
