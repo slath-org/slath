@@ -242,6 +242,19 @@ impl From<slath_service::ServiceError> for AppError {
             ),
             S::RateLimited { retry_after } => Self::rate_limited(retry_after),
             S::Unavailable => Self::unavailable(),
+            S::Computing(_) => {
+                let mut e = Self::with_code(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "computing",
+                    "Still computing",
+                )
+                .detail(
+                    "This feature is being prepared after an upgrade. It becomes available \
+                     when the background migration finishes; try again in a few minutes.",
+                );
+                e.0.retry_after = Some(60);
+                e
+            }
             S::Internal(msg) => Self::internal(&msg),
         }
     }

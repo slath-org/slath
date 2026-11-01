@@ -54,6 +54,9 @@ pub enum ServiceError {
     RateLimited { retry_after: u64 },
     #[error("unavailable")]
     Unavailable,
+    /// The feature depends on a background migration that hasn't finished.
+    #[error("still computing ({0})")]
+    Computing(&'static str),
     /// Logged with the request ID; never shown to clients.
     #[error("internal error: {0}")]
     Internal(String),

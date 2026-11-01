@@ -393,3 +393,54 @@ fn org_owners_see_their_organizations_audit_log_only() {
     assert_eq!(s.client().get("/acme/-/audit").status, 404);
     assert_eq!(a.get("/alice/-/audit").status, 404);
 }
+
+#[test]
+fn conf_ops_07_admins_see_and_control_background_migrations() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("boss", PW, true);
+    s.create_user("alice", PW, false);
+    s.db.execute(
+        "INSERT INTO background_migrations (name, introduced_in, state, processed, total_estimate, started_at)
+         VALUES ('demo_backfill', '0.2.0', 'paused', 40, 100, now() - interval '1 minute')",
+    );
+    let mut a = s.client();
+    slath_tests::http::login(&mut a, "alice", PW);
+    assert_eq!(a.get("/-/admin/upgrades").status, 404);
+    let r = a.post_form("/-/admin/upgrades/background/demo_backfill/resume", &[]);
+    assert!(r.status == 404 || r.status == 403, "{}", r.status);
+
+    let mut boss = s.client();
+    slath_tests::http::login(&mut boss, "boss", PW);
+    let page = boss.get("/-/admin/upgrades");
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("demo_backfill"));
+    assert!(page.body.contains("40%"));
+    one_event(&s, "background_migration.resume", || {
+        let r = submit(
+            &mut boss,
+            "/-/admin/upgrades",
+            "/-/admin/upgrades/background/demo_backfill/resume",
+            &[],
+        );
+        assert_eq!(r.status, 303, "{}", r.body);
+    });
+    assert_eq!(
+        s.db.query_one("SELECT state FROM background_migrations WHERE name = 'demo_backfill'"),
+        "pending"
+    );
+    // A control that doesn't apply to the current state is a conflict.
+    let r = submit(
+        &mut boss,
+        "/-/admin/upgrades",
+        "/-/admin/upgrades/background/demo_backfill/retry",
+        &[],
+    );
+    assert_eq!(r.status, 409);
+    let r = submit(
+        &mut boss,
+        "/-/admin/upgrades",
+        "/-/admin/upgrades/background/nope/pause",
+        &[],
+    );
+    assert_eq!(r.status, 404);
+}

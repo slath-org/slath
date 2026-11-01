@@ -4,9 +4,11 @@
   <nav class="sidebar" aria-label="Administration">
     <ul>
       <li><a href="/-/admin/users"{% if section == "users" %} aria-current="page"{% endif %}>Users</a></li>
+      <li><a href="/-/admin/invites"{% if section == "invites" %} aria-current="page"{% endif %}>Invitations</a></li>
       <li><a href="/-/admin/orgs"{% if section == "orgs" %} aria-current="page"{% endif %}>Organizations</a></li>
       <li><a href="/-/admin/repos"{% if section == "repos" %} aria-current="page"{% endif %}>Repositories</a></li>
       <li><a href="/-/admin/audit"{% if section == "audit" %} aria-current="page"{% endif %}>Audit log</a></li>
+      <li><a href="/-/admin/upgrades"{% if section == "upgrades" %} aria-current="page"{% endif %}>Upgrades</a></li>
       <li><a href="/-/admin/health"{% if section == "health" %} aria-current="page"{% endif %}>Health</a></li>
     </ul>
   </nav>

@@ -35,6 +35,10 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "admin-granted" => "Site administration granted.",
         "admin-revoked" => "Site administration revoked.",
         "restored" => "Repository restored.",
+        "paused" => "Background migration paused after its current batch.",
+        "resumed" => "Background migration resumed.",
+        "retried" => "Background migration will run again.",
+        "email-queued" => "Test message queued. Failures show up as dead jobs below.",
         _ => return None,
     })
 }
@@ -450,14 +454,19 @@ struct HealthPage {
     required_schema: i32,
     version: &'static str,
     jobs: Vec<(String, String, i64)>,
+    /// `host:port` of the SMTP relay; `None` when email is off.
+    smtp: Option<String>,
+    message: Option<&'static str>,
 }
 
 async fn health(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
+    Query(q): Query<ListQuery>,
 ) -> Result<Response, AppError> {
     let h = state.services.health(&session.subject()).await?;
+    let smtp = &state.config.smtp;
     Ok(render(&HealthPage {
         ctx,
         section: "health",
@@ -467,7 +476,156 @@ async fn health(
         required_schema: h.required_schema,
         version: env!("CARGO_PKG_VERSION"),
         jobs: h.jobs,
+        smtp: smtp
+            .enabled()
+            .then(|| format!("{}:{}", smtp.host, smtp.port)),
+        message: status_message(q.status.as_deref()),
     }))
+}
+
+#[derive(Deserialize)]
+struct TestEmailForm {
+    #[serde(default)]
+    to: String,
+}
+
+/// `POST /-/admin/health/test-email`: queues the test message.
+async fn test_email(
+    State(state): State<AppState>,
+    Sudo(session): Sudo,
+    Form(f): Form<TestEmailForm>,
+) -> Result<Response, AppError> {
+    let subject = session.subject.clone();
+    state.services.require_site_admin(&subject)?;
+    let to = f.to.trim();
+    if to.is_empty() || to.contains(['\r', '\n']) || !to.contains('@') {
+        return Err(AppError::bad_request("Enter an email address."));
+    }
+    if !state.services.queue_test_email(&subject, to).await? {
+        return Err(AppError::not_found());
+    }
+    Ok(Redirect::to("/-/admin/health?status=email-queued").into_response())
+}
+
+struct BgRow {
+    name: String,
+    introduced_in: String,
+    state: &'static str,
+    error: Option<String>,
+    percent: Option<u8>,
+    processed: i64,
+    total: Option<i64>,
+    eta: Option<String>,
+    /// Available control: (path segment, button label).
+    action: Option<(&'static str, &'static str)>,
+}
+
+struct UpgradeRow {
+    from: String,
+    to: String,
+    started: Time,
+    outcome: String,
+    backup: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "admin/upgrades.html")]
+struct UpgradesPage<'a> {
+    ctx: PageCtx,
+    section: &'static str,
+    message: Option<&'a str>,
+    migrations: Vec<BgRow>,
+    history: Vec<UpgradeRow>,
+}
+
+/// A rough, readable duration ("3 minutes").
+fn rough_duration(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    match s {
+        0..=59 => "less than a minute".to_owned(),
+        60..=5399 => format!("{} minutes", s.div_ceil(60)),
+        _ => format!("{} hours", s.div_ceil(3600)),
+    }
+}
+
+async fn upgrades(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Query(q): Query<ListQuery>,
+) -> Result<Response, AppError> {
+    use slath_db::bgmigrations::State as S;
+    let subject = session.subject();
+    state.services.require_site_admin(&subject)?;
+    let now = time::OffsetDateTime::now_utc();
+    let migrations = state
+        .services
+        .background_migration_status(&subject)
+        .await?
+        .into_iter()
+        .map(|m| BgRow {
+            percent: m.percent(),
+            eta: m.eta(now).map(rough_duration),
+            action: match m.state {
+                S::Pending | S::Running => Some(("pause", "Pause")),
+                S::Paused => Some(("resume", "Resume")),
+                S::Failed => Some(("retry", "Retry")),
+                S::Done => None,
+            },
+            state: m.state.as_str(),
+            name: m.name,
+            introduced_in: m.introduced_in,
+            error: m.last_error,
+            processed: m.processed,
+            total: m.total_estimate,
+        })
+        .collect();
+    let history = state
+        .services
+        .upgrade_history(&subject)
+        .await?
+        .into_iter()
+        .map(|u| UpgradeRow {
+            from: u.from_version.map_or_else(
+                || format!("schema {}", u.from_schema),
+                |v| format!("v{v} (schema {})", u.from_schema),
+            ),
+            to: format!("v{} (schema {})", u.to_version, u.to_schema),
+            started: u.started_at.into(),
+            outcome: u.outcome.unwrap_or_else(|| "interrupted".to_owned()),
+            backup: u.backup_path,
+            error: u.error,
+        })
+        .collect();
+    Ok(render(&UpgradesPage {
+        ctx,
+        section: "upgrades",
+        message: status_message(q.status.as_deref()),
+        migrations,
+        history,
+    }))
+}
+
+async fn control_background(
+    State(state): State<AppState>,
+    Sudo(session): Sudo,
+    Path((name, op)): Path<(String, String)>,
+) -> Result<Response, AppError> {
+    use slath_db::bgmigrations::Control;
+    let subject = session.subject.clone();
+    state.services.require_site_admin(&subject)?;
+    let (c, status) = match op.as_str() {
+        "pause" => (Control::Pause, "paused"),
+        "resume" => (Control::Resume, "resumed"),
+        "retry" => (Control::Retry, "retried"),
+        _ => return Err(AppError::not_found()),
+    };
+    state
+        .services
+        .control_background_migration(&subject, &name, c)
+        .await?;
+    Ok(Redirect::to(&format!("/-/admin/upgrades?status={status}")).into_response())
 }
 
 async fn index(State(state): State<AppState>, session: MaybeSession) -> Result<Redirect, AppError> {
@@ -498,5 +656,16 @@ pub fn router() -> Router<AppState> {
         )
         .route_as("/-/admin/audit", Access::SiteAdmin, get(audit))
         .route_as("/-/admin/health", Access::SiteAdmin, get(health))
+        .route_as(
+            "/-/admin/health/test-email",
+            Access::SiteAdmin,
+            post(test_email),
+        )
+        .route_as("/-/admin/upgrades", Access::SiteAdmin, get(upgrades))
+        .route_as(
+            "/-/admin/upgrades/background/{name}/{op}",
+            Access::SiteAdmin,
+            post(control_background),
+        )
         .route_as("/{org}/-/audit", Access::Resource, get(org_audit))
 }

@@ -11,6 +11,7 @@ test("conf_a11y_01_admin_pages_accessible", async ({ page }) => {
     ["Organizations", "Organizations"],
     ["Repositories", "Repositories"],
     ["Audit log", "Audit log"],
+    ["Upgrades", "Upgrades"],
     ["Health", "Health"],
   ]) {
     await tapOrClick(page, page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: link, exact: true }));
