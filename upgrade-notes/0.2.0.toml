@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrade notes for 0.2.0 (in development; completed at release). Upgrade
+# with `slath upgrade` (docs/admin/upgrading.md).
+
+version = "0.2.0"
+schema_version = 15
+min_upgrade_from = "0.1.0"
+
+[[action]]
+id = "admin-mfa"
+severity = "recommended"
+text = "Administrators need two-factor authentication to use administration (auth.require_mfa_for_admins, on by default): set it up under Settings → Security before upgrading, or keep administration through `slath admin` commands"

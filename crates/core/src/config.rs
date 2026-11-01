@@ -234,6 +234,20 @@ impl Default for Auth {
     }
 }
 
+/// How the SMTP connection is secured.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SmtpTls {
+    /// Plain connection upgraded with STARTTLS (required, not opportunistic).
+    #[default]
+    Starttls,
+    /// TLS from the start (port 465).
+    Tls,
+    /// No encryption: only for a relay on the same host or a test catcher.
+    None,
+}
+
+/// Outbound email. Without `host`, email is off and the UI hides it.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Smtp {
@@ -241,22 +255,27 @@ pub struct Smtp {
     pub host: String,
     #[serde(default = "default_smtp_port")]
     pub port: u16,
-    #[serde(default = "default_smtp_tls")]
-    pub tls: String,
+    #[serde(default)]
+    pub tls: SmtpTls,
     #[serde(default)]
     pub username: String,
     #[serde(default)]
     pub password_file: Option<PathBuf>,
+    /// Sender, e.g. `Slath <noreply@example.org>`.
     #[serde(default)]
     pub from: String,
 }
 
-const fn default_smtp_port() -> u16 {
-    587
+impl Smtp {
+    /// True if email is configured.
+    #[must_use]
+    pub fn enabled(&self) -> bool {
+        !self.host.trim().is_empty()
+    }
 }
 
-fn default_smtp_tls() -> String {
-    "starttls".to_owned()
+const fn default_smtp_port() -> u16 {
+    587
 }
 
 impl Default for Smtp {
@@ -264,7 +283,7 @@ impl Default for Smtp {
         Self {
             host: String::new(),
             port: default_smtp_port(),
-            tls: default_smtp_tls(),
+            tls: SmtpTls::default(),
             username: String::new(),
             password_file: None,
             from: String::new(),
@@ -311,6 +330,10 @@ pub struct Limits {
     pub ssh_key_lookups_per_second: u32,
     /// Background jobs run concurrently by one server.
     pub job_workers: usize,
+    /// Items per batch of a background migration.
+    pub background_migration_batch: u32,
+    /// Pause between batches of a background migration (rate limit).
+    pub background_migration_interval: Dur,
 }
 
 impl Default for Limits {
@@ -337,6 +360,8 @@ impl Default for Limits {
             login_failures_per_ip: 50,
             ssh_key_lookups_per_second: 200,
             job_workers: 4,
+            background_migration_batch: 500,
+            background_migration_interval: Dur::millis(100),
         }
     }
 }
@@ -578,6 +603,11 @@ impl Dur {
     }
 
     #[must_use]
+    pub const fn millis(ms: u64) -> Self {
+        Self(Duration::from_millis(ms))
+    }
+
+    #[must_use]
     pub const fn get(self) -> Duration {
         self.0
     }
@@ -739,3 +769,23 @@ mod tests {
         }
     }
 }
+
+/// A configuration key that was renamed. Deprecated keys keep working for
+/// at least two minor releases and are never removed within a major
+/// version: loading maps them to their replacement with a warning, and
+/// `slath config migrate` rewrites files to the replacement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Deprecation {
+    /// Dotted path of the old key, e.g. `ci.max_parallel`.
+    pub old: &'static str,
+    /// Dotted path of the replacement.
+    pub new: &'static str,
+    /// Release that deprecated the key.
+    pub since: &'static str,
+    /// Release that may remove it (a new major version).
+    pub removal: &'static str,
+}
+
+/// Every deprecated key. Each entry also needs a `[[deprecation]]` entry in
+/// the upgrade notes of the release that introduces it.
+pub const DEPRECATED_KEYS: &[Deprecation] = &[];
