@@ -343,3 +343,129 @@ pub async fn commit_diff(
         Err(e) => Err(e),
     }
 }
+
+/// One line of `git blame` output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlameLine {
+    /// The commit that last changed the line.
+    pub commit: ObjectId,
+    /// Line number in that commit's version of the file.
+    pub orig_line: usize,
+    pub text: Vec<u8>,
+}
+
+/// What blame shows about a commit.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BlameCommit {
+    pub author_name: String,
+    pub author_time: i64,
+    pub summary: String,
+}
+
+/// Blame of a file: one entry per line, and the commits they come from.
+#[derive(Debug, Clone, Default)]
+pub struct Blame {
+    pub lines: Vec<BlameLine>,
+    pub commits: std::collections::HashMap<ObjectId, BlameCommit>,
+}
+
+/// Parses `git blame --porcelain` output.
+pub fn parse_blame(out: &[u8]) -> Result<Blame, GitError> {
+    let bad = || GitError::Protocol("unexpected blame output");
+    let mut blame = Blame::default();
+    let mut current: Option<(ObjectId, usize)> = None;
+    for line in out.split(|&b| b == b'\n') {
+        if let Some(text) = line.strip_prefix(b"\t") {
+            let (commit, orig) = current.take().ok_or_else(bad)?;
+            blame.lines.push(BlameLine {
+                commit,
+                orig_line: orig,
+                text: text.to_vec(),
+            });
+            continue;
+        }
+        if line.is_empty() {
+            continue;
+        }
+        if current.is_none() {
+            // Header: `<oid> <orig> <final> [<count>]`.
+            let mut parts = line.split(|&b| b == b' ');
+            let oid = ObjectId::parse(parts.next().ok_or_else(bad)?).map_err(|_| bad())?;
+            let orig = parts
+                .next()
+                .and_then(|p| std::str::from_utf8(p).ok())
+                .and_then(|p| p.parse().ok())
+                .ok_or_else(bad)?;
+            blame.commits.entry(oid.clone()).or_default();
+            current = Some((oid, orig));
+            continue;
+        }
+        // Commit information, given once per commit.
+        let Some((oid, _)) = &current else { continue };
+        let (key, value) = match line.iter().position(|&b| b == b' ') {
+            Some(i) => (&line[..i], &line[i + 1..]),
+            None => (line, &b""[..]),
+        };
+        let c = blame.commits.entry(oid.clone()).or_default();
+        let value = String::from_utf8_lossy(value).into_owned();
+        match key {
+            b"author" => c.author_name = value,
+            b"author-time" => c.author_time = value.parse().unwrap_or(0),
+            b"summary" => c.summary = value,
+            _ => {}
+        }
+    }
+    Ok(blame)
+}
+
+/// `git blame --porcelain` of `path` at `commit`, within the runner's
+/// timeout and output limits.
+pub async fn blame(
+    runner: &Runner,
+    git_dir: &Path,
+    commit: &ObjectId,
+    path: &RepoPath,
+) -> Result<Blame, GitError> {
+    let out = runner
+        .repo(git_dir)
+        // `--end-of-options` confuses blame's argument parsing; the commit
+        // is a validated object ID, so it can't be taken for an option.
+        .args([
+            "blame",
+            "--porcelain",
+            "--no-progress",
+            commit.as_str(),
+            "--",
+        ])
+        .arg_bytes(path.as_bytes())
+        .run()
+        .await?;
+    parse_blame(&out.stdout)
+}
+
+#[cfg(test)]
+mod blame_tests {
+    use super::*;
+
+    #[test]
+    fn porcelain_is_parsed() {
+        let a = "a".repeat(40);
+        let b = "b".repeat(40);
+        let out = format!(
+            "{a} 1 1 2\nauthor Ann\nauthor-mail <ann@example.org>\nauthor-time 1700000000\nsummary First\nfilename f\n\tone\n{a} 2 2\n\ttwo\n{b} 1 3 1\nauthor Bob\nauthor-time 1700000100\nsummary Second line\nprevious {a} f\nfilename f\n\t\tthree\n"
+        );
+        let blame = parse_blame(out.as_bytes()).unwrap();
+        assert_eq!(blame.lines.len(), 3);
+        assert_eq!(blame.lines[1].text, b"two");
+        assert_eq!(blame.lines[2].text, b"\tthree");
+        assert_eq!(blame.lines[2].orig_line, 1);
+        let ca = &blame.commits[&ObjectId::parse(a.as_bytes()).unwrap()];
+        assert_eq!(ca.author_name, "Ann");
+        assert_eq!(ca.summary, "First");
+        assert_eq!(
+            blame.commits[&blame.lines[2].commit].author_time,
+            1_700_000_100
+        );
+        assert!(parse_blame(b"\torphan line\n").is_err());
+    }
+}

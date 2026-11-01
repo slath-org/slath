@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1 class="visually-hidden">{{ title }}</h1>
+{% include "repo/ref_line.html" %}
+{% include "repo/crumbs.html" %}
+<p class="file-actions">
+  <a href="{{ blob_href }}">File</a> · <a href="{{ commits_href }}">History</a>
+  {%- if !rows.is_empty() %} · <span class="text-secondary">{{ rows.len() }} lines</span>{% endif %}
+</p>
+{%- if let Some(n) = notice %}
+<div class="notice" role="note"><p>{{ n }}</p></div>
+{%- endif %}
+{%- if !rows.is_empty() %}
+<div class="code-wrap" tabindex="0" role="region" aria-label="Blame">
+<table class="code-view code-table blame-table">
+  <thead class="visually-hidden">
+    <tr><th scope="col">Commit</th><th scope="col">Line</th><th scope="col">Code</th></tr>
+  </thead>
+  <tbody>
+  {%- for l in rows %}
+    <tr id="L{{ l.no }}"{% if l.hunk.is_some() %} class="blame-start"{% endif %}>
+      {%- if let Some(h) = l.hunk %}
+      <td class="blame-commit" rowspan="{{ h.span }}"><a href="{{ h.href }}" title="{{ h.summary }}"><code>{{ h.short }}</code></a> <span class="blame-summary">{{ h.summary }}</span><br><span class="text-secondary">{{ h.author }}, <time datetime="{{ h.when.iso }}">{{ h.when.text }}</time></span></td>
+      {%- endif %}
+      <th scope="row"><a href="#L{{ l.no }}" class="line-no">{{ l.no }}</a></th><td><code>{{ l.html }}</code></td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

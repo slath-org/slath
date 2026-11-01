@@ -1089,3 +1089,26 @@ a.label-chip:hover {
   gap: var(--space-2);
   margin-block-end: var(--space-2);
 }
+
+/* Blame */
+.blame-table .blame-commit {
+  inline-size: 18rem;
+  max-inline-size: 18rem;
+  padding: var(--space-1) var(--space-2);
+  vertical-align: top;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  border-inline-end: var(--border-width) solid var(--border);
+  overflow-wrap: anywhere;
+}
+.blame-table .blame-start > * {
+  border-block-start: var(--border-width) solid var(--border);
+}
+.blame-summary {
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

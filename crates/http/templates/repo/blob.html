@@ -6,7 +6,7 @@
 {% include "repo/ref_line.html" %}
 {% include "repo/crumbs.html" %}
 <p class="file-actions">
-  <a href="{{ raw_href }}">Raw</a> · <a href="{{ commits_href }}">History</a> · <a href="{{ permalink }}">Permalink</a>
+  <a href="{{ raw_href }}">Raw</a> · <a href="{{ self.blame_href() }}">Blame</a> · <a href="{{ commits_href }}">History</a> · <a href="{{ permalink }}">Permalink</a>
   {%- if !language.is_empty() %} · <span class="text-secondary">{{ language }}, {{ lines.len() }} lines</span>{% endif %}
 </p>
 {%- if let Some(n) = notice %}

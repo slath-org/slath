@@ -402,6 +402,12 @@ struct BlobPage {
     size: u64,
 }
 
+impl BlobPage {
+    fn blame_href(&self) -> String {
+        self.raw_href.replacen("/raw/", "/blame/", 1)
+    }
+}
+
 async fn blob(
     State(state): State<AppState>,
     ctx: PageCtx,
@@ -502,6 +508,162 @@ async fn blob(
                 }
             }
         },
+    }
+    Ok(render(&page))
+}
+
+/// One line of the blame view; `hunk` is set on the first line of each run
+/// of lines from the same commit.
+struct BlameRow {
+    no: usize,
+    html: MarkupHtml,
+    hunk: Option<BlameHunk>,
+}
+
+struct BlameHunk {
+    href: String,
+    short: String,
+    summary: String,
+    author: String,
+    when: Time,
+    /// Lines in the run (for `rowspan`).
+    span: usize,
+}
+
+#[derive(Template)]
+#[template(path = "repo/blame.html")]
+struct BlamePage {
+    ctx: PageCtx,
+    header: RepoHeader,
+    title: String,
+    reference: RefView,
+    crumbs: Vec<Crumb>,
+    blob_href: String,
+    commits_href: String,
+    notice: Option<String>,
+    rows: Vec<BlameRow>,
+}
+
+/// `GET /{ns}/{repo}/blame/{ref}/{path}`: who last changed each line. Git
+/// runs with the read timeout; a file that takes longer gets a notice.
+async fn blame(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    raw: RawRepoPath,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let (ns, repo, rest) = params(&raw);
+    let a = access(&state, &subject, &ns, &repo).await?;
+    let r = resolve(&state, &a, &rest).await?;
+    let git_dir = state.services.repo_path(a.repo.id);
+    let mut reader = ObjectReader::open(&state.runner, &git_dir)
+        .await
+        .map_err(|e| AppError::internal(&e))?;
+    let entry = match browse::lookup_path(&mut reader, &r.commit, &r.path)
+        .await
+        .map_err(|e| git_err(&e))?
+    {
+        Some(PathObject::Blob { entry })
+            if matches!(entry.kind(), EntryKind::File | EntryKind::Executable) =>
+        {
+            entry
+        }
+        Some(PathObject::Tree(_)) => {
+            return Ok(Redirect::to(&link(&a, "tree", &r, r.path.as_bytes())).into_response());
+        }
+        _ => return Err(AppError::not_found()),
+    };
+    let mut page = BlamePage {
+        header: RepoHeader::new(&a, &subject, "code"),
+        title: format!(
+            "Blame · {} · {}/{}",
+            lossy(r.path.as_bytes()),
+            a.repo.namespace,
+            a.repo.name
+        ),
+        reference: ref_view(&r),
+        crumbs: crumbs(&a, &r),
+        blob_href: link(&a, "blob", &r, r.path.as_bytes()),
+        commits_href: link(&a, "commits", &r, r.path.as_bytes()),
+        notice: None,
+        rows: Vec::new(),
+        ctx,
+    };
+    let limit = state.config.limits.render_max_file_bytes.as_usize();
+    let text = match reader
+        .read_blob(&entry.oid, limit)
+        .await
+        .map_err(|e| git_err(&e))?
+    {
+        Blob::TooLarge { size } => {
+            page.notice = Some(format!("This file is too large to blame ({size} bytes)."));
+            return Ok(render(&page));
+        }
+        Blob::Data(d) if slath_markup::is_binary(&d) => {
+            page.notice = Some("Binary files have no blame.".to_owned());
+            return Ok(render(&page));
+        }
+        Blob::Data(d) => String::from_utf8_lossy(&d).into_owned(),
+    };
+    let result = browse::blame(&state.runner, &git_dir, &r.commit, &r.path).await;
+    let blame = match result {
+        Ok(b) => b,
+        Err(slath_git::GitError::Limit(_)) => {
+            page.notice = Some(
+                "Working out the blame for this file took too long. Try the history instead."
+                    .to_owned(),
+            );
+            return Ok(render(&page));
+        }
+        Err(e) => return Err(git_err(&e)),
+    };
+    let path_str = String::from_utf8_lossy(r.path.as_bytes()).into_owned();
+    let h = match tokio::time::timeout(
+        Duration::from_secs(2),
+        tokio::task::spawn_blocking({
+            let text = text.clone();
+            move || slath_markup::highlight(&path_str, &text)
+        }),
+    )
+    .await
+    {
+        Ok(Ok(h)) => h,
+        _ => slath_markup::highlight("", &text),
+    };
+    let mut htmls = h.lines.into_iter();
+    let n = blame.lines.len();
+    let mut i = 0;
+    while i < n {
+        let commit = blame.lines[i].commit.clone();
+        let span = blame.lines[i..]
+            .iter()
+            .take_while(|l| l.commit == commit)
+            .count();
+        let info = blame.commits.get(&commit).cloned().unwrap_or_default();
+        for j in 0..span {
+            let html = htmls.next().unwrap_or_default();
+            page.rows.push(BlameRow {
+                no: i + j + 1,
+                html: MarkupHtml::from_markup(html),
+                hunk: (j == 0).then(|| BlameHunk {
+                    href: format!(
+                        "/{}/{}/commit/{}",
+                        a.repo.namespace,
+                        a.repo.name,
+                        commit.as_str()
+                    ),
+                    short: commit.as_str()[..10].to_owned(),
+                    summary: info.summary.clone(),
+                    author: info.author_name.clone(),
+                    when: time::OffsetDateTime::from_unix_timestamp(info.author_time)
+                        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
+                        .into(),
+                    span,
+                }),
+            });
+        }
+        i += span;
     }
     Ok(render(&page))
 }
@@ -1098,6 +1260,7 @@ pub fn router() -> Router<AppState> {
         .route_as("/{ns}/{repo}/tree/{*rest}", Access::Resource, get(tree))
         .route_as("/{ns}/{repo}/blob/{*rest}", Access::Resource, get(blob))
         .route_as("/{ns}/{repo}/raw/{*rest}", Access::Resource, get(raw))
+        .route_as("/{ns}/{repo}/blame/{*rest}", Access::Resource, get(blame))
         .route_as("/{ns}/{repo}/commits", Access::Resource, get(commits))
         .route_as(
             "/{ns}/{repo}/commits/{*rest}",

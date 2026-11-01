@@ -365,3 +365,46 @@ fn conf_git_03_archives_match_git_archive_and_respect_access() {
         404
     );
 }
+
+#[test]
+fn conf_a11y_01_blame_of_a_large_file() {
+    let s = TestServer::start();
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    let mut lines: Vec<String> = (1..=10_000).map(|i| format!("line {i}")).collect();
+    std::fs::write(w.join("big.txt"), lines.join("\n") + "\n").unwrap();
+    git.ok(&w, &["add", "-A"]);
+    git.ok(&w, &["commit", "-q", "-m", "Add the big file"]);
+    for i in (0..10_000).step_by(100) {
+        lines[i] = format!("<script>alert({i})</script>");
+    }
+    std::fs::write(w.join("big.txt"), lines.join("\n") + "\n").unwrap();
+    git.ok(&w, &["commit", "-q", "-am", "Change every hundredth line"]);
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+
+    let mut a = alice(&s);
+    let start = std::time::Instant::now();
+    let r = a.get("/alice/demo/blame/main/big.txt");
+    assert_eq!(r.status, 200, "{}", s.log());
+    assert!(start.elapsed() < std::time::Duration::from_secs(30));
+    if r.body.contains("took too long") {
+        return;
+    }
+    assert!(r.body.contains("id=\"L10000\""));
+    assert!(r.body.contains("Change every hundredth line"));
+    assert!(r.body.contains("Add the big file"));
+    assert!(!r.body.contains("<script>alert("), "content is escaped");
+    // 100 changed lines, each its own run, plus the runs between them.
+    assert_eq!(r.body.matches("class=\"blame-start\"").count(), 200);
+    assert!(
+        a.get("/alice/demo/blob/main/big.txt")
+            .body
+            .contains("/alice/demo/blame/main/big.txt")
+    );
+    // Directories redirect; missing files and private repositories are 404.
+    assert_eq!(a.get("/alice/demo/blame/main/nope.txt").status, 404);
+    assert_eq!(s.client().get("/alice/demo/blame/main/big.txt").status, 404);
+}

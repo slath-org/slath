@@ -12,6 +12,7 @@ test("conf_a11y_01_code_browser_pages_accessible", async ({ page }) => {
   for (const path of [
     "/alice/demo/tree/main/src",
     "/alice/demo/blob/main/src/main.rs",
+    "/alice/demo/blame/main/src/main.rs",
     "/alice/demo/commits",
     "/alice/demo/branches",
     "/alice/demo/tags",
