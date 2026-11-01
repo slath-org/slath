@@ -59,6 +59,7 @@ pub enum DenyReason {
     NoPermission,
     Archived,
     TagMove,
+    Protected,
 }
 
 impl DenyReason {
@@ -71,6 +72,7 @@ impl DenyReason {
             Self::NoPermission => "no_permission",
             Self::Archived => "archived",
             Self::TagMove => "tag_move",
+            Self::Protected => "protected",
         }
     }
 }
@@ -164,7 +166,7 @@ impl Services {
         &self,
         grant: &PushGrant,
         updates: &[RefUpdate],
-        _quarantine: &Quarantine,
+        quarantine: &Quarantine,
     ) -> Verdict {
         let mut v = Verdict::default();
         // Permissions are re-checked now, with the push's own credential.
@@ -190,6 +192,21 @@ impl Services {
         let archived = access
             .as_ref()
             .is_some_and(|a| a.repo.state == RepoState::Archived);
+        let rules = match &access {
+            Some(a) => match slath_db::protections::list(&self.pool, a.repo.id).await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!(error = %e, "pre-receive: loading branch protection failed");
+                    v.denied.push(DenyReason::Protected);
+                    v.messages
+                        .push("slath: push rejected: internal error, try again".to_owned());
+                    return v;
+                }
+            },
+            None => Vec::new(),
+        };
+        let role = access.as_ref().and_then(|a| a.ctx.role);
+        let mut bypassed: Vec<String> = Vec::new();
         for u in updates {
             let shown = String::from_utf8_lossy(&u.name).into_owned();
             let mut deny = |reason: DenyReason, msg: &str| {
@@ -235,12 +252,115 @@ impl Services {
                     DenyReason::TagMove,
                     "moving or deleting a tag needs the maintain role",
                 );
+                continue;
             }
+            if is_tag {
+                continue;
+            }
+            // Branch protection (strictest of all matching rules).
+            let branch = &bytes[b"refs/heads/".len()..];
+            let p = crate::protections::effective(&rules, branch);
+            if !p.protected {
+                continue;
+            }
+            if is_zero(&u.new) {
+                if p.block_deletion {
+                    deny(
+                        DenyReason::Protected,
+                        "deleting this protected branch is not allowed",
+                    );
+                    continue;
+                }
+            } else if !is_zero(&u.old) && p.block_force_push {
+                match self
+                    .fast_forward(grant.repo_id, &u.old, &u.new, quarantine)
+                    .await
+                {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        deny(
+                            DenyReason::Protected,
+                            "force pushes to this protected branch are not allowed",
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "pre-receive: ancestry check failed");
+                        deny(
+                            DenyReason::Protected,
+                            "the push couldn't be checked; try again",
+                        );
+                        continue;
+                    }
+                }
+            }
+            if p.nobody {
+                deny(
+                    DenyReason::Protected,
+                    "this protected branch can only be changed through merge requests",
+                );
+                continue;
+            }
+            if p.push_role.is_some_and(|min| role.is_none_or(|r| r < min)) {
+                deny(
+                    DenyReason::Protected,
+                    "pushing to this protected branch needs a higher role",
+                );
+                continue;
+            }
+            if p.require_mr {
+                if role == Some(slath_core::authz::Role::Admin) {
+                    bypassed.push(shown.clone());
+                } else {
+                    deny(
+                        DenyReason::Protected,
+                        "this protected branch requires merge requests",
+                    );
+                }
+            }
+        }
+        if v.denied.is_empty() && !bypassed.is_empty() {
+            for b in &bypassed {
+                v.messages.push(format!(
+                    "slath: {b}: pushed directly to a branch that requires merge requests (admin bypass, recorded in the audit log)"
+                ));
+            }
+            self.audit(
+                &grant.subject,
+                "protection.bypass",
+                crate::audit::Target::repo(*grant.repo_id.as_uuid()),
+                serde_json::json!({"refs": bypassed}),
+            )
+            .await;
         }
         if !v.denied.is_empty() {
             v.messages.push("slath: push rejected".to_owned());
         }
         v
+    }
+
+    /// True if `new` contains `old` (a fast-forward), looking at the push's
+    /// quarantined objects too.
+    async fn fast_forward(
+        &self,
+        repo: RepoId,
+        old: &str,
+        new: &str,
+        quarantine: &Quarantine,
+    ) -> Result<bool> {
+        let parse = |s: &str| {
+            slath_git::object::ObjectId::parse(s)
+                .map_err(|_| ServiceError::internal("invalid object ID from Git"))
+        };
+        let (old, new) = (parse(old)?, parse(new)?);
+        let dir = self.repo_path(repo);
+        let q = quarantine
+            .object_directory
+            .as_deref()
+            .map(std::path::Path::new);
+        slath_git::storage::is_ancestor(&self.runner, &dir, &old, &new, q)
+            .await
+            .map_err(ServiceError::internal)
     }
 
     /// Records a completed push in one transaction: the push event, its ref

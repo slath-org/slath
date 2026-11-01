@@ -1458,6 +1458,242 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/protections": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "A repository's branch protection rules (admins).",
+        "operationId": "list_protections",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProtectionRule"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Creates the rule for a pattern, or replaces it (admins).",
+        "operationId": "post_protection",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostProtection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtectionRule"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/protections/{id}": {
+      "delete": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Removes a rule (admins).",
+        "operationId": "delete_protection",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/tags": {
       "get": {
         "tags": [
@@ -2377,6 +2613,28 @@
           }
         }
       },
+      "PostProtection": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs before\nvalidation (a missing pattern is a 422 only for those allowed to ask).",
+        "properties": {
+          "block_deletion": {
+            "type": "boolean"
+          },
+          "block_force_push": {
+            "type": "boolean"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "push_role": {
+            "type": "string",
+            "description": "`write` (default), `maintain`, `admin`, or `nobody`."
+          },
+          "require_mr": {
+            "type": "boolean"
+          }
+        }
+      },
       "Problem": {
         "type": "object",
         "description": "An RFC 9457 problem document.",
@@ -2441,6 +2699,39 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ProtectionRule": {
+        "type": "object",
+        "required": [
+          "id",
+          "pattern",
+          "block_force_push",
+          "block_deletion",
+          "require_mr",
+          "push_role"
+        ],
+        "properties": {
+          "block_deletion": {
+            "type": "boolean"
+          },
+          "block_force_push": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Glob on the short branch name (`*` doesn't cross `/`)."
+          },
+          "push_role": {
+            "type": "string",
+            "description": "`write`, `maintain`, `admin`, or `nobody`."
+          },
+          "require_mr": {
+            "type": "boolean"
           }
         }
       },

@@ -303,6 +303,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "collaborator-saved" => "Collaborator saved.",
         "collaborator-removed" => "Collaborator removed.",
         "team-saved" => "Team access saved.",
+        "rule-saved" => "Protection rule saved.",
+        "rule-removed" => "Protection rule removed.",
         "team-removed" => "Team access removed.",
         _ => return None,
     })
@@ -648,6 +650,133 @@ async fn remove_collaborator(
     .into_response())
 }
 
+#[derive(Template)]
+#[template(path = "repo/settings_protections.html")]
+struct ProtectionsSettings<'a> {
+    ctx: PageCtx,
+    header: RepoHeader,
+    rules: Vec<slath_db::protections::Protection>,
+    message: Option<&'a str>,
+    errors: Vec<FieldError>,
+    pattern: String,
+}
+
+impl ProtectionsSettings<'_> {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+async fn protections_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    a: &RepoAccess,
+    message: Option<&str>,
+    errors: Vec<FieldError>,
+    pattern: String,
+) -> Result<Response, AppError> {
+    let rules = state
+        .services
+        .protections(subject, &a.repo.namespace, &a.repo.name)
+        .await?;
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&ProtectionsSettings {
+        ctx,
+        header: RepoHeader::new(a, subject, "settings"),
+        rules,
+        message,
+        errors,
+        pattern,
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+async fn settings_protections_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let a = settings_access(&state, &subject, &ns, &repo).await?;
+    protections_page(
+        &state,
+        ctx,
+        &subject,
+        &a,
+        status_message(q.status.as_deref()),
+        Vec::new(),
+        String::new(),
+    )
+    .await
+}
+
+#[derive(Deserialize)]
+struct RuleForm {
+    #[serde(default)]
+    pattern: String,
+    #[serde(default)]
+    push_role: String,
+    block_force_push: Option<String>,
+    block_deletion: Option<String>,
+    require_mr: Option<String>,
+}
+
+async fn save_protection(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<RuleForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    match state
+        .services
+        .set_protection(
+            &s.subject,
+            &a.repo.namespace,
+            &a.repo.name,
+            slath_service::protections::RuleInput {
+                pattern: f.pattern.clone(),
+                block_force_push: f.block_force_push.is_some(),
+                block_deletion: f.block_deletion.is_some(),
+                require_mr: f.require_mr.is_some(),
+                push_role: f.push_role,
+            },
+        )
+        .await
+    {
+        Ok(()) => Ok(
+            Redirect::to(&repo_url(&a, "/settings/protections?status=rule-saved")).into_response(),
+        ),
+        Err(ServiceError::Invalid(errors)) => {
+            protections_page(&state, ctx, &s.subject, &a, None, errors, f.pattern).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn delete_protection(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .delete_protection(&s.subject, &a.repo.namespace, &a.repo.name, id)
+        .await?;
+    Ok(Redirect::to(&repo_url(&a, "/settings/protections?status=rule-removed")).into_response())
+}
+
 #[derive(Deserialize)]
 struct TeamAccessForm {
     #[serde(default)]
@@ -797,6 +926,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/access/{user}/remove",
             Access::Resource,
             post(remove_collaborator),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/protections",
+            Access::Resource,
+            get(settings_protections_page).post(save_protection),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/protections/{id}/delete",
+            Access::Resource,
+            post(delete_protection),
         )
         .route_as(
             "/{ns}/{repo}/settings/access/teams",

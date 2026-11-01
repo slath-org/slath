@@ -732,6 +732,116 @@ pub async fn delete_collaborator(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct ProtectionRule {
+    pub id: String,
+    /// Glob on the short branch name (`*` doesn't cross `/`).
+    pub pattern: String,
+    pub block_force_push: bool,
+    pub block_deletion: bool,
+    pub require_mr: bool,
+    /// `write`, `maintain`, `admin`, or `nobody`.
+    pub push_role: String,
+}
+
+impl From<slath_db::protections::Protection> for ProtectionRule {
+    fn from(p: slath_db::protections::Protection) -> Self {
+        Self {
+            id: p.id.to_string(),
+            pattern: p.pattern,
+            block_force_push: p.block_force_push,
+            block_deletion: p.block_deletion,
+            require_mr: p.require_mr,
+            push_role: p.push_role,
+        }
+    }
+}
+
+/// A repository's branch protection rules (admins).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/protections", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    responses((status = 200, body = Vec<ProtectionRule>), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn list_protections(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+) -> Result<Json<Vec<ProtectionRule>>, AppError> {
+    let rules = state.services.protections(&s, &ns, &repo).await?;
+    Ok(Json(rules.into_iter().map(Into::into).collect()))
+}
+
+/// Every field is optional in the JSON so that authorization runs before
+/// validation (a missing pattern is a 422 only for those allowed to ask).
+#[derive(Deserialize, ToSchema)]
+pub struct PostProtection {
+    #[serde(default)]
+    pub pattern: String,
+    #[serde(default = "yes")]
+    pub block_force_push: bool,
+    #[serde(default = "yes")]
+    pub block_deletion: bool,
+    #[serde(default)]
+    pub require_mr: bool,
+    /// `write` (default), `maintain`, `admin`, or `nobody`.
+    #[serde(default = "write")]
+    pub push_role: String,
+}
+
+const fn yes() -> bool {
+    true
+}
+
+fn write() -> String {
+    "write".to_owned()
+}
+
+/// Creates the rule for a pattern, or replaces it (admins).
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/protections", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = PostProtection,
+    responses((status = 200, body = ProtectionRule), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn post_protection(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    Json(p): Json<PostProtection>,
+) -> Result<Json<ProtectionRule>, AppError> {
+    let pattern = p.pattern.trim().to_owned();
+    state
+        .services
+        .set_protection(
+            &s,
+            &ns,
+            &repo,
+            slath_service::protections::RuleInput {
+                pattern: pattern.clone(),
+                block_force_push: p.block_force_push,
+                block_deletion: p.block_deletion,
+                require_mr: p.require_mr,
+                push_role: p.push_role,
+            },
+        )
+        .await?;
+    let rule = state
+        .services
+        .protections(&s, &ns, &repo)
+        .await?
+        .into_iter()
+        .find(|r| r.pattern == pattern)
+        .ok_or_else(AppError::not_found)?;
+    Ok(Json(rule.into()))
+}
+
+/// Removes a rule (admins).
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/protections/{id}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn delete_protection(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state.services.delete_protection(&s, &ns, &repo, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -779,6 +889,16 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/collaborators",
             Access::Resource,
             get(list_collaborators),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/protections",
+            Access::Resource,
+            get(list_protections).post(post_protection),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/protections/{id}",
+            Access::Resource,
+            axum::routing::delete(delete_protection),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/collaborators/{user}",

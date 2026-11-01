@@ -19,6 +19,7 @@ pub mod maintenance;
 pub mod mfa;
 pub mod orgs;
 pub mod passkeys;
+pub mod protections;
 pub mod push;
 pub mod reconcile;
 pub mod recovery;

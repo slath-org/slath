@@ -150,6 +150,7 @@ impl utoipa::Modify for SecurityAddon {
         repos::list_repos, repos::create_repo, repos::get_repo, repos::update_repo, repos::delete_repo,
         repos::list_branches, repos::list_tags, repos::list_commits, repos::get_commit, repos::get_tree, repos::get_blob,
         repos::list_collaborators, repos::put_collaborator, repos::delete_collaborator,
+        repos::list_protections, repos::post_protection, repos::delete_protection,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),

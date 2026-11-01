@@ -224,6 +224,31 @@ impl Invocation {
         self
     }
 
+    /// Runs with the objects of a push that is still in quarantine (during
+    /// pre-receive): `object_dir` is the quarantine directory, which must
+    /// lie inside `git_dir`'s `objects` directory; the repository's own
+    /// objects are its only alternate. Anything else is refused, because the
+    /// paths come from the hook (via IPC).
+    pub fn quarantine(mut self, git_dir: &Path, object_dir: &Path) -> Result<Self, GitError> {
+        let objects = std::fs::canonicalize(git_dir.join("objects"))?;
+        let quarantine = std::fs::canonicalize(object_dir)?;
+        if quarantine.parent() != Some(objects.as_path())
+            || !quarantine
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("tmp_objdir-incoming-"))
+        {
+            return Err(GitError::InvalidArgument(
+                "quarantine directory outside the repository",
+            ));
+        }
+        self.env
+            .push(("GIT_OBJECT_DIRECTORY", quarantine.into_os_string()));
+        self.env
+            .push(("GIT_ALTERNATE_OBJECT_DIRECTORIES", objects.into_os_string()));
+        Ok(self)
+    }
+
     /// Sets the variables `slath hook` needs to reach the server.
     pub fn hook_env(mut self, token: &str, ipc_socket: &Path) -> Self {
         self.env.push(("SLATH_HOOK_TOKEN", token.into()));

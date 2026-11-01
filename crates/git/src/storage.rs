@@ -197,6 +197,35 @@ pub async fn check_connectivity(runner: &Runner, git_dir: &Path) -> Result<(), G
     Ok(())
 }
 
+/// True if commit `old` is an ancestor of `new` (a fast-forward), with the
+/// objects of a quarantined push when `quarantine` is given.
+pub async fn is_ancestor(
+    runner: &Runner,
+    git_dir: &Path,
+    old: &crate::object::ObjectId,
+    new: &crate::object::ObjectId,
+    quarantine: Option<&Path>,
+) -> Result<bool, GitError> {
+    let mut inv = runner.repo(git_dir);
+    if let Some(q) = quarantine {
+        inv = inv.quarantine(git_dir, q)?;
+    }
+    let out = inv
+        .args(["merge-base", "--is-ancestor", "--end-of-options"])
+        .arg(old.as_str())
+        .arg(new.as_str())
+        .output()
+        .await?;
+    match out.status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(GitError::Failed {
+            status: out.status,
+            stderr: out.stderr,
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

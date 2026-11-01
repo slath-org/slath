@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Branch protection · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="with-sidebar">
+{% let section = "protections" %}
+{% include "repo/settings_nav.html" %}
+<div class="sidebar-content">
+<h1>Branch protection</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<p>Rules protect branches by name; <code>*</code> matches any characters except <code>/</code>. When several rules match a branch, the strictest setting of each applies.</p>
+{%- if rules.is_empty() %}
+<p class="text-secondary">No branches are protected.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rules-caption">
+<table class="table">
+  <caption id="rules-caption" class="visually-hidden">Protection rules</caption>
+  <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for r in rules %}
+    <tr>
+      <td><code>{{ r.pattern }}</code></td>
+      <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
+      <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
+      <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
+      <td>
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> rule {{ r.pattern }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+<h2>Add or change a rule</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="pattern">Branch name or pattern</label>
+    <input id="pattern" name="pattern" type="text" value="{{ pattern }}" required autocapitalize="none" spellcheck="false" aria-describedby="pattern-hint{% if self.error("pattern").is_some() %} pattern-error{% endif %}"
+      {%- if self.error("pattern").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="pattern-hint" class="hint">For example <code>main</code> or <code>release/*</code>. A rule for an existing pattern is replaced.</p>
+    {%- if let Some(e) = self.error("pattern") %}
+    <p id="pattern-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="push_role">Who may push directly</label>
+    <select id="push_role" name="push_role">
+      <option value="write">Write role and up</option>
+      <option value="maintain">Maintain role and up</option>
+      <option value="admin">Admins only</option>
+      <option value="nobody">Nobody: changes land through merge requests</option>
+    </select>
+  </div>
+  <div class="checkbox"><input id="block_force_push" type="checkbox" name="block_force_push" value="1" checked><label for="block_force_push">Block force pushes</label></div>
+  <div class="checkbox"><input id="block_deletion" type="checkbox" name="block_deletion" value="1" checked><label for="block_deletion">Block deletion</label></div>
+  <div class="checkbox"><input id="require_mr" type="checkbox" name="require_mr" value="1" aria-describedby="require_mr-hint"><label for="require_mr">Require merge requests</label></div>
+  <p id="require_mr-hint" class="hint">Direct pushes are refused; admins may still push, and each such push is recorded in the audit log.</p>
+  <div><button type="submit" class="button button-primary">Save rule</button></div>
+</form>
+</div>
+</div>
+{% endblock %}

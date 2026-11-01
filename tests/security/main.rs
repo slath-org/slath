@@ -15,6 +15,7 @@ mod keys;
 mod mfa;
 mod orgs;
 mod passkeys;
+mod protection;
 mod reconcile;
 mod recovery;
 mod redaction;
