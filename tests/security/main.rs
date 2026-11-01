@@ -20,3 +20,6 @@ mod settings;
 mod ssh;
 mod surfaces;
 mod tokens;
+mod vuln_git;
+mod vuln_rbac;
+mod vuln_web;

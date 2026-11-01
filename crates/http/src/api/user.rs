@@ -31,7 +31,7 @@ pub struct User {
 }
 
 /// The authenticated user (`user:read`).
-#[utoipa::path(get, path = "/api/v1/user", tag = "user", security(("token" = [])),
+#[utoipa::path(get, path = "/api/v1/user", tag = "user", security(("token" = ["user:read"])),
     responses((status = 200, body = User), (status = 401, body = super::Problem), (status = 403, body = super::Problem)))]
 pub async fn current_user(
     State(state): State<AppState>,
@@ -84,7 +84,7 @@ pub struct SshKeyPage {
 }
 
 /// The user's SSH keys (`user:read`).
-#[utoipa::path(get, path = "/api/v1/user/keys", tag = "user", security(("token" = [])), params(PageParams),
+#[utoipa::path(get, path = "/api/v1/user/keys", tag = "user", security(("token" = ["user:read"])), params(PageParams),
     responses((status = 200, body = SshKeyPage), (status = 401, body = super::Problem)))]
 pub async fn list_keys(
     State(state): State<AppState>,
@@ -114,7 +114,7 @@ pub struct NewSshKey {
 }
 
 /// Adds an SSH key (`user:write`).
-#[utoipa::path(post, path = "/api/v1/user/keys", tag = "user", security(("token" = [])), request_body = NewSshKey,
+#[utoipa::path(post, path = "/api/v1/user/keys", tag = "user", security(("token" = ["user:write"])), request_body = NewSshKey,
     responses((status = 201, body = SshKey), (status = 401, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn add_key(
     State(state): State<AppState>,
@@ -129,7 +129,7 @@ pub async fn add_key(
 }
 
 /// Removes one of the user's SSH keys (`user:write`).
-#[utoipa::path(delete, path = "/api/v1/user/keys/{id}", tag = "user", security(("token" = [])), params(("id" = String, Path)),
+#[utoipa::path(delete, path = "/api/v1/user/keys/{id}", tag = "user", security(("token" = ["user:write"])), params(("id" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn remove_key(
     State(state): State<AppState>,
@@ -162,7 +162,7 @@ pub struct TokenPage {
 }
 
 /// The user's personal access tokens (never the secrets; `user:read`).
-#[utoipa::path(get, path = "/api/v1/user/tokens", tag = "user", security(("token" = [])), params(PageParams),
+#[utoipa::path(get, path = "/api/v1/user/tokens", tag = "user", security(("token" = ["user:read"])), params(PageParams),
     responses((status = 200, body = TokenPage), (status = 401, body = super::Problem)))]
 pub async fn list_tokens(
     State(state): State<AppState>,
@@ -202,7 +202,7 @@ pub async fn create_token(ApiUser(_subject): ApiUser) -> AppError {
 }
 
 /// Revokes one of the user's tokens (`user:write`).
-#[utoipa::path(delete, path = "/api/v1/user/tokens/{id}", tag = "user", security(("token" = [])), params(("id" = String, Path)),
+#[utoipa::path(delete, path = "/api/v1/user/tokens/{id}", tag = "user", security(("token" = ["user:write"])), params(("id" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn revoke_token(
     State(state): State<AppState>,

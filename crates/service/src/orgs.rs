@@ -118,6 +118,8 @@ impl Services {
 
     /// Member lists are visible to members and site administrators.
     pub async fn org_members(&self, subject: &Subject, org: OrgId) -> Result<Vec<Member>> {
+        // Membership is account data: tokens need `user:read`.
+        user_with_scope(subject, Scope::UserRead)?;
         if self.org_role(subject, org).await?.is_none() && !is_site_admin(subject) {
             return Err(ServiceError::Forbidden);
         }

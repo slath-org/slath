@@ -344,7 +344,9 @@ async fn create_inner(
             .map_err(|e| format!("cannot restrict {}: {e}", output.display()))?;
     }
     let mut pc = slath_db::PoolConfig::new(config::database_url(&cfg)?);
-    pc.max_connections = 2;
+    pc.max_connections = 4;
+    // A one-shot command can wait for a busy database.
+    pc.acquire_timeout = std::time::Duration::from_secs(30);
     let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
     slath_db::check_schema(&pool)
         .await
@@ -732,7 +734,9 @@ async fn restore_inner(
         }
     }
     let mut pc = slath_db::PoolConfig::new(config::database_url(&cfg)?);
-    pc.max_connections = 2;
+    pc.max_connections = 4;
+    // A one-shot command can wait for a busy database.
+    pc.acquire_timeout = std::time::Duration::from_secs(30);
     let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
     if !slath_db::backup::is_empty(&pool)
         .await

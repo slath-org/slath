@@ -283,7 +283,13 @@ fn conf_git_02_port_forwarding_is_denied() {
         .read_to_string(&mut stderr)
         .unwrap();
     let _ = fwd.wait();
-    let logs = env.sshd.logs();
+    // sshd may log the refusal a moment after the client gives up.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut logs = env.sshd.logs();
+    while !logs.contains("refused local port forward") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(200));
+        logs = env.sshd.logs();
+    }
     assert!(
         logs.contains("refused local port forward"),
         "{stderr:?}\n{logs}"

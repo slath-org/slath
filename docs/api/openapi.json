@@ -64,7 +64,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       },
@@ -124,7 +126,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }
@@ -242,7 +246,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }
@@ -314,7 +320,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       }
@@ -375,7 +383,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       },
@@ -471,7 +481,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       },
@@ -540,7 +552,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }
@@ -592,7 +606,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -650,7 +672,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       }
@@ -702,7 +726,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -760,7 +792,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       },
@@ -847,7 +881,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       }
@@ -922,7 +958,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/branches": {
@@ -988,7 +1032,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/collaborators": {
@@ -1075,7 +1127,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       }
@@ -1172,7 +1226,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       },
@@ -1240,7 +1296,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "repo:write"
+            ]
           }
         ]
       }
@@ -1326,7 +1384,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/commits/{oid}": {
@@ -1381,7 +1447,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/tags": {
@@ -1447,7 +1521,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/tree/{ref}": {
@@ -1512,7 +1594,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/user": {
@@ -1553,7 +1643,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       }
@@ -1608,7 +1700,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       },
@@ -1659,7 +1753,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }
@@ -1704,7 +1800,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }
@@ -1759,7 +1857,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:read"
+            ]
           }
         ]
       },
@@ -1836,7 +1936,9 @@
         },
         "security": [
           {
-            "token": []
+            "token": [
+              "user:write"
+            ]
           }
         ]
       }

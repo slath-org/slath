@@ -244,3 +244,19 @@ Before 1.0.0, minor versions may contain breaking changes.
   the web UI, raw files, archives, the API, and Git over HTTP and SSH, and a
   log test checks that passwords, tokens, cookies, CSRF tokens, the database
   password, and the master key never reach the log, even at debug level.
+- Regression tests modeled on recent advisories in other forges and in Git:
+  option and revision injection through ref names, SSH command, path, and
+  environment variants, key lookup and `authorized_keys` output injection,
+  encoded path traversal, symlinks, malformed trees, hostile restores,
+  bounded archives, route enumeration and suffix variants, byte-identical
+  404s on every surface, token scopes and repository restrictions,
+  cross-user IDs, revocation and visibility changes, raw content types,
+  XSS payloads in names and messages, CSRF, open redirects, forwarded
+  headers, and setup endpoints.
+
+### Fixed
+
+- API tokens without `user:read` could list the user's organizations and
+  organization members, and tokens without `repo:read` could list the
+  user's private repositories. The API's OpenAPI document now declares the
+  scope each operation needs.

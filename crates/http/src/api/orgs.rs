@@ -64,7 +64,7 @@ async fn org_json(state: &AppState, subject: &Subject, id: OrgId) -> Result<Org,
 }
 
 /// Organizations the authenticated user belongs to.
-#[utoipa::path(get, path = "/api/v1/orgs", tag = "orgs", security(("token" = [])), params(PageParams),
+#[utoipa::path(get, path = "/api/v1/orgs", tag = "orgs", security(("token" = ["user:read"])), params(PageParams),
     responses((status = 200, body = OrgPage), (status = 401, body = super::Problem)))]
 pub async fn list_orgs(
     State(state): State<AppState>,
@@ -72,11 +72,10 @@ pub async fn list_orgs(
     OriginalUri(uri): OriginalUri,
     Query(p): Query<PageParams>,
 ) -> Result<Response, AppError> {
-    let Subject::User { id, .. } = &subject else {
-        return Err(AppError::unauthenticated());
-    };
+    // Memberships are account data: tokens need `user:read`.
+    let id = slath_service::tokens::user_with_scope(&subject, slath_core::authz::Scope::UserRead)?;
     let (offset, limit) = (p.offset(&state)?, p.limit(state.config.limits.api_page_max));
-    let names = slath_db::orgs::for_user(&state.pool, *id)
+    let names = slath_db::orgs::for_user(&state.pool, id)
         .await
         .map_err(|e| AppError::internal(&e))?;
     let mut out = Vec::new();
@@ -93,7 +92,7 @@ pub struct NewOrg {
 }
 
 /// Creates an organization; the caller becomes its owner (`user:write`).
-#[utoipa::path(post, path = "/api/v1/orgs", tag = "orgs", security(("token" = [])), request_body = NewOrg,
+#[utoipa::path(post, path = "/api/v1/orgs", tag = "orgs", security(("token" = ["user:write"])), request_body = NewOrg,
     responses((status = 201, body = Org), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_org(
     State(state): State<AppState>,
@@ -128,7 +127,7 @@ pub struct UpdateOrg {
 }
 
 /// Changes an organization's profile (owners, `user:write`).
-#[utoipa::path(patch, path = "/api/v1/orgs/{org}", tag = "orgs", security(("token" = [])), params(("org" = String, Path)), request_body = UpdateOrg,
+#[utoipa::path(patch, path = "/api/v1/orgs/{org}", tag = "orgs", security(("token" = ["user:write"])), params(("org" = String, Path)), request_body = UpdateOrg,
     responses((status = 200, body = Org), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn update_org(
     State(state): State<AppState>,
@@ -167,7 +166,7 @@ async fn members_of(
 }
 
 /// An organization's members (members only).
-#[utoipa::path(get, path = "/api/v1/orgs/{org}/members", tag = "orgs", security(("token" = [])), params(("org" = String, Path), PageParams),
+#[utoipa::path(get, path = "/api/v1/orgs/{org}/members", tag = "orgs", security(("token" = ["user:read"])), params(("org" = String, Path), PageParams),
     responses((status = 200, body = MemberPage), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn list_members(
     State(state): State<AppState>,
@@ -188,7 +187,7 @@ pub async fn list_members(
 }
 
 /// One member's role (members only).
-#[utoipa::path(get, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = [])), params(("org" = String, Path), ("user" = String, Path)),
+#[utoipa::path(get, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = ["user:read"])), params(("org" = String, Path), ("user" = String, Path)),
     responses((status = 200, body = Member), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn get_member(
     State(state): State<AppState>,
@@ -211,7 +210,7 @@ pub struct PutMember {
 }
 
 /// Adds a member or changes their role (owners, `user:write`).
-#[utoipa::path(put, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = [])), params(("org" = String, Path), ("user" = String, Path)), request_body = PutMember,
+#[utoipa::path(put, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = ["user:write"])), params(("org" = String, Path), ("user" = String, Path)), request_body = PutMember,
     responses((status = 200, body = Member), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn put_member(
     State(state): State<AppState>,
@@ -238,7 +237,7 @@ pub async fn put_member(
 }
 
 /// Removes a member, or leaves (`user:write`). The last owner can't leave.
-#[utoipa::path(delete, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = [])), params(("org" = String, Path), ("user" = String, Path)),
+#[utoipa::path(delete, path = "/api/v1/orgs/{org}/members/{user}", tag = "orgs", security(("token" = ["user:write"])), params(("org" = String, Path), ("user" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
 pub async fn delete_member(
     State(state): State<AppState>,

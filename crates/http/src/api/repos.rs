@@ -79,7 +79,7 @@ pub struct RepoPage {
 }
 
 /// Repositories the caller can see (public ones for anonymous callers).
-#[utoipa::path(get, path = "/api/v1/repos", tag = "repos", params(PageParams),
+#[utoipa::path(get, path = "/api/v1/repos", tag = "repos", security((), ("token" = ["repo:read"])), params(PageParams),
     responses((status = 200, body = RepoPage), (status = 401, body = super::Problem)))]
 pub async fn list_repos(
     State(state): State<AppState>,
@@ -121,7 +121,7 @@ pub struct NewRepo {
 }
 
 /// Creates a repository (`repo:write`).
-#[utoipa::path(post, path = "/api/v1/repos", tag = "repos", security(("token" = [])), request_body = NewRepo,
+#[utoipa::path(post, path = "/api/v1/repos", tag = "repos", security(("token" = ["repo:write"])), request_body = NewRepo,
     responses((status = 201, body = Repo), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_repo(
     State(state): State<AppState>,
@@ -160,7 +160,7 @@ async fn access(
 }
 
 /// A repository.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path)),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path)),
     responses((status = 200, body = Repo), (status = 301, description = "Renamed; follow Location"), (status = 404, body = super::Problem)))]
 pub async fn get_repo(
     State(state): State<AppState>,
@@ -183,7 +183,7 @@ pub struct UpdateRepo {
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
-#[utoipa::path(patch, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", security(("token" = [])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = UpdateRepo,
+#[utoipa::path(patch, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = UpdateRepo,
     responses((status = 200, body = Repo), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn update_repo(
     State(state): State<AppState>,
@@ -230,7 +230,7 @@ pub async fn update_repo(
 
 /// Deletes a repository (admins, `repo:write`). It disappears at once and
 /// can be restored by a site administrator for a few days.
-#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", security(("token" = [])), params(("ns" = String, Path), ("repo" = String, Path)),
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn delete_repo(
     State(state): State<AppState>,
@@ -286,7 +286,7 @@ async fn refs(
 }
 
 /// Branches, newest first.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/branches", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), PageParams),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/branches", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), PageParams),
     responses((status = 200, body = GitRefPage), (status = 404, body = super::Problem)))]
 pub async fn list_branches(
     State(state): State<AppState>,
@@ -299,7 +299,7 @@ pub async fn list_branches(
 }
 
 /// Tags, newest first.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/tags", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), PageParams),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/tags", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), PageParams),
     responses((status = 200, body = GitRefPage), (status = 404, body = super::Problem)))]
 pub async fn list_tags(
     State(state): State<AppState>,
@@ -366,7 +366,7 @@ fn repo_path(path: Option<&str>) -> Result<RepoPath, AppError> {
 }
 
 /// History of a ref, optionally limited to a path.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), CommitQuery, PageParams),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), CommitQuery, PageParams),
     responses((status = 200, body = CommitPage), (status = 404, body = super::Problem)))]
 pub async fn list_commits(
     State(state): State<AppState>,
@@ -434,7 +434,7 @@ pub struct CommitDetail {
 }
 
 /// A commit with the files it changes (compared with its first parent).
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
     responses((status = 200, body = CommitDetail), (status = 404, body = super::Problem)))]
 pub async fn get_commit(
     State(state): State<AppState>,
@@ -535,7 +535,7 @@ pub struct Tree {
 }
 
 /// The entries of a directory at a ref.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/tree/{ref}", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), ("ref" = String, Path, description = "Branch, tag, or commit ID (percent-encode slashes)"), PathQuery),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/tree/{ref}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("ref" = String, Path, description = "Branch, tag, or commit ID (percent-encode slashes)"), PathQuery),
     responses((status = 200, body = Tree), (status = 404, body = super::Problem)))]
 pub async fn get_tree(
     State(state): State<AppState>,
@@ -594,7 +594,7 @@ pub struct BlobContent {
 }
 
 /// A file's content at a ref (up to the instance's render limit).
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/blob/{ref}", tag = "repos", params(("ns" = String, Path), ("repo" = String, Path), ("ref" = String, Path), PathQuery),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/blob/{ref}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("ref" = String, Path), PathQuery),
     responses((status = 200, body = BlobContent), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn get_blob(
     State(state): State<AppState>,
@@ -663,7 +663,7 @@ pub struct CollaboratorPage {
 }
 
 /// A repository's collaborators (admins).
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/collaborators", tag = "repos", security(("token" = [])), params(("ns" = String, Path), ("repo" = String, Path), PageParams),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/collaborators", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), PageParams),
     responses((status = 200, body = CollaboratorPage), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn list_collaborators(
     State(state): State<AppState>,
@@ -696,7 +696,7 @@ pub struct PutCollaborator {
 }
 
 /// Adds a collaborator or changes their role (admins).
-#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/collaborators/{user}", tag = "repos", security(("token" = [])), params(("ns" = String, Path), ("repo" = String, Path), ("user" = String, Path)), request_body = PutCollaborator,
+#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/collaborators/{user}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("user" = String, Path)), request_body = PutCollaborator,
     responses((status = 200, body = Collaborator), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn put_collaborator(
     State(state): State<AppState>,
@@ -720,7 +720,7 @@ pub async fn put_collaborator(
 }
 
 /// Removes a collaborator (admins).
-#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/collaborators/{user}", tag = "repos", security(("token" = [])), params(("ns" = String, Path), ("repo" = String, Path), ("user" = String, Path)),
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/collaborators/{user}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("user" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn delete_collaborator(
     State(state): State<AppState>,

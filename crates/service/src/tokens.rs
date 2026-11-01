@@ -215,7 +215,9 @@ impl Services {
 
 /// The acting user if the subject may act on their own account with `scope`:
 /// sessions always, tokens only with the scope.
-pub(crate) fn user_with_scope(subject: &Subject, scope: Scope) -> Result<UserId> {
+/// The user behind `subject` if it may act with `scope`: a session, or a
+/// token whose scopes imply it.
+pub fn user_with_scope(subject: &Subject, scope: Scope) -> Result<UserId> {
     match subject {
         Subject::User {
             id,

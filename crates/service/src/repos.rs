@@ -695,6 +695,12 @@ impl Services {
                 credential,
                 ..
             } => match credential {
+                // Without `repo:read`, a token sees what anonymous visitors see.
+                Credential::Token { scopes, .. }
+                    if !scopes.iter().any(|s| s.implies(Scope::RepoRead)) =>
+                {
+                    (None, false, None)
+                }
                 Credential::Token {
                     repo_ids: Some(ids),
                     ..
