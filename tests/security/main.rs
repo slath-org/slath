@@ -6,6 +6,7 @@
 
 mod admin;
 mod api;
+mod attachments;
 mod auth;
 mod browse;
 mod email;

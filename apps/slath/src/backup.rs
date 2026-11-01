@@ -10,6 +10,7 @@
 //! db/<table>.copy          one consistent database snapshot
 //! repos/<id>.git/…         refs, packed-refs, and objects of live repositories
 //! trash/<id>.git/…         the same for deleted repositories awaiting purge
+//! blobs/<aa>/<sha256>      attachments and avatars, named by their SHA-256
 //! ```
 //!
 //! Backups run while the server is serving. Refs are copied before objects,
@@ -458,6 +459,10 @@ pub(crate) async fn create_with(
         });
     }
 
+    // Attachments and avatars. Unused files are kept for a grace period, so
+    // every one the snapshot refers to is still there.
+    copy_blobs(&mut w, &cfg.storage.data_dir.join("blobs"))?;
+
     let text = std::fs::read_to_string(config_path)
         .map_err(|e| format!("cannot read {}: {e}", config_path.display()))?;
     let config_text = if include_secrets {
@@ -503,6 +508,34 @@ pub(crate) async fn create_with(
     Ok(manifest)
 }
 
+/// Copies every stored blob (`<aa>/<sha256>`); other files are skipped.
+fn copy_blobs(w: &mut Writer, root: &Path) -> Result<(), String> {
+    let dirs = match std::fs::read_dir(root) {
+        Ok(d) => d,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(format!("cannot read {}: {e}", root.display())),
+    };
+    for d in dirs {
+        let d = d.map_err(|e| e.to_string())?;
+        let Some(prefix) = d.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if prefix.len() != 2 || !d.file_type().map_err(|e| e.to_string())?.is_dir() {
+            continue;
+        }
+        for f in std::fs::read_dir(d.path()).map_err(|e| e.to_string())? {
+            let f = f.map_err(|e| e.to_string())?;
+            if let Some(sha) = f.file_name().to_str()
+                && slath_service::blobs::valid_sha256(sha)
+                && sha.starts_with(&prefix)
+            {
+                w.copy(&f.path(), &format!("blobs/{prefix}/{sha}"))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn runner(cfg: &config::Loaded) -> Result<slath_git::Runner, String> {
     let home = cfg.storage.data_dir.join("git-home");
     std::fs::create_dir_all(&home).map_err(|e| format!("cannot create {}: {e}", home.display()))?;
@@ -532,6 +565,8 @@ fn safe_components(rel: &str) -> Result<Vec<&str>, String> {
 /// What a listed file is, after validation.
 enum Entry {
     Config,
+    /// A blob by its SHA-256.
+    Blob(String),
     Table(String),
     Repo {
         id: RepoId,
@@ -555,6 +590,15 @@ fn classify(rel: &str) -> Result<Entry, String> {
                 return Err(bad());
             }
             Ok(Entry::Table(name.to_owned()))
+        }
+        ["blobs", prefix, sha] => {
+            if !slath_service::blobs::valid_sha256(sha)
+                || !sha.starts_with(prefix)
+                || prefix.len() != 2
+            {
+                return Err(bad());
+            }
+            Ok(Entry::Blob((*sha).to_owned()))
         }
         [area @ ("repos" | "trash"), dir, rest @ ..] => {
             let id: RepoId = dir
@@ -738,7 +782,7 @@ async fn restore_inner(
     let cfg = config::load(config_path)?;
     let manifest = verify(input)?;
     let data = &cfg.storage.data_dir;
-    for sub in ["repos", "trash"] {
+    for sub in ["repos", "trash", "blobs"] {
         if !dir_is_empty(&data.join(sub))? {
             return Err(format!(
                 "{} is not empty; restore needs an empty data directory",
@@ -819,6 +863,21 @@ async fn restore_inner(
         }
     }
 
+    // Blobs: the manifest checksum (verified above) must be the name.
+    for (rel, sum) in &manifest.files {
+        if let Entry::Blob(sha) = classify(rel)? {
+            if *sum != sha {
+                return Err(format!("{rel} doesn't match its name"));
+            }
+            let dest = data.join("blobs").join(&sha[..2]).join(&sha);
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            std::fs::copy(input.join(rel), &dest)
+                .map_err(|e| format!("cannot restore {}: {e}", dest.display()))?;
+        }
+    }
+
     // Repair derived state against the restored refs.
     let key = slath_auth::MasterKey::generate().map_err(|e| e.to_string())?;
     let services = slath_service::Services::new(pool.clone(), Arc::new(cfg.cfg), &key, runner);
@@ -886,6 +945,10 @@ mod tests {
             assert!(classify(bad).is_err(), "{bad}");
         }
         assert!(classify("db/users.copy").is_ok());
+        let sha = "ab".to_owned() + &"0".repeat(62);
+        assert!(classify(&format!("blobs/ab/{sha}")).is_ok());
+        assert!(classify(&format!("blobs/cd/{sha}")).is_err());
+        assert!(classify("blobs/ab/abc").is_err());
         assert!(classify("repos/0192f1a2-3b4c-7d5e-8f60-718293a4b5c6.git/refs/heads/main").is_ok());
     }
 

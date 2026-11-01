@@ -26,7 +26,7 @@ ammonia = "4.2"
 argon2 = "0.6"
 askama = { version = "0.16", default-features = false, features = ["derive", "std", "urlencode"] }
 async-compression = { version = "0.4", features = ["gzip", "tokio"] }
-axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "matched-path", "original-uri", "query", "tokio", "tracing"] }
+axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "matched-path", "multipart", "original-uri", "query", "tokio", "tracing"] }
 base64 = "0.23"
 comrak = { version = "0.59", default-features = false }
 clap = { version = "4.6", features = ["derive"] }
@@ -38,6 +38,7 @@ lettre = { version = "0.11", default-features = false, features = ["builder", "h
 jsonschema = { version = "0.60", default-features = false }
 hkdf = "0.13"
 hmac = "0.13"
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process", "user"] }
 percent-encoding = "2.3"
 proptest = "1.12"

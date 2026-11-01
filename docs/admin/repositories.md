@@ -46,6 +46,34 @@ ambiguous.
 - Titles have up to 256 characters; descriptions and comments are limited
   by `limits.text_max_bytes` (256 KiB by default).
 
+### Attachments
+
+- People who can comment can attach files, up to `limits.attachment_max_bytes`
+  (25 MiB by default). The API takes them as `multipart/form-data` (a `file`
+  part, token scope `issues:write`) at
+  `POST /api/v1/repos/{owner}/{repo}/attachments` and answers with the URL and
+  ready-made Markdown.
+- Attachments are served from `/{owner}/{repo}/attachments/{id}/{name}` to
+  people who can read the repository, and from nowhere else: an attachment of
+  a private repository is "not found" for everyone else, and an ID only works
+  with its own repository.
+- PNG, JPEG, GIF, and WebP images (recognized by their content, not their
+  name) display inline. Everything else, including SVG, HTML, and PDF, is a
+  download, served in a sandbox with `nosniff`.
+- Files are stored once per content under `<data_dir>/blobs/`. A file nothing
+  uses any more (its repository was deleted, or an avatar was replaced) is
+  deleted after `limits.blob_grace_period` (24 hours by default). Files left
+  by interrupted uploads are deleted after the same time.
+
+### Avatars
+
+Users (Settings → Profile) and organization owners (organization settings)
+can upload a PNG, JPEG, or WebP avatar of up to `limits.avatar_max_bytes`
+(5 MiB by default). It is cropped to a square, scaled to 256 × 256 pixels,
+and stored as a new PNG, so EXIF data such as GPS coordinates and camera
+details is not kept. Without an upload, a pattern generated from the name is
+shown. Avatars never come from external services.
+
 ### Labels, milestones, and assignees
 
 - The maintain role creates, edits, and deletes labels (name up to 50

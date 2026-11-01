@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(u.avatar_blob_sha256, o.avatar_blob_sha256) AS sha\n           FROM namespaces n\n           LEFT JOIN users u ON u.namespace_id = n.id AND u.state = 'active'\n           LEFT JOIN organizations o ON o.namespace_id = n.id\n          WHERE n.name = $1::text::citext",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sha",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a22154c17b4fda1aa1cf7e3ecd944521e91445453a3eb2ec95b99ce9840edd2b"
+}

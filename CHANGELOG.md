@@ -27,6 +27,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Labels and milestones for issues, managed by maintainers in the web UI and the API.
 - Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
 - Filter issues by labels, assignee, author, and milestone, and sort them by last update.
+- Attach files to issues and comments (web UI and API); images display inline, everything else including SVG downloads.
+- Attachments of private repositories are only served to people who can read the repository.
+- Upload avatars for users and organizations; they are re-encoded as 256 × 256 PNG without EXIF or GPS metadata.
+- Unused attachment and avatar files are deleted after a grace period (`limits.blob_grace_period`); backups include them.
 - Branch protection: block force pushes and deletion, limit who may push directly, and require merge requests with an audited admin bypass.
 - Teams: organization owners group members into teams, and repository administrators give teams a role.
 - Organizations can require two-factor authentication for access to their repositories and give every member read access.

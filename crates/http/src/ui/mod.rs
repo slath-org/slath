@@ -346,6 +346,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(repos::router())
         .merge(browse::router())
         .merge(admin::router())
+        .merge(crate::attachments::ui_router())
         .route_as(
             "/-/assets/{hash}/{*file}",
             Access::Public,

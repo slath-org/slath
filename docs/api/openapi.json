@@ -888,6 +888,84 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/attachments": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Uploads a file (multipart field `file`) for use in issue and comment text.",
+        "operationId": "api_upload",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "A `file` part.",
+          "content": {
+            "multipart/form-data": {}
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentJson"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "issues:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/blob/{ref}": {
       "get": {
         "tags": [
@@ -3573,6 +3651,42 @@
   },
   "components": {
     "schemas": {
+      "AttachmentJson": {
+        "type": "object",
+        "description": "An uploaded attachment.",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size",
+          "url",
+          "markdown"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "The detected type: an image type, or `application/octet-stream`."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string",
+            "description": "Markdown that embeds (images) or links (other files) the attachment."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "url": {
+            "type": "string",
+            "description": "Path of the file on this instance."
+          }
+        }
+      },
       "BlobContent": {
         "type": "object",
         "required": [

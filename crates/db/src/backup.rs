@@ -277,6 +277,13 @@ where
             )));
         }
     }
+    // Rows were loaded with their triggers active; derived counters are
+    // recomputed from the loaded data.
+    if expected.iter().any(|t| t == "blobs") {
+        sqlx::query("SELECT slath_blob_recount()")
+            .execute(&mut *tx)
+            .await?;
+    }
     let sequences = sequence_names(&mut tx).await?;
     for s in &info.sequences {
         if !sequences.contains(&s.name) {

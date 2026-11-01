@@ -38,6 +38,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
 struct UserProfile {
     ctx: PageCtx,
     name: String,
+    avatar_url: String,
     display_name: Option<String>,
     joined: Time,
     orgs: Vec<String>,
@@ -49,6 +50,7 @@ struct UserProfile {
 struct OrgProfile<'a> {
     ctx: PageCtx,
     name: String,
+    avatar_url: String,
     display_name: Option<String>,
     description: Option<String>,
     is_member: bool,
@@ -70,6 +72,7 @@ pub async fn profile(
         return Err(AppError::not_found());
     };
     let repos = super::repos::cards_for_namespace(&state, &subject, &name).await?;
+    let avatar_url = state.services.avatar_url(&name).await;
     match kind {
         NamespaceKind::User(id) => {
             let user = slath_db::users::get(&state.pool, id)
@@ -85,6 +88,7 @@ pub async fn profile(
             Ok(render(&UserProfile {
                 ctx,
                 name,
+                avatar_url,
                 display_name: user.display_name,
                 joined: user.created_at.into(),
                 orgs,
@@ -96,6 +100,7 @@ pub async fn profile(
             Ok(render(&OrgProfile {
                 ctx,
                 name,
+                avatar_url,
                 display_name: view.org.display_name,
                 description: view.org.description,
                 is_member: view.viewer_role.is_some(),
@@ -383,6 +388,8 @@ async fn remove_member(
 struct OrgSettingsPage {
     ctx: PageCtx,
     org: String,
+    avatar_url: String,
+    has_avatar: bool,
     display_name: String,
     description: String,
     default_member_role: String,
@@ -403,19 +410,73 @@ async fn org_settings(
     Path(org): Path<String>,
 ) -> Result<Response, AppError> {
     let (name, id) = org_of(&state, &org).await?;
-    let view = state.services.org_view(&s.subject, id).await?;
+    org_settings_page(&state, ctx, &s.subject, name, id, Vec::new()).await
+}
+
+async fn org_settings_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &slath_core::authz::Subject,
+    name: String,
+    id: slath_core::ids::OrgId,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
+    let view = state.services.org_view(subject, id).await?;
     if !view.can_manage {
         return Err(AppError::not_found());
     }
-    Ok(render(&OrgSettingsPage {
+    let avatar_url = state.services.avatar_url(&name).await;
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&OrgSettingsPage {
         ctx,
         org: name,
+        has_avatar: avatar_url.ends_with(".png"),
+        avatar_url,
         display_name: view.org.display_name.unwrap_or_default(),
         description: view.org.description.unwrap_or_default(),
         default_member_role: view.org.default_member_role,
         require_mfa: view.org.require_mfa,
-        errors: Vec::new(),
-    }))
+        errors,
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+/// `POST /{org}/-/settings/avatar`: upload or remove the org's avatar.
+async fn org_avatar_save(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path(org): Path<String>,
+    form: axum::extract::Multipart,
+) -> Result<Response, AppError> {
+    let (name, id) = org_of(&state, &org).await?;
+    let f = crate::attachments::avatar_form(form).await?;
+    let upload = if f.remove { None } else { f.image };
+    if !f.remove && upload.is_none() {
+        let errors = vec![FieldError::new("avatar", "required", "Choose an image.")];
+        return org_settings_page(&state, ctx, &s.subject, name, id, errors).await;
+    }
+    match state
+        .services
+        .set_avatar(
+            &s.subject,
+            slath_service::avatars::AvatarOwner::Org(id),
+            upload,
+        )
+        .await
+    {
+        Ok(()) => Ok(Redirect::to(&format!("/{name}?status=saved")).into_response()),
+        Err(ServiceError::Forbidden) => Err(AppError::not_found()),
+        Err(ServiceError::Invalid(errors)) => {
+            org_settings_page(&state, ctx, &s.subject, name, id, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[derive(Deserialize)]
@@ -445,6 +506,8 @@ async fn org_settings_save(
             let org = state.services.org_view(&s.subject, id).await?.org;
             let mut res = render(&OrgSettingsPage {
                 ctx,
+                has_avatar: false,
+                avatar_url: state.services.avatar_url(&name).await,
                 org: name,
                 display_name: f.display_name,
                 description: f.description,
@@ -484,5 +547,10 @@ pub fn router() -> Router<AppState> {
             "/{org}/-/settings",
             Access::Resource,
             get(org_settings).post(org_settings_save),
+        )
+        .route_as(
+            "/{org}/-/settings/avatar",
+            Access::Resource,
+            post(org_avatar_save),
         )
 }

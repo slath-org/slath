@@ -313,6 +313,11 @@ pub struct Limits {
     /// Request bodies (API and UI); pushes are limited separately.
     pub http_max_body_bytes: Bytes,
     pub attachment_max_bytes: Bytes,
+    /// Uploaded avatar images (before re-encoding).
+    pub avatar_max_bytes: Bytes,
+    /// How long an unused attachment or avatar file is kept before it is
+    /// deleted (backups taken meanwhile still find it).
+    pub blob_grace_period: Dur,
     /// Issue and merge request descriptions and comments.
     pub text_max_bytes: Bytes,
     /// Maximum `limit` of list endpoints.
@@ -353,6 +358,8 @@ impl Default for Limits {
             review_max_commits: 250,
             http_max_body_bytes: Bytes(10 * MIB),
             attachment_max_bytes: Bytes(25 * MIB),
+            avatar_max_bytes: Bytes(5 * MIB),
+            blob_grace_period: Dur::secs(86_400),
             text_max_bytes: Bytes(256 * 1024),
             api_page_max: 100,
             archive_timeout: Dur::secs(120),

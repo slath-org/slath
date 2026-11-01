@@ -129,7 +129,7 @@ impl Services {
 
     /// Fails unless the subject owns the org or is a site administrator.
     /// Tokens need `user:write`.
-    async fn require_org_owner(&self, subject: &Subject, org: OrgId) -> Result<UserId> {
+    pub(crate) async fn require_org_owner(&self, subject: &Subject, org: OrgId) -> Result<UserId> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
         if is_site_admin(subject) || self.org_role(subject, org).await? == Some(OrgRole::Owner) {
             Ok(user)

@@ -9,8 +9,11 @@
 
 pub mod accounts;
 pub mod admin;
+pub mod attachments;
 pub mod audit;
+pub mod avatars;
 pub mod bgmigrations;
+pub mod blobs;
 pub mod email;
 pub mod error;
 pub mod issues;
@@ -58,6 +61,8 @@ pub struct Services {
     pub maintenance: Arc<maintenance::MaintenanceState>,
     /// The WebAuthn relying party (`None`: passkeys unavailable here).
     pub webauthn: Option<Arc<webauthn_rs::prelude::Webauthn>>,
+    /// Attachments and avatars.
+    pub blobs: blobs::LocalBlobStore,
 }
 
 impl Services {
@@ -72,6 +77,7 @@ impl Services {
         let repo_config: Arc<dyn slath_db::bgmigrations::BackgroundMigration> = Arc::new(
             bgmigrations::RepoConfigRefresh::new(config.storage.data_dir.clone(), runner.clone()),
         );
+        let blobs = blobs::LocalBlobStore::new(&config.storage.data_dir);
         Self {
             pool,
             config,
@@ -82,6 +88,7 @@ impl Services {
             background_registry: Arc::new(vec![repo_config]),
             maintenance: Arc::default(),
             webauthn,
+            blobs,
         }
     }
 

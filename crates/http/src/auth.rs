@@ -333,24 +333,79 @@ pub async fn csrf(State(state): State<AppState>, req: Request, next: Next) -> Re
             forbidden()
         };
     }
-    let is_form = req
+    let content_type = req
         .headers()
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with("application/x-www-form-urlencoded"));
-    if !is_form {
+        .unwrap_or("")
+        .to_owned();
+    let boundary = multipart_boundary(&content_type);
+    let is_form = content_type.starts_with("application/x-www-form-urlencoded");
+    if !is_form && boundary.is_none() {
         return forbidden();
     }
+    // Multipart forms (file uploads without JavaScript) are buffered up to
+    // the avatar size; larger uploads send the token as a header.
+    let max = if boundary.is_some() {
+        usize::try_from(state.config.limits.avatar_max_bytes.0)
+            .unwrap_or(usize::MAX)
+            .saturating_add(MAX_FORM)
+    } else {
+        MAX_FORM
+    };
     let (parts, body) = req.into_parts();
-    let Ok(bytes) = axum::body::to_bytes(body, MAX_FORM).await else {
+    let Ok(bytes) = axum::body::to_bytes(body, max).await else {
         return AppError::from_status(axum::http::StatusCode::PAYLOAD_TOO_LARGE).into_response();
     };
-    let token = form_field(&bytes, "_csrf");
+    let token = match &boundary {
+        Some(b) => multipart_field(&bytes, b, "_csrf"),
+        None => form_field(&bytes, "_csrf"),
+    };
     if !token.is_some_and(|t| state.services.csrf.verify(&seed.value, &t)) {
         return forbidden();
     }
     next.run(Request::from_parts(parts, Body::from(bytes)))
         .await
+}
+
+/// The boundary of a `multipart/form-data` content type.
+fn multipart_boundary(content_type: &str) -> Option<String> {
+    let (mime, params) = content_type.split_once(';')?;
+    if !mime.trim().eq_ignore_ascii_case("multipart/form-data") {
+        return None;
+    }
+    params.split(';').find_map(|p| {
+        let (k, v) = p.split_once('=')?;
+        (k.trim().eq_ignore_ascii_case("boundary"))
+            .then(|| v.trim().trim_matches('"').to_owned())
+            .filter(|b| !b.is_empty() && b.len() <= 200)
+    })
+}
+
+/// The value of a small text field of a multipart form body.
+fn multipart_field(body: &[u8], boundary: &str, name: &str) -> Option<String> {
+    let delim = format!("--{boundary}");
+    let want = format!("name=\"{name}\"");
+    let mut rest = body;
+    while let Some(i) = find(rest, delim.as_bytes()) {
+        rest = &rest[i + delim.len()..];
+        let head_end = find(rest, b"\r\n\r\n")?;
+        let head = std::str::from_utf8(&rest[..head_end]).ok()?;
+        let value = &rest[head_end + 4..];
+        let is_field = head.lines().any(|l| {
+            l.to_ascii_lowercase().starts_with("content-disposition:")
+                && l.split(';').any(|p| p.trim() == want)
+        });
+        if is_field {
+            let end = find(value, format!("\r\n{delim}").as_bytes())?;
+            return std::str::from_utf8(&value[..end]).ok().map(str::to_owned);
+        }
+    }
+    None
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
 }
 
 /// All `(name, value)` pairs of a URL-encoded form body, in order.
@@ -463,6 +518,19 @@ mod tests {
         assert!(!t.contains("192.168.1.6".parse().unwrap()));
         assert!(TrustedProxies::parse(&["10.0.0.0/33".into()]).is_err());
         assert!(TrustedProxies::parse(&["nope".into()]).is_err());
+    }
+
+    #[test]
+    fn multipart_fields() {
+        let ct = "multipart/form-data; boundary=XyZ";
+        let b = multipart_boundary(ct).unwrap();
+        let body = b"--XyZ\r\nContent-Disposition: form-data; name=\"x_csrf\"\r\n\r\nno\r\n--XyZ\r\nContent-Disposition: form-data; name=\"_csrf\"\r\n\r\ntok+en\r\n--XyZ--\r\n";
+        assert_eq!(
+            multipart_field(body, &b, "_csrf").as_deref(),
+            Some("tok+en")
+        );
+        assert_eq!(multipart_field(body, &b, "other"), None);
+        assert!(multipart_boundary("text/plain; boundary=x").is_none());
     }
 
     #[test]

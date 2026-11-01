@@ -171,7 +171,8 @@ async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), Str
     };
     {
         // Periodic maintenance: purge repositories whose trash time is up
-        // and audit events past their retention; schedule repository maintenance.
+        // and audit events past their retention; schedule repository maintenance;
+        // delete attachment and avatar files unused for the grace period.
         let svc = state.services.clone();
         let mut stop = stop_tx.subscribe();
         tokio::spawn(async move {
@@ -187,6 +188,13 @@ async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), Str
                         }
                         if let Err(e) = svc.schedule_maintenance().await {
                             tracing::warn!(error = %e, "scheduling repository maintenance failed");
+                        }
+                        match svc.collect_blobs().await {
+                            Ok(c) if c.blobs + c.orphans > 0 => {
+                                tracing::info!(blobs = c.blobs, orphans = c.orphans, "deleted unused files");
+                            }
+                            Ok(_) => {}
+                            Err(e) => tracing::warn!(error = %e, "deleting unused files failed"),
                         }
                     }
                     _ = stop.changed() => return,

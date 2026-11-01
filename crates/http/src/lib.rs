@@ -6,6 +6,7 @@
 
 pub mod api;
 pub mod assets;
+pub mod attachments;
 pub mod auth;
 pub mod error;
 pub mod githttp;

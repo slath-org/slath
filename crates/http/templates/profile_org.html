@@ -5,7 +5,7 @@
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
 <div class="profile-head">
-  <img src="/-/avatars/{{ name }}.svg" alt="" width="64" height="64">
+  <img src="{{ avatar_url }}" alt="" width="64" height="64">
   <div>
     <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}</h1>
     {%- if let Some(d) = description %}

@@ -40,6 +40,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "passkey-removed" => "Passkey removed.",
         "passkey-failed" => "The passkey couldn't be added. Try again.",
         "passkey-name" => "Name the passkey (up to 100 characters).",
+        "avatar-saved" => "Avatar saved.",
+        "avatar-removed" => "Avatar removed. Your generated avatar is shown again.",
         _ => return None,
     })
 }
@@ -66,6 +68,8 @@ struct ProfilePage<'a> {
     /// Active navigation entry (`profile`, `security`, …).
     tab: &'static str,
     name: &'a str,
+    avatar_url: String,
+    has_avatar: bool,
     display_name: &'a str,
     email: &'a str,
     email_verified: bool,
@@ -86,6 +90,23 @@ async fn profile(
     RequireSession(session): RequireSession,
     Query(q): Query<StatusQuery>,
 ) -> Result<Response, AppError> {
+    profile_page(
+        &state,
+        ctx,
+        &session,
+        status_message(q.status.as_deref()),
+        Vec::new(),
+    )
+    .await
+}
+
+async fn profile_page(
+    state: &AppState,
+    ctx: PageCtx,
+    session: &slath_service::sessions::Session,
+    message: Option<&str>,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
     let user = slath_db::users::get(&state.pool, session.user_id())
         .await
         .map_err(|e| AppError::internal(&e))?
@@ -93,17 +114,65 @@ async fn profile(
     let (email, verified) = slath_db::email_tokens::email_status(&state.pool, session.user_id())
         .await
         .map_err(|e| AppError::internal(&e))?;
-    Ok(render(&ProfilePage {
+    let avatar_url = state.services.avatar_url(&user.name).await;
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&ProfilePage {
         ctx,
         tab: "profile",
         name: &user.name,
+        has_avatar: avatar_url.ends_with(".png"),
+        avatar_url,
         display_name: user.display_name.as_deref().unwrap_or(""),
         email: email.as_deref().unwrap_or(""),
         email_verified: verified,
         email_enabled: state.services.email_enabled(),
-        message: status_message(q.status.as_deref()),
-        errors: Vec::new(),
-    }))
+        message,
+        errors,
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+/// `POST /-/settings/avatar`: upload (multipart field `avatar`) or remove.
+async fn avatar_save(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    form: axum::extract::Multipart,
+) -> Result<Response, AppError> {
+    let f = crate::attachments::avatar_form(form).await?;
+    let upload = if f.remove { None } else { f.image };
+    let removed = upload.is_none();
+    if !f.remove && removed {
+        let errors = vec![FieldError::new("avatar", "required", "Choose an image.")];
+        return profile_page(&state, ctx, &session, None, errors).await;
+    }
+    match state
+        .services
+        .set_avatar(
+            &session.subject,
+            slath_service::avatars::AvatarOwner::Me,
+            upload,
+        )
+        .await
+    {
+        Ok(()) => {
+            let status = if removed {
+                "avatar-removed"
+            } else {
+                "avatar-saved"
+            };
+            Ok(Redirect::to(&format!("/-/settings/profile?status={status}")).into_response())
+        }
+        Err(e) => {
+            let errors = field_errors(e)?;
+            profile_page(&state, ctx, &session, None, errors).await
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -137,6 +206,8 @@ async fn profile_save(
                 ctx,
                 tab: "profile",
                 name: &session.row.user_name,
+                avatar_url: state.services.avatar_url(&session.row.user_name).await,
+                has_avatar: false,
                 display_name: &f.display_name,
                 email: f.email.as_deref().unwrap_or(""),
                 email_verified: false,
@@ -570,7 +641,13 @@ async fn sudo_submit(
 
 /// `GET /-/avatars/{name}.svg`: a generated identicon. It depends only on the
 /// name, so it reveals nothing about whether the account exists.
-async fn avatar(Path(file): Path<String>) -> Result<Response, AppError> {
+async fn avatar(
+    State(state): State<AppState>,
+    Path(file): Path<String>,
+) -> Result<Response, AppError> {
+    if let Some(sha) = file.strip_suffix(".png") {
+        return crate::attachments::avatar_png(&state, sha).await;
+    }
     let name = file.strip_suffix(".svg").ok_or_else(AppError::not_found)?;
     if name.is_empty() || name.len() > 64 {
         return Err(AppError::not_found());
@@ -1054,6 +1131,7 @@ pub fn router() -> Router<AppState> {
             Access::Account,
             get(profile).post(profile_save),
         )
+        .route_as("/-/settings/avatar", Access::Account, post(avatar_save))
         .route_as(
             "/-/settings/profile/verify",
             Access::Account,

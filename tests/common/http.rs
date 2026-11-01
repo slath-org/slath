@@ -314,3 +314,31 @@ pub fn create_token(c: &mut Client, name: &str, scopes: &[&str]) -> String {
     let start = r.body.find("value=\"slath_pat_").expect("token shown") + "value=\"".len();
     r.body[start..start + 53].to_owned()
 }
+
+/// One part of a multipart form: name, file name (for file parts), content.
+pub type Part<'a> = (&'a str, Option<&'a str>, &'a [u8]);
+
+/// A `multipart/form-data` body and its content type.
+#[must_use]
+pub fn multipart(parts: &[Part<'_>]) -> (String, Vec<u8>) {
+    let boundary = "slath-test-boundary-7f3a";
+    let mut body = Vec::new();
+    for (name, file, data) in parts {
+        body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        match file {
+            Some(f) => body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"{name}\"; filename=\"{f}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+                )
+                .as_bytes(),
+            ),
+            None => body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
+            ),
+        }
+        body.extend_from_slice(data);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    (format!("multipart/form-data; boundary={boundary}"), body)
+}

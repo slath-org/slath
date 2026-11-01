@@ -37,6 +37,7 @@ path = "ops/main.rs"
 [dependencies]
 base64.workspace = true
 flate2.workspace = true
+image.workspace = true
 p256 = "0.14"
 slath-auth.workspace = true
 slath-git.workspace = true

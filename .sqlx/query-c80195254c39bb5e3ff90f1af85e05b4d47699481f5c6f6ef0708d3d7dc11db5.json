@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO blobs (sha256, size_bytes) VALUES ($1, $2)\n         ON CONFLICT (sha256) DO UPDATE SET size_bytes = EXCLUDED.size_bytes",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c80195254c39bb5e3ff90f1af85e05b4d47699481f5c6f6ef0708d3d7dc11db5"
+}

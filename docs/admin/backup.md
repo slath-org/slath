@@ -21,11 +21,15 @@ directory, readable only by the Slath user:
 | `db/*.copy` | One consistent snapshot of the database |
 | `repos/<id>.git/` | Refs and objects of every repository |
 | `trash/<id>.git/` | The same for deleted repositories that aren't purged yet |
+| `blobs/<aa>/<sha256>` | Attachments and uploaded avatars, named by their SHA-256 |
 
 The database is read in a single snapshot, and Git refs are copied before
 objects, so every copied ref points to objects that are in the backup.
 Pushes that land while the backup runs may or may not be included; a restore
-reconciles the database with the refs it finds.
+reconciles the database with the refs it finds. Attachment and avatar files
+are copied after the snapshot; unused files are only deleted after
+`limits.blob_grace_period` (24 hours by default), so every file the snapshot
+refers to is still there.
 
 `--include-secrets` keeps passwords in the copied configuration. Use it only
 if the backup is stored as safely as the server itself.
@@ -54,7 +58,8 @@ anything if any file is missing, unlisted, a link, outside the backup, or
 fails its checksum. It then loads the database, migrates it to the current
 schema, recreates every repository with Slath's own Git configuration
 (repository config and hooks are never taken from a backup), copies refs and
-objects, checks each repository's connectivity, reconciles the database with
+objects, copies attachment and avatar files (each must match its name),
+checks each repository's connectivity, reconciles the database with
 the restored refs, and prints the counts next to those in the manifest.
 
 The restore refuses to run against a database or data directory that isn't
