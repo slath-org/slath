@@ -51,6 +51,47 @@ impl Services {
         }
     }
 
+    /// Saves theme (`system`/`light`/`dark`), density
+    /// (`comfortable`/`compact`), and code font size (12-20 px).
+    pub async fn update_appearance(
+        &self,
+        session: &Session,
+        theme: &str,
+        density: &str,
+        code_font_size: i16,
+    ) -> Result<()> {
+        if !matches!(theme, "system" | "light" | "dark") {
+            return Err(ServiceError::invalid(
+                "theme",
+                "invalid",
+                "Choose System, Light, or Dark.",
+            ));
+        }
+        if !matches!(density, "comfortable" | "compact") {
+            return Err(ServiceError::invalid(
+                "density",
+                "invalid",
+                "Choose Comfortable or Compact.",
+            ));
+        }
+        if !(12..=20).contains(&code_font_size) {
+            return Err(ServiceError::invalid(
+                "code_font_size",
+                "out_of_range",
+                "Choose a size from 12 to 20 pixels.",
+            ));
+        }
+        slath_db::users::set_appearance(
+            &self.pool,
+            session.user_id(),
+            theme,
+            density,
+            code_font_size,
+        )
+        .await?;
+        Ok(())
+    }
+
     pub async fn update_profile(&self, session: &Session, display_name: &str) -> Result<()> {
         let d = display_name.trim();
         if d.chars().count() > MAX_DISPLAY_NAME {

@@ -44,6 +44,7 @@
   --control-height: 2.25rem;
   --target-min: 1.5rem;
   --content-max: 80rem;
+  --border-width-strong: 2px;
   --bg: #F6F6F3;
   --surface: #FFFFFF;
   --surface-subtle: #EAECE7;
@@ -87,11 +88,56 @@
   --syn-attribute: #6A5A1C;
   --syn-punctuation: #4F5852;
   --shadow-color: #262B28;
+  --backdrop: #1F232899;
 }
 
 :root[data-density="compact"] {
   --row-height: 2rem;
   --control-height: 2rem;
+}
+
+:root[data-code-size="12"] {
+  --code-size: 0.75rem;
+}
+
+:root[data-code-size="13"] {
+  --code-size: 0.8125rem;
+}
+
+:root[data-code-size="14"] {
+  --code-size: 0.875rem;
+}
+
+:root[data-code-size="15"] {
+  --code-size: 0.9375rem;
+}
+
+:root[data-code-size="16"] {
+  --code-size: 1rem;
+}
+
+:root[data-code-size="17"] {
+  --code-size: 1.0625rem;
+}
+
+:root[data-code-size="18"] {
+  --code-size: 1.125rem;
+}
+
+:root[data-code-size="19"] {
+  --code-size: 1.1875rem;
+}
+
+:root[data-code-size="20"] {
+  --code-size: 1.25rem;
+}
+
+@media (pointer: coarse) {
+  :root,
+  :root[data-density] {
+    --target-min: 2.75rem;
+    --control-height: 2.75rem;
+  }
 }
 
 :root[data-theme="light"] {
@@ -147,6 +193,7 @@
     --syn-attribute: #D8C37C;
     --syn-punctuation: #B9C1BB;
     --shadow-color: #000000;
+    --backdrop: #000000B3;
   }
 }
 
@@ -194,6 +241,7 @@
   --syn-attribute: #D8C37C;
   --syn-punctuation: #B9C1BB;
   --shadow-color: #000000;
+  --backdrop: #000000B3;
 }
 
 @media (prefers-contrast: more) {
@@ -241,6 +289,7 @@
     --syn-attribute: #4B3F0C;
     --syn-punctuation: #2E3531;
     --shadow-color: #000000;
+    --backdrop: #1F232899;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -287,6 +336,7 @@
       --syn-attribute: #E7D7A0;
       --syn-punctuation: #D3DAD5;
       --shadow-color: #000000;
+      --backdrop: #000000B3;
     }
   }
   :root[data-theme="dark"] {
@@ -333,6 +383,7 @@
     --syn-attribute: #E7D7A0;
     --syn-punctuation: #D3DAD5;
     --shadow-color: #000000;
+    --backdrop: #000000B3;
   }
 }
 

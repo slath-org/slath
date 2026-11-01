@@ -1,6 +1,6 @@
 {%- import "macros.html" as m -%}
 <!doctype html>
-<html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}">
+<html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}"{% if let Some(size) = ctx.code_size %} data-code-size="{{ size }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,6 +21,25 @@
     <a class="site-name" href="/">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
+      <details class="menu" id="appearance-menu">
+        <summary class="button button-quiet">{% call m::icon(ctx, "sun") %}{% endcall %}<span>Appearance</span></summary>
+        <form method="post" action="/-/appearance" class="menu-panel" data-theme-form>
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="next" value="{{ ctx.here }}">
+          <fieldset>
+            <legend>Theme</legend>
+            <label class="menu-item"><input type="radio" name="theme" value="system"{% if ctx.theme.is_none() %} checked{% endif %}>{% call m::icon(ctx, "monitor") %}{% endcall %}System</label>
+            <label class="menu-item"><input type="radio" name="theme" value="light"{% if ctx.theme == Some("light") %} checked{% endif %}>{% call m::icon(ctx, "sun") %}{% endcall %}Light</label>
+            <label class="menu-item"><input type="radio" name="theme" value="dark"{% if ctx.theme == Some("dark") %} checked{% endif %}>{% call m::icon(ctx, "moon") %}{% endcall %}Dark</label>
+          </fieldset>
+          <fieldset>
+            <legend>Density</legend>
+            <label class="menu-item"><input type="radio" name="density" value="comfortable"{% if ctx.density == "comfortable" %} checked{% endif %}>Comfortable</label>
+            <label class="menu-item"><input type="radio" name="density" value="compact"{% if ctx.density == "compact" %} checked{% endif %}>Compact</label>
+          </fieldset>
+          <button type="submit" class="button">Apply</button>
+        </form>
+      </details>
     {%- if let Some(user) = ctx.user %}
       <a href="/{{ user.name }}">{{ user.name }}</a>
       <a href="/-/settings">Settings</a>

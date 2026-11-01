@@ -1,0 +1,32 @@
+{% extends "settings/layout.html" %}
+{% block title %}Appearance settings{% endblock %}
+{% block settings %}
+<h1>Appearance</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="/-/settings/appearance" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <fieldset class="field">
+    <legend>Theme</legend>
+    <div class="checkbox"><input id="theme-system" type="radio" name="theme" value="system"{% if theme == "system" %} checked{% endif %}><label for="theme-system">System (follow your device)</label></div>
+    <div class="checkbox"><input id="theme-light" type="radio" name="theme" value="light"{% if theme == "light" %} checked{% endif %}><label for="theme-light">Light</label></div>
+    <div class="checkbox"><input id="theme-dark" type="radio" name="theme" value="dark"{% if theme == "dark" %} checked{% endif %}><label for="theme-dark">Dark</label></div>
+  </fieldset>
+  <fieldset class="field">
+    <legend>Density</legend>
+    <div class="checkbox"><input id="density-comfortable" type="radio" name="density" value="comfortable"{% if density == "comfortable" %} checked{% endif %}><label for="density-comfortable">Comfortable</label></div>
+    <div class="checkbox"><input id="density-compact" type="radio" name="density" value="compact"{% if density == "compact" %} checked{% endif %}><label for="density-compact">Compact (less padding; text and targets keep their size)</label></div>
+  </fieldset>
+  <div class="field">
+    <label for="code_font_size">Code font size</label>
+    <select id="code_font_size" name="code_font_size"{% if let Some(e) = self.error("code_font_size") %} aria-invalid="true" aria-describedby="code_font_size-error"{% endif %}>
+    {%- for n in sizes.clone() %}
+      <option value="{{ n }}"{% if n == code_font_size %} selected{% endif %}>{{ n }} px{% if n == 14 %} (default){% endif %}</option>
+    {%- endfor %}
+    </select>
+    {%- if let Some(e) = self.error("code_font_size") %}
+    <p id="code_font_size-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Save appearance</button></div>
+</form>
+{% endblock %}

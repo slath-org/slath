@@ -49,6 +49,8 @@ pub struct SessionRow {
     pub user_state: UserState,
     pub is_admin: bool,
     pub theme: String,
+    pub density: String,
+    pub code_font_size: i16,
     pub created_at: OffsetDateTime,
     pub last_seen_at: OffsetDateTime,
     pub expires_at: OffsetDateTime,
@@ -97,6 +99,7 @@ pub async fn find(
 ) -> Result<Option<SessionRow>, DbError> {
     let row = sqlx::query!(
         r#"SELECT s.id_hash, s.user_id, n.name::text AS "user_name!", u.kind, u.state, u.is_admin, u.theme,
+                  u.density, u.code_font_size,
                   s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,
                   host(s.ip) AS ip, s.user_agent
            FROM sessions s
@@ -116,6 +119,8 @@ pub async fn find(
         user_state: crate::users::state(&r.state),
         is_admin: r.is_admin,
         theme: r.theme,
+        density: r.density,
+        code_font_size: r.code_font_size,
         created_at: r.created_at,
         last_seen_at: r.last_seen_at,
         expires_at: r.expires_at,

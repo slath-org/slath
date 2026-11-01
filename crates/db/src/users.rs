@@ -275,3 +275,24 @@ pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Re
     .await?;
     Ok(())
 }
+
+/// Saves a user's appearance settings.
+pub async fn set_appearance(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    theme: &str,
+    density: &str,
+    code_font_size: i16,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET theme = $2, density = $3, code_font_size = $4, updated_at = now()
+         WHERE id = $1",
+        id.as_uuid(),
+        theme,
+        density,
+        code_font_size
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

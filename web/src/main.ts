@@ -8,10 +8,15 @@ import "htmx.org";
 import "htmx.org/dist/ext/hx-csp.js";
 import { installCsrf } from "./csrf";
 import { installA11ySwaps } from "./a11y";
-import { installErrorToasts } from "./toast";
+import { installErrorToasts, installToastButtons } from "./toast";
 import { installTheme } from "./theme";
+import { installMenus } from "./menu";
+import { installDialogs } from "./dialog";
 
 installCsrf();
 installA11ySwaps();
 installErrorToasts();
+installToastButtons();
 installTheme();
+installMenus();
+installDialogs();

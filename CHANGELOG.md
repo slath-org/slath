@@ -253,6 +253,15 @@ Before 1.0.0, minor versions may contain breaking changes.
   cross-user IDs, revocation and visibility changes, raw content types,
   XSS payloads in names and messages, CSRF, open redirects, forwarded
   headers, and setup endpoints.
+- Appearance: a menu in the header switches the theme (system, light, dark)
+  and density for everyone, saved in cookies or, when signed in, in the
+  account; **Settings → Appearance** also sets the code font size. The
+  server renders the choice into the page, so the first paint is right.
+  Touch screens get 44 px targets in every density.
+- Weave components: menus, dialogs, drawers, toasts with live regions,
+  loading and error states, all on the development component catalog. A
+  stylelint check (`just css-lint`) rejects raw colors, font sizes, spacing,
+  and shadows outside the design tokens.
 
 ### Fixed
 

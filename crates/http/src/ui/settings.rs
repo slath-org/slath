@@ -15,7 +15,7 @@ use slath_service::{FieldError, ServiceError};
 
 use super::{PageCtx, Time, render};
 use crate::AppState;
-use crate::auth::{RequireSession, Sudo, safe_next, session_cookie_name, set_cookie};
+use crate::auth::{MaybeSession, RequireSession, Sudo, safe_next, session_cookie_name, set_cookie};
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
@@ -33,6 +33,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "key-added" => "SSH key added.",
         "key-removed" => "SSH key removed.",
         "token-revoked" => "Token revoked.",
+        "appearance-saved" => "Appearance saved.",
         _ => return None,
     })
 }
@@ -652,6 +653,158 @@ async fn remove_key(
     Ok(Redirect::to("/-/settings/keys?status=key-removed").into_response())
 }
 
+#[derive(Template)]
+#[template(path = "settings/appearance.html")]
+struct AppearancePage<'a> {
+    ctx: PageCtx,
+    tab: &'static str,
+    theme: &'a str,
+    density: &'a str,
+    code_font_size: i16,
+    sizes: std::ops::RangeInclusive<i16>,
+    message: Option<&'a str>,
+    errors: Vec<FieldError>,
+}
+
+impl AppearancePage<'_> {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+async fn appearance(
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Query(q): Query<StatusQuery>,
+) -> Response {
+    render(&AppearancePage {
+        ctx,
+        tab: "appearance",
+        theme: &session.row.theme,
+        density: &session.row.density,
+        code_font_size: session.row.code_font_size,
+        sizes: 12..=20,
+        message: status_message(q.status.as_deref()),
+        errors: Vec::new(),
+    })
+}
+
+#[derive(Deserialize)]
+struct AppearanceForm {
+    #[serde(default)]
+    theme: String,
+    #[serde(default)]
+    density: String,
+    #[serde(default)]
+    code_font_size: Option<String>,
+}
+
+async fn appearance_save(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Form(f): Form<AppearanceForm>,
+) -> Result<Response, AppError> {
+    let size = f
+        .code_font_size
+        .as_deref()
+        .and_then(|v| v.parse::<i16>().ok())
+        .unwrap_or(0);
+    match state
+        .services
+        .update_appearance(&session, &f.theme, &f.density, size)
+        .await
+    {
+        Ok(()) => Ok(appearance_cookies(
+            &state,
+            &f.theme,
+            &f.density,
+            Redirect::to("/-/settings/appearance?status=appearance-saved").into_response(),
+        )),
+        Err(e) => {
+            let errors = field_errors(e)?;
+            let mut res = render(&AppearancePage {
+                ctx,
+                tab: "appearance",
+                theme: &session.row.theme,
+                density: &session.row.density,
+                code_font_size: session.row.code_font_size,
+                sizes: 12..=20,
+                message: None,
+                errors,
+            });
+            *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
+            Ok(res)
+        }
+    }
+}
+
+/// Keeps the anonymous appearance cookies in step with a choice, so the
+/// choice also holds after signing out.
+fn appearance_cookies(state: &AppState, theme: &str, density: &str, mut res: Response) -> Response {
+    const YEAR: i64 = 365 * 24 * 3600;
+    let h = res.headers_mut();
+    match theme {
+        "light" | "dark" => h.append(
+            header::SET_COOKIE,
+            set_cookie(state, "slath_theme", theme, Some(YEAR)),
+        ),
+        _ => h.append(
+            header::SET_COOKIE,
+            set_cookie(state, "slath_theme", "", None),
+        ),
+    };
+    if matches!(density, "comfortable" | "compact") {
+        h.append(
+            header::SET_COOKIE,
+            set_cookie(state, "slath_density", density, Some(YEAR)),
+        );
+    }
+    res
+}
+
+#[derive(Deserialize)]
+struct MenuForm {
+    #[serde(default)]
+    theme: String,
+    #[serde(default)]
+    density: Option<String>,
+    #[serde(default)]
+    next: Option<String>,
+}
+
+/// The header's appearance menu, for everyone: saves the choice for
+/// signed-in users and in cookies for everyone, then returns to the page.
+async fn appearance_menu(
+    State(state): State<AppState>,
+    MaybeSession(session): MaybeSession,
+    Form(f): Form<MenuForm>,
+) -> Result<Response, AppError> {
+    let theme = if matches!(f.theme.as_str(), "light" | "dark") {
+        f.theme.as_str()
+    } else {
+        "system"
+    };
+    let density = match (f.density.as_deref(), &session) {
+        (Some(d @ ("comfortable" | "compact")), _) => d.to_owned(),
+        (_, Some(s)) => s.row.density.clone(),
+        _ => "comfortable".to_owned(),
+    };
+    if let Some(s) = &session {
+        state
+            .services
+            .update_appearance(s, theme, &density, s.row.code_font_size)
+            .await?;
+    }
+    let to = safe_next(f.next.as_deref());
+    Ok(appearance_cookies(
+        &state,
+        theme,
+        &density,
+        Redirect::to(&to).into_response(),
+    ))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
@@ -702,6 +855,12 @@ pub fn router() -> Router<AppState> {
             Access::Account,
             post(revoke_token),
         )
+        .route_as(
+            "/-/settings/appearance",
+            Access::Account,
+            get(appearance).post(appearance_save),
+        )
+        .route_as("/-/appearance", Access::Public, post(appearance_menu))
         .route_as("/-/sudo", Access::Account, get(sudo_page).post(sudo_submit))
         .route_as("/-/avatars/{file}", Access::Public, get(avatar))
 }

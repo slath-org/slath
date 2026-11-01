@@ -43,6 +43,8 @@ pub struct PageCtx {
     pub theme: Option<&'static str>,
     /// `comfortable` or `compact`.
     pub density: &'static str,
+    /// The signed-in user's code font size in px, if not the default.
+    pub code_size: Option<i16>,
     pub app_url: String,
     pub style_url: String,
     /// The regular interface font, preloaded by every page.
@@ -98,6 +100,14 @@ impl PageCtx {
             Some(_) => None,
             None => theme,
         };
+        let density = match session.map(|s| s.row.density.as_str()) {
+            Some("compact") => "compact",
+            Some(_) => "comfortable",
+            None => density,
+        };
+        let code_size = session
+            .map(|s| s.row.code_font_size)
+            .filter(|n| (12..=20).contains(n) && *n != 14);
         Self {
             user: session.map(|s| NavUser {
                 name: s.row.user_name.clone(),
@@ -107,6 +117,7 @@ impl PageCtx {
             csrf,
             theme,
             density,
+            code_size,
             app_url: state.assets.url("app.js"),
             style_url: state.assets.url("style.css"),
             font_url: state.assets.url("SourceSans3-Upright.woff2"),

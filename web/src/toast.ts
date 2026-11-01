@@ -13,12 +13,13 @@ function region(): HTMLElement | null {
   return document.getElementById("toasts");
 }
 
-export function showToast(message: string, retry?: () => void): void {
+export function showToast(message: string, retry?: () => void, kind: "error" | "info" = "error"): void {
   const host = region();
   if (!host) return;
   const toast = document.createElement("div");
-  toast.className = "toast toast-error";
-  toast.setAttribute("role", "alert");
+  toast.className = kind === "error" ? "toast toast-error" : "toast";
+  // Errors interrupt; other messages wait for the live region.
+  if (kind === "error") toast.setAttribute("role", "alert");
   const text = document.createElement("p");
   text.textContent = message;
   toast.append(text);
@@ -60,4 +61,12 @@ export function installErrorToasts(): void {
   };
   document.addEventListener("htmx:response:error", onError);
   document.addEventListener("htmx:error", onError);
+}
+
+/** Buttons with data-toast="message" show an informational toast. */
+export function installToastButtons(): void {
+  document.addEventListener("click", (evt) => {
+    const btn = evt.target instanceof Element ? evt.target.closest<HTMLElement>("[data-toast]") : null;
+    if (btn?.dataset.toast) showToast(btn.dataset.toast, undefined, "info");
+  });
 }

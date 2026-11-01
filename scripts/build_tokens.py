@@ -36,6 +36,13 @@ def render(doc: dict) -> str:
     out.append(block(":root", {**doc["tokens"], **c["light"]}).replace(":root {", ":root {\n  color-scheme: light dark;", 1))
     for name, values in doc.get("density", {}).items():
         out.append(block(f':root[data-density="{name}"]', values))
+    # The user's code font size (12-20 px), independent of the UI scale.
+    lo, hi = doc.get("code-size-range", [12, 20])
+    for px in range(lo, hi + 1):
+        out.append(block(f':root[data-code-size="{px}"]', {"code-size": f"{px / 16:g}rem"}))
+    # Coarse pointers get 44 px targets in every density.
+    if "coarse" in doc:
+        out.append("@media (pointer: coarse) {\n" + block(":root,\n  :root[data-density]", doc["coarse"], "  ") + "\n}")
     out.append(':root[data-theme="light"] {\n  color-scheme: light;\n}')
     out.append(':root[data-theme="dark"] {\n  color-scheme: dark;\n}')
     out.append("@media (prefers-color-scheme: dark) {\n" + block(':root:not([data-theme="light"])', c["dark"], "  ") + "\n}")

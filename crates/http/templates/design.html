@@ -23,6 +23,119 @@
   <p>Inline: <code id="inline-code">git push --force-with-lease</code>, commit <code>3f2db758</code>.</p>
 </section>
 
+<section aria-labelledby="buttons-heading">
+  <h2 id="buttons-heading">Buttons</h2>
+  <div class="catalog-row">
+    <button type="button" class="button">Default</button>
+    <button type="button" class="button button-primary">Primary</button>
+    <button type="button" class="button button-quiet">Quiet</button>
+    <button type="button" class="button button-danger">Danger</button>
+    <button type="button" class="button" disabled>Disabled</button>
+    <button type="button" class="button" aria-busy="true">Saving</button>
+    <a class="button" href="#buttons-heading">Link as button</a>
+  </div>
+  <p>Inline <a href="#buttons-heading">link</a> and <a href="#buttons-heading" aria-current="page">current link</a>.</p>
+</section>
+
+<section aria-labelledby="forms-heading">
+  <h2 id="forms-heading">Form fields</h2>
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h2>There is a problem</h2>
+    <ul><li><a href="#demo-email">Enter an email address like name@example.org.</a></li></ul>
+  </div>
+  <form class="form" novalidate>
+    <div class="field">
+      <label for="demo-name">Name</label>
+      <input id="demo-name" type="text" value="Ada" aria-describedby="demo-name-hint">
+      <p id="demo-name-hint" class="hint">Shown on your profile.</p>
+    </div>
+    <div class="field">
+      <label for="demo-email">Email</label>
+      <input id="demo-email" type="email" value="ada@" aria-invalid="true" aria-describedby="demo-email-error">
+      <p id="demo-email-error" class="field-error">Enter an email address like name@example.org.</p>
+    </div>
+    <div class="field">
+      <label for="demo-disabled">Read-only</label>
+      <input id="demo-disabled" type="text" value="cannot change" readonly>
+    </div>
+    <div class="field">
+      <label for="demo-select">Visibility</label>
+      <select id="demo-select"><option>Private</option><option>Public</option></select>
+    </div>
+    <div class="checkbox"><input id="demo-check" type="checkbox" checked><label for="demo-check">Checkbox</label></div>
+    <div class="checkbox"><input id="demo-radio" type="radio" name="demo-radio" checked><label for="demo-radio">Radio</label></div>
+  </form>
+</section>
+
+<section aria-labelledby="menus-heading">
+  <h2 id="menus-heading">Menus, dialogs, drawers, toasts</h2>
+  <div class="catalog-row">
+    <details class="menu" id="demo-menu">
+      <summary class="button">{% call m::icon(ctx, "settings") %}{% endcall %}<span>Menu</span></summary>
+      <div class="menu-panel">
+        <a class="menu-item" href="#menus-heading">{% call m::icon(ctx, "pencil") %}{% endcall %}Edit</a>
+        <a class="menu-item" href="#menus-heading" aria-current="true">{% call m::icon(ctx, "check") %}{% endcall %}Selected</a>
+        <button type="button" class="menu-item">{% call m::icon(ctx, "trash-2") %}{% endcall %}Delete</button>
+      </div>
+    </details>
+    <button type="button" class="button" data-dialog-open="demo-dialog">Open dialog</button>
+    <button type="button" class="button" data-dialog-open="demo-drawer">Open drawer</button>
+    <button type="button" class="button" data-toast="Settings saved.">Show toast</button>
+  </div>
+  <dialog class="dialog" id="demo-dialog" aria-labelledby="demo-dialog-title">
+    <div class="dialog-body">
+      <h2 id="demo-dialog-title">Delete branch?</h2>
+      <p>The branch <code>feature</code> will be deleted. Its commits stay reachable from other refs.</p>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="button" data-dialog-close>Cancel</button>
+      <button type="button" class="button button-danger" data-dialog-close>Delete</button>
+    </div>
+  </dialog>
+  <dialog class="dialog drawer" id="demo-drawer" aria-labelledby="demo-drawer-title">
+    <div class="dialog-body">
+      <h2 id="demo-drawer-title">Files</h2>
+      <ul class="file-list"><li><a href="#menus-heading">README.md</a></li><li><a href="#menus-heading">src/main.rs</a></li></ul>
+    </div>
+    <div class="dialog-actions"><button type="button" class="button" data-dialog-close>Close</button></div>
+  </dialog>
+  <div class="toast"><p>Static toast example.</p><button type="button" class="button button-quiet">Dismiss</button></div>
+</section>
+
+<section aria-labelledby="nav-heading">
+  <h2 id="nav-heading">Tabs, breadcrumbs, badges</h2>
+  <nav class="tabs" aria-label="Example tabs">
+    <ul>
+      <li><a href="#nav-heading" aria-current="page">Code</a></li>
+      <li><a href="#nav-heading">Commits</a></li>
+      <li><a href="#nav-heading">Settings</a></li>
+    </ul>
+  </nav>
+  <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#nav-heading">alice</a></li><li><a href="#nav-heading">proj</a></li><li>src</li></ol></nav>
+  <p><span class="badge">Admin</span> <span class="badge">Archived</span></p>
+</section>
+
+<section aria-labelledby="status-heading">
+  <h2 id="status-heading">Status messages</h2>
+  <div class="success-summary" role="status"><p>{% call m::icon(ctx, "circle-check") %}{% endcall %} Repository created.</p></div>
+  <div class="notice"><p>{% call m::icon(ctx, "info") %}{% endcall %} This repository is archived. It's read-only.</p></div>
+  <p class="text-secondary">Empty state: No repositories yet.</p>
+</section>
+
+<section aria-labelledby="table-heading">
+  <h2 id="table-heading">Tables</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="table-caption">
+  <table class="table">
+    <caption id="table-caption" class="visually-hidden">Example table</caption>
+    <thead><tr><th scope="col">Name</th><th scope="col" class="numeric">Size</th><th scope="col">Updated</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#table-heading">slath</a></td><td class="numeric">1 024</td><td>2 hours ago</td></tr>
+      <tr><td><a href="#table-heading">weave</a></td><td class="numeric">88</td><td>yesterday</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
 <section aria-labelledby="icons-heading">
   <h2 id="icons-heading">Icons</h2>
   <ul class="icon-grid">

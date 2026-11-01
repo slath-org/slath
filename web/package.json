@@ -6,13 +6,15 @@
   "type": "module",
   "scripts": {
     "build": "python3 ../scripts/build_icons.py .. && tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint:css": "stylelint \"src/**/*.css\""
   },
   "dependencies": {
     "htmx.org": "4.0.0"
   },
   "devDependencies": {
     "lucide-static": "1.66.0",
+    "stylelint": "17.16.0",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   }

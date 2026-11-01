@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: tokens-check web fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses guards
+check: tokens-check web fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses guards css-lint
 
 # Regenerate web/src/tokens.css from web/src/tokens.json.
 tokens:
@@ -45,6 +45,10 @@ test-backup-restore:
 # release image (`docker build -t slath:test .` first, or set SLATH_IMAGE).
 test-compose:
     scripts/test-compose.sh
+
+# Weave restraint rules: no raw colors, font sizes, or spacing in CSS.
+css-lint:
+    cd web && {{ "{" }} [ -d node_modules ] || npm ci; {{ "}" }} && npm run --silent lint:css
 
 fmt-check:
     cargo fmt --all --check

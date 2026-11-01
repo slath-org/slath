@@ -155,8 +155,23 @@ impl Client {
         if !ct.is_empty() {
             b = b.header("content-type", ct);
         }
-        let req = b.body(data).unwrap();
-        let res = self.agent.run(req);
+        let parts = b.body(()).unwrap().into_parts().0;
+        let mut res = self
+            .agent
+            .run(ureq::http::Request::from_parts(parts.clone(), data.clone()));
+        // A pooled keep-alive connection the server already closed (e.g.
+        // after answering early without reading a body) fails at once;
+        // like browsers, retry such a request once on a fresh connection.
+        if let Err(ureq::Error::Io(e)) = &res
+            && matches!(
+                e.kind(),
+                std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::BrokenPipe
+            )
+        {
+            res = self.agent.run(ureq::http::Request::from_parts(parts, data));
+        }
         self.finish(res)
     }
 
