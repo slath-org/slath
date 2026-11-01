@@ -230,8 +230,18 @@ fn conf_git_02_tty_is_denied() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(!out.status.success());
     assert!(stderr.contains("PTY allocation request failed"), "{stderr}");
-    // sshd ran nothing but the forced command, without a TTY.
-    let logs = env.sshd.logs();
+    // sshd ran nothing but the forced command, without a TTY. Its log may
+    // lag behind the client under load.
+    let start = std::time::Instant::now();
+    let logs = loop {
+        let logs = env.sshd.logs();
+        if logs.contains("Starting session: forced-command")
+            || start.elapsed() > std::time::Duration::from_secs(10)
+        {
+            break logs;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
     assert!(logs.contains("Starting session: forced-command"), "{logs}");
     assert!(!logs.contains("Starting session: shell"), "{logs}");
     assert!(!logs.to_lowercase().contains("allocated pty"), "{logs}");
