@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod assets;
+pub mod auth;
 pub mod error;
 pub mod githttp;
 pub mod health;
@@ -48,6 +49,8 @@ pub struct AppState {
     pub token: Arc<Secret<String>>,
     pub hooks: Arc<ipc::HookRegistry>,
     pub ipc_socket: PathBuf,
+    pub services: slath_service::Services,
+    pub trusted_proxies: Arc<auth::TrustedProxies>,
 }
 
 /// Everything [`AppState::new`] needs.
@@ -59,17 +62,20 @@ pub struct StateParts {
     pub token: Secret<String>,
     pub hooks: Arc<ipc::HookRegistry>,
     pub ipc_socket: PathBuf,
+    pub services: slath_service::Services,
 }
 
 impl AppState {
-    #[must_use]
-    pub fn new(p: StateParts) -> Self {
+    pub fn new(p: StateParts) -> Result<Self, String> {
+        let trusted_proxies = auth::TrustedProxies::parse(&p.config.server.trusted_proxies)?;
         let repos = p
             .repos
             .into_iter()
             .map(|r| ((r.namespace.to_lowercase(), r.name.to_lowercase()), r))
             .collect();
-        Self {
+        Ok(Self {
+            trusted_proxies: Arc::new(trusted_proxies),
+            services: p.services,
             config: p.config,
             pool: p.pool,
             runner: p.runner,
@@ -80,7 +86,7 @@ impl AppState {
             token: Arc::new(p.token),
             hooks: p.hooks,
             ipc_socket: p.ipc_socket,
-        }
+        })
     }
 
     fn repo(&self, namespace: &str, name: &str) -> Option<&RepoEntry> {
@@ -96,6 +102,8 @@ pub fn router(state: AppState) -> axum::Router {
     let body_limit = state.config.limits.http_max_body_bytes.as_usize();
     let pages = ui::router()
         .fallback(ui::fallback)
+        .layer(from_fn_with_state(state.clone(), auth::csrf))
+        .layer(from_fn_with_state(state.clone(), auth::resolve))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));
     let probes = axum::Router::new()

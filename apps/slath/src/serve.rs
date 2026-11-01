@@ -173,17 +173,28 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let hooks = Arc::clone(&ctx.hooks);
     tokio::spawn(ipc::serve(listener, ctx));
 
+    let master = match &cfg.secrets.master_key_file {
+        Some(path) => slath_auth::MasterKey::load(path).map_err(|e| e.to_string())?,
+        None => {
+            let path = cfg.storage.data_dir.join("instance.key");
+            tracing::warn!(path = %path.display(), "secrets.master_key_file is not set; using a generated key in data_dir");
+            slath_auth::MasterKey::load_or_create(&path).map_err(|e| e.to_string())?
+        }
+    };
     let Loaded { cfg, spike } = cfg;
+    let cfg = Arc::new(cfg);
+    let services = slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master);
     let token = spike.map_or_else(String::new, |s| s.token.into_inner());
     let state = AppState::new(StateParts {
-        config: Arc::new(cfg),
+        config: cfg,
+        services,
         pool: pool.clone(),
         runner,
         repos,
         token: slath_core::Secret::new(token),
         hooks,
         ipc_socket: socket,
-    });
+    })?;
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let workers = {
         let mut wc = slath_db::worker::WorkerPoolConfig::new("default");
@@ -211,7 +222,9 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     tracing::info!(%addr, "listening");
     // Machine-readable line for scripts and the test launcher.
     println!("slath: listening on http://{addr}");
-    let result = axum::serve(tcp, slath_http::router(state))
+    let app =
+        slath_http::router(state).into_make_service_with_connect_info::<std::net::SocketAddr>();
+    let result = axum::serve(tcp, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
         .map_err(|e| e.to_string());

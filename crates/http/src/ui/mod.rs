@@ -3,10 +3,11 @@
 //! Server-rendered pages (Askama). Every page works without JavaScript;
 //! htmx requests get fragments of the same templates.
 
+pub mod account;
 pub mod design;
 
 use askama::Template;
-use axum::extract::{FromRequestParts, Request, State};
+use axum::extract::{FromRequestParts, Request};
 use axum::http::request::Parts;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
@@ -15,9 +16,18 @@ use crate::AppState;
 use crate::error::{AppError, ErrorInfo};
 use crate::middleware::Nonce;
 
+/// The signed-in user as the page header shows them.
+#[derive(Debug, Clone)]
+pub struct NavUser {
+    pub name: String,
+    pub is_admin: bool,
+}
+
 /// Per-request data every page template needs.
 #[derive(Debug, Clone)]
 pub struct PageCtx {
+    /// The signed-in user, if any.
+    pub user: Option<NavUser>,
     /// CSP nonce of this response; stamped on scripts and htmx elements.
     pub nonce: String,
     /// CSRF token for forms and htmx requests (signed-in users only).
@@ -68,9 +78,26 @@ impl PageCtx {
             Some("compact") => "compact",
             _ => "comfortable",
         };
+        let session = extensions
+            .get::<crate::auth::MaybeSession>()
+            .and_then(|m| m.0.as_ref());
+        let csrf = extensions
+            .get::<crate::auth::CsrfSeed>()
+            .map(|seed| state.services.csrf.token(&seed.value));
+        // The user's saved theme wins over the anonymous cookie.
+        let theme = match session.map(|s| s.row.theme.as_str()) {
+            Some("light") => Some("light"),
+            Some("dark") => Some("dark"),
+            Some(_) => None,
+            None => theme,
+        };
         Self {
+            user: session.map(|s| NavUser {
+                name: s.row.user_name.clone(),
+                is_admin: s.row.is_admin,
+            }),
             nonce,
-            csrf: None,
+            csrf,
             theme,
             density,
             app_url: state.assets.url("app.js"),
@@ -86,6 +113,12 @@ impl PageCtx {
     #[must_use]
     pub fn from_request(state: &AppState, req: &Request) -> Self {
         Self::build(state, req.extensions(), req.headers(), req.uri())
+    }
+
+    /// The CSRF token for forms (empty if none could be computed).
+    #[must_use]
+    pub fn csrf_token(&self) -> &str {
+        self.csrf.as_deref().unwrap_or("")
     }
 }
 
@@ -199,6 +232,7 @@ pub fn router() -> axum::Router<AppState> {
     use axum::routing::get;
     let r = axum::Router::new()
         .route("/", get(home))
+        .merge(account::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())
@@ -206,6 +240,3 @@ pub fn router() -> axum::Router<AppState> {
         r
     }
 }
-
-/// Keeps `State` in scope for handlers that take it.
-pub type St = State<AppState>;

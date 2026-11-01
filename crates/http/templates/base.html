@@ -20,6 +20,17 @@
   <nav class="site-nav" aria-label="Main">
     <a class="site-name" href="/">Slath</a>
     {% block nav %}{% endblock %}
+    <div class="nav-end">
+    {%- if let Some(user) = ctx.user %}
+      <a href="/{{ user.name }}">{{ user.name }}</a>
+      <form method="post" action="/-/logout" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <button type="submit" class="button button-quiet">Sign out</button>
+      </form>
+    {%- else %}
+      <a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a>
+    {%- endif %}
+    </div>
   </nav>
 </header>
 <main id="main" tabindex="-1">

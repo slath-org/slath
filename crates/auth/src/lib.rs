@@ -3,6 +3,9 @@
 //! Passwords, sessions, tokens, and authentication primitives.
 #![forbid(unsafe_code)]
 
+pub mod csrf;
 pub mod master_key;
+pub mod password;
+pub mod token;
 
 pub use master_key::MasterKey;

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(sum(count), 0)::int AS \"n!\" FROM login_attempts\n           WHERE key = $1 AND window_start = date_bin($2::text::interval, now(), 'epoch')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "22c1c5a6a97a6cc390be81cefe8a4916380b95b1423a174555abedb132d9b66f"
+}

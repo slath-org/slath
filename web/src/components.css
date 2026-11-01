@@ -1,0 +1,187 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Base components. Only design tokens, no raw values. */
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  min-width: var(--target-min);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-heading);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast);
+}
+.button:hover {
+  background: var(--surface-subtle);
+}
+.button:active {
+  background: var(--selection);
+}
+.button[disabled],
+.button[aria-disabled="true"] {
+  cursor: not-allowed;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+}
+.button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.button-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.button-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--danger-fg);
+}
+.button-danger:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--link);
+}
+.button-quiet:hover {
+  background: var(--surface-subtle);
+}
+.inline-form {
+  display: inline;
+  margin: 0;
+}
+
+/* Forms */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 32rem;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.field label,
+.field legend {
+  font-weight: var(--weight-semibold);
+}
+.field .hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.field .field-error {
+  font-size: var(--text-sm);
+  color: var(--error-fg);
+  margin: 0;
+}
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+input[type="number"],
+select,
+textarea {
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+textarea {
+  min-height: calc(var(--control-height) * 3);
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+}
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--error);
+  border-width: var(--focus-width);
+}
+
+/* Messages */
+.error-summary,
+.notice,
+.success-summary {
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+  border: var(--border-width) solid;
+  border-left-width: calc(var(--space-1));
+  border-radius: var(--radius-sm);
+}
+.error-summary {
+  border-color: var(--error);
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+.error-summary a {
+  color: var(--error-fg);
+}
+.success-summary {
+  border-color: var(--success);
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+.notice {
+  border-color: var(--info);
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+.error-summary h2,
+.notice h2,
+.success-summary h2 {
+  font-size: var(--text-base);
+  margin: 0 0 var(--space-2);
+}
+.error-summary p:last-child,
+.notice p:last-child,
+.success-summary p:last-child,
+.notice pre:last-child {
+  margin-bottom: 0;
+}
+
+.narrow {
+  max-width: 36rem;
+}
+
+@media (pointer: coarse) {
+  .button,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  select {
+    min-height: 2.75rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .button,
+  .error-summary,
+  .notice,
+  .success-summary {
+    border: var(--border-width) solid ButtonText;
+  }
+}

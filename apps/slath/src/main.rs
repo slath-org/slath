@@ -3,6 +3,7 @@
 //! The `slath` binary: the server and its helper subcommands.
 #![forbid(unsafe_code)]
 
+mod admin;
 mod check;
 mod config;
 mod hook;
@@ -103,6 +104,26 @@ enum ConfigCommand {
 enum AdminCommand {
     /// Print a new master key (store it with mode 0600).
     GenKey,
+    /// Create a user account (bootstrap and recovery). Without
+    /// --password-stdin, a random password is generated and printed once.
+    CreateUser {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        username: String,
+        #[arg(long)]
+        email: Option<String>,
+        #[arg(long)]
+        display_name: Option<String>,
+        /// Make the user a site administrator.
+        #[arg(long)]
+        admin: bool,
+        /// Read the password from standard input.
+        #[arg(long)]
+        password_stdin: bool,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
 }
 
 fn main() -> ExitCode {
@@ -130,6 +151,28 @@ fn main() -> ExitCode {
         Command::Admin {
             command: AdminCommand::GenKey,
         } => check::gen_key(),
+        Command::Admin {
+            command:
+                AdminCommand::CreateUser {
+                    config,
+                    username,
+                    email,
+                    display_name,
+                    admin,
+                    password_stdin,
+                    output,
+                },
+        } => admin::create_user(
+            &config::resolve_path(config),
+            admin::CreateUser {
+                username,
+                email,
+                display_name,
+                admin,
+                password_stdin,
+            },
+            output,
+        ),
         Command::Hook { hook } => hook::run(hook),
         Command::SshKeys {
             socket,

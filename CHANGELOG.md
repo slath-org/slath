@@ -104,3 +104,13 @@ Before 1.0.0, minor versions may contain breaking changes.
   the allowlisted icons. `scripts/fonts.py` rebuilds the fonts from pinned,
   SHA-256-checked releases. `THIRD-PARTY-NOTICES.md` lists every bundled
   component, and `just check` fails if one is missing.
+- Local accounts and sign-in: `slath admin create-user` (with
+  `--password-stdin`, or a generated password printed once), Argon2id password
+  hashes (upgraded on sign-in when parameters change), a password policy of
+  12–1024 characters after NFC normalization, sign-in and sign-out pages, and
+  sessions stored as SHA-256 hashes of a random 256-bit cookie value with idle
+  and absolute expiry. Failed sign-ins are throttled per account and per IP
+  without revealing whether an account exists. Every state-changing browser
+  request needs a same-origin `Sec-Fetch-Site` (or `Origin`) and a CSRF token.
+  Redirects after sign-in only go to local paths. The sign-in page explains
+  how to create the first administrator on an empty instance.

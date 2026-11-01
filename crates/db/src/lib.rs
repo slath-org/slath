@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 
 pub mod jobs;
+pub mod sessions;
+pub mod users;
 pub mod worker;
 
 use std::time::Duration;
@@ -16,7 +18,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 1;
+pub const REQUIRED_SCHEMA: i32 = 2;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
@@ -27,6 +29,11 @@ pub enum DbError {
     Sqlx(#[from] sqlx::Error),
     #[error("migration failed: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+    /// A uniqueness constraint failed; the field names what collided.
+    #[error("{0} is already taken")]
+    Conflict(&'static str),
+    #[error("invalid value for {0}")]
+    Invalid(&'static str),
     #[error(
         "database schema is version {found}, this binary needs {required}; \
          run `slath migrate` (or `slath upgrade`) first"
@@ -37,6 +44,26 @@ pub enum DbError {
          install a newer Slath or restore the pre-upgrade backup"
     )]
     SchemaAhead { found: i32, required: i32 },
+}
+
+impl DbError {
+    /// Maps a unique-constraint violation to [`DbError::Conflict`].
+    #[must_use]
+    pub fn from_unique(e: sqlx::Error, field: &'static str) -> Self {
+        match &e {
+            sqlx::Error::Database(d) if d.code().as_deref() == Some("23505") => {
+                Self::Conflict(field)
+            }
+            _ => Self::Sqlx(e),
+        }
+    }
+
+    /// True for a lost race that a retry may resolve (serialization failure, deadlock).
+    #[must_use]
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Sqlx(sqlx::Error::Database(d))
+            if matches!(d.code().as_deref(), Some("40001" | "40P01")))
+    }
 }
 
 /// Pool settings from `[database]`.

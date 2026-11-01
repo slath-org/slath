@@ -241,3 +241,31 @@ fn enc(s: &str) -> String {
     }
     out
 }
+
+/// The `_csrf` hidden field of the first form in a page.
+#[must_use]
+pub fn csrf_token(html: &str) -> Option<String> {
+    let i = html.find("name=\"_csrf\" value=\"")?;
+    let rest = &html[i + "name=\"_csrf\" value=\"".len()..];
+    rest.split('"').next().map(str::to_owned)
+}
+
+/// Loads a page and submits a form to `action` with its CSRF token.
+pub fn submit(c: &mut Client, page: &str, action: &str, fields: &[(&str, &str)]) -> Resp {
+    let p = c.get(page);
+    let token = csrf_token(&p.body)
+        .unwrap_or_else(|| panic!("no CSRF token on {page} ({}): {}", p.status, p.body));
+    let mut all = vec![("_csrf", token.as_str())];
+    all.extend_from_slice(fields);
+    c.post_form(action, &all)
+}
+
+/// Signs in through the login form.
+pub fn login(c: &mut Client, name: &str, password: &str) -> Resp {
+    submit(
+        c,
+        "/-/login",
+        "/-/login",
+        &[("username", name), ("password", password)],
+    )
+}

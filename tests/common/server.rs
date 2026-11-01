@@ -108,6 +108,20 @@ impl TestDb {
         Self::run(&self.admin_url, sql);
     }
 
+    /// Runs a query returning one text value (first column of the first row).
+    #[must_use]
+    pub fn query_one(&self, sql: &str) -> String {
+        use sqlx::{Connection, Row};
+        block_on(async {
+            let mut c = sqlx::PgConnection::connect(&self.url).await.unwrap();
+            let row = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
+                .fetch_one(&mut c)
+                .await
+                .unwrap();
+            row.try_get::<String, _>(0).unwrap()
+        })
+    }
+
     /// The database name.
     #[must_use]
     pub fn name(&self) -> &str {
@@ -168,6 +182,13 @@ impl TestServer {
     /// (e.g. `[[spike.ssh_keys]]` tables).
     #[must_use]
     pub fn start_full(repos: &[TestRepo], extra: &str) -> Self {
+        Self::start_opts(repos, extra, &[])
+    }
+
+    /// Like [`TestServer::start_full`], with extra environment variables for
+    /// the server (e.g. `SLATH__SERVER__PUBLIC_URL`).
+    #[must_use]
+    pub fn start_opts(repos: &[TestRepo], extra: &str, env: &[(&str, &str)]) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let db = TestDb::create();
         let port = free_port();
@@ -194,6 +215,7 @@ impl TestServer {
         let mut child = Command::new(slath_bin())
             .args(["serve", "--migrate", "--config"])
             .arg(&cfg_path)
+            .envs(env.iter().copied())
             .stdout(Stdio::piped())
             .stderr(log)
             .spawn()
@@ -219,6 +241,62 @@ impl TestServer {
             addr: addr.parse().unwrap(),
             dir,
         }
+    }
+
+    #[must_use]
+    pub fn config_path(&self) -> PathBuf {
+        self.dir.path().join("slath.toml")
+    }
+
+    /// Runs a `slath` subcommand against this server's config; returns
+    /// (success, stdout, stderr).
+    pub fn slath(&self, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
+        let mut cmd = Command::new(slath_bin());
+        cmd.args(args)
+            .env("SLATH_CONFIG", self.config_path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = cmd.spawn().unwrap();
+        if let Some(input) = stdin {
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.as_bytes())
+                .unwrap();
+        }
+        drop(child.stdin.take());
+        let out = child.wait_with_output().unwrap();
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    }
+
+    /// Creates a user through the CLI and returns its ID.
+    pub fn create_user(&self, name: &str, password: &str, admin: bool) -> String {
+        let mut args = vec!["admin", "create-user", "--username", name, "--email"];
+        let email = format!("{name}@example.org");
+        args.push(&email);
+        args.extend(["--password-stdin", "--output", "json"]);
+        if admin {
+            args.push("--admin");
+        }
+        let (ok, out, err) = self.slath(&args, Some(password));
+        assert!(ok, "create-user {name} failed: {out}{err}");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        v["user"]["id"].as_str().unwrap().to_owned()
+    }
+
+    /// A client signed in as `name`.
+    #[must_use]
+    pub fn login(&self, name: &str, password: &str) -> crate::http::Client {
+        let mut c = self.client();
+        let r = crate::http::login(&mut c, name, password);
+        assert_eq!(r.status, 303, "login as {name} failed: {}", r.body);
+        c
     }
 
     /// Base URL, e.g. `http://127.0.0.1:41234`.

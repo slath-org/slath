@@ -175,8 +175,14 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
         .extensions()
         .get::<RequestId>()
         .map_or_else(String::new, |r| r.0.clone());
-    let page = crate::ui::PageCtx::from_request(&state, &req);
+    let mut page = crate::ui::PageCtx::from_request(&state, &req);
     let res = next.run(req).await;
+    if let Some(m) = res.extensions().get::<crate::auth::MaybeSession>() {
+        page.user = m.0.as_ref().map(|s| crate::ui::NavUser {
+            name: s.row.user_name.clone(),
+            is_admin: s.row.is_admin,
+        });
+    }
     let status = res.status();
     let info = match res.extensions().get::<ErrorInfo>() {
         Some(info) => info.clone(),

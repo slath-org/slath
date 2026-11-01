@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO login_attempts (key, window_start, count)\n           SELECT k, date_bin($2::text::interval, now(), 'epoch'), 1 FROM unnest($1::text[]) AS k\n           ON CONFLICT (key, window_start) DO UPDATE SET count = login_attempts.count + 1\n           RETURNING count",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "login_attempts",
+            "name": "count"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d5b7cf731f2555cb670114f519734b6095a5b9afdef6e09c953b56a948879fe3"
+}

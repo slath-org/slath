@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Sign in</h1>
+{% if let Some(e) = error -%}
+<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2>There is a problem</h2>
+  <p><a href="#username">{{ e }}</a></p>
+</div>
+{%- endif %}
+{% if empty_instance -%}
+<div class="notice" role="note">
+  <h2>No accounts yet</h2>
+  <p>Create the first administrator on the server:</p>
+  <pre class="code-view" tabindex="0" role="region" aria-label="Command"><code>slath admin create-user --admin --username NAME --email EMAIL --password-stdin</code></pre>
+</div>
+{%- endif %}
+<form method="post" action="/-/login" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username"
+           autocapitalize="none" spellcheck="false" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <button type="submit" class="button button-primary">Sign in</button>
+</form>
+</div>
+{% endblock %}

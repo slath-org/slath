@@ -22,6 +22,7 @@ slath-service = { path = "crates/service" }
 slath-http = { path = "crates/http" }
 slath-ci = { path = "crates/ci" }
 
+argon2 = "0.6"
 askama = { version = "0.16", default-features = false, features = ["derive", "std", "urlencode"] }
 async-compression = { version = "0.4", features = ["gzip", "tokio"] }
 axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "matched-path", "original-uri", "query", "tokio", "tracing"] }
@@ -52,6 +53,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 toml = "1.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 ureq = { version = "3.5", default-features = false }
+unicode-normalization = "0.1"
 uuid = { version = "1.29", features = ["v7", "serde"] }
 
 [workspace.lints.rust]
@@ -60,3 +62,9 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+
+# Password hashing is far too slow unoptimized; tests sign in a lot.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
