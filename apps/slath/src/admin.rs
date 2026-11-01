@@ -126,3 +126,74 @@ pub fn create_user(path: &Path, args: CreateUser, format: OutputFormat) -> ExitC
         Err(e) => fail(format, &e),
     }
 }
+
+/// `slath fsck [--reconcile] [--repo ID]`.
+pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        let only = match repo {
+            Some(r) => Some(
+                r.parse()
+                    .map_err(|_| format!("--repo: {r:?} is not a repository ID"))?,
+            ),
+            None => None,
+        };
+        svc.fsck(only, reconcile).await.map_err(|e| describe(&e))
+    });
+    let checks = match result {
+        Ok(c) => c,
+        Err(e) => return fail(format, &e),
+    };
+    let clean = checks.iter().all(|c| c.is_clean() || c.repaired);
+    match format {
+        OutputFormat::Text => {
+            for c in &checks {
+                if c.orphan {
+                    println!("orphan   {} (a directory without a repository)", c.name);
+                } else if c.missing_on_disk {
+                    println!("missing  {} (no data on disk)", c.name);
+                } else if !c.ref_differences.is_empty() {
+                    let verb = if c.repaired { "repaired" } else { "differs " };
+                    println!("{verb} {} ({} refs)", c.name, c.ref_differences.len());
+                    for u in &c.ref_differences {
+                        println!(
+                            "         {} {} -> {}",
+                            String::from_utf8_lossy(&u.name),
+                            &u.old[..12],
+                            &u.new[..12]
+                        );
+                    }
+                }
+            }
+            println!(
+                "{} repositories checked, {}",
+                checks.iter().filter(|c| !c.orphan).count(),
+                if clean { "clean" } else { "problems found" }
+            );
+        }
+        OutputFormat::Json => print_json(&json!({
+            "ok": clean,
+            "repositories": checks.iter().map(|c| json!({
+                "id": c.repo_id.map(|i| i.to_string()),
+                "name": c.name,
+                "orphan": c.orphan,
+                "missing_on_disk": c.missing_on_disk,
+                "repaired": c.repaired,
+                "ref_differences": c.ref_differences.iter().map(|u| json!({
+                    "ref": String::from_utf8_lossy(&u.name),
+                    "old": u.old,
+                    "new": u.new,
+                })).collect::<Vec<_>>(),
+            })).collect::<Vec<_>>(),
+        })),
+    }
+    if clean {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}

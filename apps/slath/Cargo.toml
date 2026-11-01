@@ -22,6 +22,7 @@ slath-db.workspace = true
 slath-git.workspace = true
 slath-http.workspace = true
 slath-service.workspace = true
+time.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 toml.workspace = true
 tracing.workspace = true

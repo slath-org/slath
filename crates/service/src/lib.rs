@@ -13,6 +13,7 @@ pub mod jobs;
 pub mod keys;
 pub mod orgs;
 pub mod push;
+pub mod reconcile;
 pub mod repos;
 pub mod sessions;
 pub mod settings;

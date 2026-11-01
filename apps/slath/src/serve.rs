@@ -173,6 +173,39 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
             }
         });
     }
+    {
+        // The reconciler: at startup for recently pushed repositories, then
+        // every maintenance.reconcile_interval for all of them.
+        let svc = state.services.clone();
+        let metrics = Arc::clone(&state.metrics);
+        let interval = state
+            .config
+            .maintenance
+            .reconcile_interval
+            .get()
+            .max(std::time::Duration::from_secs(1));
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            let day_ago = time::OffsetDateTime::now_utc() - time::Duration::days(1);
+            let mut since = Some(day_ago);
+            let mut tick = tokio::time::interval(interval);
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        match svc.reconcile_recent(since.take()).await {
+                            Ok(n) => {
+                                for _ in 0..n {
+                                    metrics.inc("slath_reconcile_repairs_total", "");
+                                }
+                            }
+                            Err(e) => tracing::warn!(error = %e, "reconciler run failed"),
+                        }
+                    }
+                    _ = stop.changed() => return,
+                }
+            }
+        });
+    }
     let metrics_addr = state.config.server.metrics_listen.trim().to_owned();
     if !metrics_addr.is_empty() {
         let l = tokio::net::TcpListener::bind(&metrics_addr)

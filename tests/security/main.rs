@@ -9,6 +9,7 @@ mod git;
 mod headers;
 mod keys;
 mod orgs;
+mod reconcile;
 mod repos;
 mod settings;
 mod ssh;

@@ -160,3 +160,9 @@ Before 1.0.0, minor versions may contain breaking changes.
   read-only, and moving or deleting tags needs the maintain role. One refused
   update rejects the whole push. Accepted pushes are recorded (push events,
   ref updates, and the ref snapshot), and push options aren't accepted.
+- The reconciler: Git is the source of truth for refs. `slath fsck` compares
+  every repository's refs with the database (and finds missing data and
+  orphaned directories); `--reconcile` records the differences as pushes with
+  transport `reconcile`. `slath serve` reconciles recently pushed
+  repositories at startup and all of them every
+  `maintenance.reconcile_interval`.

@@ -456,3 +456,25 @@ pub async fn list_deleted(exec: impl PgExecutor<'_>, limit: i64) -> Result<Vec<R
         .await?;
     Ok(rows.into_iter().map(|r| to_repo!(r)).collect())
 }
+
+/// Every repository ID (any state).
+pub async fn all_ids(exec: impl PgExecutor<'_>) -> Result<Vec<RepoId>, DbError> {
+    let rows = sqlx::query_scalar!("SELECT id FROM repositories ORDER BY id")
+        .fetch_all(exec)
+        .await?;
+    Ok(rows.into_iter().map(RepoId::from_uuid).collect())
+}
+
+/// Live repositories pushed to since `since` (all live ones for `None`).
+pub async fn active_ids_pushed_since(
+    exec: impl PgExecutor<'_>,
+    since: Option<OffsetDateTime>,
+) -> Result<Vec<RepoId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        "SELECT id FROM repositories WHERE state <> 'deleting' AND ($1::timestamptz IS NULL OR pushed_at >= $1) ORDER BY id",
+        since
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(RepoId::from_uuid).collect())
+}

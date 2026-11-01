@@ -60,6 +60,20 @@ enum Command {
         #[arg(long)]
         config: Option<PathBuf>,
     },
+    /// Check repositories against the database; with --reconcile, record
+    /// refs changed outside Slath.
+    Fsck {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Record differences (as pushes with transport "reconcile").
+        #[arg(long)]
+        reconcile: bool,
+        /// Check only this repository (ID).
+        #[arg(long)]
+        repo: Option<String>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Administration commands.
     Admin {
         #[command(subcommand)]
@@ -173,6 +187,12 @@ fn main() -> ExitCode {
             },
             output,
         ),
+        Command::Fsck {
+            config,
+            reconcile,
+            repo,
+            output,
+        } => admin::fsck(&config::resolve_path(config), repo, reconcile, output),
         Command::Hook { hook } => hook::run(hook),
         Command::SshKeys {
             socket,
