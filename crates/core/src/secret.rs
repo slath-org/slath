@@ -8,7 +8,8 @@ use std::fmt;
 /// value; call [`Secret::expose`] at the single place that needs it.
 ///
 /// Deliberately implements neither `Serialize` nor `Clone`, so a secret can't
-/// end up in a response or log record by accident.
+/// end up in a response or log record by accident. It can be deserialized
+/// (configuration values).
 pub struct Secret<T>(T);
 
 impl<T> Secret<T> {
@@ -41,6 +42,12 @@ impl<T> fmt::Display for Secret<T> {
 impl<T> From<T> for Secret<T> {
     fn from(value: T) -> Self {
         Self(value)
+    }
+}
+
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Secret<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::deserialize(d).map(Self)
     }
 }
 

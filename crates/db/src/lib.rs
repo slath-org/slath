@@ -76,6 +76,27 @@ pub async fn migrate(pool: &PgPool) -> Result<(), DbError> {
     Ok(())
 }
 
+/// Migrations embedded in this binary that the database hasn't applied yet,
+/// as `(version, description)`.
+pub async fn pending_migrations(pool: &PgPool) -> Result<Vec<(i64, String)>, DbError> {
+    let exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NOT NULL")
+            .fetch_one(pool)
+            .await?;
+    let applied: Vec<i64> = if exists {
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success")
+            .fetch_all(pool)
+            .await?
+    } else {
+        Vec::new()
+    };
+    Ok(MIGRATOR
+        .iter()
+        .filter(|m| !m.migration_type.is_down_migration() && !applied.contains(&m.version))
+        .map(|m| (m.version, m.description.to_string()))
+        .collect())
+}
+
 /// Reads `schema_info.version`; `None` on an empty database.
 pub async fn schema_version(pool: &PgPool) -> Result<Option<i32>, DbError> {
     let exists: bool =

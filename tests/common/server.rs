@@ -70,8 +70,9 @@ impl TestServer {
     #[must_use]
     pub fn start_full(repos: &[TestRepo], extra: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
+        let port = free_port();
         let mut cfg = format!(
-            "[server]\nlisten = \"127.0.0.1:0\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
+            "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
              [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n\
              [spike]\ntoken = \"{TOKEN}\"\n",
             data = dir.path().join("data").display(),
@@ -167,6 +168,13 @@ impl Drop for TestServer {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// A currently free TCP port on the loopback interface. The server needs
+/// its port before it starts, because `public_url` must name it.
+fn free_port() -> u16 {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    l.local_addr().unwrap().port()
 }
 
 /// A Git client with an isolated configuration, run in `cwd`.

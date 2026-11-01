@@ -3,8 +3,10 @@
 //! The `slath` binary: the server and its helper subcommands.
 #![forbid(unsafe_code)]
 
+mod check;
 mod config;
 mod hook;
+mod output;
 mod serve;
 mod ssh;
 
@@ -12,6 +14,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+
+use crate::output::OutputFormat;
 
 #[derive(Parser)]
 #[command(name = "slath", version, about = "Self-hosted Git and Jujutsu forge")]
@@ -24,9 +28,41 @@ struct Cli {
 enum Command {
     /// Run the HTTP server, the IPC endpoint, and workers.
     Serve {
-        /// Configuration file.
-        #[arg(long, default_value = "/etc/slath/slath.toml")]
-        config: PathBuf,
+        /// Configuration file (default: $SLATH_CONFIG or /etc/slath/slath.toml).
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Apply pending database migrations before starting.
+        #[arg(long)]
+        migrate: bool,
+    },
+    /// Apply pending database migrations.
+    Migrate {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Only report pending migrations.
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Configuration commands.
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+    /// Print version information.
+    Version {
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+        /// Configuration file, used to find the Git binary.
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+    /// Administration commands.
+    Admin {
+        #[command(subcommand)]
+        command: AdminCommand,
     },
     /// Git hook entry points (invoked by Git only).
     Hook {
@@ -51,6 +87,24 @@ enum Command {
     },
 }
 
+#[derive(Subcommand)]
+enum ConfigCommand {
+    /// Validate the configuration and the environment (Git, directories,
+    /// database, master key).
+    Check {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+}
+
+#[derive(Subcommand)]
+enum AdminCommand {
+    /// Print a new master key (store it with mode 0600).
+    GenKey,
+}
+
 fn main() -> ExitCode {
     // Git runs the managed hooks through symlinks named after the hook, so
     // `pre-receive`/`post-receive` as argv[0] means "run that hook". This
@@ -63,7 +117,19 @@ fn main() -> ExitCode {
     }
     let cli = Cli::parse();
     match cli.command {
-        Command::Serve { config } => serve::run(&config),
+        Command::Serve { config, migrate } => serve::run(&config::resolve_path(config), migrate),
+        Command::Migrate {
+            config,
+            dry_run,
+            output,
+        } => check::migrate(&config::resolve_path(config), dry_run, output),
+        Command::Config {
+            command: ConfigCommand::Check { config, output },
+        } => check::config_check(&config::resolve_path(config), output),
+        Command::Version { json, config } => check::version(json, config),
+        Command::Admin {
+            command: AdminCommand::GenKey,
+        } => check::gen_key(),
         Command::Hook { hook } => hook::run(hook),
         Command::SshKeys {
             socket,

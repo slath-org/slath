@@ -2,3 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Passwords, sessions, tokens, and authentication primitives.
 #![forbid(unsafe_code)]
+
+pub mod master_key;
+
+pub use master_key::MasterKey;

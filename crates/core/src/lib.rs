@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod authz;
+pub mod config;
 pub mod ids;
 pub mod names;
 pub mod secret;

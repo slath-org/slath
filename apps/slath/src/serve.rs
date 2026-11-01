@@ -11,10 +11,12 @@ use slath_git::{Runner, RunnerConfig, storage};
 use slath_http::{AppState, RepoEntry, ipc};
 use tracing_subscriber::EnvFilter;
 
-use crate::config::{Config, LogFormat};
+use slath_core::config::LogFormat;
 
-pub fn run(config_path: &Path) -> ExitCode {
-    let cfg = match Config::load(config_path) {
+use crate::config::Loaded as Config;
+
+pub fn run(config_path: &Path, _migrate: bool) -> ExitCode {
+    let cfg = match crate::config::load(config_path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("slath: {e}");
@@ -90,8 +92,11 @@ async fn serve(cfg: Config) -> Result<(), String> {
     let version = runner.check_version().await.map_err(|e| e.to_string())?;
     tracing::info!(%version, "git version ok");
 
+    let Some(spike) = &cfg.spike else {
+        return Err("no [spike] section configured".to_owned());
+    };
     let mut repos = Vec::new();
-    for r in &cfg.spike.repos {
+    for r in &spike.repos {
         let git_dir = storage::repo_path(&cfg.storage.data_dir, r.id);
         if !git_dir.exists() {
             storage::create_bare(&runner, &cfg.storage.data_dir, r.id, &r.default_branch)
@@ -107,7 +112,7 @@ async fn serve(cfg: Config) -> Result<(), String> {
     }
 
     let mut keys = HashMap::new();
-    for k in &cfg.spike.ssh_keys {
+    for k in &spike.ssh_keys {
         let (key_type, key_base64, fingerprint) = k.parse()?;
         let repos = k
             .repos
@@ -153,7 +158,13 @@ async fn serve(cfg: Config) -> Result<(), String> {
     let hooks = Arc::clone(&ctx.hooks);
     tokio::spawn(ipc::serve(listener, ctx));
 
-    let state = AppState::new(runner, repos, cfg.spike.token, hooks, socket);
+    let state = AppState::new(
+        runner,
+        repos,
+        slath_core::Secret::new(spike.token.expose().clone()),
+        hooks,
+        socket,
+    );
     let tcp = tokio::net::TcpListener::bind(cfg.server.listen)
         .await
         .map_err(|e| format!("cannot listen on {}: {e}", cfg.server.listen))?;

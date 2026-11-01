@@ -65,3 +65,11 @@ Before 1.0.0, minor versions may contain breaking changes.
   change IDs and conflicts in Git commits. `just tools` installs the pinned
   jj versions.
 - README with the project's purpose, status, and development quick start.
+- Configuration loading: a TOML file overridden by `SLATH__<SECTION>__<KEY>`
+  environment variables, typed sections with defaults, every limit under
+  `[limits]`, durations (`30s`, `1h`) and sizes (`10MiB`), the database URL
+  from `url` or `url_file`, and errors that name unknown or invalid keys.
+- `slath config check` (Git version, writable `data_dir`, database
+  connectivity and schema, master key permissions), `slath version [--json]`,
+  `slath migrate [--dry-run]`, and `slath admin gen-key`. Administrative
+  commands accept `--output json`.
