@@ -95,6 +95,37 @@ fn conf_git_04_new_repository_is_initialized_on_disk() {
     let home = a.get("/alice/proj");
     assert!(home.body.contains("This repository is empty"));
     assert!(home.body.contains(&format!("{}/alice/proj.git", s.base())));
+    // Before the first push, the history is empty rather than missing.
+    let commits = a.get("/alice/proj/commits");
+    assert_eq!(commits.status, 200, "{}", commits.body);
+    assert!(commits.body.contains("No commits yet."), "{}", commits.body);
+    // A branch other than the default one exists: still no 404.
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .arg("--git-dir")
+            .arg(&path)
+            .args(args)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@example.org")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@example.org")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{out:?}");
+        String::from_utf8(out.stdout).unwrap().trim().to_owned()
+    };
+    let tree = git(&["hash-object", "-t", "tree", "-w", "--stdin"]);
+    let commit = git(&["commit-tree", &tree, "-m", "first"]);
+    git(&["update-ref", "refs/heads/other", &commit]);
+    let commits = a.get("/alice/proj/commits");
+    assert_eq!(commits.status, 200, "{}", commits.body);
+    assert!(
+        commits.body.contains("has no commits yet"),
+        "{}",
+        commits.body
+    );
+    assert_eq!(a.get("/alice/proj/commits/other").status, 200);
+    assert_eq!(a.get("/alice/proj/commits/nothere").status, 404);
     // Duplicate names fail case-insensitively.
     let r = submit(
         &mut a,

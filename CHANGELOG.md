@@ -45,6 +45,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Long data migrations run in the background in resumable batches; `slath admin background-migrations` and the admin page Upgrades show progress and pause, resume, or retry them.
 - Every release ships machine-readable upgrade notes, and releases without them fail the release checks.
 
+### Fixed
+
+- The Commits tab of a repository without commits, or whose default branch doesn't exist yet, now explains that instead of showing "Not found".
+
 ## [0.1.1] - 2026-11-01
 
 Security hardening: the SSH login no longer shares the server's system user. See `docs/admin/upgrading.md` before upgrading a systemd installation.

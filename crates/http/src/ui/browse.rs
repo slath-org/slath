@@ -629,7 +629,10 @@ struct CommitRow {
 struct CommitsPage {
     ctx: PageCtx,
     header: RepoHeader,
-    reference: RefView,
+    /// `None` when the default branch has no commits yet.
+    reference: Option<RefView>,
+    /// Shown instead of the list when there are no commits.
+    empty_text: String,
     path: String,
     commits: Vec<CommitRow>,
     page: usize,
@@ -670,7 +673,8 @@ async fn commits_for(
     let base = link(a, "commits", &r, r.path.as_bytes());
     Ok(render(&CommitsPage {
         header: RepoHeader::new(a, subject, "commits"),
-        reference: ref_view(&r),
+        reference: Some(ref_view(&r)),
+        empty_text: "No commits.".to_owned(),
         path: lossy(r.path.as_bytes()),
         commits: entries
             .into_iter()
@@ -699,13 +703,40 @@ async fn commits(
     let subject = session.subject();
     let (ns, repo, rest) = params(&raw);
     let a = access(&state, &subject, &ns, &repo).await?;
-    let rest = if rest.is_empty() {
-        a.repo.default_branch.as_bytes().to_vec()
-    } else {
-        rest
-    };
-    let r = resolve(&state, &a, &rest).await?;
-    commits_for(&state, ctx, &subject, &a, r, q.page.unwrap_or(1)).await
+    if !rest.is_empty() {
+        let r = resolve(&state, &a, &rest).await?;
+        return commits_for(&state, ctx, &subject, &a, r, q.page.unwrap_or(1)).await;
+    }
+    // The default branch: before the first push it doesn't exist yet,
+    // which is an empty history, not a missing page.
+    let git_dir = state.services.repo_path(a.repo.id);
+    let found = browse::resolve_ref_path(&state.runner, &git_dir, a.repo.default_branch.as_bytes())
+        .await
+        .map_err(|e| git_err(&e))?;
+    if let Some(r) = found {
+        return commits_for(&state, ctx, &subject, &a, r, q.page.unwrap_or(1)).await;
+    }
+    let empty = slath_git::storage::is_empty(&state.runner, &git_dir)
+        .await
+        .map_err(|e| AppError::internal(&e))?;
+    Ok(render(&CommitsPage {
+        header: RepoHeader::new(&a, &subject, "commits"),
+        reference: None,
+        empty_text: if empty {
+            "No commits yet. Once someone pushes, the history appears here.".to_owned()
+        } else {
+            format!(
+                "The default branch {} has no commits yet. Other branches are listed under Branches.",
+                a.repo.default_branch
+            )
+        },
+        path: String::new(),
+        commits: Vec::new(),
+        page: 1,
+        prev_href: None,
+        next_href: None,
+        ctx,
+    }))
 }
 
 struct DiffLineView {
