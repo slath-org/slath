@@ -571,9 +571,15 @@ impl Services {
                     resolved.insert(r.clone(), res);
                     continue;
                 }
-                Ref::Item { ns, repo, .. } | Ref::Commit { ns, repo, .. } => {
-                    (ns.clone(), repo.clone())
+                Ref::Team { org, team } => {
+                    let res = self.resolve_team(subject, org, team).await;
+                    resolved.insert(r.clone(), res);
+                    continue;
                 }
+                Ref::Item { ns, repo, .. }
+                | Ref::Commit { ns, repo, .. }
+                | Ref::Label { ns, repo, .. }
+                | Ref::Milestone { ns, repo, .. } => (ns.clone(), repo.clone()),
             };
             if !repos.contains_key(&target) {
                 let a = self
@@ -624,13 +630,57 @@ impl Services {
                         }
                     }
                 }
-                Ref::Mention { .. } => Resolved::Text,
+                Ref::Label { name, .. } => {
+                    match slath_db::references::label(&self.pool, a.repo.id, name).await? {
+                        Some((name, description)) => Resolved::Link {
+                            href: format!(
+                                "{base}/issues?labels={}",
+                                crate::attachments::percent_encode(&name)
+                            ),
+                            title: description,
+                            state: Some("label"),
+                        },
+                        None => Resolved::Text,
+                    }
+                }
+                Ref::Milestone { title, .. } => {
+                    match slath_db::references::milestone(&self.pool, a.repo.id, title).await? {
+                        Some((title, state)) => Resolved::Link {
+                            href: format!(
+                                "{base}/issues?milestone={}",
+                                crate::attachments::percent_encode(&title)
+                            ),
+                            title: Some(format!("{title} ({state})")),
+                            state: Some("milestone"),
+                        },
+                        None => Resolved::Text,
+                    }
+                }
+                Ref::Mention { .. } | Ref::Team { .. } => Resolved::Text,
             };
             resolved.insert(r.clone(), res);
         }
         Ok(slath_markup::refs::resolve(&html, ctx, |r| {
             resolved.get(r).cloned().unwrap_or(Resolved::Text)
         }))
+    }
+
+    /// A team mention links to the team for members of its organization
+    /// (and site administrators); for everyone else it stays plain text.
+    async fn resolve_team(&self, subject: &Subject, org: &str, team: &str) -> Resolved {
+        let Ok(Some((org_name, slath_db::orgs::NamespaceKind::Org(id)))) =
+            self.resolve_namespace(org).await
+        else {
+            return Resolved::Text;
+        };
+        match self.team(subject, id, team).await {
+            Ok(t) => Resolved::Link {
+                href: format!("/{org_name}/-/teams/{}", t.team.name),
+                title: t.team.description,
+                state: None,
+            },
+            Err(_) => Resolved::Text,
+        }
     }
 
     /// Whether `a` allows `action` for the subject (templates).

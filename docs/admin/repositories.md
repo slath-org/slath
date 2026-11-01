@@ -37,10 +37,21 @@ ambiguous.
   comments; the write role edits and closes any issue; the maintain role
   also hides and deletes others' comments (recorded in the audit log).
 - Markdown in issues and comments links references: `#12` and
-  `owner/repo#12` (issues), `@name` (people), and commit IDs (7 to 40
-  hexadecimal characters, or `owner/repo@abc1234`). A reference shows the
-  target's title and state only to people who can read it; for everyone
-  else it stays plain text and reveals nothing. A reference to another
+  `owner/repo#12` (issues), `@name` (people), `@org/team` (teams),
+  `~bug` or `~"needs review"` (labels of the repository), `%v1.0` or
+  `%"Q3 cleanup"` (milestones), and commit IDs (7 to 40 hexadecimal
+  characters, or `owner/repo@abc1234`). A reference shows the target's
+  title and state only to people who can read it; for everyone else it
+  stays plain text and reveals nothing. Team references link only for
+  members of the organization.
+- The editor suggests references while typing. The same suggestions are
+  available with a token at
+  `GET /api/v1/repos/{owner}/{repo}/references?kind=user|team|item|label|milestone&q=`:
+  at most 10, only from repositories the caller can read, never with email
+  addresses, and 60 requests a minute per user. People are ranked by taking
+  part in the issue (`item=<number>`), then by access to the repository.
+  With open registration, someone without access of their own to the
+  repository is only offered people who already took part in it. A reference to another
   issue adds "mentioned this in" to that issue, shown only to people who
   can read where the mention was made.
 - Titles have up to 256 characters; descriptions and comments are limited

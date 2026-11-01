@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH thread AS (\n               SELECT author_id AS id FROM issues WHERE id = $2\n               UNION SELECT author_id FROM comments WHERE subject_id = $2 AND deleted_at IS NULL\n               UNION SELECT user_id FROM issue_assignees WHERE issue_id = $2\n           ), repo_people AS (\n               SELECT author_id AS id FROM issues WHERE repo_id = $1\n               UNION SELECT author_id FROM comments WHERE repo_id = $1 AND deleted_at IS NULL\n               UNION SELECT a.user_id FROM issue_assignees a JOIN issues i ON i.id = a.issue_id\n                      WHERE i.repo_id = $1\n               UNION SELECT u.id FROM users u JOIN repositories r ON r.namespace_id = u.namespace_id\n                      WHERE r.id = $1\n           )\n           SELECT n.name::text AS \"name!\", u.display_name,\n                  (CASE WHEN u.id IN (SELECT id FROM thread WHERE id IS NOT NULL) THEN 0\n                        WHEN slath_can_read($1, u.id) THEN 1\n                        ELSE 2 END) AS \"rank!\"\n             FROM users u JOIN namespaces n ON n.id = u.namespace_id\n            WHERE u.state = 'active'\n              AND (n.name::text ILIKE $3 OR u.display_name ILIKE $3)\n              AND (NOT $4 OR u.id IN (SELECT id FROM repo_people WHERE id IS NOT NULL))\n            ORDER BY 3, lower(n.name::text)\n            LIMIT $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "rank!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      true,
+      null
+    ]
+  },
+  "hash": "7ff74d6e475830ba463a1f6bc9d2c2bf09c2237abf1913097b706b4d395df847"
+}

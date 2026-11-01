@@ -3143,6 +3143,118 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/references": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Suggestions for completing a reference in this repository's text: at\nmost 10, ranked. Never includes email addresses; 60 requests a minute.",
+        "operationId": "api_references",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "`user`, `team`, `item`, `label`, or `milestone`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "path",
+            "description": "What was typed so far (with or without the leading `@`, `#`, `~`, `%`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "description": "The issue being edited (its participants rank first).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/tags": {
       "get": {
         "tags": [
@@ -4556,6 +4668,57 @@
           "role": {
             "type": "string",
             "description": "`owner` or `member`."
+          }
+        }
+      },
+      "ReferenceJson": {
+        "type": "object",
+        "description": "One suggestion.",
+        "required": [
+          "kind",
+          "value",
+          "label"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Label color as `rrggbb`."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name, issue state, or description."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`user`, `team`, `item`, `label`, or `milestone`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Name or title."
+          },
+          "value": {
+            "type": "string",
+            "description": "The text to insert, e.g. `@alice`, `#12`, `~\"needs review\"`."
+          }
+        }
+      },
+      "ReferenceList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferenceJson"
+            }
           }
         }
       },

@@ -29,6 +29,7 @@ pub mod protections;
 pub mod push;
 pub mod reconcile;
 pub mod recovery;
+pub mod references;
 pub mod registration;
 pub mod repos;
 pub mod secrets;
@@ -63,6 +64,8 @@ pub struct Services {
     pub webauthn: Option<Arc<webauthn_rs::prelude::Webauthn>>,
     /// Attachments and avatars.
     pub blobs: blobs::LocalBlobStore,
+    /// Requests for reference suggestions per user.
+    pub reference_limiter: Arc<references::Limiter>,
 }
 
 impl Services {
@@ -89,6 +92,7 @@ impl Services {
             maintenance: Arc::default(),
             webauthn,
             blobs,
+            reference_limiter: Arc::default(),
         }
     }
 

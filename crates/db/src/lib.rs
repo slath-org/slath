@@ -17,6 +17,7 @@ pub mod labels;
 pub mod mfa;
 pub mod orgs;
 pub mod protections;
+pub mod references;
 pub mod refs;
 pub mod repos;
 pub mod secrets;

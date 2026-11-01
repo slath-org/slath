@@ -14,6 +14,7 @@ pub mod health;
 pub mod ipc;
 pub mod metrics;
 pub mod middleware;
+pub mod references;
 pub mod routes;
 pub mod ui;
 

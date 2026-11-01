@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name::text AS \"name!\", color::text AS \"color!\", description FROM labels\n            WHERE repo_id = $1 AND name::text ILIKE $3\n            ORDER BY (CASE WHEN name::text ILIKE $2 THEN 0 ELSE 1 END), lower(name::text)\n            LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "color!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "labels",
+            "name": "description"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "eb121a906a6fd3360056a53c20a50938acbe192df09c22b9e4e30fe37cebda05"
+}

@@ -63,7 +63,9 @@ pub fn attachment_path(ns: &str, repo: &str, a: &Attachment) -> String {
     format!("/{ns}/{repo}/attachments/{}/{name}", a.id)
 }
 
-fn percent_encode(s: &str) -> String {
+/// Percent-encodes everything but unreserved characters.
+#[must_use]
+pub fn percent_encode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {

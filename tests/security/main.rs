@@ -21,6 +21,7 @@ mod protection;
 mod reconcile;
 mod recovery;
 mod redaction;
+mod references;
 mod registration;
 mod repos;
 mod routes;

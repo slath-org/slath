@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text || '/' || t.name::text AS \"name!\"\n             FROM repositories r\n             JOIN organizations o ON o.namespace_id = r.namespace_id\n             JOIN namespaces n ON n.id = o.namespace_id\n             JOIN teams t ON t.org_id = o.id\n            WHERE r.id = $1\n              AND EXISTS (SELECT 1 FROM org_members m WHERE m.org_id = o.id AND m.user_id = $2)\n              AND t.name::text ILIKE $3\n            ORDER BY lower(t.name::text)\n            LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7a4bc976317efd24c2f3161e58dd7502bd26fefa345fb6852ea4d084ba60064c"
+}
