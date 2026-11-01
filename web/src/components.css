@@ -1077,3 +1077,15 @@ a.label-chip:hover {
 .sidebar-form select {
   width: 100%;
 }
+
+/* Notifications */
+.notification-list .item-row:not(.item-unread) .item-title {
+  font-weight: var(--weight-regular);
+}
+.repo-watch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}

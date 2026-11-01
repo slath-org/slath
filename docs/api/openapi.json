@@ -14,6 +14,141 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Your notifications, newest first; things you can no longer read are left out.",
+        "operationId": "api_list",
+        "parameters": [
+          {
+            "name": "all",
+            "in": "path",
+            "description": "Include read notifications.",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "description": "Page number (50 per page).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}": {
+      "patch": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Marks a notification read or unread.",
+        "operationId": "api_patch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/orgs": {
       "get": {
         "tags": [
@@ -4475,6 +4610,81 @@
               "null"
             ],
             "description": "Defaults to the key's comment."
+          }
+        }
+      },
+      "NotificationJson": {
+        "type": "object",
+        "description": "A notification in the API.",
+        "required": [
+          "id",
+          "repository",
+          "subject_type",
+          "number",
+          "title",
+          "state",
+          "reason",
+          "unread",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why you got it: `assigned`, `mentioned`, `author`, `commented`, `watching`, …."
+          },
+          "repository": {
+            "type": "string",
+            "description": "`owner/repo`."
+          },
+          "state": {
+            "type": "string",
+            "description": "The issue's state."
+          },
+          "subject_type": {
+            "type": "string",
+            "description": "`issue` (merge requests later)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "NotificationList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationJson"
+            }
+          }
+        }
+      },
+      "NotificationPatch": {
+        "type": "object",
+        "properties": {
+          "unread": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Required."
           }
         }
       },

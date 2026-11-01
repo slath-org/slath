@@ -418,6 +418,9 @@ fn conf_sec_04_csrf_matrix() {
                 "/-/csp-report",
                 "/metrics",
                 "/-/design",
+                // Authorized by the signed token in the path (mail clients
+                // post to it directly); tested in notifications.rs.
+                "/-/unsubscribe/{token}",
             ]
             .contains(&template)
         {

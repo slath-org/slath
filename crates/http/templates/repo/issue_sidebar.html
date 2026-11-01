@@ -1,4 +1,22 @@
 <aside class="issue-sidebar" aria-label="Issue details">
+  {%- if let Some(sub) = subscription %}
+  <section aria-labelledby="side-notifications">
+    <h2 id="side-notifications" class="sidebar-heading">Notifications</h2>
+    <p class="text-secondary">
+      {%- if *sub == "watching" %}You're subscribed to this issue.
+      {%- else if *sub == "ignoring" %}You're not notified about this issue.
+      {%- else %}You're notified if you take part, are mentioned, or watch the repository.{% endif %}</p>
+    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/subscription" class="inline-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- if *sub == "watching" || *sub == "default" %}
+      <button type="submit" name="state" value="ignoring" class="button">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unsubscribe</button>
+      {%- endif %}
+      {%- if *sub != "watching" %}
+      <button type="submit" name="state" value="watching" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Subscribe</button>
+      {%- endif %}
+    </form>
+  </section>
+  {%- endif %}
   <section aria-labelledby="side-assignees">
     <h2 id="side-assignees" class="sidebar-heading">Assignees</h2>
     {%- if assignees.is_empty() %}

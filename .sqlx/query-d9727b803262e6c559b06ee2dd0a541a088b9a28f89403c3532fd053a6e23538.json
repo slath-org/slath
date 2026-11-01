@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE notifications SET unread = false\n          WHERE user_id = $1 AND subject_kind = $2 AND subject_id = $3 AND unread",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d9727b803262e6c559b06ee2dd0a541a088b9a28f89403c3532fd053a6e23538"
+}

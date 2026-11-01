@@ -305,6 +305,11 @@ pub async fn csrf(State(state): State<AppState>, req: Request, next: Next) -> Re
     if matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
         return next.run(req).await;
     }
+    // Unsubscribe links carry a signed token that authorizes them; mail
+    // clients post to them directly (one-click unsubscribe).
+    if req.uri().path().starts_with("/-/unsubscribe/") {
+        return next.run(req).await;
+    }
     let forbidden = || {
         AppError::forbidden()
             .detail(

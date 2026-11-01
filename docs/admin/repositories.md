@@ -57,6 +57,28 @@ ambiguous.
 - Titles have up to 256 characters; descriptions and comments are limited
   by `limits.text_max_bytes` (256 KiB by default).
 
+### Notifications
+
+- People are notified about issues they opened, commented on, or are
+  assigned to, when they are mentioned (`@name`, or `@org/team` for the
+  team's members), and about every issue in repositories they watch.
+  Creating a repository watches it. Nobody is notified about their own
+  actions.
+- The Watch button on a repository's front page watches it or ignores it
+  (then only mentions and assignments notify). The Notifications box in an
+  issue's sidebar subscribes to or unsubscribes from that issue.
+- Notifications collect in the inbox (`/-/notifications`, one entry per
+  issue, marked unread on new activity) and, if the instance sends email
+  and the address is confirmed, as one email per event, threaded per issue
+  with `List-Id` and a one-click `List-Unsubscribe` link. People turn email
+  off under Settings → Notifications.
+- Read access is checked when a notification is created, when its email
+  is sent, and when the inbox is shown: someone who loses access hears
+  nothing more and no longer sees earlier entries. With a token, the API
+  (`GET /api/v1/notifications`, `PATCH /api/v1/notifications/{id}`) needs
+  `user:read` (`user:write` to change) and shows entries of private
+  repositories only with `repo:read`.
+
 ### Attachments
 
 - People who can comment can attach files, up to `limits.attachment_max_bytes`

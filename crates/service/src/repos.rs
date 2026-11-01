@@ -320,6 +320,18 @@ impl Services {
         {
             slath_db::repos::set_collaborator(&mut *tx, id, *creator, Role::Admin).await?;
         }
+        // Creators watch what they create.
+        if let Subject::User { id: creator, .. } = subject {
+            slath_db::notifications::set_subscription(
+                &mut *tx,
+                *creator,
+                "repo",
+                *id.as_uuid(),
+                id,
+                Some("watching"),
+            )
+            .await?;
+        }
         let path = slath_git::storage::create_bare(
             &self.runner,
             &self.config.storage.data_dir,

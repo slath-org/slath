@@ -64,6 +64,8 @@ pub struct Services {
     pub webauthn: Option<Arc<webauthn_rs::prelude::Webauthn>>,
     /// Attachments and avatars.
     pub blobs: blobs::LocalBlobStore,
+    /// Signs unsubscribe links in notification emails.
+    pub unsubscribe_keys: Arc<Csrf>,
     /// Requests for reference suggestions per user.
     pub reference_limiter: Arc<references::Limiter>,
 }
@@ -86,6 +88,7 @@ impl Services {
             config,
             csrf: Arc::new(Csrf::new(master.derive("csrf"))),
             cursors: Arc::new(Csrf::new(master.derive("api-cursor"))),
+            unsubscribe_keys: Arc::new(Csrf::new(master.derive("unsubscribe"))),
             runner,
             envelope: Arc::new(slath_auth::Envelope::new(master, &[])),
             background_registry: Arc::new(vec![repo_config]),

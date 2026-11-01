@@ -518,8 +518,10 @@ impl Services {
         }
         let current = slath_db::labels::assignees(&self.pool, &[issue.id]).await?;
         let mut changed = false;
+        let mut added = Vec::new();
         for (u, name) in &ids {
             if slath_db::labels::add_assignee(&self.pool, issue.id, *u).await? {
+                added.push(*u);
                 self.event(
                     &a,
                     issue.id,
@@ -548,6 +550,15 @@ impl Services {
         }
         if changed {
             slath_db::issues::touch(&self.pool, issue.id).await?;
+        }
+        if !added.is_empty() {
+            self.notify_item(
+                subject,
+                &a,
+                &issue,
+                crate::notifications::Activity::Assigned(added),
+            )
+            .await;
         }
         Ok(())
     }

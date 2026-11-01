@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Unsubscribe{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Unsubscribe</h1>
+{%- if done %}
+<div class="success-summary" role="status"><p>You won't get notifications about {% if let Some(t) = target %}{{ t }}{% else %}this thread{% endif %} anymore.</p></div>
+{%- else %}
+<p>Stop notifications about {% if let Some(t) = target %}<strong>{{ t }}</strong>{% else %}this thread{% endif %}?</p>
+<form method="post" action="/-/unsubscribe/{{ token }}" class="form">
+  <div><button type="submit" class="button button-primary">Unsubscribe</button></div>
+</form>
+{%- endif %}
+</div>
+{% endblock %}

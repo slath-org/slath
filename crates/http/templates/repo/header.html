@@ -2,6 +2,21 @@
   <p class="repo-title"><a href="/{{ header.namespace }}">{{ header.namespace }}</a> / <a href="/{{ header.namespace }}/{{ header.name }}"><strong>{{ header.name }}</strong></a>
   {%- if header.private %} <span class="badge">Private</span>{% else %} <span class="badge">Public</span>{% endif %}
   {%- if header.archived %} <span class="badge">Archived</span>{% endif %}</p>
+  {%- if let Some(w) = header.watch %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form repo-watch">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    {%- if *w == "watching" %}
+    <button type="submit" name="state" value="default" class="button" aria-describedby="watch-state">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
+    <span id="watch-state" class="text-secondary">You're notified about all issues.</span>
+    {%- else if *w == "ignoring" %}
+    <button type="submit" name="state" value="default" class="button" aria-describedby="watch-state">{% call m::icon(ctx, "eye") %}{% endcall %}Stop ignoring</button>
+    <span id="watch-state" class="text-secondary">You're notified only when mentioned or assigned.</span>
+    {%- else %}
+    <button type="submit" name="state" value="watching" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button>
+    <button type="submit" name="state" value="ignoring" class="button button-quiet">Ignore</button>
+    {%- endif %}
+  </form>
+  {%- endif %}
   <nav class="tabs" aria-label="Repository">
     <ul>
       <li><a href="/{{ header.namespace }}/{{ header.name }}"{% if header.tab == "code" %} aria-current="page"{% endif %}>Code</a></li>

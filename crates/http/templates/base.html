@@ -41,6 +41,7 @@
         </form>
       </details>
     {%- if let Some(user) = ctx.user %}
+      <a href="/-/notifications">Notifications</a>
       <a href="/{{ user.name }}">{{ user.name }}</a>
       <a href="/-/settings">Settings</a>
       {%- if user.is_admin %}

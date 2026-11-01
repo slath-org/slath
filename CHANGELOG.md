@@ -29,6 +29,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Labels and milestones for issues, managed by maintainers in the web UI and the API.
 - Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
 - Filter issues by labels, assignee, author, and milestone, and sort them by last update.
+- Notifications about issues you take part in, are mentioned or assigned in, or watch, in an inbox and by email.
+- Watch or ignore repositories and subscribe to or unsubscribe from single issues; emails have a one-click unsubscribe link.
+- Notifications stop, and older ones are hidden, when someone loses access to the repository.
 - Attach files to issues and comments (web UI and API); images display inline, everything else including SVG downloads.
 - Attachments of private repositories are only served to people who can read the repository.
 - Upload avatars for users and organizations; they are re-encoded as 256 × 256 PNG without EXIF or GPS metadata.

@@ -8,6 +8,9 @@ for (const [path, heading] of [
   ["/-/settings/sessions", "Sessions"],
   ["/-/settings/keys", "SSH keys"],
   ["/-/settings/tokens", "Access tokens"],
+  ["/-/settings/notifications", "Notifications"],
+  ["/-/notifications", "Notifications"],
+  ["/-/notifications?all=true", "Notifications"],
   ["/-/sudo?next=/", "Confirm your password"],
 ] as const) {
   test(`conf_a11y_01_settings_page_accessible ${path}`, async ({ page }) => {

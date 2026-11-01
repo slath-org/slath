@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO subscriptions (user_id, subject_kind, subject_id, repo_id, state)\n                 VALUES ($1, $2, $3, $4, $5)\n                 ON CONFLICT (user_id, subject_kind, subject_id) DO UPDATE SET state = EXCLUDED.state",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6425b8bbe231b041acdcc1771d8e84dc5a073350487685efadc7d75fbfaf1f94"
+}

@@ -158,6 +158,7 @@ impl utoipa::Modify for SecurityAddon {
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,
         labels::list_milestones, labels::create_milestone, labels::update_milestone, labels::delete_milestone,
         crate::attachments::api_upload, crate::references::api_references,
+        crate::ui::notifications::api_list, crate::ui::notifications::api_patch,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
@@ -190,5 +191,6 @@ pub fn router() -> Router<AppState> {
         .merge(labels::router())
         .merge(crate::attachments::api_router())
         .merge(crate::references::api_router())
+        .merge(crate::ui::notifications::api_router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

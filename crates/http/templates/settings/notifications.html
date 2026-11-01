@@ -1,0 +1,15 @@
+{% extends "settings/layout.html" %}
+{% block title %}Notification settings{% endblock %}
+{% block settings %}
+<h1>Notifications</h1>
+<p>You get notifications about issues you opened, commented on, are assigned to, or are mentioned in, and about everything in repositories you watch. They appear in your <a href="/-/notifications">inbox</a>.</p>
+<form method="post" action="/-/settings/notifications" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="checkbox">
+    <input id="email" name="email" type="checkbox" value="on"{% if email_on %} checked{% endif %} aria-describedby="email-hint">
+    <label for="email">Also send notifications by email</label>
+  </div>
+  <p id="email-hint" class="hint">{% if email_enabled %}Only to a confirmed address. Every email has a link to stop notifications about its issue.{% else %}This instance doesn't send email, so notifications only appear in your inbox.{% endif %}</p>
+  <div><button type="submit" class="button button-primary">Save</button></div>
+</form>
+{% endblock %}

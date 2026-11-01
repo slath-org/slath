@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO notifications (id, user_id, repo_id, subject_kind, subject_id, reason)\n         VALUES ($1, $2, $3, $4, $5, $6)\n         ON CONFLICT (user_id, subject_kind, subject_id)\n         DO UPDATE SET unread = true, updated_at = now(), reason = EXCLUDED.reason",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "678023abe35b9f053b078acaecc4d10e1dd1a3e53fa6299741194b4c5045636b"
+}

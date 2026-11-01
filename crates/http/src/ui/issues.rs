@@ -415,6 +415,8 @@ struct IssuePage {
     /// For triagers: every label of the repository and whether it's set.
     label_choices: Vec<(slath_db::labels::Label, bool)>,
     milestone_choices: Vec<String>,
+    /// `watching`, `ignoring`, or `default` (signed-in viewers only).
+    subscription: Option<&'static str>,
 }
 
 impl IssuePage {
@@ -501,7 +503,20 @@ pub(super) async fn issue_page(
     } else {
         (Vec::new(), Vec::new())
     };
+    let subscription = if matches!(subject, Subject::Anonymous) {
+        None
+    } else {
+        state.services.mark_issue_read(subject, &issue).await;
+        Some(
+            match state.services.issue_subscription(subject, &issue).await {
+                slath_service::notifications::Subscription::Watching => "watching",
+                slath_service::notifications::Subscription::Ignoring => "ignoring",
+                slath_service::notifications::Subscription::Default => "default",
+            },
+        )
+    };
     let mut res = render(&IssuePage {
+        subscription,
         header: RepoHeader::new(&a, subject, "issues"),
         assignees: meta.assignees.remove(&issue.id).unwrap_or_default(),
         labels,

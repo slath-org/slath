@@ -74,6 +74,9 @@ pub struct RepoHeader {
     pub issues: bool,
     /// Which tab is active: `code`, `issues`, `settings`, ….
     pub tab: &'static str,
+    /// The viewer's subscription (`watching`, `ignoring`, `default`), shown
+    /// on the repository's front page to signed-in viewers.
+    pub watch: Option<&'static str>,
 }
 
 impl RepoHeader {
@@ -87,7 +90,21 @@ impl RepoHeader {
             can_admin: a.can(subject, Action::RepoSettings),
             issues: a.repo.issues_enabled,
             tab,
+            watch: None,
         }
+    }
+
+    /// Adds the viewer's watch state (front page only).
+    pub async fn with_watch(mut self, state: &AppState, a: &RepoAccess, subject: &Subject) -> Self {
+        if !matches!(subject, Subject::Anonymous) {
+            use slath_service::notifications::Subscription;
+            self.watch = Some(match state.services.repo_subscription(subject, a).await {
+                Subscription::Watching => "watching",
+                Subscription::Ignoring => "ignoring",
+                Subscription::Default => "default",
+            });
+        }
+        self
     }
 }
 
@@ -260,7 +277,9 @@ pub async fn repo_home(
     }
     let (https_url, ssh_url) = clone_urls(&state, &a.repo.namespace, &a.repo.name);
     Ok(render(&RepoHome {
-        header: RepoHeader::new(&a, &subject, "code"),
+        header: RepoHeader::new(&a, &subject, "code")
+            .with_watch(&state, &a, &subject)
+            .await,
         description: a.repo.description.clone(),
         can_push: a.can(&subject, Action::RepoPush),
         default_branch: a.repo.default_branch.clone(),

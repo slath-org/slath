@@ -15,6 +15,7 @@ mod headers;
 mod issues;
 mod keys;
 mod mfa;
+mod notifications;
 mod orgs;
 mod passkeys;
 mod protection;

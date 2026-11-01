@@ -41,6 +41,17 @@ pub struct Email {
     pub list_id: Option<String>,
     /// One-click unsubscribe URL (`List-Unsubscribe`).
     pub unsubscribe: Option<String>,
+    /// Send only if this user can still read this repository when the
+    /// message goes out (notifications).
+    #[serde(default)]
+    pub read_check: Option<ReadCheck>,
+}
+
+/// A recipient and the repository the message is about.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct ReadCheck {
+    pub user: uuid::Uuid,
+    pub repo: uuid::Uuid,
 }
 
 /// Parameters of every email template.
@@ -156,6 +167,17 @@ impl Services {
             .map_err(|e| JobError::Permanent(format!("cannot decrypt the message: {e}")))?;
         let email: Email = serde_json::from_slice(plain.expose())
             .map_err(|e| JobError::Permanent(format!("invalid message: {e}")))?;
+        if let Some(c) = email.read_check
+            && !self
+                .user_can_read_issues(
+                    slath_core::ids::UserId::from_uuid(c.user),
+                    slath_core::ids::RepoId::from_uuid(c.repo),
+                )
+                .await
+        {
+            // Access was lost after the notification was queued.
+            return Ok(());
+        }
         self.deliver(&email, id).await
     }
 

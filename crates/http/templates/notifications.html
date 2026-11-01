@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <h1>Notifications</h1>
+  {%- if !rows.is_empty() %}
+  <form method="post" action="/-/notifications/read" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button">{% call m::icon(ctx, "check") %}{% endcall %}Mark all as read</button>
+  </form>
+  {%- endif %}
+</div>
+<nav class="tabs" aria-label="Notifications">
+  <ul>
+    <li><a href="/-/notifications"{% if !all %} aria-current="page"{% endif %}>Unread</a></li>
+    <li><a href="/-/notifications?all=true"{% if all %} aria-current="page"{% endif %}>All</a></li>
+  </ul>
+</nav>
+{%- if rows.is_empty() %}
+<p class="text-secondary empty-state">{% if all %}No notifications yet. You get them about issues you take part in, are mentioned in, or watch.{% else %}You're all caught up.{% endif %}</p>
+{%- else %}
+<ul class="item-list notification-list">
+{%- for r in rows %}
+  <li class="item-row{% if r.unread %} item-unread{% endif %}">
+    <span class="item-state item-state-{% if r.open %}open{% else %}closed{% endif %}">{% if r.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if r.open %}open{% else %}closed{% endif %}</span></span>
+    <div class="item-main">
+      <a class="item-title" href="{{ r.href }}"><bdi>{{ r.title }}</bdi></a>{% if r.unread %} <span class="badge">Unread</span>{% endif %}
+      <p class="item-meta text-secondary">{{ r.repo }}#{{ r.number }} · {{ r.reason }} · <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
+    </div>
+    <form method="post" action="/-/notifications/{{ r.id }}/mark" class="inline-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- if r.unread %}
+      <button type="submit" name="mark" value="read" class="button button-quiet">Mark as read<span class="visually-hidden">: {{ r.title }}</span></button>
+      {%- else %}
+      <button type="submit" name="mark" value="unread" class="button button-quiet">Mark as unread<span class="visually-hidden">: {{ r.title }}</span></button>
+      {%- endif %}
+    </form>
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if let Some(n) = next %}
+<p><a class="button" href="{{ n }}">Next page</a></p>
+{%- endif %}
+{% endblock %}

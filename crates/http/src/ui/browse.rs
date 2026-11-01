@@ -308,8 +308,15 @@ async fn tree_page(
             a.repo.name
         )
     };
+    let header = if home {
+        RepoHeader::new(a, subject, "code")
+            .with_watch(state, a, subject)
+            .await
+    } else {
+        RepoHeader::new(a, subject, "code")
+    };
     Ok(render(&TreePage {
-        header: RepoHeader::new(a, subject, "code"),
+        header,
         title,
         reference: ref_view(&r),
         crumbs: crumbs(a, &r),
