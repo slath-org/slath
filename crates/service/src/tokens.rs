@@ -127,6 +127,7 @@ impl Services {
             },
         )
         .await?;
+        self.audit(&session.subject, "token.create", crate::audit::Target::new("token", Some(*id.as_uuid())), serde_json::json!({"name": name, "scopes": scope_strings, "expires_in_days": t.expires_in_days})).await;
         Ok((secret, id))
     }
 
@@ -156,6 +157,13 @@ impl Services {
     pub async fn revoke_token(&self, subject: &Subject, id: TokenId) -> Result<()> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
         if slath_db::tokens::revoke(&self.pool, user, id).await? {
+            self.audit(
+                subject,
+                "token.revoke",
+                crate::audit::Target::new("token", Some(*id.as_uuid())),
+                serde_json::json!({}),
+            )
+            .await;
             Ok(())
         } else {
             Err(ServiceError::NotFound)

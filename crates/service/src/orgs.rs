@@ -81,6 +81,13 @@ impl Services {
                 other => other.into(),
             })?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "org.create",
+            crate::audit::Target::org(*id.as_uuid()),
+            serde_json::json!({"name": name.as_str()}),
+        )
+        .await;
         Ok(id)
     }
 
@@ -175,6 +182,13 @@ impl Services {
         }
         slath_db::orgs::upsert_member(&mut *tx, org, target, role).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "org.member.set",
+            crate::audit::Target::org(*org.as_uuid()),
+            serde_json::json!({"username": username.trim(), "role": role.as_str()}),
+        )
+        .await;
         Ok(())
     }
 
@@ -208,6 +222,13 @@ impl Services {
         }
         slath_db::orgs::remove_member(&mut *tx, org, target).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "org.member.remove",
+            crate::audit::Target::org(*org.as_uuid()),
+            serde_json::json!({"username": username.trim()}),
+        )
+        .await;
         Ok(())
     }
 

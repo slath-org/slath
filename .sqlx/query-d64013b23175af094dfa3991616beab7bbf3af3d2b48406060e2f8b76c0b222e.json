@@ -1,0 +1,106 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.id, n.name::text AS actor, host(e.actor_ip) AS actor_ip, e.action, e.target_kind, e.target_id, e.data, e.created_at\n           FROM audit_events e\n           LEFT JOIN users u ON u.id = e.actor_id\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE ($1::text IS NULL OR e.action LIKE replace(replace($1, '%', '\\%'), '_', '\\_') || '%')\n             AND ($2::text IS NULL OR n.name = $2::citext)\n             AND ($3::uuid IS NULL OR e.org_id = $3)\n           ORDER BY e.created_at DESC, e.id DESC OFFSET $4 LIMIT $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "actor",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "actor_ip",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "action",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "target_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "target_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "target_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "data",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "audit_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d64013b23175af094dfa3991616beab7bbf3af3d2b48406060e2f8b76c0b222e"
+}

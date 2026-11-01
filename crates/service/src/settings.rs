@@ -112,6 +112,13 @@ impl Services {
             slath_db::sessions::delete_all_for_user(&mut *tx, user.id, Some(&session.row.id_hash))
                 .await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            &session.subject,
+            "password.change",
+            crate::audit::Target::new("user", Some(*user.id.as_uuid())),
+            serde_json::json!({"other_sessions_revoked": revoked}),
+        )
+        .await;
         Ok(revoked)
     }
 
@@ -186,6 +193,13 @@ impl Services {
         )
         .await
         .map_err(|e| LoginError::Internal(e.to_string()))?;
+        self.audit(
+            &session.subject,
+            "sudo.enter",
+            crate::audit::Target::new("user", Some(*session.user_id().as_uuid())),
+            serde_json::json!({}),
+        )
+        .await;
         Ok(())
     }
 }

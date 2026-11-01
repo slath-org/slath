@@ -1,0 +1,54 @@
+{% extends "admin/layout.html" %}
+{% block title %}Users · Administration{% endblock %}
+{% block admin %}
+<h1>Users</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p>
+{%- if let Some(p) = password %}
+<p><label for="new-password">Password</label> <input id="new-password" class="token-value" type="text" value="{{ p }}" readonly autocomplete="off"></p>
+{%- endif %}
+</div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="users-caption">
+<table class="table">
+  <caption id="users-caption" class="visually-hidden">Users</caption>
+  <thead><tr><th scope="col">User</th><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Joined</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for u in users %}
+    <tr>
+      <td><a href="/{{ u.name }}">{{ u.name }}</a>{% if let Some(d) = u.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td>{{ u.email }}</td>
+      <td>{% if u.suspended %}<strong>Suspended</strong>{% else %}Active{% endif %}{% if u.admin %} <span class="badge">Admin</span>{% endif %}</td>
+      <td><time datetime="{{ u.created.iso }}">{{ u.created.text }}</time></td>
+      <td class="row-actions">
+        <form method="post" action="/-/admin/users/{{ u.name }}/{% if u.suspended %}unsuspend{% else %}suspend{% endif %}" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">{% if u.suspended %}Reactivate{% else %}Suspend{% endif %}<span class="visually-hidden"> {{ u.name }}</span></button>
+        </form>
+        <form method="post" action="/-/admin/users/{{ u.name }}/{% if u.admin %}revoke-admin{% else %}grant-admin{% endif %}" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">{% if u.admin %}Revoke admin{% else %}Make admin{% endif %}<span class="visually-hidden"> {{ u.name }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+<h2>Create a user</h2>
+<form method="post" action="/-/admin/users" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" required autocapitalize="none" spellcheck="false"{% if self.error("username").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div class="field">
+    <label for="email">Email <span class="text-secondary">(optional)</span></label>
+    <input id="email" name="email" type="email" value="{{ email }}" autocomplete="off"{% if self.error("email").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div class="checkbox"><input id="admin" type="checkbox" name="admin" value="1"><label for="admin">Site administrator</label></div>
+  <p class="hint">A random password is generated and shown once.</p>
+  <div><button type="submit" class="button button-primary">Create user</button></div>
+</form>
+{% endblock %}

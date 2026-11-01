@@ -1,0 +1,20 @@
+{% extends "admin/layout.html" %}
+{% block title %}Organizations · Administration{% endblock %}
+{% block admin %}
+<h1>Organizations</h1>
+{%- if orgs.is_empty() %}
+<p class="text-secondary">No organizations.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="orgs-caption">
+<table class="table">
+  <caption id="orgs-caption" class="visually-hidden">Organizations</caption>
+  <thead><tr><th scope="col">Organization</th><th scope="col">Created</th></tr></thead>
+  <tbody>
+  {%- for o in orgs %}
+    <tr><td><a href="/{{ o.name }}">{{ o.name }}</a>{% if let Some(d) = o.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td><td><time datetime="{{ o.created.iso }}">{{ o.created.text }}</time></td></tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

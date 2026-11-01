@@ -156,7 +156,8 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
         })
     };
     {
-        // Periodic maintenance: purge repositories whose trash time is up.
+        // Periodic maintenance: purge repositories whose trash time is up
+        // and audit events past their retention.
         let svc = state.services.clone();
         let mut stop = stop_tx.subscribe();
         tokio::spawn(async move {
@@ -166,6 +167,9 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
                     _ = tick.tick() => {
                         if let Err(e) = svc.purge_deleted_repos().await {
                             tracing::warn!(error = %e, "purging deleted repositories failed");
+                        }
+                        if let Err(e) = svc.purge_audit().await {
+                            tracing::warn!(error = %e, "purging old audit events failed");
                         }
                     }
                     _ = stop.changed() => return,

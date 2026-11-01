@@ -8,6 +8,8 @@
 #![forbid(unsafe_code)]
 
 pub mod accounts;
+pub mod admin;
+pub mod audit;
 pub mod error;
 pub mod jobs;
 pub mod keys;

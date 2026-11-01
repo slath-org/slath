@@ -4,6 +4,7 @@
 //! htmx requests get fragments of the same templates.
 
 pub mod account;
+pub mod admin;
 pub mod browse;
 pub mod design;
 pub mod identicon;
@@ -308,6 +309,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(profiles::router())
         .merge(repos::router())
         .merge(browse::router())
+        .merge(admin::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())

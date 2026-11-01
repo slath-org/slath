@@ -197,3 +197,14 @@ Before 1.0.0, minor versions may contain breaking changes.
   The OpenAPI document is served at `/api/v1/openapi.json` and committed as
   `docs/api/openapi.json`; `just api-check` keeps them in sync, and contract
   tests validate real responses against it.
+- An append-only audit log (database trigger; only the retention purge, run
+  hourly by `slath serve`, may delete) recording sign-ins, failed sign-ins,
+  password changes, sudo, tokens, SSH keys, organizations and members, and
+  repository creation, settings, collaborators, deletion, and restore, with
+  actor and client address and never any secret.
+- Site administration under `/-/admin` (users, organizations, repositories,
+  audit log, health): create users with a one-time generated password,
+  suspend (which signs the user out everywhere and revokes their tokens) and
+  reactivate, grant and revoke administration, and restore repositories from
+  the trash. Changes need sudo mode; everyone else gets "not found".
+  Organization owners see their organization's audit log at `/<org>/-/audit`.

@@ -260,6 +260,14 @@ pub async fn reap_expired(pool: &sqlx::PgPool) -> Result<u64, DbError> {
     Ok(r.rows_affected())
 }
 
+/// Jobs per queue and state, for the health page.
+pub async fn stats(exec: impl PgExecutor<'_>) -> Result<Vec<(String, String, i64)>, DbError> {
+    let rows = sqlx::query!(r#"SELECT queue, state, count(*) AS "n!" FROM jobs GROUP BY queue, state ORDER BY queue, state"#)
+        .fetch_all(exec)
+        .await?;
+    Ok(rows.into_iter().map(|r| (r.queue, r.state, r.n)).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

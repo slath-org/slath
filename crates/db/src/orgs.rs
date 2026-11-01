@@ -275,3 +275,31 @@ pub async fn for_user(
         .filter_map(|r| Some((r.name, OrgRole::parse(&r.role)?)))
         .collect())
 }
+
+/// All organizations, by name.
+pub async fn list_all(
+    exec: impl PgExecutor<'_>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<Org>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT o.id, o.namespace_id, n.name::text AS "name!", o.display_name, o.description, o.default_member_role, o.created_at
+           FROM organizations o JOIN namespaces n ON n.id = o.namespace_id ORDER BY lower(n.name::text) OFFSET $1 LIMIT $2"#,
+        offset,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| Org {
+            id: OrgId::from_uuid(r.id),
+            namespace_id: NamespaceId::from_uuid(r.namespace_id),
+            name: r.name,
+            display_name: r.display_name,
+            description: r.description,
+            default_member_role: r.default_member_role,
+            created_at: r.created_at,
+        })
+        .collect())
+}

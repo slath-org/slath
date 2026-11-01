@@ -212,3 +212,66 @@ pub async fn password_hash(
 pub async fn get_by_name(exec: impl PgExecutor<'_>, name: &str) -> Result<Option<User>, DbError> {
     Ok(find_for_login(exec, name).await?.map(|r| r.user))
 }
+
+/// A user row for administrators.
+#[derive(Debug, Clone)]
+pub struct AdminUser {
+    pub user: User,
+    pub email_verified: bool,
+}
+
+/// All users, by name.
+pub async fn list_all(
+    exec: impl PgExecutor<'_>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<User>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.kind, u.state, u.display_name,
+                  u.email::text AS email, u.is_admin, u.theme, u.created_at
+           FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           ORDER BY lower(n.name::text) OFFSET $1 LIMIT $2"#,
+        offset,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| User {
+            id: UserId::from_uuid(r.id),
+            namespace_id: NamespaceId::from_uuid(r.namespace_id),
+            name: r.name,
+            kind: kind(&r.kind),
+            state: state(&r.state),
+            display_name: r.display_name,
+            email: r.email,
+            is_admin: r.is_admin,
+            theme: r.theme,
+            created_at: r.created_at,
+        })
+        .collect())
+}
+
+pub async fn set_state(exec: impl PgExecutor<'_>, id: UserId, active: bool) -> Result<(), DbError> {
+    let s = if active { "active" } else { "suspended" };
+    sqlx::query!(
+        "UPDATE users SET state = $2, updated_at = now() WHERE id = $1 AND state <> 'deleted'",
+        id.as_uuid(),
+        s
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET is_admin = $2, updated_at = now() WHERE id = $1 AND kind = 'human'",
+        id.as_uuid(),
+        admin
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

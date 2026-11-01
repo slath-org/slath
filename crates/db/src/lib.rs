@@ -4,6 +4,7 @@
 //! version check, and the durable job queue.
 #![forbid(unsafe_code)]
 
+pub mod audit;
 pub mod idempotency;
 pub mod jobs;
 pub mod orgs;

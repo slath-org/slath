@@ -599,3 +599,25 @@ fieldset.field {
     line-height: 2.75rem;
   }
 }
+
+.row-actions {
+  white-space: nowrap;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin: 0 0 var(--space-4);
+}
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+}
+.facts dt {
+  font-weight: var(--weight-semibold);
+}
+.facts dd {
+  margin: 0;
+}

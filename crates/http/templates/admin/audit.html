@@ -1,0 +1,36 @@
+{% extends "admin/layout.html" %}
+{% block title %}Audit log{% if let Some(o) = org %} · {{ o }}{% else %} · Administration{% endif %}{% endblock %}
+{% block admin %}
+<h1>Audit log{% if let Some(o) = org %} of {{ o }}{% endif %}</h1>
+<form method="get" class="filters">
+  <div class="field"><label for="action">Action starts with</label><input id="action" name="action" type="text" value="{{ action }}" placeholder="repo."></div>
+  <div class="field"><label for="actor">Actor</label><input id="actor" name="actor" type="text" value="{{ actor }}"></div>
+  <div><button type="submit" class="button">Filter</button></div>
+</form>
+{%- if events.is_empty() %}
+<p class="text-secondary">No events.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="audit-caption">
+<table class="table">
+  <caption id="audit-caption" class="visually-hidden">Audit events</caption>
+  <thead><tr><th scope="col">Time</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Details</th></tr></thead>
+  <tbody>
+  {%- for e in events %}
+    <tr>
+      <td><time datetime="{{ e.time.iso }}">{{ e.time.text }}</time></td>
+      <td>{{ e.actor }}{% if !e.ip.is_empty() %} <span class="text-secondary">{{ e.ip }}</span>{% endif %}</td>
+      <td><code>{{ e.action }}</code></td>
+      <td>{{ e.target }}</td>
+      <td><code>{{ e.data }}</code></td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+<nav aria-label="Pages" class="pager">
+  {%- if page > 1 %}<a href="?action={{ action|urlencode }}&amp;actor={{ actor|urlencode }}&amp;page={{ page - 1 }}" rel="prev">Newer</a>{% endif %}
+  <span class="text-secondary">Page {{ page }}</span>
+  {%- if next %}<a href="?action={{ action|urlencode }}&amp;actor={{ actor|urlencode }}&amp;page={{ page + 1 }}" rel="next">Older</a>{% endif %}
+</nav>
+{% endblock %}

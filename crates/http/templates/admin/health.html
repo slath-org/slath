@@ -1,0 +1,26 @@
+{% extends "admin/layout.html" %}
+{% block title %}Health · Administration{% endblock %}
+{% block admin %}
+<h1>Health</h1>
+<dl class="facts">
+  <dt>Slath</dt><dd>{{ version }}</dd>
+  <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<strong>Problem:</strong> {{ git }}{% endif %}</dd>
+  <dt>Database schema</dt><dd>{{ schema }}{% if schema != required_schema %} <strong>(this binary needs {{ required_schema }})</strong>{% else %} (current){% endif %}</dd>
+</dl>
+<h2>Job queue</h2>
+{%- if jobs.is_empty() %}
+<p class="text-secondary">No jobs.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="jobs-caption">
+<table class="table">
+  <caption id="jobs-caption" class="visually-hidden">Jobs by queue and state</caption>
+  <thead><tr><th scope="col">Queue</th><th scope="col">State</th><th scope="col" class="numeric">Jobs</th></tr></thead>
+  <tbody>
+  {%- for (queue, st, n) in jobs %}
+    <tr><td>{{ queue }}</td><td>{{ st }}</td><td class="numeric">{{ n }}</td></tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

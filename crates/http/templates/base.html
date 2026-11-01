@@ -24,6 +24,9 @@
     {%- if let Some(user) = ctx.user %}
       <a href="/{{ user.name }}">{{ user.name }}</a>
       <a href="/-/settings">Settings</a>
+      {%- if user.is_admin %}
+      <a href="/-/admin">Admin</a>
+      {%- endif %}
       <form method="post" action="/-/logout" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
         <button type="submit" class="button button-quiet">Sign out</button>

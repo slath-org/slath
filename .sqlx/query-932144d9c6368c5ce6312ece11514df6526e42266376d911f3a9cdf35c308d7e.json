@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SET LOCAL slath.audit_purge = 'on'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "932144d9c6368c5ce6312ece11514df6526e42266376d911f3a9cdf35c308d7e"
+}

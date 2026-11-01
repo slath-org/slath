@@ -52,7 +52,14 @@ pub async fn request_context(
     let method = req.method().clone();
     let start = Instant::now();
     let span = tracing::info_span!("request", request_id = %id, %method, route = %route);
-    let mut res = tracing::Instrument::instrument(next.run(req), span.clone()).await;
+    let ip = crate::auth::ClientIp::from_parts(&state, req.extensions(), req.headers())
+        .0
+        .map(|i| i.to_string());
+    let mut res = tracing::Instrument::instrument(
+        slath_service::audit::with_client_ip(ip, next.run(req)),
+        span.clone(),
+    )
+    .await;
     let elapsed = start.elapsed();
     if let Ok(v) = HeaderValue::from_str(&id) {
         res.headers_mut().insert(REQUEST_ID, v);

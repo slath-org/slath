@@ -511,3 +511,23 @@ pub async fn list_visible(
     .await?;
     Ok(rows.into_iter().map(|r| to_repo!(r)).collect())
 }
+
+/// All repositories in any state, by full name (administrators).
+pub async fn list_all(
+    exec: impl PgExecutor<'_>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<Repo>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
+                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at
+           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
+           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2"#,
+        offset,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| to_repo!(r)).collect())
+}

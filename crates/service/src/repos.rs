@@ -331,7 +331,12 @@ impl Services {
             let _ = tokio::fs::remove_dir_all(&path).await;
             return Err(ServiceError::internal(e));
         }
-        self.repo_access_by_id(subject, id, Action::RepoRead).await
+        let a = self
+            .repo_access_by_id(subject, id, Action::RepoRead)
+            .await?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(subject, "repo.create", target, serde_json::json!({"name": format!("{}/{}", a.repo.namespace, a.repo.name), "visibility": slath_db::repos::visibility_str(input.visibility)})).await;
+        Ok(a)
     }
 
     pub async fn update_repo_settings(
@@ -365,6 +370,14 @@ impl Services {
         self.authorize(subject, a, Action::RepoVisibility)?;
         require_sudo_for_sessions(subject, sudo)?;
         slath_db::repos::set_visibility(&self.pool, a.repo.id, v).await?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(
+            subject,
+            "repo.visibility",
+            target,
+            serde_json::json!({"visibility": slath_db::repos::visibility_str(v)}),
+        )
+        .await;
         Ok(())
     }
 
@@ -398,6 +411,14 @@ impl Services {
                 other => other.into(),
             })?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(
+            subject,
+            "repo.rename",
+            target,
+            serde_json::json!({"from": a.repo.name, "to": name.as_str()}),
+        )
+        .await;
         Ok(name.as_str().to_owned())
     }
 
@@ -414,6 +435,18 @@ impl Services {
             RepoState::Active
         };
         slath_db::repos::set_state(&self.pool, a.repo.id, state).await?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(
+            subject,
+            if archived {
+                "repo.archive"
+            } else {
+                "repo.unarchive"
+            },
+            target,
+            serde_json::json!({}),
+        )
+        .await;
         Ok(())
     }
 
@@ -436,6 +469,14 @@ impl Services {
         )
         .await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(
+            subject,
+            "repo.delete",
+            target,
+            serde_json::json!({"name": format!("{}/{}", a.repo.namespace, a.repo.name)}),
+        )
+        .await;
         Ok(())
     }
 
@@ -483,6 +524,14 @@ impl Services {
             ));
         }
         slath_db::repos::set_state(&self.pool, id, RepoState::Active).await?;
+        let target = self.repo_target(&repo).await;
+        self.audit(
+            subject,
+            "repo.restore",
+            target,
+            serde_json::json!({"name": format!("{}/{}", repo.namespace, repo.name)}),
+        )
+        .await;
         Ok(())
     }
 
@@ -514,6 +563,8 @@ impl Services {
             }
         };
         slath_db::repos::set_collaborator(&self.pool, a.repo.id, user, role).await?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(subject, "repo.collaborator.set", target, serde_json::json!({"username": username.trim(), "role": slath_db::repos::role_str(role)})).await;
         Ok(())
     }
 
@@ -530,6 +581,14 @@ impl Services {
             return Err(ServiceError::NotFound);
         };
         if slath_db::repos::remove_collaborator(&self.pool, a.repo.id, user).await? {
+            let target = self.repo_target(&a.repo).await;
+            self.audit(
+                subject,
+                "repo.collaborator.remove",
+                target,
+                serde_json::json!({"username": username.trim()}),
+            )
+            .await;
             Ok(())
         } else {
             Err(ServiceError::NotFound)
@@ -580,6 +639,18 @@ impl Services {
             repos.retain(|r| r.visibility == Visibility::Public || ids.contains(&r.id));
         }
         Ok(repos)
+    }
+
+    /// The audit target for a repository (with its organization, if any).
+    async fn repo_target(&self, repo: &Repo) -> crate::audit::Target {
+        let mut t = crate::audit::Target::repo(*repo.id.as_uuid());
+        if repo.namespace_kind == "org"
+            && let Ok(Some((_, _, NamespaceKind::Org(o)))) =
+                slath_db::orgs::resolve_namespace(&self.pool, &repo.namespace).await
+        {
+            t.org_id = Some(*o.as_uuid());
+        }
+        t
     }
 
     /// Re-checks an action on an already resolved repository.

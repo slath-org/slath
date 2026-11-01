@@ -1,0 +1,36 @@
+{% extends "admin/layout.html" %}
+{% block title %}Repositories · Administration{% endblock %}
+{% block admin %}
+<h1>Repositories</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{%- if repos.is_empty() %}
+<p class="text-secondary">No repositories.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="repos-caption">
+<table class="table">
+  <caption id="repos-caption" class="visually-hidden">Repositories</caption>
+  <thead><tr><th scope="col">Repository</th><th scope="col">Visibility</th><th scope="col">State</th><th scope="col" class="numeric">Size (bytes)</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for r in repos %}
+    <tr>
+      <td>{% if r.state == "Deleted" %}{{ r.full_name }}{% else %}<a href="/{{ r.full_name }}">{{ r.full_name }}</a>{% endif %}</td>
+      <td>{{ r.visibility }}</td>
+      <td>{{ r.state }}{% if let Some(d) = r.deleted %} <time datetime="{{ d.iso }}">{{ d.text }}</time>{% endif %}</td>
+      <td class="numeric">{{ r.size }}</td>
+      <td>
+      {%- if r.state == "Deleted" %}
+        <form method="post" action="/-/admin/repos/{{ r.id }}/restore" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Restore<span class="visually-hidden"> {{ r.full_name }}</span></button>
+        </form>
+      {%- endif %}
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

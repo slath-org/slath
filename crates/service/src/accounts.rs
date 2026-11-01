@@ -122,6 +122,13 @@ impl Services {
             other => other.into(),
         })?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "user.create",
+            crate::audit::Target::new("user", Some(*id.as_uuid())),
+            serde_json::json!({"username": name.as_str(), "admin": a.is_admin}),
+        )
+        .await;
         Ok(id)
     }
 
@@ -199,9 +206,21 @@ impl Services {
         let Some(record) = record.filter(|_| ok) else {
             let mut keys = vec![account_key];
             keys.extend(ip_key);
-            slath_db::sessions::record_failures(&self.pool, &keys)
+            let counts = slath_db::sessions::record_failures(&self.pool, &keys)
                 .await
                 .map_err(LoginError::from_db)?;
+            // Aggregated: the first failure of a window and reaching the throttle.
+            let n = counts.first().copied().unwrap_or(0);
+            if n == 1 || i64::from(n) == i64::from(limits.login_failures_per_account) {
+                let name: String = username.trim().to_lowercase().chars().take(64).collect();
+                self.audit(
+                    &Subject::Anonymous,
+                    "login.failure",
+                    crate::audit::Target::new("user", None),
+                    serde_json::json!({"username": name, "failures": n}),
+                )
+                .await;
+            }
             return Err(LoginError::Invalid);
         };
         slath_db::sessions::clear_failures(&self.pool, &account_key)
@@ -223,6 +242,20 @@ impl Services {
             )
             .await
             .map_err(|e| LoginError::Internal(e.to_string()))?;
+        let who = Subject::User {
+            id: record.user.id,
+            kind: record.user.kind,
+            state: record.user.state,
+            is_site_admin: record.user.is_admin,
+            credential: slath_core::authz::Credential::Session,
+        };
+        self.audit(
+            &who,
+            "login.success",
+            crate::audit::Target::new("user", Some(*record.user.id.as_uuid())),
+            serde_json::json!({}),
+        )
+        .await;
         Ok((cookie, record.user.id))
     }
 }

@@ -1,0 +1,187 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "namespace_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "namespace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "namespace!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "namespace_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "namespaces",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "default_branch",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "default_branch"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "allow_forking",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "allow_forking"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "size_bytes",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "pushed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "pushed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "deleted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "deleted_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      null,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f33055d3e360fbcb0065fb1767793f0c3536cb5b6fab6792c1e259eb7f2f2250"
+}

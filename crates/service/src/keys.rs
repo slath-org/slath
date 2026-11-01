@@ -109,6 +109,13 @@ impl Services {
             ),
             other => other.into(),
         })?;
+        self.audit(
+            subject,
+            "ssh_key.add",
+            crate::audit::Target::new("ssh_key", Some(*id.as_uuid())),
+            serde_json::json!({"title": title, "fingerprint": k.fingerprint}),
+        )
+        .await;
         Ok(KeyInfo {
             id,
             title,
@@ -124,6 +131,13 @@ impl Services {
         let user = user_with_scope(subject, Scope::UserWrite)?;
         check_sudo(subject, sudo)?;
         if slath_db::ssh_keys::delete_for_user(&self.pool, user, id).await? {
+            self.audit(
+                subject,
+                "ssh_key.remove",
+                crate::audit::Target::new("ssh_key", Some(*id.as_uuid())),
+                serde_json::json!({}),
+            )
+            .await;
             Ok(())
         } else {
             Err(ServiceError::NotFound)
