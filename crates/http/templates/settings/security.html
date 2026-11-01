@@ -67,6 +67,33 @@
 <p><a class="button" href="/-/sudo?next=/-/settings/security">Add a passkey</a></p>
 {%- endif %}
 {%- endif %}
+{%- if !providers.is_empty() || !identities.is_empty() %}
+<h2>Sign-in providers</h2>
+{%- if identities.is_empty() %}
+<p class="text-secondary">No sign-in provider is linked to your account.</p>
+{%- else %}
+<ul class="plain-list">
+  {%- for i in identities %}
+  <li>
+    <strong>{{ i.provider }}</strong>{% if let Some(e) = i.email %} <span class="text-secondary">({{ e }})</span>{% endif %}
+    <form method="post" action="/-/settings/oidc/unlink" class="inline-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <input type="hidden" name="issuer" value="{{ i.issuer }}">
+      <input type="hidden" name="subject" value="{{ i.subject }}">
+      <button type="submit" class="button button-quiet">Unlink<span class="visually-hidden"> {{ i.provider }}</span></button>
+    </form>
+  </li>
+  {%- endfor %}
+</ul>
+{%- endif %}
+{%- for (key, name) in providers %}
+<form method="post" action="/-/settings/oidc/{{ key }}/link" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button">Link {{ name }}</button>
+</form>
+{%- endfor %}
+<p class="hint">Linking and unlinking ask for your password first.</p>
+{%- endif %}
 <h2>Password</h2>
 <p>Changing your password signs out all your other sessions.</p>
 <form method="post" action="/-/settings/security/password" class="form" novalidate>

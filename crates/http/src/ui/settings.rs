@@ -41,6 +41,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "passkey-failed" => "The passkey couldn't be added. Try again.",
         "passkey-name" => "Name the passkey (up to 100 characters).",
         "avatar-saved" => "Avatar saved.",
+        "oidc-linked" => "Sign-in provider linked.",
+        "oidc-unlinked" => "Sign-in provider unlinked.",
         "avatar-removed" => "Avatar removed. Your generated avatar is shown again.",
         _ => return None,
     })
@@ -243,6 +245,10 @@ struct SecurityPage<'a> {
     passkeys_available: bool,
     passkeys: Vec<PasskeyRow>,
     in_sudo: bool,
+    /// Linked OpenID sign-ins.
+    identities: Vec<slath_service::oidc::LinkedIdentity>,
+    /// Providers that can be linked, as `(key, name)`.
+    providers: Vec<(String, String)>,
 }
 
 struct PasskeyRow {
@@ -292,6 +298,8 @@ async fn security(
         passkeys_available: state.services.passkeys_available(),
         passkeys: passkey_rows(&state, &session).await?,
         in_sudo: session.in_sudo(),
+        identities: state.services.oidc_identities(&session).await?,
+        providers: state.services.oidc_providers(),
     }))
 }
 
@@ -450,6 +458,8 @@ async fn change_password(
                 passkeys_available: state.services.passkeys_available(),
                 passkeys: passkey_rows(&state, &session).await?,
                 in_sudo: session.in_sudo(),
+                identities: state.services.oidc_identities(&session).await?,
+                providers: state.services.oidc_providers(),
             });
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
             Ok(res)

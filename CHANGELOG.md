@@ -29,6 +29,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Labels and milestones for issues, managed by maintainers in the web UI and the API.
 - Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
 - Filter issues by labels, assignee, author, and milestone, and sort them by last update.
+- Sign in with OpenID Connect providers (`[[auth.oidc]]`), link them under Settings → Security, and optionally register at first sign-in.
+- OpenID sign-ins check every token property, never link accounts by email, and still ask for the second factor.
 - Import a repository (all branches and tags) from an https:// URL in the web UI or the API, with a report of what arrived.
 - Imports refuse internal and reserved addresses, pin the checked address, ignore redirects, and don't keep credentials.
 - Blame view: see which commit last changed each line of a file, linked from every file page.

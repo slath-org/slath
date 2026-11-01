@@ -66,6 +66,7 @@ fn concrete(template: &str, missing: bool, head: &str) -> String {
             "{file}" => "alice.svg".to_owned(),
             "{hash}" => "0".to_owned(),
             "{token}" => "not-a-token".to_owned(),
+            "{key}" => "none".to_owned(),
             "{ref}" => "main".to_owned(),
             "{oid}" | "{rest}" => head.to_owned(),
             "{*rest}" if template.contains("/archive/") => "main.tar.gz".to_owned(),

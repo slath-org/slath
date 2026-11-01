@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT provider_key, browser_hash, issuer, subject, email, email_verified,\n                preferred_username, display_name\n           FROM oidc_pending WHERE token_hash = $1 AND expires_at > now()",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "provider_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "provider_key"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "browser_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "browser_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "issuer",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "issuer"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "subject",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "subject"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "email_verified",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "email_verified"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "preferred_username",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "preferred_username"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "display_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "307c8faa0464af111e2661e7812306e58d4a7a78f0b0043afd8dc9cb7d56109b"
+}

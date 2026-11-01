@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oidc_identities WHERE user_id = $1 AND issuer = $2 AND subject = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6cd5f2cb14bc129b4220ec02ba53fd4e84dca1d0d12a79e377e33e5f1b7a638c"
+}

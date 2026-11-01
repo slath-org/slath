@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE oidc_identities SET last_login_at = now() WHERE issuer = $1 AND subject = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c1db0dd650bd07526e09ce8aeb98091a3559bcaf8feba3b9c2d5c4ca6edb36f"
+}

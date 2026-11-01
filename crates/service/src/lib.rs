@@ -25,6 +25,7 @@ pub mod maintenance;
 pub mod mfa;
 pub mod net;
 pub mod notifications;
+pub mod oidc;
 pub mod orgs;
 pub mod passkeys;
 pub mod protections;
@@ -69,6 +70,8 @@ pub struct Services {
     pub blobs: blobs::LocalBlobStore,
     /// Signs unsubscribe links in notification emails.
     pub unsubscribe_keys: Arc<Csrf>,
+    /// OpenID provider metadata.
+    pub oidc_cache: Arc<oidc::OidcCache>,
     /// Requests for reference suggestions per user.
     pub reference_limiter: Arc<references::Limiter>,
 }
@@ -99,6 +102,7 @@ impl Services {
             webauthn,
             blobs,
             reference_limiter: Arc::default(),
+            oidc_cache: Arc::default(),
         }
     }
 

@@ -6,6 +6,7 @@
 pub mod crypto;
 pub mod csrf;
 pub mod master_key;
+pub mod oidc;
 pub mod password;
 pub mod ssh_key;
 pub mod token;

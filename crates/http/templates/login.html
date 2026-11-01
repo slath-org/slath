@@ -43,6 +43,9 @@
   <p data-passkey-status role="status" aria-live="polite"></p>
 </form>
 {%- endif %}
+{%- for (key, name) in providers %}
+<p><a class="button" href="/-/login/oidc/{{ key }}?next={{ next|urlencode }}">Sign in with {{ name }}</a></p>
+{%- endfor %}
 {%- if can_reset %}
 <p><a href="/-/password/reset">Forgot your password?</a></p>
 {%- else if !empty_instance %}

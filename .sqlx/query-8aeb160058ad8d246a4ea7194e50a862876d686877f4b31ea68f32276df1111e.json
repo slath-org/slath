@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO oidc_pending (token_hash, provider_key, browser_hash, issuer, subject, email,\n                                   email_verified, preferred_username, display_name, expires_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8aeb160058ad8d246a4ea7194e50a862876d686877f4b31ea68f32276df1111e"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO oidc_states (state_hash, provider_key, browser_hash, nonce, pkce_verifier,\n                                  purpose, user_id, next, expires_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2c7d797385078cdb037efc142581a5f2ae1d083bd39ab943afe0f973bf39b867"
+}

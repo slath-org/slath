@@ -39,6 +39,47 @@ code (or a recovery code) to reset the password.
 
 Without email, the sign-in page asks users to contact an administrator.
 
+## Signing in with OpenID Connect
+
+People can sign in with an OpenID Connect provider (Keycloak, Dex,
+Authentik, Google Workspace, Microsoft Entra ID, …). Register Slath as a
+confidential client with the redirect URI
+`<public_url>/-/login/oidc/<key>/callback`, then add the provider:
+
+```toml
+[[auth.oidc]]
+key = "company"                 # used in URLs
+display_name = "Company login"  # shown on the sign-in button
+issuer = "https://id.example.com/realms/main"   # must equal the tokens' iss
+client_id = "slath"
+client_secret_file = "/etc/slath/oidc-company.secret"
+# scopes = ["openid", "email", "profile"]
+# allow_registration = false    # create accounts at first sign-in
+# trust_email = false           # see below
+# counts_as_mfa = false         # sign-ins satisfy second-factor requirements
+```
+
+- Slath uses the Authorization Code flow with PKCE, a single-use `state`
+  that expires after ten minutes and only works in the browser that
+  started the sign-in, and a `nonce`. ID tokens must be signed with RS256,
+  ES256, or EdDSA by a key from the provider's key set (never `none`), and
+  `iss`, `aud`, `azp`, `exp`, `iat`, and `nonce` are checked. Discovery and
+  keys are fetched from the issuer and kept for a day; the provider must
+  use HTTPS (plain HTTP is accepted only for a provider on the same
+  machine, for testing).
+- An account is linked to a provider identity by issuer and subject, never
+  by email. People link a provider under **Settings → Security** after
+  confirming their password; unlinking needs the same.
+- At the first sign-in with an unknown identity, `allow_registration`
+  lets the person create an account by choosing a username. If the
+  provider's verified email belongs to an existing account and
+  `trust_email` is on, Slath doesn't link it; it tells the person to sign
+  in to that account and link the provider there.
+- Accounts with two-factor authentication still enter a code after an
+  OIDC sign-in unless the provider has `counts_as_mfa = true`. Suspended
+  accounts can't sign in this way either.
+- Profile pictures from the provider are never loaded.
+
 ## Two-factor authentication
 
 Users turn on two-factor authentication under **Settings → Security**: they

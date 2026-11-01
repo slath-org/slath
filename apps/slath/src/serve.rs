@@ -189,6 +189,9 @@ async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), Str
                         if let Err(e) = svc.schedule_maintenance().await {
                             tracing::warn!(error = %e, "scheduling repository maintenance failed");
                         }
+                        if let Err(e) = svc.purge_oidc().await {
+                            tracing::warn!(error = %e, "purging expired sign-in states failed");
+                        }
                         match svc.collect_blobs().await {
                             Ok(c) if c.blobs + c.orphans > 0 => {
                                 tracing::info!(blobs = c.blobs, orphans = c.orphans, "deleted unused files");

@@ -16,6 +16,7 @@ mod issues;
 mod keys;
 mod mfa;
 mod notifications;
+mod oidc;
 mod orgs;
 mod passkeys;
 mod protection;

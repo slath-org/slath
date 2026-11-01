@@ -1,0 +1,107 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oidc_states WHERE state_hash = $1\n         RETURNING provider_key, browser_hash, nonce, pkce_verifier, purpose, user_id, next,\n                   expires_at > now() AS \"live!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "provider_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "provider_key"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "browser_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "browser_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "nonce",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "nonce"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "pkce_verifier",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "pkce_verifier"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "purpose",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "purpose"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "next",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_states",
+            "name": "next"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "live!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "7a41bc88663d719e2eb6cae4c9a3f0ba9e9459a1eb0a88298e715e981fd4ea89"
+}

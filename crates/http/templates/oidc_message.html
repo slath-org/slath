@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>{{ heading }}</h1>
+<div class="{% if error %}error-summary{% else %}notice{% endif %}" role="{% if error %}alert{% else %}status{% endif %}"><p>{{ message }}</p></div>
+<p><a href="/-/login">Back to sign-in</a></p>
+</div>
+{% endblock %}

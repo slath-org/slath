@@ -7,6 +7,7 @@
 pub mod contract;
 pub mod fixtures;
 pub mod http;
+pub mod oidc;
 pub mod schema;
 pub mod server;
 pub mod smtp;

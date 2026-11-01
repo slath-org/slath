@@ -35,6 +35,8 @@ struct LoginPage<'a> {
     /// Passkeys work here: offer passwordless sign-in.
     passkeys: bool,
     notice: Option<&'static str>,
+    /// OpenID providers as `(key, name)`.
+    providers: Vec<(String, String)>,
 }
 
 #[derive(Deserialize)]
@@ -70,6 +72,7 @@ pub async fn login_page(
         can_reset: state.services.email_enabled(),
         can_register: state.config.auth.registration == slath_core::config::Registration::Open,
         passkeys: state.services.passkeys_available(),
+        providers: state.services.oidc_providers(),
         notice: match q.status.as_deref() {
             Some("password-reset") => Some("Your password was changed. Sign in with it now."),
             _ => None,
@@ -160,6 +163,7 @@ pub async fn login_submit(
         can_reset: state.services.email_enabled(),
         can_register: state.config.auth.registration == slath_core::config::Registration::Open,
         passkeys: state.services.passkeys_available(),
+        providers: state.services.oidc_providers(),
         notice: None,
     });
     *res.status_mut() = status;

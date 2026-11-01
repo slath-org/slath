@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Create your account{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Create your account</h1>
+<p>You signed in with {{ provider }}. Choose a username to create your account here.</p>
+{% include "settings/errors.html" %}
+<form method="post" action="/-/login/oidc/register" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" maxlength="39" required autocapitalize="none" spellcheck="false"
+      aria-describedby="username-hint{% if self.error("username").is_some() %} username-error{% endif %}"{% if self.error("username").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="username-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters. It can't be changed later.</p>
+    {%- if let Some(e) = self.error("username") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Create account</button></div>
+</form>
+</div>
+{% endblock %}

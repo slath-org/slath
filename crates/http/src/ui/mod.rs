@@ -12,6 +12,7 @@ pub mod import;
 pub mod issues;
 pub mod labels;
 pub mod notifications;
+pub mod oidc;
 pub mod passkeys;
 pub mod profiles;
 pub mod recovery;
@@ -341,6 +342,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(recovery::router())
         .merge(registration::router())
         .merge(passkeys::router())
+        .merge(oidc::router())
         .merge(teams::router())
         .merge(issues::router())
         .merge(labels::router())

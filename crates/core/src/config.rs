@@ -210,6 +210,44 @@ pub struct Auth {
     /// Whether any user may create organizations (otherwise site admins only).
     #[serde(default = "yes")]
     pub users_can_create_orgs: bool,
+    /// OpenID Connect providers people can sign in with.
+    #[serde(default)]
+    pub oidc: Vec<OidcProvider>,
+}
+
+/// An OpenID Connect provider (`[[auth.oidc]]`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OidcProvider {
+    /// Short identifier used in URLs, e.g. `company`.
+    pub key: String,
+    /// Shown on the sign-in button.
+    pub display_name: String,
+    /// Must match the `iss` of the provider's tokens exactly.
+    pub issuer: String,
+    pub client_id: String,
+    /// File holding the client secret.
+    pub client_secret_file: PathBuf,
+    #[serde(default = "default_oidc_scopes")]
+    pub scopes: Vec<String>,
+    /// Use the provider's verified email to offer linking to an existing
+    /// account (after the person signs in to it).
+    #[serde(default)]
+    pub trust_email: bool,
+    /// Create an account at the first sign-in with an unknown identity.
+    #[serde(default)]
+    pub allow_registration: bool,
+    /// Sign-ins through this provider satisfy second-factor requirements.
+    #[serde(default)]
+    pub counts_as_mfa: bool,
+}
+
+fn default_oidc_scopes() -> Vec<String> {
+    vec![
+        "openid".to_owned(),
+        "email".to_owned(),
+        "profile".to_owned(),
+    ]
 }
 
 const fn yes() -> bool {
@@ -232,6 +270,7 @@ impl Default for Auth {
             session_idle_days: default_idle_days(),
             session_absolute_days: default_absolute_days(),
             users_can_create_orgs: true,
+            oidc: Vec::new(),
         }
     }
 }
