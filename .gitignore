@@ -5,3 +5,4 @@
 *.pyc
 __pycache__/
 /tests/e2e/node_modules/
+/web/public/

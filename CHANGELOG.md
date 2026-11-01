@@ -97,3 +97,10 @@ Before 1.0.0, minor versions may contain breaking changes.
   density. `just tokens-check` (part of `just check`) verifies every declared
   color pair's contrast and that semantic colors stay distinct from the
   accent.
+- Bundled fonts and icons: Source Sans 3 (Adobe's variable WOFF2, unmodified)
+  and JetBrains Mono (subset), both OFL-1.1, with metric-matched fallback
+  faces so font loading doesn't shift the layout, the regular face
+  preloaded, and ligatures off in code. A Lucide (ISC) icon sprite holds only
+  the allowlisted icons. `scripts/fonts.py` rebuilds the fonts from pinned,
+  SHA-256-checked releases. `THIRD-PARTY-NOTICES.md` lists every bundled
+  component, and `just check` fails if one is missing.

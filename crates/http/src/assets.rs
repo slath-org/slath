@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The UI bundle (`web/dist`), embedded in the binary and served under
-//! `/-/assets/<content-hash>/<file>` with an immutable cache policy.
+//! `/-/assets/<bundle-hash>/<file>` with an immutable cache policy. The hash
+//! covers the whole bundle, so files can reference each other with relative
+//! URLs (the stylesheet's fonts) and any change gives every file a new URL.
 
 use std::collections::HashMap;
 
@@ -20,7 +22,6 @@ struct Dist;
 /// One embedded file.
 #[derive(Debug)]
 struct Asset {
-    hash: String,
     data: std::borrow::Cow<'static, [u8]>,
     content_type: &'static str,
 }
@@ -29,6 +30,7 @@ struct Asset {
 #[derive(Debug, Default)]
 pub struct Assets {
     files: HashMap<String, Asset>,
+    hash: String,
 }
 
 fn content_type(name: &str) -> &'static str {
@@ -50,29 +52,37 @@ impl Assets {
     #[must_use]
     pub fn embedded() -> Self {
         let mut files = HashMap::new();
-        for name in Dist::iter() {
+        let mut names: Vec<_> = Dist::iter().collect();
+        names.sort();
+        let mut bundle = Sha256::new();
+        for name in names {
             if let Some(file) = Dist::get(&name) {
-                let digest = Sha256::digest(&file.data);
-                let hash = digest[..6].iter().map(|b| format!("{b:02x}")).collect();
+                bundle.update((name.len() as u64).to_le_bytes());
+                bundle.update(name.as_bytes());
+                bundle.update(file.metadata.sha256_hash());
                 files.insert(
                     name.to_string(),
                     Asset {
-                        hash,
                         content_type: content_type(&name),
                         data: file.data,
                     },
                 );
             }
         }
-        Self { files }
+        let digest = bundle.finalize();
+        let hash = digest[..6].iter().map(|b| format!("{b:02x}")).collect();
+        Self { files, hash }
     }
 
     /// The URL of an embedded file, e.g. `/-/assets/1a2b3c4d5e6f/app.js`.
     /// Unknown names give a URL that 404s, so a missing bundle is visible.
     #[must_use]
     pub fn url(&self, name: &str) -> String {
-        let hash = self.files.get(name).map_or("missing", |a| a.hash.as_str());
-        format!("/-/assets/{hash}/{name}")
+        if self.files.contains_key(name) {
+            format!("/-/assets/{}/{name}", self.hash)
+        } else {
+            format!("/-/assets/missing/{name}")
+        }
     }
 
     /// True if the bundle was built into this binary.
@@ -96,7 +106,7 @@ pub async fn serve(
     Path((hash, name)): Path<(String, String)>,
 ) -> Response {
     match state.assets.files.get(&name) {
-        Some(a) if a.hash == hash => (
+        Some(a) if hash == state.assets.hash => (
             [
                 (
                     header::CONTENT_TYPE,

@@ -5,13 +5,14 @@
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && vite build",
+    "build": "python3 ../scripts/build_icons.py .. && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "htmx.org": "4.0.0"
   },
   "devDependencies": {
+    "lucide-static": "1.66.0",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   }

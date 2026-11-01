@@ -1,7 +1,37 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block title %}Design catalog{% endblock %}
 {% block content %}
 <h1>Design catalog</h1>
+<p class="text-secondary">Every Weave component in its states. Development builds only.</p>
+
+<section aria-labelledby="type-heading">
+  <h2 id="type-heading">Typography</h2>
+  <p class="type-sample type-title">Page title · 26 px semibold</p>
+  <p class="type-sample type-section">Section heading · 20 px semibold</p>
+  <p>Interface body text, 15 px. The interface should disappear behind the work.</p>
+  <p class="type-dense">Dense lists and tables, 14 px: 1 024 commits · 37 branches · 12 tags</p>
+  <p class="type-meta text-secondary">Secondary metadata, 13 px: updated 3 minutes ago</p>
+  <p><em>Italic emphasis</em> and <strong>strong emphasis</strong>.</p>
+</section>
+
+<section aria-labelledby="code-heading">
+  <h2 id="code-heading">Code</h2>
+  <pre id="code-sample" class="code-view" tabindex="0" role="region" aria-label="Code sample"><code>fn main() -&gt; Result&lt;(), Error&gt; {
+    if a != b &amp;&amp; c &gt;= d { return Ok(()); } // fi fl ffi === =&gt; &lt;=
+}</code></pre>
+  <p>Inline: <code id="inline-code">git push --force-with-lease</code>, commit <code>3f2db758</code>.</p>
+</section>
+
+<section aria-labelledby="icons-heading">
+  <h2 id="icons-heading">Icons</h2>
+  <ul class="icon-grid">
+  {%- for name in icons %}
+    <li>{% call m::icon(ctx, name) %}{% endcall %}<span>{{ name }}</span></li>
+  {%- endfor %}
+  </ul>
+</section>
+
 <section aria-labelledby="htmx-demo-heading">
   <h2 id="htmx-demo-heading">Progressive enhancement</h2>
   {% include "design_demo.html" %}

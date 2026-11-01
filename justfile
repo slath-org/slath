@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: tokens-check web fmt-check clippy test sqlx-check deny license-deps py-test guards
+check: tokens-check web fmt-check clippy test sqlx-check deny license-deps py-test asset-licenses guards
 
 # Regenerate web/src/tokens.css from web/src/tokens.json.
 tokens:
@@ -67,6 +67,10 @@ deny:
 # Apache-2.0 crates must not depend on AGPL crates.
 license-deps:
     python3 scripts/check_license_deps.py
+
+# Every bundled font, icon set, and UI dependency has a license entry.
+asset-licenses:
+    python3 scripts/check_asset_licenses.py
 
 # Unit tests of the Python helper scripts.
 py-test:

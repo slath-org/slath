@@ -2,3 +2,9 @@
     hx-csp strips htmx attributes from elements without it. Every element
     with an hx-* attribute must use this macro (checked by scripts/guards.sh). -#}
 {%- macro hx(nonce) -%}hx-nonce="{{ nonce }}"{%- endmacro -%}
+
+{#- A decorative icon from the sprite. Icons never carry meaning alone: the
+    element that contains one also has a visible or accessible text label. -#}
+{%- macro icon(ctx, name) -%}
+<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ ctx.icons_url }}#{{ name }}"></use></svg>
+{%- endmacro -%}

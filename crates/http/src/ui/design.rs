@@ -16,11 +16,21 @@ pub struct DemoQuery {
     count: u32,
 }
 
+/// The icons in the sprite, in allowlist order.
+fn icon_names() -> Vec<&'static str> {
+    include_str!("../../../../web/src/icons/icons.txt")
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .collect()
+}
+
 #[derive(Template)]
 #[template(path = "design.html")]
 struct Catalog {
     ctx: PageCtx,
     count: u32,
+    icons: Vec<&'static str>,
 }
 
 #[derive(Template)]
@@ -39,6 +49,7 @@ pub async fn catalog(ctx: PageCtx, hx: HxRequest, Query(q): Query<DemoQuery>) ->
         &Catalog {
             ctx: ctx.clone(),
             count,
+            icons: icon_names(),
         },
         &DemoFragment { ctx, count },
     )

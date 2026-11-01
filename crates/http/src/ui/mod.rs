@@ -28,6 +28,10 @@ pub struct PageCtx {
     pub density: &'static str,
     pub app_url: String,
     pub style_url: String,
+    /// The regular interface font, preloaded by every page.
+    pub font_url: String,
+    /// The icon sprite; icons are `<use href="{icons_url}#name">`.
+    pub icons_url: String,
     /// Path and query of this request (for "sign in and come back").
     pub here: String,
 }
@@ -71,6 +75,8 @@ impl PageCtx {
             density,
             app_url: state.assets.url("app.js"),
             style_url: state.assets.url("style.css"),
+            font_url: state.assets.url("SourceSans3-Upright.woff2"),
+            icons_url: state.assets.url("icons.svg"),
             here: uri
                 .path_and_query()
                 .map_or_else(|| "/".to_owned(), |p| p.as_str().to_owned()),

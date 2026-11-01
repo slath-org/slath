@@ -8,7 +8,8 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "./",
-  publicDir: false,
+  // public/ holds generated files copied as is (the icon sprite).
+  publicDir: "public",
   build: {
     outDir: "dist",
     emptyOutDir: true,
