@@ -12,6 +12,7 @@ import { installErrorToasts, installToastButtons } from "./toast";
 import { installTheme } from "./theme";
 import { installMenus } from "./menu";
 import { installDialogs } from "./dialog";
+import { installPasskeys } from "./passkeys";
 
 installCsrf();
 installA11ySwaps();
@@ -20,3 +21,4 @@ installToastButtons();
 installTheme();
 installMenus();
 installDialogs();
+installPasskeys();

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invitations SET used_at = now(), used_by = $2\n           WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > now()\n           RETURNING email::text AS email",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "email",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "111e33407b6e305c24e0548556b082e7e3e024d797878159b990bfa269184a60"
+}

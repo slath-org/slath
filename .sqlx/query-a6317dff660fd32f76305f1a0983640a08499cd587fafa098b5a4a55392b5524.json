@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT secret_enc, key_id, last_used_step, confirmed, created_at\n         FROM totp_credentials WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "secret_enc",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "totp_credentials",
+            "name": "secret_enc"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "key_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_credentials",
+            "name": "key_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_used_step",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "totp_credentials",
+            "name": "last_used_step"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "confirmed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "totp_credentials",
+            "name": "confirmed"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "totp_credentials",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a6317dff660fd32f76305f1a0983640a08499cd587fafa098b5a4a55392b5524"
+}

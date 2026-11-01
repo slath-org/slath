@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT s.id_hash, s.user_id, n.name::text AS \"user_name!\", u.kind, u.state, u.is_admin, u.theme,\n                  u.density, u.code_font_size,\n                  s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,\n                  host(s.ip) AS ip, s.user_agent\n           FROM sessions s\n           JOIN users u ON u.id = s.user_id\n           JOIN namespaces n ON n.id = u.namespace_id\n           WHERE s.id_hash = $1 AND s.expires_at > now() AND s.last_seen_at > now() - $2::interval",
+  "query": "SELECT s.id_hash, s.user_id, n.name::text AS \"user_name!\", u.kind, u.state, u.is_admin,\n                  (u.email IS NULL OR u.email_verified) AS \"email_confirmed!\", u.theme,\n                  u.density, u.code_font_size,\n                  s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,\n                  host(s.ip) AS ip, s.user_agent\n           FROM sessions s\n           JOIN users u ON u.id = s.user_id\n           JOIN namespaces n ON n.id = u.namespace_id\n           WHERE s.id_hash = $1 AND s.expires_at > now() AND s.last_seen_at > now() - $2::interval",
   "describe": {
     "columns": [
       {
@@ -66,6 +66,12 @@
       },
       {
         "ordinal": 6,
+        "name": "email_confirmed!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
         "name": "theme",
         "type_info": "Text",
         "origin": {
@@ -76,7 +82,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "density",
         "type_info": "Text",
         "origin": {
@@ -87,7 +93,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "code_font_size",
         "type_info": "Int2",
         "origin": {
@@ -98,7 +104,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -109,7 +115,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "last_seen_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -120,7 +126,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "expires_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -131,7 +137,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "auth_level",
         "type_info": "Text",
         "origin": {
@@ -142,7 +148,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "sudo_until",
         "type_info": "Timestamptz",
         "origin": {
@@ -153,13 +159,13 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "ip",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "user_agent",
         "type_info": "Text",
         "origin": {
@@ -183,6 +189,7 @@
       false,
       false,
       false,
+      null,
       false,
       false,
       false,
@@ -195,5 +202,5 @@
       true
     ]
   },
-  "hash": "2390ba80f1999bf275e66affdf0a3c14ef43f7c85cb3375dfb7625ed288da3d4"
+  "hash": "99ac6207027a72a85ceb66dee78bd352e6cbd9ff6d7849194e75b1d9907df37b"
 }

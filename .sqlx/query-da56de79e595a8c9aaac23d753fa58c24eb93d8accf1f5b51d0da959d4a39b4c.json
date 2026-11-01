@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO encryption_keys (key_id) VALUES ($1)\n         ON CONFLICT (key_id) DO UPDATE SET retired_at = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "da56de79e595a8c9aaac23d753fa58c24eb93d8accf1f5b51d0da959d4a39b4c"
+}

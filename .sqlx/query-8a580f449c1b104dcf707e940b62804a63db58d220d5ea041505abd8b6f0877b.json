@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE background_migrations SET state = $3, last_error = CASE WHEN $3 = 'pending' THEN NULL ELSE last_error END,\n                updated_at = now()\n         WHERE name = $1 AND state = ANY($2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8a580f449c1b104dcf707e940b62804a63db58d220d5ea041505abd8b6f0877b"
+}

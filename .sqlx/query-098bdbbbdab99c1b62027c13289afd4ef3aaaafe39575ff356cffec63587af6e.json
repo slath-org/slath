@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT state, cursor FROM background_migrations\n         WHERE name = $1 AND state IN ('pending', 'running')\n         FOR UPDATE SKIP LOCKED",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "background_migrations",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "cursor",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "background_migrations",
+            "name": "cursor"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "098bdbbbdab99c1b62027c13289afd4ef3aaaafe39575ff356cffec63587af6e"
+}

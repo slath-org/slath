@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE encryption_keys SET retired_at = now()\n         WHERE key_id <> $1 AND retired_at IS NULL AND NOT (key_id = ANY($2))\n         RETURNING key_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "encryption_keys",
+            "name": "key_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f1a0f2bd87f5e9dbffe7b49f9b37522a5f26c41768ec923ac36da959e065e1b5"
+}

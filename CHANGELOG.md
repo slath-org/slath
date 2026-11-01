@@ -8,6 +8,35 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- Administrators need two-factor authentication to use administration unless `require_mfa_for_admins` is turned off; see the upgrading guide.
+
+### Added
+
+- Secrets that Slath must read again are encrypted with AES-256-GCM under the master key; each value is bound to its row.
+- `slath admin rotate-key` re-encrypts stored secrets with a new master key and retires old keys once nothing uses them.
+- `slath config migrate` rewrites renamed configuration keys and keeps comments; old keys keep working with a warning.
+- `slath upgrade` upgrades from any earlier release in one command: preflight checks, an automatic backup, migrations, verification, and a history.
+- `slath upgrade --check` shows the plan and the upgrade notes of every skipped release without changing anything.
+- During an upgrade a running server becomes read-only: pages show a banner, and saving and pushing are refused with a message.
+- `serve --migrate` runs the same preflight and refuses to migrate when a check fails or a manual upgrade step is required.
+- An older binary on an upgraded database names the upgrade and the backup to restore.
+- Registration modes: `disabled` (default), `invite` with single-use invitation links from administrators, and `open` self-registration.
+- On open instances with email, accounts must confirm their address before creating repositories or organizations.
+- Password reset by email: single-use links valid for 30 minutes, the same answer for unknown addresses, and every session signed out afterwards.
+- Email addresses are confirmed by a link; users change theirs under Settings → Profile, and resets go only to confirmed addresses.
+- Two-factor authentication with authenticator apps (TOTP) and single-use recovery codes, set up under Settings → Security.
+- Passkeys: sign in without a password, use one as the second step, or confirm sensitive actions with it; managed under Settings → Security.
+- Signing in and confirming sensitive actions ask for a two-factor code when it's set up; five wrong codes end the attempt.
+- With `require_mfa_for_admins` (on by default), administration works only after signing in with a second factor.
+- `slath admin reset-mfa` removes a user's second factors after a lost device; audited, and the user is notified by email.
+- Outgoing email over SMTP with retries; `slath admin send-test-email` and the admin Health page check the settings.
+- Without SMTP settings, email features are hidden.
+- `slath serve` waits up to a minute for the database at startup instead of failing at once.
+- Long data migrations run in the background in resumable batches; `slath admin background-migrations` and the admin page Upgrades show progress and pause, resume, or retry them.
+- Every release ships machine-readable upgrade notes, and releases without them fail the release checks.
+
 ## [0.1.1] - 2026-11-01
 
 Security hardening: the SSH login no longer shares the server's system user. See `docs/admin/upgrading.md` before upgrading a systemd installation.

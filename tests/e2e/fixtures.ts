@@ -62,7 +62,7 @@ export async function signIn(page: Page, user: { name: string; password: string 
   await page.goto("/-/login");
   await page.getByLabel("Username").fill(user.name);
   await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: user.name, exact: true })).toBeVisible();
 }
 

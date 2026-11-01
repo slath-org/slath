@@ -8,6 +8,8 @@ const strings = {
   dismiss: "Dismiss",
   requestFailed: "The request failed. Check your connection and try again.",
   requestFailedStatus: "The request failed (HTTP {0}). Try again.",
+  passkeyFailed: "The passkey request failed. Reload the page and try again.",
+  passkeyCancelled: "No passkey was used. Try again, or use another way.",
 } as const;
 
 export type Key = keyof typeof strings;

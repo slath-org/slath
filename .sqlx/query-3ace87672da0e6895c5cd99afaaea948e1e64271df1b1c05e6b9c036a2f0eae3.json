@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE background_migrations\n                 SET state = CASE WHEN $2 THEN 'done' ELSE 'running' END,\n                     cursor = $3, processed = processed + $4, last_error = NULL,\n                     started_at = coalesce(started_at, now()),\n                     finished_at = CASE WHEN $2 THEN now() ELSE NULL END,\n                     updated_at = now()\n                 WHERE name = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Jsonb",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ace87672da0e6895c5cd99afaaea948e1e64271df1b1c05e6b9c036a2f0eae3"
+}

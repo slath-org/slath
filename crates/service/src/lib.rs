@@ -10,13 +10,21 @@
 pub mod accounts;
 pub mod admin;
 pub mod audit;
+pub mod bgmigrations;
+pub mod email;
 pub mod error;
 pub mod jobs;
 pub mod keys;
+pub mod maintenance;
+pub mod mfa;
 pub mod orgs;
+pub mod passkeys;
 pub mod push;
 pub mod reconcile;
+pub mod recovery;
+pub mod registration;
 pub mod repos;
+pub mod secrets;
 pub mod sessions;
 pub mod settings;
 pub mod tokens;
@@ -37,6 +45,14 @@ pub struct Services {
     /// Signs API pagination cursors (an HMAC like the CSRF tokens).
     pub cursors: Arc<Csrf>,
     pub runner: slath_git::Runner,
+    /// Encrypts and decrypts secrets at rest.
+    pub envelope: Arc<slath_auth::Envelope>,
+    /// Background migrations of this release, in order.
+    pub background_registry: Arc<Vec<Arc<dyn slath_db::bgmigrations::BackgroundMigration>>>,
+    /// Read-only maintenance as last seen in the database.
+    pub maintenance: Arc<maintenance::MaintenanceState>,
+    /// The WebAuthn relying party (`None`: passkeys unavailable here).
+    pub webauthn: Option<Arc<webauthn_rs::prelude::Webauthn>>,
 }
 
 impl Services {
@@ -47,12 +63,32 @@ impl Services {
         master: &slath_auth::MasterKey,
         runner: slath_git::Runner,
     ) -> Self {
+        let webauthn = passkeys::relying_party(&config.server.public_url).map(Arc::new);
+        let repo_config: Arc<dyn slath_db::bgmigrations::BackgroundMigration> = Arc::new(
+            bgmigrations::RepoConfigRefresh::new(config.storage.data_dir.clone(), runner.clone()),
+        );
         Self {
             pool,
             config,
             csrf: Arc::new(Csrf::new(master.derive("csrf"))),
             cursors: Arc::new(Csrf::new(master.derive("api-cursor"))),
             runner,
+            envelope: Arc::new(slath_auth::Envelope::new(master, &[])),
+            background_registry: Arc::new(vec![repo_config]),
+            maintenance: Arc::default(),
+            webauthn,
         }
+    }
+
+    /// Adds old master keys (`secrets.old_key_files`) for decrypting values
+    /// that haven't been rotated yet.
+    #[must_use]
+    pub fn with_old_keys(
+        mut self,
+        master: &slath_auth::MasterKey,
+        old: &[slath_auth::MasterKey],
+    ) -> Self {
+        self.envelope = Arc::new(slath_auth::Envelope::new(master, old));
+        self
     }
 }

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (EXISTS (SELECT 1 FROM totp_credentials WHERE user_id = $1 AND confirmed)\n                OR EXISTS (SELECT 1 FROM webauthn_credentials WHERE user_id = $1)) AS \"x!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "x!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0bfba436c1dbd86f8d5a868dbe527c49a71ff976f4d23ea22fe7554e9772b366"
+}

@@ -8,11 +8,15 @@
 
 use std::io::{Read, Write};
 
-use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
+use slath_tests::server::{DEMO, GitClient, Instance, PASSWORD};
 
 fn main() {
     // alice/demo (private) with content; accounts as in tests/e2e/fixtures.ts.
-    let server = TestServer::start_with(&[DEMO]);
+    // A host name, not an IP address: passkeys (WebAuthn) need one.
+    let inst = Instance::new("");
+    let origin = inst.use_localhost();
+    let mut server = inst.start(&[]);
+    server.seed_repos(&[DEMO]);
     server.create_user("sysadmin", "e2e admin password", true);
     let git = GitClient::new();
     let work = tempfile::tempdir().unwrap();
@@ -40,7 +44,7 @@ fn main() {
     git.ok(w, &["push", "-q", &server.url(&DEMO), "main"]);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
-    println!("SLATH_E2E_URL={}", server.base());
+    println!("SLATH_E2E_URL={origin}");
     std::io::stdout().flush().unwrap();
     let mut sink = Vec::new();
     let _ = std::io::stdin().read_to_end(&mut sink);

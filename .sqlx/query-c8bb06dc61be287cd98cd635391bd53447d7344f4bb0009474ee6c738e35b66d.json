@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO invitations (id, token_hash, created_by, email, note, expires_at)\n         VALUES ($1, $2, $3, $4::text::citext, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c8bb06dc61be287cd98cd635391bd53447d7344f4bb0009474ee6c738e35b66d"
+}

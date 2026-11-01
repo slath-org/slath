@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE background_migrations SET state = 'failed', last_error = $2, updated_at = now()\n                 WHERE name = $1 AND state IN ('pending', 'running')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "746f66f1c636b7d005615d5cf2a63f3c999545dd71af8a5eea1573738a9a51bb"
+}
