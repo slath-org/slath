@@ -1,0 +1,28 @@
+{% extends "settings/layout.html" %}
+{% block title %}Set up two-factor authentication{% endblock %}
+{% block settings %}
+<h1>Set up two-factor authentication</h1>
+{% include "settings/errors.html" %}
+<ol class="steps">
+  <li>
+    <p>Scan this QR code with an authenticator app (for example, one built into your password manager).</p>
+    <img class="qr-code" src="{{ setup.qr }}" width="200" height="200" alt="QR code with the setup key shown below">
+    <p>Can't scan it? Enter this setup key instead (time-based, 6 digits):</p>
+    <p><code class="secret-key">{{ setup.secret }}</code></p>
+  </li>
+  <li>
+    <form method="post" action="/-/settings/security/totp/confirm" class="form" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <div class="field">
+        <label for="code">Enter the 6-digit code the app shows</label>
+        <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required
+          {%- if let Some(e) = self.error("code") %} aria-invalid="true" aria-describedby="code-error"{% endif %}>
+        {%- if let Some(e) = self.error("code") %}
+        <p id="code-error" class="field-error">{{ e }}</p>
+        {%- endif %}
+      </div>
+      <div><button type="submit" class="button button-primary">Turn on</button></div>
+    </form>
+  </li>
+</ol>
+{% endblock %}

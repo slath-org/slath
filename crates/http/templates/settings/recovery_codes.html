@@ -1,0 +1,13 @@
+{% extends "settings/layout.html" %}
+{% block title %}Recovery codes{% endblock %}
+{% block settings %}
+<h1>Recovery codes</h1>
+<div class="notice" role="status"><p>{% if first %}Two-factor authentication is on. {% endif %}Save these codes now: they're shown only once.</p></div>
+<p>If you lose your authenticator app, sign in with one of these codes instead of a 6-digit code. Each code works once. Keep them somewhere safe, such as your password manager.</p>
+<ol class="recovery-codes">
+{%- for c in codes %}
+  <li><code>{{ c }}</code></li>
+{%- endfor %}
+</ol>
+<p><a class="button" href="/-/settings/security">Done</a></p>
+{% endblock %}

@@ -200,6 +200,7 @@ impl Services {
         &self,
         session: &Session,
         pw: Secret<String>,
+        code: Option<&str>,
     ) -> Result<(), LoginError> {
         let key = format!("account:{}", session.row.user_name.to_lowercase());
         let failures = slath_db::sessions::failures(&self.pool, &key)
@@ -226,6 +227,28 @@ impl Services {
                 .await
                 .map_err(|e| LoginError::Internal(e.to_string()))?;
             return Err(LoginError::Invalid);
+        }
+        // Users with a second factor confirm it too.
+        let user = session.user_id();
+        if self
+            .has_second_factor(user)
+            .await
+            .map_err(|e| LoginError::Internal(e.to_string()))?
+        {
+            let Some(code) = code.map(str::trim).filter(|c| !c.is_empty()) else {
+                return Err(LoginError::CodeRequired);
+            };
+            if self
+                .check_second_factor(user, code)
+                .await
+                .map_err(|e| LoginError::Internal(e.to_string()))?
+                .is_none()
+            {
+                slath_db::sessions::record_failures(&self.pool, &[key])
+                    .await
+                    .map_err(|e| LoginError::Internal(e.to_string()))?;
+                return Err(LoginError::CodeRequired);
+            }
         }
         slath_db::sessions::set_sudo(
             &self.pool,

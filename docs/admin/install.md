@@ -51,8 +51,10 @@ volume, not the data volume; see [Users and permissions](#users-and-permissions)
        --username ada --email ada@example.org
    ```
 
-4. Open `SLATH_PUBLIC_URL` (by default <http://localhost:3000>), sign in,
-   and create a repository. Clone it over HTTPS with a personal access token
+4. Open `SLATH_PUBLIC_URL` (by default <http://localhost:3000>) and sign
+   in. Administration needs two-factor authentication: set it up under
+   **Settings → Security**, then sign out and in again with a code (see
+   [Accounts and sign-in](accounts.md)). Create a repository. Clone it over HTTPS with a personal access token
    as the password, or over SSH after adding your key under **Settings → SSH
    keys**:
 
@@ -176,7 +178,9 @@ validates the result.
    `127.0.0.1:3000` and list the proxy's own address in
    `server.trusted_proxies` (the default trusts only `127.0.0.1` and `::1`).
 
-8. Sign in, create a repository, and clone it over HTTPS and SSH.
+8. Sign in, set up two-factor authentication under **Settings → Security**
+   (administration needs it), sign in again with a code, create a
+   repository, and clone it over HTTPS and SSH.
 
 ## Users and permissions
 

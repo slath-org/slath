@@ -100,14 +100,51 @@ impl Services {
         if OffsetDateTime::now_utc() - row.last_seen_at > time::Duration::minutes(1) {
             slath_db::sessions::touch(&self.pool, &row.id_hash).await?;
         }
+        let is_site_admin = row.is_admin
+            && self
+                .admin_mfa_satisfied(row.user_id, Some(row.auth_level))
+                .await?;
         let subject = Subject::User {
             id: row.user_id,
             kind: row.user_kind,
             state: row.user_state,
-            is_site_admin: row.is_admin,
+            is_site_admin,
             credential: Credential::Session,
         };
         Ok(Some(Session { row, subject }))
+    }
+
+    /// With `auth.require_mfa_for_admins`, administrator powers need a
+    /// second factor: sessions must have signed in with one (`level`), and
+    /// tokens and SSH keys (`None`) must belong to an account that has one.
+    /// Without, an administrator acts as a regular user until they set it up.
+    pub async fn admin_mfa_satisfied(
+        &self,
+        user: UserId,
+        level: Option<AuthLevel>,
+    ) -> Result<bool> {
+        if !self.config.auth.require_mfa_for_admins {
+            return Ok(true);
+        }
+        Ok(match level {
+            Some(AuthLevel::Mfa | AuthLevel::Passkey) => true,
+            Some(_) => false,
+            None => self.has_second_factor(user).await?,
+        })
+    }
+
+    /// True if the session's user is an administrator who can't use
+    /// administration until they sign in with a second factor.
+    #[must_use]
+    pub fn admin_needs_mfa(&self, session: &Session) -> bool {
+        session.row.is_admin
+            && !matches!(
+                session.subject,
+                Subject::User {
+                    is_site_admin: true,
+                    ..
+                }
+            )
     }
 
     /// Ends a session (logout).

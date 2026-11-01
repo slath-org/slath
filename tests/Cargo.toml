@@ -35,7 +35,10 @@ name = "ops"
 path = "ops/main.rs"
 
 [dependencies]
+base64.workspace = true
 flate2.workspace = true
+p256 = "0.14"
+slath-auth.workspace = true
 slath-git.workspace = true
 slath-http.workspace = true
 sqlx.workspace = true

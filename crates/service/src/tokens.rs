@@ -194,13 +194,17 @@ impl Services {
             slath_db::tokens::touch(&self.pool, row.id).await?;
         }
         let scopes = parse_scopes(&row.scopes);
+        // Site-admin power through a token needs the admin scope (and,
+        // with require_mfa_for_admins, an account with a second factor).
+        let is_site_admin = user.is_admin
+            && scopes.contains(&Scope::Admin)
+            && self.admin_mfa_satisfied(user.id, None).await?;
         Ok(Some(TokenAuth {
             subject: Subject::User {
                 id: user.id,
                 kind: user.kind,
                 state: user.state,
-                // Site-admin power through a token needs the admin scope.
-                is_site_admin: user.is_admin && scopes.contains(&Scope::Admin),
+                is_site_admin,
                 credential: Credential::Token {
                     id: row.id,
                     scopes,

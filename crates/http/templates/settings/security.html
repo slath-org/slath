@@ -1,8 +1,73 @@
 {% extends "settings/layout.html" %}
-{% block title %}Password{% endblock %}
+{% block title %}Security{% endblock %}
 {% block settings %}
-<h1>Password</h1>
+<h1>Security</h1>
 {% include "settings/errors.html" %}
+<h2>Two-factor authentication</h2>
+{%- if mfa.totp %}
+<p>On: signing in needs a code from your authenticator app. {{ mfa.recovery_codes_left }} of 10 recovery codes left.</p>
+<div class="button-row">
+  <form method="post" action="/-/settings/security/recovery-codes" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button">New recovery codes</button>
+  </form>
+  <form method="post" action="/-/settings/security/totp/disable" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button button-danger">Turn off two-factor authentication</button>
+  </form>
+</div>
+{%- else %}
+<p>Off. With two-factor authentication, signing in also needs a code from an authenticator app on your phone or computer.{% if admin_needs_mfa %} <strong>Administration requires it.</strong>{% endif %}</p>
+<form method="post" action="/-/settings/security/totp" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button button-primary">{% if mfa.totp_pending %}Continue setup{% else %}Set up two-factor authentication{% endif %}</button>
+</form>
+{%- endif %}
+{%- if passkeys_available %}
+<h2>Passkeys</h2>
+<p>A passkey signs you in with your device's screen lock or a security key, without a password or code.</p>
+{%- if !passkeys.is_empty() %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="passkeys-caption">
+<table class="table">
+  <caption id="passkeys-caption" class="visually-hidden">Your passkeys</caption>
+  <thead><tr><th scope="col">Name</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for p in passkeys %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><time datetime="{{ p.created.iso }}">{{ p.created.text }}</time></td>
+      <td>{% if let Some(u) = p.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
+      <td>
+        <form method="post" action="/-/settings/security/passkeys/{{ p.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> passkey {{ p.name }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{%- if in_sudo %}
+<form method="post" action="/-/settings/security/passkeys" class="form" data-passkey="/-/settings/security/passkeys/options" data-passkey-mode="create" hidden>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="ceremony" value="">
+  <input type="hidden" name="credential" value="">
+  <div class="field">
+    <label for="passkey-name">Name for the new passkey</label>
+    <input id="passkey-name" name="name" type="text" maxlength="100" required autocomplete="off" aria-describedby="passkey-name-hint">
+    <p id="passkey-name-hint" class="hint">For example "Laptop" or "Security key".</p>
+  </div>
+  <div><button type="submit" class="button">Add a passkey</button></div>
+  <p data-passkey-status role="status" aria-live="polite"></p>
+</form>
+<noscript><p class="text-secondary">Adding a passkey needs JavaScript.</p></noscript>
+{%- else %}
+<p><a class="button" href="/-/sudo?next=/-/settings/security">Add a passkey</a></p>
+{%- endif %}
+{%- endif %}
+<h2>Password</h2>
 <p>Changing your password signs out all your other sessions.</p>
 <form method="post" action="/-/settings/security/password" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

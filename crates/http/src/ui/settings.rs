@@ -34,6 +34,12 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "key-removed" => "SSH key removed.",
         "token-revoked" => "Token revoked.",
         "appearance-saved" => "Appearance saved.",
+        "mfa-off" => "Two-factor authentication is off.",
+        "verification-sent" => "We sent a confirmation link to your email address.",
+        "passkey-added" => "Passkey added.",
+        "passkey-removed" => "Passkey removed.",
+        "passkey-failed" => "The passkey couldn't be added. Try again.",
+        "passkey-name" => "Name the passkey (up to 100 characters).",
         _ => return None,
     })
 }
@@ -61,6 +67,9 @@ struct ProfilePage<'a> {
     tab: &'static str,
     name: &'a str,
     display_name: &'a str,
+    email: &'a str,
+    email_verified: bool,
+    email_enabled: bool,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -81,11 +90,17 @@ async fn profile(
         .await
         .map_err(|e| AppError::internal(&e))?
         .ok_or_else(AppError::not_found)?;
+    let (email, verified) = slath_db::email_tokens::email_status(&state.pool, session.user_id())
+        .await
+        .map_err(|e| AppError::internal(&e))?;
     Ok(render(&ProfilePage {
         ctx,
         tab: "profile",
         name: &user.name,
         display_name: user.display_name.as_deref().unwrap_or(""),
+        email: email.as_deref().unwrap_or(""),
+        email_verified: verified,
+        email_enabled: state.services.email_enabled(),
         message: status_message(q.status.as_deref()),
         errors: Vec::new(),
     }))
@@ -95,6 +110,8 @@ async fn profile(
 struct ProfileForm {
     #[serde(default)]
     display_name: String,
+    /// Absent: the address stays as it is.
+    email: Option<String>,
 }
 
 async fn profile_save(
@@ -103,11 +120,16 @@ async fn profile_save(
     RequireSession(session): RequireSession,
     Form(f): Form<ProfileForm>,
 ) -> Result<Response, AppError> {
-    match state
+    let mut result = state
         .services
         .update_profile(&session, &f.display_name)
-        .await
+        .await;
+    if result.is_ok()
+        && let Some(email) = &f.email
     {
+        result = state.services.change_email(&session, email).await;
+    }
+    match result {
         Ok(()) => Ok(Redirect::to("/-/settings/profile?status=profile-saved").into_response()),
         Err(e) => {
             let errors = field_errors(e)?;
@@ -116,6 +138,9 @@ async fn profile_save(
                 tab: "profile",
                 name: &session.row.user_name,
                 display_name: &f.display_name,
+                email: f.email.as_deref().unwrap_or(""),
+                email_verified: false,
+                email_enabled: state.services.email_enabled(),
                 message: None,
                 errors,
             });
@@ -123,6 +148,15 @@ async fn profile_save(
             Ok(res)
         }
     }
+}
+
+/// `POST /-/settings/profile/verify`: sends the confirmation link again.
+async fn resend_verification(
+    State(state): State<AppState>,
+    RequireSession(session): RequireSession,
+) -> Result<Response, AppError> {
+    state.services.send_verification(session.user_id()).await?;
+    Ok(Redirect::to("/-/settings/profile?status=verification-sent").into_response())
 }
 
 #[derive(Template)]
@@ -133,6 +167,36 @@ struct SecurityPage<'a> {
     tab: &'static str,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
+    mfa: slath_service::mfa::MfaStatus,
+    admin_needs_mfa: bool,
+    passkeys_available: bool,
+    passkeys: Vec<PasskeyRow>,
+    in_sudo: bool,
+}
+
+struct PasskeyRow {
+    id: String,
+    name: String,
+    created: Time,
+    last_used: Option<Time>,
+}
+
+async fn passkey_rows(
+    state: &AppState,
+    session: &slath_service::sessions::Session,
+) -> Result<Vec<PasskeyRow>, AppError> {
+    Ok(state
+        .services
+        .passkey_list(session.user_id())
+        .await?
+        .into_iter()
+        .map(|p| PasskeyRow {
+            id: p.id.to_string(),
+            name: p.name,
+            created: p.created_at.into(),
+            last_used: p.last_used_at.map(Into::into),
+        })
+        .collect())
 }
 
 impl SecurityPage<'_> {
@@ -141,13 +205,142 @@ impl SecurityPage<'_> {
     }
 }
 
-async fn security(ctx: PageCtx, _s: RequireSession, Query(q): Query<StatusQuery>) -> Response {
-    render(&SecurityPage {
+async fn security(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    Ok(render(&SecurityPage {
         ctx,
         tab: "security",
         message: status_message(q.status.as_deref()),
         errors: Vec::new(),
-    })
+        mfa: state.services.mfa_status(session.user_id()).await?,
+        admin_needs_mfa: state.services.admin_needs_mfa(&session),
+        passkeys_available: state.services.passkeys_available(),
+        passkeys: passkey_rows(&state, &session).await?,
+        in_sudo: session.in_sudo(),
+    }))
+}
+
+#[derive(Template)]
+#[template(path = "settings/totp_setup.html")]
+struct TotpSetupPage {
+    ctx: PageCtx,
+    tab: &'static str,
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+    setup: slath_service::mfa::TotpSetup,
+}
+
+impl TotpSetupPage {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+/// A page with secrets on it: never cached.
+fn no_store(mut res: Response) -> Response {
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    res
+}
+
+/// `POST /-/settings/security/totp`: starts (or shows the pending) setup.
+async fn totp_begin(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+) -> Result<Response, AppError> {
+    let setup = match state.services.totp_pending(&session).await? {
+        Some(s) => s,
+        None => state.services.totp_begin(&session).await?,
+    };
+    Ok(no_store(render(&TotpSetupPage {
+        ctx,
+        tab: "security",
+        message: None,
+        errors: Vec::new(),
+        setup,
+    })))
+}
+
+#[derive(Deserialize)]
+struct CodeForm {
+    #[serde(default)]
+    code: String,
+}
+
+#[derive(Template)]
+#[template(path = "settings/recovery_codes.html")]
+struct RecoveryCodesPage {
+    ctx: PageCtx,
+    tab: &'static str,
+    message: Option<&'static str>,
+    codes: Vec<String>,
+    /// Just turned on (as opposed to regenerated).
+    first: bool,
+}
+
+/// `POST /-/settings/security/totp/confirm`.
+async fn totp_confirm(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+    Form(f): Form<CodeForm>,
+) -> Result<Response, AppError> {
+    match state.services.totp_confirm(&session, &f.code).await {
+        Ok(codes) => Ok(no_store(render(&RecoveryCodesPage {
+            ctx,
+            tab: "security",
+            message: None,
+            codes: codes.into_iter().map(Secret::into_inner).collect(),
+            first: true,
+        }))),
+        Err(ServiceError::Invalid(errors)) => {
+            let setup = state
+                .services
+                .totp_pending(&session)
+                .await?
+                .ok_or_else(AppError::not_found)?;
+            let mut res = no_store(render(&TotpSetupPage {
+                ctx,
+                tab: "security",
+                message: None,
+                errors,
+                setup,
+            }));
+            *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
+            Ok(res)
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// `POST /-/settings/security/totp/disable`.
+async fn totp_disable(
+    State(state): State<AppState>,
+    Sudo(session): Sudo,
+) -> Result<Response, AppError> {
+    state.services.totp_disable(&session).await?;
+    Ok(Redirect::to("/-/settings/security?status=mfa-off").into_response())
+}
+
+/// `POST /-/settings/security/recovery-codes`.
+async fn recovery_codes(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+) -> Result<Response, AppError> {
+    let codes = state.services.regenerate_recovery_codes(&session).await?;
+    Ok(no_store(render(&RecoveryCodesPage {
+        ctx,
+        tab: "security",
+        message: None,
+        codes: codes.into_iter().map(Secret::into_inner).collect(),
+        first: false,
+    })))
 }
 
 #[derive(Deserialize)]
@@ -175,11 +368,17 @@ async fn change_password(
     {
         Ok(_) => Ok(Redirect::to("/-/settings/security?status=password-changed").into_response()),
         Err(e) => {
+            let errors = field_errors(e)?;
             let mut res = render(&SecurityPage {
                 ctx,
                 tab: "security",
                 message: None,
-                errors: field_errors(e)?,
+                errors,
+                mfa: state.services.mfa_status(session.user_id()).await?,
+                admin_needs_mfa: state.services.admin_needs_mfa(&session),
+                passkeys_available: state.services.passkeys_available(),
+                passkeys: passkey_rows(&state, &session).await?,
+                in_sudo: session.in_sudo(),
             });
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
             Ok(res)
@@ -280,26 +479,48 @@ struct SudoPage<'a> {
     ctx: PageCtx,
     next: &'a str,
     error: Option<&'a str>,
+    /// The account has a second factor; ask for a code too.
+    needs_code: bool,
+    /// The account has passkeys (an alternative to password and code).
+    has_passkeys: bool,
 }
 
 #[derive(Deserialize)]
 struct NextQuery {
     next: Option<String>,
+    status: Option<String>,
 }
 
-async fn sudo_page(ctx: PageCtx, _s: RequireSession, Query(q): Query<NextQuery>) -> Response {
+async fn sudo_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(session): RequireSession,
+    Query(q): Query<NextQuery>,
+) -> Result<Response, AppError> {
     let next = safe_next(q.next.as_deref());
-    render(&SudoPage {
+    let needs_code = state.services.has_second_factor(session.user_id()).await?;
+    let has_passkeys = state.services.passkeys_available()
+        && !state
+            .services
+            .passkey_list(session.user_id())
+            .await?
+            .is_empty();
+    Ok(render(&SudoPage {
         ctx,
         next: &next,
-        error: None,
-    })
+        error: (q.status.as_deref() == Some("passkey-failed"))
+            .then_some("The passkey couldn't be verified. Try again."),
+        needs_code,
+        has_passkeys,
+    }))
 }
 
 #[derive(Deserialize)]
 struct SudoForm {
     #[serde(default)]
     password: String,
+    #[serde(default)]
+    code: String,
     next: Option<String>,
 }
 
@@ -312,21 +533,36 @@ async fn sudo_submit(
     let next = safe_next(f.next.as_deref());
     let (status, msg) = match state
         .services
-        .reauthenticate(&session, Secret::new(f.password))
+        .reauthenticate(&session, Secret::new(f.password), Some(&f.code))
         .await
     {
         Ok(()) => return Ok(Redirect::to(&next).into_response()),
-        Err(LoginError::Invalid) => (StatusCode::UNAUTHORIZED, "Incorrect password."),
+        Err(LoginError::Invalid | LoginError::Expired) => {
+            (StatusCode::UNAUTHORIZED, "Incorrect password.")
+        }
+        Err(LoginError::CodeRequired) => (
+            StatusCode::UNAUTHORIZED,
+            "Enter the current code from your authenticator app, or a recovery code.",
+        ),
         Err(LoginError::Throttled) => (
             StatusCode::TOO_MANY_REQUESTS,
             "Too many failed attempts. Wait 15 minutes and try again.",
         ),
         Err(LoginError::Internal(e)) => return Err(AppError::internal(&e)),
     };
+    let needs_code = state.services.has_second_factor(session.user_id()).await?;
+    let has_passkeys = state.services.passkeys_available()
+        && !state
+            .services
+            .passkey_list(session.user_id())
+            .await?
+            .is_empty();
     let mut res = render(&SudoPage {
         ctx,
         next: &next,
         error: Some(msg),
+        needs_code,
+        has_passkeys,
     });
     *res.status_mut() = status;
     Ok(res)
@@ -818,11 +1054,36 @@ pub fn router() -> Router<AppState> {
             Access::Account,
             get(profile).post(profile_save),
         )
+        .route_as(
+            "/-/settings/profile/verify",
+            Access::Account,
+            post(resend_verification),
+        )
         .route_as("/-/settings/security", Access::Account, get(security))
         .route_as(
             "/-/settings/security/password",
             Access::Account,
             post(change_password),
+        )
+        .route_as(
+            "/-/settings/security/totp",
+            Access::Account,
+            post(totp_begin),
+        )
+        .route_as(
+            "/-/settings/security/totp/confirm",
+            Access::Account,
+            post(totp_confirm),
+        )
+        .route_as(
+            "/-/settings/security/totp/disable",
+            Access::Account,
+            post(totp_disable),
+        )
+        .route_as(
+            "/-/settings/security/recovery-codes",
+            Access::Account,
+            post(recovery_codes),
         )
         .route_as("/-/settings/sessions", Access::Account, get(sessions))
         .route_as(

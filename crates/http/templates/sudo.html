@@ -3,7 +3,7 @@
 {% block content %}
 <div class="narrow">
 <h1>Confirm your password</h1>
-<p>This action is sensitive. Confirm your password to continue; you won't be asked again for 15 minutes.</p>
+<p>This action is sensitive. Confirm your password{% if needs_code %} and a two-factor code{% endif %} to continue; you won't be asked again for 15 minutes.</p>
 {% if let Some(e) = error -%}
 <div class="error-summary" role="alert" tabindex="-1" data-error-summary>
   <h2>There is a problem</h2>
@@ -20,7 +20,24 @@
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
   </div>
+  {%- if needs_code %}
+  <div class="field">
+    <label for="code">Two-factor code</label>
+    <input id="code" name="code" type="text" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" required aria-describedby="code-hint">
+    <p id="code-hint" class="hint">From your authenticator app, or a recovery code.</p>
+  </div>
+  {%- endif %}
   <div><button type="submit" class="button button-primary">Confirm</button></div>
 </form>
+{%- if has_passkeys %}
+<form method="post" action="/-/sudo/passkey" class="form" data-passkey="/-/sudo/passkey/options" data-passkey-mode="get" hidden>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="ceremony" value="">
+  <input type="hidden" name="credential" value="">
+  <div><button type="submit" class="button">Confirm with a passkey</button></div>
+  <p data-passkey-status role="status" aria-live="polite"></p>
+</form>
+{%- endif %}
 </div>
 {% endblock %}

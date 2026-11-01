@@ -173,7 +173,7 @@ fn profiles_render_and_unknown_namespaces_are_not_found() {
 
 #[test]
 fn org_creation_can_be_limited_to_site_admins() {
-    let s = TestServer::start_full(&[], "[auth]\nusers_can_create_orgs = false\n");
+    let s = TestServer::start_opts(&[], "", &[("SLATH__AUTH__USERS_CAN_CREATE_ORGS", "false")]);
     s.create_user("alice", PW, false);
     s.create_user("root-admin", PW, true);
     let mut a = s.login("alice", PW);

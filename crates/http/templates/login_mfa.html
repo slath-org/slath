@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Two-factor authentication{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Two-factor authentication</h1>
+{% if let Some(e) = error -%}
+<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2>There is a problem</h2>
+  <p><a href="#code">{{ e }}</a></p>
+</div>
+{%- endif %}
+<form method="post" action="/-/login/two-factor" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="field">
+    <label for="code">Code</label>
+    <input id="code" name="code" type="text" inputmode="text" autocomplete="one-time-code"
+           autocapitalize="none" spellcheck="false" required aria-describedby="code-hint"{% if error.is_some() %} aria-invalid="true"{% endif %}>
+    <p id="code-hint" class="hint">The 6-digit code from your authenticator app, or one of your recovery codes.</p>
+  </div>
+  <button type="submit" class="button button-primary">Verify</button>
+</form>
+{%- if passkey %}
+<form method="post" action="/-/login/two-factor/passkey" class="form" data-passkey="/-/login/two-factor/passkey/options" data-passkey-mode="get" hidden>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="ceremony" value="">
+  <input type="hidden" name="credential" value="">
+  <button type="submit" class="button">Use a passkey</button>
+  <p data-passkey-status role="status" aria-live="polite"></p>
+</form>
+{%- endif %}
+<p><a href="/-/login?next={{ next|urlencode }}">Use a different account</a></p>
+</div>
+{% endblock %}

@@ -125,11 +125,12 @@ impl Services {
             return Ok(None);
         }
         slath_db::ssh_keys::touch(&self.pool, key_id).await?;
+        let is_site_admin = k.is_admin && self.admin_mfa_satisfied(k.key.user_id, None).await?;
         Ok(Some(Subject::User {
             id: k.key.user_id,
             kind: k.user_kind,
             state: k.user_state,
-            is_site_admin: k.is_admin,
+            is_site_admin,
             credential: Credential::SshKey { id: key_id },
         }))
     }
