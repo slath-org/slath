@@ -344,8 +344,31 @@ pub struct ResourceCtx {
     pub repo_id: crate::ids::RepoId,
     pub visibility: Visibility,
     pub state: RepoState,
-    /// The subject's effective role on this repository, if any.
+    /// The subject's effective role on this repository, if any: the highest
+    /// of collaborator role, organization ownership/membership, namespace
+    /// ownership, and site administration.
     pub role: Option<Role>,
+    /// The repository allows forks.
+    pub allow_forking: bool,
+}
+
+impl ResourceCtx {
+    /// A context with forking allowed.
+    #[must_use]
+    pub const fn new(
+        repo_id: crate::ids::RepoId,
+        visibility: Visibility,
+        state: RepoState,
+        role: Option<Role>,
+    ) -> Self {
+        Self {
+            repo_id,
+            visibility,
+            state,
+            role,
+            allow_forking: true,
+        }
+    }
 }
 
 /// Result of a policy check.
@@ -365,14 +388,166 @@ impl Decision {
     }
 }
 
+/// Who may perform an action, at minimum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Needs {
+    /// Anyone who can read, including anonymous visitors of public repositories.
+    Read,
+    /// A signed-in user who can read.
+    SignedIn,
+    Role(Role),
+}
+
+impl Action {
+    /// The minimum role (or sign-in) the action needs.
+    const fn needs(self) -> Needs {
+        use Action as A;
+        match self {
+            A::RepoRead => Needs::Read,
+            A::RepoFork
+            | A::IssueCreate
+            | A::CommentCreate
+            | A::IssueEditOwn
+            | A::CommentEditOwn
+            | A::MrComment
+            | A::MrReview
+            | A::MrSuggest
+            | A::MrEditOwn => Needs::SignedIn,
+            A::RepoPush
+            | A::RepoPushProtected
+            | A::RepoPushMaintainerEdit
+            | A::IssueTriage
+            | A::MrCreate
+            | A::MrTriage
+            | A::MrApprove
+            | A::MrMerge
+            | A::MrAutoMerge
+            | A::MrUpdateBranch
+            | A::MrApplySuggestion
+            | A::StatusWrite
+            | A::CiApproveExternalRun
+            | A::CiRerun
+            | A::CiCancel => Needs::Role(Role::Write),
+            A::TagMoveOrDelete | A::CommentModerate | A::LabelsManage | A::MilestonesManage => {
+                Needs::Role(Role::Maintain)
+            }
+            A::ProtectionManage
+            | A::WebhooksManage
+            | A::SecretsManage
+            | A::CollaboratorsManage
+            | A::RepoSettings
+            | A::RepoRename
+            | A::RepoArchive
+            | A::RepoDelete
+            | A::RepoTransfer
+            | A::RepoVisibility => Needs::Role(Role::Admin),
+        }
+    }
+
+    /// The token scope that covers the action.
+    #[must_use]
+    pub const fn scope(self) -> Scope {
+        use Action as A;
+        match self {
+            A::RepoRead => Scope::RepoRead,
+            A::IssueCreate
+            | A::CommentCreate
+            | A::IssueEditOwn
+            | A::CommentEditOwn
+            | A::IssueTriage
+            | A::CommentModerate
+            | A::LabelsManage
+            | A::MilestonesManage => Scope::IssuesWrite,
+            A::MrCreate
+            | A::MrComment
+            | A::MrReview
+            | A::MrSuggest
+            | A::MrEditOwn
+            | A::MrTriage
+            | A::MrApprove
+            | A::MrMerge
+            | A::MrAutoMerge
+            | A::MrUpdateBranch
+            | A::MrApplySuggestion => Scope::MrsWrite,
+            A::StatusWrite => Scope::StatusesWrite,
+            _ => Scope::RepoWrite,
+        }
+    }
+
+    /// True for actions that change something (denied on archived repositories).
+    #[must_use]
+    pub const fn is_write(self) -> bool {
+        !matches!(self, Self::RepoRead | Self::RepoFork)
+    }
+}
+
 /// The authorization choke point: every access to repository-scoped data
-/// goes through it.
+/// goes through it. `tests/matrix.rs` checks it cell by cell against
+/// `tests/matrix.csv`.
 ///
-/// Stub: denies every action and hides the resource. `tests/matrix.rs`
-/// checks the policy cell by cell against `tests/matrix.csv`.
+/// - Repositories being deleted don't exist for anyone.
+/// - Suspended and deleted users can do nothing.
+/// - Public repositories give everyone `read`.
+/// - A token restricted to other repositories acts like an anonymous
+///   visitor here; otherwise a token's scopes cap what its role allows.
+/// - Archived repositories refuse every write except unarchiving.
+/// - A denial is "visible" (403) only if the subject can read the
+///   repository; otherwise it's "not found" (404).
 #[must_use]
-pub fn check(_subject: &Subject, _action: Action, _res: &ResourceCtx) -> Decision {
-    Decision::Deny { visible: false }
+pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
+    const HIDDEN: Decision = Decision::Deny { visible: false };
+    if res.state == RepoState::Deleting {
+        return HIDDEN;
+    }
+    let (role, signed_in, scopes) = match subject {
+        Subject::System => return Decision::Allow,
+        Subject::Anonymous => (None, false, None),
+        Subject::User {
+            state, credential, ..
+        } => {
+            if *state != UserState::Active {
+                return HIDDEN;
+            }
+            match credential {
+                Credential::Session => (res.role, true, None),
+                Credential::Token {
+                    scopes, repo_ids, ..
+                } => {
+                    if repo_ids
+                        .as_ref()
+                        .is_some_and(|ids| !ids.contains(&res.repo_id))
+                    {
+                        (None, false, None)
+                    } else {
+                        (res.role, true, Some(scopes.as_slice()))
+                    }
+                }
+            }
+        }
+    };
+    let public = res.visibility == Visibility::Public;
+    let can_read = public || role.is_some();
+    if !can_read {
+        return HIDDEN;
+    }
+    let deny = Decision::Deny { visible: true };
+    if let Some(scopes) = scopes
+        && !scopes.iter().any(|s| s.implies(action.scope()))
+    {
+        return deny;
+    }
+    if res.state == RepoState::Archived && action.is_write() && action != Action::RepoArchive {
+        return deny;
+    }
+    if action == Action::RepoFork && !res.allow_forking {
+        return deny;
+    }
+    let ok = match action.needs() {
+        Needs::Read => true,
+        Needs::SignedIn => signed_in,
+        Needs::Role(min) => signed_in && role.is_some_and(|r| r >= min),
+    };
+    if ok { Decision::Allow } else { deny }
 }
 
 impl FromStr for Role {

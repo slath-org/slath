@@ -7,10 +7,10 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use slath_core::authz::{
-    Action, Credential, Decision, RepoState, ResourceCtx, Role, Subject, UserKind, UserState,
-    Visibility, check,
+    Action, Credential, Decision, RepoState, ResourceCtx, Role, Scope, Subject, UserKind,
+    UserState, Visibility, check,
 };
-use slath_core::ids::{RepoId, UserId};
+use slath_core::ids::{RepoId, TokenId, UserId};
 
 struct Row {
     line: usize,
@@ -20,13 +20,13 @@ struct Row {
     expect: Decision,
 }
 
-fn user(kind: UserKind, state: UserState) -> Subject {
+fn user(kind: UserKind, state: UserState, credential: Credential) -> Subject {
     Subject::User {
         id: UserId::new(),
         kind,
         state,
         is_site_admin: false,
-        credential: Credential::Session,
+        credential,
     }
 }
 
@@ -36,11 +36,14 @@ fn parse_rows(csv: &str) -> Vec<Row> {
         .enumerate()
         .filter(|(_, l)| !l.trim().is_empty() && !l.starts_with('#'));
     let (_, header) = lines.next().expect("header");
-    assert_eq!(header, "action,visibility,state,subject,role,expect");
+    assert_eq!(
+        header,
+        "action,visibility,state,subject,role,credential,expect"
+    );
     lines
         .map(|(i, l)| {
             let f: Vec<&str> = l.split(',').collect();
-            assert_eq!(f.len(), 6, "line {}: expected 6 fields", i + 1);
+            assert_eq!(f.len(), 7, "line {}: expected 7 fields", i + 1);
             let action = f[0]
                 .parse()
                 .unwrap_or_else(|_| panic!("line {}: action", i + 1));
@@ -55,11 +58,37 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                 "deleting" => RepoState::Deleting,
                 v => panic!("line {}: state {v}", i + 1),
             };
+            let repo_id = RepoId::new();
+            let mut allow_forking = true;
+            let credential = match f[5] {
+                "session" => Credential::Session,
+                "session-noforks" => {
+                    allow_forking = false;
+                    Credential::Session
+                }
+                c => {
+                    let (kind, scope) = c
+                        .split_once(':')
+                        .unwrap_or_else(|| panic!("line {}: credential", i + 1));
+                    let scope: Scope = scope
+                        .parse()
+                        .unwrap_or_else(|_| panic!("line {}: scope", i + 1));
+                    Credential::Token {
+                        id: TokenId::new(),
+                        scopes: vec![scope],
+                        repo_ids: match kind {
+                            "token" => None,
+                            "token-other" => Some(vec![RepoId::new()]),
+                            k => panic!("line {}: credential kind {k}", i + 1),
+                        },
+                    }
+                }
+            };
             let subject = match f[3] {
                 "anon" => Subject::Anonymous,
-                "user" => user(UserKind::Human, UserState::Active),
-                "suspended" => user(UserKind::Human, UserState::Suspended),
-                "bot" => user(UserKind::Bot, UserState::Active),
+                "user" => user(UserKind::Human, UserState::Active, credential),
+                "suspended" => user(UserKind::Human, UserState::Suspended, credential),
+                "bot" => user(UserKind::Bot, UserState::Active, credential),
                 v => panic!("line {}: subject {v}", i + 1),
             };
             let role = match f[4] {
@@ -69,7 +98,7 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                         .unwrap_or_else(|_| panic!("line {}: role", i + 1)),
                 ),
             };
-            let expect = match f[5] {
+            let expect = match f[6] {
                 "allow" => Decision::Allow,
                 "deny_hidden" => Decision::Deny { visible: false },
                 "deny_visible" => Decision::Deny { visible: true },
@@ -79,10 +108,11 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                 line: i + 1,
                 action,
                 ctx: ResourceCtx {
-                    repo_id: RepoId::new(),
+                    repo_id,
                     visibility,
                     state,
                     role,
+                    allow_forking,
                 },
                 subject,
                 expect,
@@ -108,4 +138,31 @@ fn matrix_matches_policy() {
         })
         .collect();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every action × visibility × state × role cell exists for sessions, so a
+/// new action can't slip in without a decision in the table.
+#[test]
+fn matrix_is_complete() {
+    let csv = include_str!("matrix.csv");
+    for action in Action::ALL {
+        for vis in ["public", "private"] {
+            for state in ["active", "archived"] {
+                for (subject, role) in [
+                    ("anon", "none"),
+                    ("user", "none"),
+                    ("user", "read"),
+                    ("user", "write"),
+                    ("user", "maintain"),
+                    ("user", "admin"),
+                ] {
+                    let prefix = format!("{action},{vis},{state},{subject},{role},session,");
+                    assert!(
+                        csv.lines().any(|l| l.starts_with(&prefix)),
+                        "missing cell {prefix}"
+                    );
+                }
+            }
+        }
+    }
 }
