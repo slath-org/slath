@@ -7,5 +7,8 @@
 pub mod contract;
 pub mod fixtures;
 pub mod http;
+pub mod schema;
 pub mod server;
+pub mod smtp;
 pub mod sshd;
+pub mod webauthn;

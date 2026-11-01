@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: tokens-check web fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses guards css-lint
+check: tokens-check web fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses upgrade-notes guards css-lint
 
 # Regenerate web/src/tokens.css from web/src/tokens.json.
 tokens:
@@ -40,6 +40,11 @@ test-e2e *ARGS: web
 test-backup-restore:
     cargo build --locked -p slath --bins
     cargo nextest run --locked -p slath-tests --test ops -E 'test(/backup|restore/)'
+
+# Upgrade every release (built from its tag, cached in target/upgrade-matrix)
+# to this checkout and check the data. Pass tags to limit it.
+upgrade-matrix *TAGS:
+    scripts/upgrade-matrix.sh {{TAGS}}
 
 # Write tests/fixtures/schema/v<version>.sql (schema and data of a populated
 # instance) when preparing a release. Needs the dev database container.
@@ -97,6 +102,10 @@ api-check:
 asset-licenses:
     python3 scripts/check_asset_licenses.py
 
+# Every release tag has upgrade notes, and every notes file is well-formed.
+upgrade-notes:
+    python3 scripts/check_upgrade_notes.py
+
 # Unit tests of the Python helper scripts.
 py-test:
     python3 -m unittest -q scripts/test_*.py
@@ -129,6 +138,11 @@ tools:
 # Start the development PostgreSQL and wait until it accepts connections.
 dev-db:
     {{engine}} compose -f deploy/dev/compose.yml up -d --wait postgres
+
+# Start the development mail catcher: SMTP on 127.0.0.1:1025, inbox at
+# http://127.0.0.1:8025.
+dev-mail:
+    {{engine}} compose -f deploy/dev/compose.yml up -d mail
 
 # Stop the development services (data is kept in a volume).
 dev-db-stop:

@@ -167,6 +167,9 @@ pub struct TestServer {
     pub db: TestDb,
     pub addr: SocketAddr,
     pub dir: tempfile::TempDir,
+    /// The `slath` binary serving and running commands (an older release's
+    /// in upgrade tests).
+    pub bin: PathBuf,
 }
 
 impl TestServer {
@@ -200,69 +203,76 @@ impl TestServer {
     }
 
     fn launch(dir: tempfile::TempDir, db: TestDb, env: &[(&str, &str)]) -> Self {
-        Self::launch_attempt(dir, db, env, 1)
+        Self::launch_bin(dir, db, env, slath_bin())
     }
 
-    fn launch_attempt(
-        dir: tempfile::TempDir,
-        db: TestDb,
-        env: &[(&str, &str)],
-        attempt: u32,
-    ) -> Self {
+    fn launch_bin(dir: tempfile::TempDir, db: TestDb, env: &[(&str, &str)], bin: PathBuf) -> Self {
         let cfg_path = dir.path().join("slath.toml");
-        let log = std::fs::File::create(dir.path().join("server.log")).unwrap();
-        let mut child = Command::new(slath_bin())
-            .args(["serve", "--migrate", "--config"])
-            .arg(&cfg_path)
-            .envs(env.iter().copied())
-            .stdout(Stdio::piped())
-            .stderr(log)
-            .spawn()
-            .unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else { return };
-                if let Some(url) = line.strip_prefix("slath: listening on http://") {
-                    let _ = tx.send(url.to_owned());
+        let mut attempt = 1;
+        loop {
+            match spawn_server(&bin, &cfg_path, &dir.path().join("server.log"), env, true) {
+                Ok((child, addr)) => {
+                    return Self {
+                        child,
+                        token: String::new(),
+                        db,
+                        addr,
+                        dir,
+                        bin,
+                    };
                 }
+                // The free port picked earlier can be taken by another
+                // process before the server binds it; move to a new port.
+                Err(log) if log.contains("Address already in use") && attempt < 5 => {
+                    let cfg = std::fs::read_to_string(&cfg_path).unwrap();
+                    let old = cfg
+                        .split("listen = \"127.0.0.1:")
+                        .nth(1)
+                        .and_then(|r| r.split('"').next())
+                        .unwrap()
+                        .to_owned();
+                    let cfg = cfg.replace(
+                        &format!("127.0.0.1:{old}"),
+                        &format!("127.0.0.1:{}", free_port()),
+                    );
+                    std::fs::write(&cfg_path, cfg).unwrap();
+                    attempt += 1;
+                }
+                Err(log) => panic!("slath serve did not start:\n{log}"),
             }
-        });
-        let Ok(addr) = rx.recv_timeout(Duration::from_secs(30)) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let log = std::fs::read_to_string(dir.path().join("server.log")).unwrap_or_default();
-            // The free port picked earlier can be taken by another process
-            // before the server binds it; move to a new port and try again.
-            if log.contains("Address already in use") && attempt < 5 {
-                let cfg = std::fs::read_to_string(&cfg_path).unwrap();
-                let old = cfg
-                    .split("listen = \"127.0.0.1:")
-                    .nth(1)
-                    .and_then(|r| r.split('"').next())
-                    .unwrap()
-                    .to_owned();
-                let cfg = cfg.replace(
-                    &format!("127.0.0.1:{old}"),
-                    &format!("127.0.0.1:{}", free_port()),
-                );
-                std::fs::write(&cfg_path, cfg).unwrap();
-                return Self::launch_attempt(dir, db, env, attempt + 1);
-            }
-            panic!("slath serve did not start:\n{log}");
-        };
-        Self {
-            child,
-            token: String::new(),
-            db,
-            addr: addr.parse().unwrap(),
-            dir,
         }
+    }
+
+    /// Stops the server (its data stays).
+    pub fn stop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+
+    /// Starts the stopped server again with `bin` (`serve`, plus `--migrate`
+    /// if asked). Returns the server's log if it doesn't start.
+    pub fn start_again(&mut self, bin: &Path, migrate: bool) -> Result<(), String> {
+        self.stop();
+        let (child, addr) = spawn_server(
+            bin,
+            &self.config_path(),
+            &self.dir.path().join("server.log"),
+            &[],
+            migrate,
+        )?;
+        self.child = child;
+        self.addr = addr;
+        self.bin = bin.to_path_buf();
+        Ok(())
     }
 
     /// Creates the repositories' owners (and `alice`), the repositories, and
     /// `alice`'s token.
+    /// Creates repositories with their owners, `alice`, and her token.
+    pub fn seed_repos(&mut self, repos: &[TestRepo]) {
+        self.seed(repos);
+    }
+
     fn seed(&mut self, repos: &[TestRepo]) {
         let mut users = vec!["alice"];
         users.extend(repos.iter().map(|r| r.namespace));
@@ -299,7 +309,7 @@ impl TestServer {
     /// Runs a `slath` subcommand against this server's config; returns
     /// (success, stdout, stderr).
     pub fn slath(&self, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
-        run_slath(&self.config_path(), args, stdin)
+        run_slath_bin(&self.bin, &self.config_path(), args, stdin)
     }
 
     /// Creates a user through the CLI and returns its ID.
@@ -395,6 +405,49 @@ impl Drop for TestServer {
     }
 }
 
+/// Starts `slath serve` and waits for its "listening" line. On failure,
+/// returns the log.
+fn spawn_server(
+    bin: &Path,
+    cfg_path: &Path,
+    log_path: &Path,
+    env: &[(&str, &str)],
+    migrate: bool,
+) -> Result<(Child, SocketAddr), String> {
+    let log = std::fs::File::create(log_path).unwrap();
+    let mut cmd = Command::new(bin);
+    cmd.arg("serve");
+    if migrate {
+        cmd.arg("--migrate");
+    }
+    let mut child = cmd
+        .arg("--config")
+        .arg(cfg_path)
+        .envs(env.iter().copied())
+        .stdout(Stdio::piped())
+        .stderr(log)
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            let Ok(line) = line else { return };
+            if let Some(url) = line.strip_prefix("slath: listening on http://") {
+                let _ = tx.send(url.to_owned());
+            }
+        }
+    });
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(addr) => Ok((child, addr.parse().unwrap())),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Err(std::fs::read_to_string(log_path).unwrap_or_default())
+        }
+    }
+}
+
 /// A currently free TCP port on the loopback interface. The server needs
 /// its port before it starts, because `public_url` must name it.
 fn free_port() -> u16 {
@@ -464,7 +517,17 @@ impl GitClient {
 
 /// Runs a `slath` subcommand with `config`; returns (success, stdout, stderr).
 pub fn run_slath(config: &Path, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
-    let mut cmd = Command::new(slath_bin());
+    run_slath_bin(&slath_bin(), config, args, stdin)
+}
+
+/// Like [`run_slath`] with a specific binary.
+pub fn run_slath_bin(
+    bin: &Path,
+    config: &Path,
+    args: &[&str],
+    stdin: Option<&str>,
+) -> (bool, String, String) {
+    let mut cmd = Command::new(bin);
     cmd.args(args)
         .env("SLATH_CONFIG", config)
         .stdin(Stdio::piped())
@@ -516,11 +579,14 @@ impl Instance {
         .unwrap();
         let db = TestDb::create();
         let port = free_port();
+        // Administrators don't need a second factor here unless a test turns
+        // it on (SLATH__AUTH__REQUIRE_MFA_FOR_ADMINS=true).
         let mut cfg = format!(
             "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
              [database]\nurl = \"{db_url}\"\nmax_connections = 5\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
              socket_group = \"{gid}\"\n\
-             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
+             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n\
+             [auth]\nrequire_mfa_for_admins = false\n",
             gid = socket_gid(),
             data = dir.path().join("data").display(),
             run = dir.path().join("run").display(),
@@ -537,6 +603,26 @@ impl Instance {
         self.dir.path().join("slath.toml")
     }
 
+    /// Uses `http://localhost:<port>` as `public_url` (WebAuthn needs a
+    /// host name, not an IP address). Returns the new origin.
+    #[must_use]
+    pub fn use_localhost(&self) -> String {
+        let p = self.config_path();
+        let cfg = std::fs::read_to_string(&p).unwrap();
+        let cfg = cfg.replace(
+            "public_url = \"http://127.0.0.1:",
+            "public_url = \"http://localhost:",
+        );
+        std::fs::write(&p, &cfg).unwrap();
+        let port = cfg
+            .split("public_url = \"http://localhost:")
+            .nth(1)
+            .and_then(|r| r.split('"').next())
+            .unwrap()
+            .to_owned();
+        format!("http://localhost:{port}")
+    }
+
     pub fn slath(&self, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
         run_slath(&self.config_path(), args, stdin)
     }
@@ -545,5 +631,11 @@ impl Instance {
     #[must_use]
     pub fn start(self, env: &[(&str, &str)]) -> TestServer {
         TestServer::launch(self.dir, self.db, env)
+    }
+
+    /// Starts `serve --migrate` of another binary (an older release).
+    #[must_use]
+    pub fn start_bin(self, bin: &Path, env: &[(&str, &str)]) -> TestServer {
+        TestServer::launch_bin(self.dir, self.db, env, bin.to_path_buf())
     }
 }

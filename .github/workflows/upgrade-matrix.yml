@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrades an instance populated by every published release (each built
+# from its tag) to this commit and checks that nothing is lost. A new
+# release tag extends the matrix by itself. Runs on changes to migrations
+# or background migrations, and nightly.
+name: Upgrade matrix
+
+on:
+  pull_request:
+    paths:
+      - "migrations/**"
+      - "crates/db/src/bgmigrations/**"
+      - "apps/slath/src/upgrade.rs"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  upgrade-matrix:
+    name: upgrade from every release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: upgrade-matrix
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: just,cargo-nextest
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - name: Release tags
+        id: tags
+        run: echo "list=$(git tag --list 'v*' | sort -V | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      - name: Cache release binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/upgrade-matrix/v*/slath
+          key: upgrade-matrix-${{ hashFiles('rust-toolchain.toml') }}-${{ steps.tags.outputs.list }}
+          restore-keys: upgrade-matrix-
+      - run: just web
+      - run: just upgrade-matrix
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: upgrade-matrix
+          path: target/upgrade-matrix-report/
+          retention-days: 14

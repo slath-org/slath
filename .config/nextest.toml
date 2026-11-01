@@ -4,6 +4,19 @@
 [profile.default]
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# Backup, restore, and upgrade tests copy whole instances; running many at
+# once starves the machine and makes unrelated timing-based tests flaky.
+[test-groups]
+heavy-ops = { max-threads = 2 }
+
+[[profile.default.overrides]]
+filter = 'binary(ops)'
+test-group = 'heavy-ops'
+
+[[profile.ci.overrides]]
+filter = 'binary(ops)'
+test-group = 'heavy-ops'
+
 # Used by CI and `just conformance-report`; writes target/nextest/ci/junit.xml.
 [profile.ci]
 fail-fast = false
