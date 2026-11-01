@@ -228,3 +228,10 @@ Before 1.0.0, minor versions may contain breaking changes.
   with the CLI, a repository through the API, clone over HTTP and SSH) and
   then renders every page of the release image in a browser with outbound
   networking disabled, failing on any request that leaves the origin.
+- Repository maintenance: after 50 pushes, or a day after the last run if
+  anything was pushed, a `repo.maintenance` job runs `git gc` (unreachable
+  objects are pruned after two weeks; everything reachable from any ref,
+  including internal ones, stays) and records the repository's size. Runs
+  never overlap on one repository. Every push also updates the recorded
+  size and warns the pusher when a repository exceeds
+  `limits.repo_soft_quota_bytes`.

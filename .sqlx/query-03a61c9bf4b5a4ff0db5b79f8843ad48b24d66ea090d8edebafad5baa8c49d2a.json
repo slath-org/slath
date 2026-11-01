@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, maintenance_runs FROM repositories\n         WHERE pushes_since_maintenance > 0 AND state <> 'deleting'\n           AND coalesce(maintained_at, created_at) < $1\n         ORDER BY coalesce(maintained_at, created_at) LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "maintenance_runs",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "maintenance_runs"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "03a61c9bf4b5a4ff0db5b79f8843ad48b24d66ea090d8edebafad5baa8c49d2a"
+}

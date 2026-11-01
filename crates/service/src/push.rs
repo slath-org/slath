@@ -246,6 +246,7 @@ impl Services {
     /// updates, the ref snapshot, and the `ref.updated` job. Never fails
     /// the push; anything missed here is repaired by the reconciler.
     pub async fn post_receive(&self, grant: &PushGrant, updates: &[RefUpdate]) -> Vec<String> {
+        let mut messages = Vec::new();
         if let Err(e) = self
             .record_push(
                 grant.repo_id,
@@ -257,7 +258,31 @@ impl Services {
         {
             tracing::error!(error = %e, repo = %grant.repo_id, "post-receive bookkeeping failed; the reconciler will repair it");
         }
-        Vec::new()
+        match self.measure_repo(grant.repo_id).await {
+            Ok(size) => {
+                let quota = self.config.limits.repo_soft_quota_bytes.get();
+                if quota > 0 && size > quota {
+                    messages.push(format!(
+                        "slath: warning: this repository uses {}, more than its soft quota of {}",
+                        human_bytes(size),
+                        human_bytes(quota)
+                    ));
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, repo = %grant.repo_id, "measuring the repository failed")
+            }
+        }
+        messages
+    }
+
+    /// Updates a repository's recorded size from disk.
+    async fn measure_repo(&self, id: RepoId) -> Result<u64> {
+        let size = slath_git::storage::disk_usage(&self.runner, &self.repo_path(id))
+            .await
+            .map_err(ServiceError::internal)?;
+        slath_db::repos::set_size(&self.pool, id, i64::try_from(size).unwrap_or(i64::MAX)).await?;
+        Ok(size)
     }
 
     /// Writes a push event (also used by the reconciler with transport `reconcile`).
@@ -281,7 +306,37 @@ impl Services {
             .dedupe_key(format!("ref.updated:{push_id}")),
         )
         .await?;
+        let (pushes, runs) = slath_db::repos::count_push_for_maintenance(&mut *tx, repo).await?;
+        if pushes >= crate::jobs::MAINTENANCE_PUSHES {
+            slath_db::jobs::enqueue(&mut *tx, &Self::maintenance_job(repo, runs)).await?;
+        }
         tx.commit().await.map_err(ServiceError::internal)?;
         Ok(())
+    }
+}
+
+/// `1536` → `1.5 KiB`.
+fn human_bytes(n: u64) -> String {
+    const UNITS: [&str; 5] = ["bytes", "KiB", "MiB", "GiB", "TiB"];
+    let mut value = n as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{n} bytes")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+#[cfg(test)]
+mod size_tests {
+    #[test]
+    fn human_bytes_picks_a_unit() {
+        assert_eq!(super::human_bytes(512), "512 bytes");
+        assert_eq!(super::human_bytes(1536), "1.5 KiB");
+        assert_eq!(super::human_bytes(10 * 1024 * 1024), "10.0 MiB");
     }
 }

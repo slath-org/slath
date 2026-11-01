@@ -13,6 +13,13 @@ use crate::Services;
 pub const REPO_TRASH: &str = "repo.trash";
 /// Follow-up work after refs changed (webhooks, merge requests, CI later).
 pub const REF_UPDATED: &str = "ref.updated";
+/// `git gc` and size accounting for one repository.
+pub const REPO_MAINTENANCE: &str = "repo.maintenance";
+
+/// Pushes after which a repository is maintained without waiting a day.
+pub const MAINTENANCE_PUSHES: i32 = 50;
+/// The longest a maintenance run may take; also its lease.
+const MAINTENANCE_TIMEOUT_SECS: u32 = 3600;
 
 fn repo_id(job: &LeasedJob) -> Result<RepoId, JobError> {
     job.payload
@@ -34,6 +41,71 @@ impl Services {
         // Nothing reacts to ref changes yet; the job exists so pushes record
         // their follow-up work durably from the start.
         .handle(REF_UPDATED, |_job: LeasedJob| async { Ok(()) })
+        .handle(REPO_MAINTENANCE, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.maintain_repo(repo_id(&job)?).await.map(|_| ()) }
+            }
+        })
+    }
+
+    /// The maintenance job for a repository. Its dedupe key includes the
+    /// run counter, so at most one job per repository is pending at a time.
+    pub(crate) fn maintenance_job(id: RepoId, runs: i32) -> slath_db::jobs::NewJob {
+        slath_db::jobs::NewJob::new(
+            "default",
+            REPO_MAINTENANCE,
+            serde_json::json!({"repo_id": id.to_string()}),
+        )
+        .dedupe_key(format!("{REPO_MAINTENANCE}:{id}:{runs}"))
+    }
+
+    /// Enqueues maintenance for repositories with pushes whose last run is
+    /// more than a day old. Run periodically; returns the number enqueued.
+    pub async fn schedule_maintenance(&self) -> Result<usize, crate::ServiceError> {
+        let day_ago = OffsetDateTime::now_utc() - time::Duration::days(1);
+        let due = slath_db::repos::maintenance_due(&self.pool, day_ago).await?;
+        let mut n = 0;
+        for (id, runs) in due {
+            if slath_db::jobs::enqueue(&self.pool, &Self::maintenance_job(id, runs))
+                .await?
+                .is_some()
+            {
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
+    /// Runs `git gc` on a repository and records its size. Never overlaps
+    /// with another run on the same repository (a lease in the database);
+    /// returns `false` if one is in progress. Git failures are logged and
+    /// end the run, which is retried after the next pushes.
+    pub async fn maintain_repo(&self, id: RepoId) -> Result<bool, JobError> {
+        let Some(counted) =
+            slath_db::repos::take_maintenance_lease(&self.pool, id, MAINTENANCE_TIMEOUT_SECS)
+                .await
+                .map_err(|e| JobError::Retry(e.to_string()))?
+        else {
+            return Ok(false);
+        };
+        let path = self.repo_path(id);
+        let timeout = std::time::Duration::from_secs(u64::from(MAINTENANCE_TIMEOUT_SECS));
+        if let Err(e) = slath_git::storage::maintain(&self.runner, &path, timeout).await {
+            tracing::warn!(error = %e, repo = %id, "repository maintenance failed");
+        }
+        let size = match slath_git::storage::disk_usage(&self.runner, &path).await {
+            Ok(b) => Some(i64::try_from(b).unwrap_or(i64::MAX)),
+            Err(e) => {
+                tracing::warn!(error = %e, repo = %id, "measuring the repository failed");
+                None
+            }
+        };
+        slath_db::repos::finish_maintenance(&self.pool, id, counted, size)
+            .await
+            .map_err(|e| JobError::Retry(e.to_string()))?;
+        Ok(true)
     }
 
     async fn trash_repo(&self, id: RepoId) -> Result<(), JobError> {

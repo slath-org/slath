@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET maintained_at = now(),\n                maintenance_runs = maintenance_runs + 1,\n                pushes_since_maintenance = greatest(pushes_since_maintenance - $2, 0),\n                size_bytes = coalesce($3, size_bytes),\n                maintenance_lease_until = NULL\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4bf601e94c9a7385aba5384d4fdc6f5a063feb930d0f9ff2466c4bfa418d0b2f"
+}

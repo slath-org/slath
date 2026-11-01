@@ -26,7 +26,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 7;
+pub const REQUIRED_SCHEMA: i32 = 8;
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");

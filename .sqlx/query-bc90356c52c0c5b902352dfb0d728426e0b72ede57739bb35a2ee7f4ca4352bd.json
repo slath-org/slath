@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET pushes_since_maintenance = pushes_since_maintenance + 1\n         WHERE id = $1 RETURNING pushes_since_maintenance, maintenance_runs",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pushes_since_maintenance",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "pushes_since_maintenance"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "maintenance_runs",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "maintenance_runs"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bc90356c52c0c5b902352dfb0d728426e0b72ede57739bb35a2ee7f4ca4352bd"
+}

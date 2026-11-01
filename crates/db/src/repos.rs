@@ -561,3 +561,100 @@ pub async fn list_all(
     .await?;
     Ok(rows.into_iter().map(|r| to_repo!(r)).collect())
 }
+
+/// Counts a push toward the next maintenance run. Returns the pushes since
+/// the last run and the number of completed runs.
+pub async fn count_push_for_maintenance(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+) -> Result<(i32, i32), DbError> {
+    let r = sqlx::query!(
+        "UPDATE repositories SET pushes_since_maintenance = pushes_since_maintenance + 1
+         WHERE id = $1 RETURNING pushes_since_maintenance, maintenance_runs",
+        id.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map_or((0, 0), |r| (r.pushes_since_maintenance, r.maintenance_runs)))
+}
+
+/// Repositories with pushes whose last maintenance (or creation) is older
+/// than `before`, with their run counters.
+pub async fn maintenance_due(
+    exec: impl PgExecutor<'_>,
+    before: OffsetDateTime,
+) -> Result<Vec<(RepoId, i32)>, DbError> {
+    let rows = sqlx::query!(
+        "SELECT id, maintenance_runs FROM repositories
+         WHERE pushes_since_maintenance > 0 AND state <> 'deleting'
+           AND coalesce(maintained_at, created_at) < $1
+         ORDER BY coalesce(maintained_at, created_at) LIMIT 1000",
+        before
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (RepoId::from_uuid(r.id), r.maintenance_runs))
+        .collect())
+}
+
+/// Takes the maintenance lease of a live repository for `seconds`. Returns
+/// the pushes counted so far, or `None` if another run holds the lease or
+/// the repository is gone.
+pub async fn take_maintenance_lease(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    seconds: u32,
+) -> Result<Option<i32>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "UPDATE repositories SET maintenance_lease_until = now() + make_interval(secs => $2)
+         WHERE id = $1 AND state <> 'deleting'
+           AND (maintenance_lease_until IS NULL OR maintenance_lease_until < now())
+         RETURNING pushes_since_maintenance",
+        id.as_uuid(),
+        f64::from(seconds)
+    )
+    .fetch_optional(exec)
+    .await?)
+}
+
+/// Records a finished maintenance run and releases the lease. Pushes that
+/// arrived during the run stay counted.
+pub async fn finish_maintenance(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    counted: i32,
+    size_bytes: Option<i64>,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET maintained_at = now(),
+                maintenance_runs = maintenance_runs + 1,
+                pushes_since_maintenance = greatest(pushes_since_maintenance - $2, 0),
+                size_bytes = coalesce($3, size_bytes),
+                maintenance_lease_until = NULL
+         WHERE id = $1",
+        id.as_uuid(),
+        counted,
+        size_bytes
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Stores a repository's measured size.
+pub async fn set_size(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    size_bytes: i64,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET size_bytes = $2 WHERE id = $1",
+        id.as_uuid(),
+        size_bytes
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

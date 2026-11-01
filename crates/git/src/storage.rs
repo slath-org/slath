@@ -113,6 +113,45 @@ pub async fn set_head(runner: &Runner, git_dir: &Path, full_ref: &str) -> Result
     Ok(())
 }
 
+/// Repacks and prunes like `git gc`. Objects reachable from any ref,
+/// including Slath's internal `refs/slath/*`, are kept; unreachable ones
+/// only after two weeks.
+pub async fn maintain(
+    runner: &Runner,
+    git_dir: &Path,
+    timeout: std::time::Duration,
+) -> Result<(), GitError> {
+    runner
+        .repo(git_dir)
+        .config("gc.pruneExpire", "2.weeks.ago")
+        .args(["maintenance", "run", "--task=gc", "--quiet"])
+        .timeout(timeout)
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Bytes on disk used by objects (`git count-objects -v`: loose, packed,
+/// and garbage).
+pub async fn disk_usage(runner: &Runner, git_dir: &Path) -> Result<u64, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args(["count-objects", "-v"])
+        .run()
+        .await?;
+    Ok(parse_count_objects(&out.stdout))
+}
+
+fn parse_count_objects(out: &[u8]) -> u64 {
+    String::from_utf8_lossy(out)
+        .lines()
+        .filter_map(|l| l.split_once(": "))
+        .filter(|(k, _)| matches!(*k, "size" | "size-pack" | "size-garbage"))
+        .filter_map(|(_, v)| v.trim().parse::<u64>().ok())
+        .sum::<u64>()
+        .saturating_mul(1024)
+}
+
 /// Checks that every object reachable from the refs is present
 /// (`git fsck --connectivity-only`).
 pub async fn check_connectivity(runner: &Runner, git_dir: &Path) -> Result<(), GitError> {
@@ -132,6 +171,12 @@ pub async fn check_connectivity(runner: &Runner, git_dir: &Path) -> Result<(), G
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn count_objects_sizes_are_summed_in_bytes() {
+        let out = b"count: 3\nsize: 12\nin-pack: 40\npacks: 1\nsize-pack: 100\nprune-packable: 0\ngarbage: 0\nsize-garbage: 2\n";
+        assert_eq!(parse_count_objects(out), 114 * 1024);
+    }
 
     #[test]
     fn paths_derive_from_ids_only() {

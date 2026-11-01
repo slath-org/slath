@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET maintenance_lease_until = now() + make_interval(secs => $2)\n         WHERE id = $1 AND state <> 'deleting'\n           AND (maintenance_lease_until IS NULL OR maintenance_lease_until < now())\n         RETURNING pushes_since_maintenance",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pushes_since_maintenance",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "pushes_since_maintenance"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ec8e2cf207c80030b6f97a5ad4822bab9b367869a7de5d36bba9e776f362cdb4"
+}
