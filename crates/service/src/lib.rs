@@ -27,6 +27,7 @@ pub mod repos;
 pub mod secrets;
 pub mod sessions;
 pub mod settings;
+pub mod teams;
 pub mod tokens;
 
 use std::sync::Arc;

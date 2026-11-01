@@ -88,3 +88,22 @@ slath admin reset-mfa --username alice
 This also signs the user out everywhere. It's recorded in the audit log, and
 the user gets an email. They then sign in with their password and set up
 two-factor authentication again.
+
+## Organizations and teams
+
+A user's role on a repository is the highest of everything that grants
+one: being a collaborator, being in a team with access, owning the
+organization (admin), every member's default access (none or read),
+owning the namespace (admin), and site administration (admin). Removing
+any grant takes effect on the next request.
+
+- **Teams:** organization owners create teams under the organization's
+  **Teams** page and add organization members. A repository's
+  administrators give a team of the same organization a role under
+  **Settings → Access**. Leaving the organization also removes a user
+  from its teams; deleting a team ends the access it gave.
+- **Member policies** (organization **Settings**): the access every member
+  gets (none, or read for every repository), and **Require two-factor
+  authentication**. With the requirement, members and collaborators
+  without a second factor lose access to the organization's repositories
+  until they set one up (public repositories stay readable).

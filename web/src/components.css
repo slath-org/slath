@@ -319,24 +319,39 @@ fieldset.field {
   padding: 0;
   margin: 0;
 }
-.checkbox {
+.checkbox,
+.radio {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   min-height: var(--target-min);
   padding-block: var(--space-1);
 }
-.checkbox label {
+.checkbox label,
+.radio label {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
   min-width: var(--target-min);
 }
-.checkbox input {
+.checkbox input,
+.radio input {
   width: 1.125rem;
   height: 1.125rem;
   margin: 0.15rem 0 0;
   accent-color: var(--accent);
+}
+.plain-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.plain-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
 }
 .token-value {
   width: 100%;

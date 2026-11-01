@@ -167,6 +167,10 @@ pub struct RoleFacts {
     pub org_role: Option<String>,
     /// The organization's role for members (`none`/`read`).
     pub org_default_member_role: Option<String>,
+    /// Roles granted to teams the user is in.
+    pub team_roles: Vec<Role>,
+    /// The owning organization requires MFA, which the user doesn't have.
+    pub mfa_unmet: bool,
 }
 
 pub async fn role_facts(
@@ -180,7 +184,11 @@ pub async fn role_facts(
              EXISTS (SELECT 1 FROM users u WHERE u.id = $2 AND u.namespace_id = r.namespace_id) AS "namespace_owner!",
              (SELECT m.role FROM organizations o JOIN org_members m ON m.org_id = o.id
               WHERE o.namespace_id = r.namespace_id AND m.user_id = $2) AS org_role,
-             (SELECT o.default_member_role FROM organizations o WHERE o.namespace_id = r.namespace_id) AS org_default_member_role
+             (SELECT o.default_member_role FROM organizations o WHERE o.namespace_id = r.namespace_id) AS org_default_member_role,
+             ARRAY(SELECT a.role FROM repo_team_access a JOIN team_members tm ON tm.team_id = a.team_id
+                   WHERE a.repo_id = r.id AND tm.user_id = $2) AS "team_roles!",
+             COALESCE((SELECT o.require_mfa FROM organizations o WHERE o.namespace_id = r.namespace_id), false)
+               AND NOT slath_has_mfa($2) AS "mfa_unmet!"
            FROM repositories r WHERE r.id = $1"#,
         repo.as_uuid(),
         user.as_uuid()
@@ -192,6 +200,8 @@ pub async fn role_facts(
         namespace_owner: r.namespace_owner,
         org_role: r.org_role,
         org_default_member_role: r.org_default_member_role,
+        team_roles: r.team_roles.iter().filter_map(|t| t.parse().ok()).collect(),
+        mfa_unmet: r.mfa_unmet,
     })
     .unwrap_or_default())
 }
@@ -212,11 +222,7 @@ pub async fn list_visible_in_namespace(
                   r.pushed_at, r.deleted_at, r.created_at, r.updated_at
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $3
-                OR EXISTS (SELECT 1 FROM repo_collaborators c WHERE c.repo_id = r.id AND c.user_id = $2)
-                OR EXISTS (SELECT 1 FROM users u WHERE u.id = $2 AND u.namespace_id = r.namespace_id)
-                OR EXISTS (SELECT 1 FROM organizations o JOIN org_members m ON m.org_id = o.id
-                           WHERE o.namespace_id = r.namespace_id AND m.user_id = $2
-                             AND (m.role = 'owner' OR o.default_member_role <> 'none')))
+                OR slath_can_read(r.id, $2::uuid))
              ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4"#,
         namespace.as_uuid(),
         viewer,
@@ -526,11 +532,7 @@ pub async fn list_visible(
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            WHERE r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $2
-                OR EXISTS (SELECT 1 FROM repo_collaborators c WHERE c.repo_id = r.id AND c.user_id = $1)
-                OR EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.namespace_id = r.namespace_id)
-                OR EXISTS (SELECT 1 FROM organizations o JOIN org_members m ON m.org_id = o.id
-                           WHERE o.namespace_id = r.namespace_id AND m.user_id = $1
-                             AND (m.role = 'owner' OR o.default_member_role <> 'none')))
+                OR slath_can_read(r.id, $1::uuid))
            ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4"#,
         viewer,
         site_admin,

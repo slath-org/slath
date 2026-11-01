@@ -302,6 +302,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "unarchived" => "Repository unarchived.",
         "collaborator-saved" => "Collaborator saved.",
         "collaborator-removed" => "Collaborator removed.",
+        "team-saved" => "Team access saved.",
+        "team-removed" => "Team access removed.",
         _ => return None,
     })
 }
@@ -505,6 +507,8 @@ struct AccessSettings<'a> {
     message: Option<&'a str>,
     errors: Vec<FieldError>,
     username: String,
+    /// Teams with access; `None` for repositories of users (no teams).
+    teams: Option<Vec<(String, &'static str)>>,
 }
 
 impl AccessSettings<'_> {
@@ -544,6 +548,19 @@ async fn access_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let teams = if a.repo.namespace_kind == "org" {
+        Some(
+            state
+                .services
+                .repo_teams(subject, &a.repo.namespace, &a.repo.name)
+                .await?
+                .into_iter()
+                .map(|(n, r)| (n, slath_db::repos::role_str(r)))
+                .collect(),
+        )
+    } else {
+        None
+    };
     let mut res = render(&AccessSettings {
         ctx,
         header: RepoHeader::new(a, subject, "settings"),
@@ -551,6 +568,7 @@ async fn access_page(
         message,
         errors,
         username,
+        teams,
     });
     *res.status_mut() = status;
     Ok(res)
@@ -628,6 +646,60 @@ async fn remove_collaborator(
         "/settings/access?status=collaborator-removed",
     ))
     .into_response())
+}
+
+#[derive(Deserialize)]
+struct TeamAccessForm {
+    #[serde(default)]
+    team: String,
+    #[serde(default)]
+    role: String,
+}
+
+async fn set_team(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<TeamAccessForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let role = ROLES
+        .iter()
+        .find(|(n, _)| *n == f.role)
+        .map_or(Role::Read, |(_, r)| *r);
+    match state
+        .services
+        .set_repo_team(
+            &s.subject,
+            &a.repo.namespace,
+            &a.repo.name,
+            &f.team,
+            Some(role),
+        )
+        .await
+    {
+        Ok(()) => {
+            Ok(Redirect::to(&repo_url(&a, "/settings/access?status=team-saved")).into_response())
+        }
+        Err(ServiceError::Invalid(errors)) => {
+            access_page(&state, ctx, &s.subject, &a, None, errors, String::new()).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn remove_team(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, team)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    state
+        .services
+        .set_repo_team(&s.subject, &a.repo.namespace, &a.repo.name, &team, None)
+        .await?;
+    Ok(Redirect::to(&repo_url(&a, "/settings/access?status=team-removed")).into_response())
 }
 
 #[derive(Template)]
@@ -725,6 +797,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/access/{user}/remove",
             Access::Resource,
             post(remove_collaborator),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/access/teams",
+            Access::Resource,
+            post(set_team),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/access/teams/{team}/remove",
+            Access::Resource,
+            post(remove_team),
         )
         .route_as(
             "/{ns}/{repo}/settings/danger",

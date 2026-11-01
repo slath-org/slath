@@ -93,7 +93,7 @@ impl Services {
     }
 
     /// The acting user's role in an org (sessions, or tokens of any scope).
-    async fn org_role(&self, subject: &Subject, org: OrgId) -> Result<Option<OrgRole>> {
+    pub(crate) async fn org_role(&self, subject: &Subject, org: OrgId) -> Result<Option<OrgRole>> {
         match subject {
             Subject::User {
                 id,
@@ -224,6 +224,7 @@ impl Services {
             ));
         }
         slath_db::orgs::remove_member(&mut *tx, org, target).await?;
+        slath_db::teams::remove_from_org_teams(&mut *tx, org, target).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         self.audit(
             subject,

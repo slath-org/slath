@@ -41,6 +41,8 @@ pub struct Org {
     pub display_name: Option<String>,
     pub description: Option<String>,
     pub default_member_role: String,
+    /// Members need a second factor to use the organization's repositories.
+    pub require_mfa: bool,
     pub created_at: OffsetDateTime,
 }
 
@@ -132,7 +134,7 @@ pub async fn create(
 
 pub async fn get(exec: impl PgExecutor<'_>, id: OrgId) -> Result<Option<Org>, DbError> {
     let r = sqlx::query!(
-        r#"SELECT o.id, o.namespace_id, n.name::text AS "name!", o.display_name, o.description, o.default_member_role, o.created_at
+        r#"SELECT o.id, o.namespace_id, n.name::text AS "name!", o.display_name, o.description, o.default_member_role, o.require_mfa, o.created_at
            FROM organizations o JOIN namespaces n ON n.id = o.namespace_id WHERE o.id = $1"#,
         id.as_uuid()
     )
@@ -145,8 +147,28 @@ pub async fn get(exec: impl PgExecutor<'_>, id: OrgId) -> Result<Option<Org>, Db
         display_name: r.display_name,
         description: r.description,
         default_member_role: r.default_member_role,
+        require_mfa: r.require_mfa,
         created_at: r.created_at,
     }))
+}
+
+/// Sets the member policies: the role every member gets, and whether
+/// members need a second factor.
+pub async fn set_policies(
+    exec: impl PgExecutor<'_>,
+    id: OrgId,
+    default_member_role: &str,
+    require_mfa: bool,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE organizations SET default_member_role = $2, require_mfa = $3, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        default_member_role,
+        require_mfa
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
 }
 
 pub async fn update(
@@ -283,7 +305,7 @@ pub async fn list_all(
     limit: i64,
 ) -> Result<Vec<Org>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT o.id, o.namespace_id, n.name::text AS "name!", o.display_name, o.description, o.default_member_role, o.created_at
+        r#"SELECT o.id, o.namespace_id, n.name::text AS "name!", o.display_name, o.description, o.default_member_role, o.require_mfa, o.created_at
            FROM organizations o JOIN namespaces n ON n.id = o.namespace_id ORDER BY lower(n.name::text) OFFSET $1 LIMIT $2"#,
         offset,
         limit
@@ -299,6 +321,7 @@ pub async fn list_all(
             display_name: r.display_name,
             description: r.description,
             default_member_role: r.default_member_role,
+            require_mfa: r.require_mfa,
             created_at: r.created_at,
         })
         .collect())

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ team }} · Teams · {{ org }}{% endblock %}
+{% block content %}
+<p><a href="/{{ org }}">{{ org }}</a> / <a href="/{{ org }}/-/teams">Teams</a></p>
+<h1>{{ team }}</h1>
+{%- if let Some(d) = description %}
+<p>{{ d }}</p>
+{%- endif %}
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<h2>Members</h2>
+{%- if members.is_empty() %}
+<p class="text-secondary">No members.</p>
+{%- else %}
+<ul class="plain-list">
+{%- for mem in members %}
+  <li><a href="/{{ mem }}">{{ mem }}</a>
+  {%- if can_manage %}
+    <form method="post" action="/{{ org }}/-/teams/{{ team }}/members/{{ mem }}/remove" class="inline-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <button type="submit" class="button button-quiet">Remove<span class="visually-hidden"> {{ mem }} from {{ team }}</span></button>
+    </form>
+  {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if can_manage %}
+<form method="post" action="/{{ org }}/-/teams/{{ team }}/members" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Add an organization member</label>
+    <input id="username" name="username" type="text" required autocapitalize="none" spellcheck="false" autocomplete="off"
+      {%- if let Some(e) = self.error("username") %} aria-invalid="true" aria-describedby="username-error"{% endif %}>
+    {%- if let Some(e) = self.error("username") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button">Add member</button></div>
+</form>
+{%- endif %}
+<h2>Repositories</h2>
+{%- if repos.is_empty() %}
+<p class="text-secondary">No repositories. Give the team access in a repository's access settings.</p>
+{%- else %}
+<ul class="plain-list">
+{%- for (repo, role) in repos %}
+  <li><a href="/{{ repo }}">{{ repo }}</a> <span class="text-secondary">({{ role }})</span></li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if can_manage %}
+<h2>Delete team</h2>
+<p>Members keep their organization membership but lose the access the team gave them.</p>
+<form method="post" action="/{{ org }}/-/teams/{{ team }}/delete" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button button-danger">Delete team {{ team }}</button>
+</form>
+{%- endif %}
+{% endblock %}

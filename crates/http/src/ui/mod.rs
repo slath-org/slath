@@ -14,6 +14,7 @@ pub mod recovery;
 pub mod registration;
 pub mod repos;
 pub mod settings;
+pub mod teams;
 
 use askama::Template;
 use axum::extract::{FromRequestParts, Request};
@@ -335,6 +336,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(recovery::router())
         .merge(registration::router())
         .merge(passkeys::router())
+        .merge(teams::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())

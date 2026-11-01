@@ -119,17 +119,17 @@ impl Services {
             return Ok(Some(Role::Admin));
         }
         let f = slath_db::repos::role_facts(&self.pool, repo.id, user).await?;
-        let mut role = f.collaborator;
-        let mut raise = |r: Role| role = Some(role.map_or(r, |c| c.max(r)));
-        if f.namespace_owner || f.org_role.as_deref() == Some("owner") {
-            raise(Role::Admin);
-        }
-        if f.org_role.as_deref() == Some("member")
-            && f.org_default_member_role.as_deref() == Some("read")
-        {
-            raise(Role::Read);
-        }
-        Ok(role)
+        Ok(authz::effective_role(&authz::RoleGrants {
+            site_admin: false,
+            namespace_owner: f.namespace_owner,
+            collaborator: f.collaborator,
+            teams: f.team_roles,
+            org_owner: f.org_role.as_deref() == Some("owner"),
+            org_member: f.org_role.is_some(),
+            org_default_member_role: (f.org_default_member_role.as_deref() == Some("read"))
+                .then_some(Role::Read),
+            org_mfa_unmet: f.mfa_unmet,
+        }))
     }
 
     async fn access_for(&self, subject: &Subject, repo: Repo) -> Result<RepoAccess> {

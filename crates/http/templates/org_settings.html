@@ -19,5 +19,17 @@
   </div>
   <div><button type="submit" class="button button-primary">Save</button></div>
 </form>
+<h2>Member policies</h2>
+<form method="post" action="/{{ org }}/-/settings/policies" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <fieldset>
+    <legend>Access for every member</legend>
+    <div class="radio"><input id="dmr-none" type="radio" name="default_member_role" value="none"{% if default_member_role == "none" %} checked{% endif %}><label for="dmr-none">None: only repositories they or their teams are given</label></div>
+    <div class="radio"><input id="dmr-read" type="radio" name="default_member_role" value="read"{% if default_member_role == "read" %} checked{% endif %}><label for="dmr-read">Read every repository of the organization</label></div>
+  </fieldset>
+  <div class="checkbox"><input id="require_mfa" type="checkbox" name="require_mfa" value="1"{% if require_mfa %} checked{% endif %} aria-describedby="require_mfa-hint"><label for="require_mfa">Require two-factor authentication</label></div>
+  <p id="require_mfa-hint" class="hint">Members and collaborators without it lose access to the organization's repositories until they set it up.</p>
+  <div><button type="submit" class="button">Save policies</button></div>
+</form>
 </div>
 {% endblock %}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT o.id, o.namespace_id, n.name::text AS \"name!\", o.display_name, o.description, o.default_member_role, o.created_at\n           FROM organizations o JOIN namespaces n ON n.id = o.namespace_id ORDER BY lower(n.name::text) OFFSET $1 LIMIT $2",
+  "query": "SELECT o.id, o.namespace_id, n.name::text AS \"name!\", o.display_name, o.description, o.default_member_role, o.require_mfa, o.created_at\n           FROM organizations o JOIN namespaces n ON n.id = o.namespace_id WHERE o.id = $1",
   "describe": {
     "columns": [
       {
@@ -66,6 +66,17 @@
       },
       {
         "ordinal": 6,
+        "name": "require_mfa",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "organizations",
+            "name": "require_mfa"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -78,8 +89,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -89,8 +99,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "6e7b9ab71500b2c00a9905eaffbc73ed7cf2c02ff8d6b3534d4be92f6c322e90"
+  "hash": "d6b3906d6e2179ecea1d8081efbf8b204afec00945f51abef66215e46162cf39"
 }

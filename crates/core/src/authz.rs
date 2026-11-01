@@ -554,6 +554,50 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
     if ok { Decision::Allow } else { deny }
 }
 
+/// Everything that can give a user a role on a repository.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RoleGrants {
+    pub site_admin: bool,
+    /// The user owns the repository's namespace.
+    pub namespace_owner: bool,
+    pub collaborator: Option<Role>,
+    /// Roles of teams the user is a member of.
+    pub teams: Vec<Role>,
+    /// Owner of the owning organization.
+    pub org_owner: bool,
+    /// Member of the owning organization.
+    pub org_member: bool,
+    /// The organization's role for all members (`read`, or none).
+    pub org_default_member_role: Option<Role>,
+    /// The owning organization requires MFA and the user has none.
+    pub org_mfa_unmet: bool,
+}
+
+/// The effective role: the highest of every grant. Site administrators are
+/// admins everywhere. A user who doesn't meet the organization's MFA
+/// requirement gets nothing from any grant on its repositories until they
+/// set it up. `crates/core/tests/roles.csv` checks this cell by cell.
+#[must_use]
+pub fn effective_role(g: &RoleGrants) -> Option<Role> {
+    if g.site_admin {
+        return Some(Role::Admin);
+    }
+    if g.org_mfa_unmet {
+        return None;
+    }
+    let owner = (g.namespace_owner || g.org_owner).then_some(Role::Admin);
+    let member = if g.org_member {
+        g.org_default_member_role
+    } else {
+        None
+    };
+    [owner, g.collaborator, member]
+        .into_iter()
+        .flatten()
+        .chain(g.teams.iter().copied())
+        .max()
+}
+
 impl FromStr for Role {
     type Err = UnknownRole;
     fn from_str(s: &str) -> Result<Self, Self::Err> {

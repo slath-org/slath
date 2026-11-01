@@ -22,6 +22,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - During an upgrade a running server becomes read-only: pages show a banner, and saving and pushing are refused with a message.
 - `serve --migrate` runs the same preflight and refuses to migrate when a check fails or a manual upgrade step is required.
 - An older binary on an upgraded database names the upgrade and the backup to restore.
+- Teams: organization owners group members into teams, and repository administrators give teams a role.
+- Organizations can require two-factor authentication for access to their repositories and give every member read access.
 - Registration modes: `disabled` (default), `invite` with single-use invitation links from administrators, and `open` self-registration.
 - On open instances with email, accounts must confirm their address before creating repositories or organizations.
 - Password reset by email: single-use links valid for 30 minutes, the same answer for unknown addresses, and every session signed out afterwards.

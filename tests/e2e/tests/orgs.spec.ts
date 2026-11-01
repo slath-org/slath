@@ -15,6 +15,21 @@ test("conf_a11y_04_create_an_organization_and_manage_members", async ({ page }) 
   await tapOrClick(page, page.getByRole("link", { name: "Members" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Members");
   await expectAccessible(page);
+
+  // Teams and the member policies.
+  await page.goto(`/${org}`);
+  await tapOrClick(page, page.getByRole("link", { name: "Teams" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Teams");
+  await expectAccessible(page);
+  await page.getByLabel("Name", { exact: true }).fill("devs");
+  await tapOrClick(page, page.getByRole("button", { name: "Create team" }));
+  await expect(page.getByRole("status").filter({ hasText: "Team created." })).toBeVisible();
+  await tapOrClick(page, page.getByRole("link", { name: "devs", exact: true }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("devs");
+  await expectAccessible(page);
+  await page.goto(`/${org}/-/settings`);
+  await expect(page.getByRole("heading", { name: "Member policies" })).toBeVisible();
+  await expectAccessible(page);
 });
 
 test("conf_a11y_01_user_profile_accessible", async ({ page }) => {

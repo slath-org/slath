@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM repo_team_access WHERE repo_id = $1 AND team_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f266a6065dd024b360d72c39b2ad693802297ea5a9cda377af8d42662235fd0d"
+}

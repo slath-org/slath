@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           WHERE r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $2\n                OR EXISTS (SELECT 1 FROM repo_collaborators c WHERE c.repo_id = r.id AND c.user_id = $1)\n                OR EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.namespace_id = r.namespace_id)\n                OR EXISTS (SELECT 1 FROM organizations o JOIN org_members m ON m.org_id = o.id\n                           WHERE o.namespace_id = r.namespace_id AND m.user_id = $1\n                             AND (m.role = 'owner' OR o.default_member_role <> 'none')))\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $3\n                OR slath_can_read(r.id, $2::uuid))\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -162,8 +162,8 @@
     "parameters": {
       "Left": [
         "Uuid",
+        "Uuid",
         "Bool",
-        "Int8",
         "Int8"
       ]
     },
@@ -185,5 +185,5 @@
       false
     ]
   },
-  "hash": "719e9894b44b4d3f620ff8938b63b7ae800f28f56613d2c59ecd36b0aa840b5b"
+  "hash": "dd0580c991ce2789413f7bcc563976b636a3e2720b034af1f11260d9e5eb0815"
 }

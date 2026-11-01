@@ -385,6 +385,8 @@ struct OrgSettingsPage {
     org: String,
     display_name: String,
     description: String,
+    default_member_role: String,
+    require_mfa: bool,
     errors: Vec<FieldError>,
 }
 
@@ -410,6 +412,8 @@ async fn org_settings(
         org: name,
         display_name: view.org.display_name.unwrap_or_default(),
         description: view.org.description.unwrap_or_default(),
+        default_member_role: view.org.default_member_role,
+        require_mfa: view.org.require_mfa,
         errors: Vec::new(),
     }))
 }
@@ -438,11 +442,14 @@ async fn org_settings_save(
         Ok(()) => Ok(Redirect::to(&format!("/{name}?status=saved")).into_response()),
         Err(ServiceError::Forbidden) => Err(AppError::not_found()),
         Err(ServiceError::Invalid(errors)) => {
+            let org = state.services.org_view(&s.subject, id).await?.org;
             let mut res = render(&OrgSettingsPage {
                 ctx,
                 org: name,
                 display_name: f.display_name,
                 description: f.description,
+                default_member_role: org.default_member_role,
+                require_mfa: org.require_mfa,
                 errors,
             });
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;

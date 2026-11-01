@@ -24,6 +24,7 @@ mod routes;
 mod settings;
 mod ssh;
 mod surfaces;
+mod teams;
 mod tokens;
 mod vuln_git;
 mod vuln_rbac;

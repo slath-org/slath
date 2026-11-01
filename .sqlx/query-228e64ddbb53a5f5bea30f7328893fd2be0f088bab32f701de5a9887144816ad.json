@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.name::text AS \"name!\", a.role FROM repo_team_access a JOIN teams t ON t.id = a.team_id\n           WHERE a.repo_id = $1 ORDER BY lower(t.name::text)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "role",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repo_team_access",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "228e64ddbb53a5f5bea30f7328893fd2be0f088bab32f701de5a9887144816ad"
+}

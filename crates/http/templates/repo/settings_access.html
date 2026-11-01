@@ -56,6 +56,55 @@
   </fieldset>
   <div><button type="submit" class="button button-primary">Save collaborator</button></div>
 </form>
+{%- if let Some(teams) = teams %}
+<h2>Teams</h2>
+{%- if teams.is_empty() %}
+<p class="text-secondary">No teams have access. <a href="/{{ header.namespace }}/-/teams">Teams of {{ header.namespace }}</a></p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="teams-caption">
+<table class="table">
+  <caption id="teams-caption" class="visually-hidden">Teams with access</caption>
+  <thead><tr><th scope="col">Team</th><th scope="col">Role</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for (t, r) in teams %}
+    <tr>
+      <td><a href="/{{ header.namespace }}/-/teams/{{ t }}">{{ t }}</a></td>
+      <td>{{ r }}</td>
+      <td>
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/access/teams/{{ t }}/remove" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> team {{ t }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+<h3>Give a team access</h3>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/access/teams" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="team">Team</label>
+    <input id="team" name="team" type="text" required autocapitalize="none" spellcheck="false" autocomplete="off"
+      {%- if self.error("team").is_some() %} aria-invalid="true" aria-describedby="team-error"{% endif %}>
+    {%- if let Some(e) = self.error("team") %}
+    <p id="team-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="team-role">Role</label>
+    <select id="team-role" name="role">
+      <option value="read">Read</option>
+      <option value="write">Write</option>
+      <option value="maintain">Maintain</option>
+      <option value="admin">Admin</option>
+    </select>
+  </div>
+  <div><button type="submit" class="button">Save team access</button></div>
+</form>
+{%- endif %}
 </div>
 </div>
 {% endblock %}

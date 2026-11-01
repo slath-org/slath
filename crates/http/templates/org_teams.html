@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Teams · {{ org }}{% endblock %}
+{% block content %}
+<p><a href="/{{ org }}">{{ org }}</a></p>
+<h1>Teams</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+{%- if teams.is_empty() %}
+<p class="text-secondary">No teams yet.{% if can_manage %} Teams give groups of members access to repositories.{% endif %}</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="teams-caption">
+<table class="table">
+  <caption id="teams-caption" class="visually-hidden">Teams of {{ org }}</caption>
+  <thead><tr><th scope="col">Team</th><th scope="col" class="numeric">Members</th><th scope="col" class="numeric">Repositories</th></tr></thead>
+  <tbody>
+  {%- for t in teams %}
+    <tr>
+      <td><a href="/{{ org }}/-/teams/{{ t.name }}">{{ t.name }}</a>{% if let Some(d) = t.description %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td class="numeric">{{ t.members }}</td>
+      <td class="numeric">{{ t.repos }}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{%- if can_manage %}
+<h2>New team</h2>
+<form method="post" action="/{{ org }}/-/teams" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
+      {%- if let Some(e) = self.error("name") %} aria-invalid="true" aria-describedby="name-error"{% endif %}>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="description">Description <span class="text-secondary">(optional)</span></label>
+    <input id="description" name="description" type="text" maxlength="300"
+      {%- if let Some(e) = self.error("description") %} aria-invalid="true" aria-describedby="description-error"{% endif %}>
+    {%- if let Some(e) = self.error("description") %}
+    <p id="description-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Create team</button></div>
+</form>
+{%- endif %}
+{% endblock %}

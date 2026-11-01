@@ -143,6 +143,7 @@ fn concrete(template: &str, repo: &str, head: &str) -> String {
             "{ns}" => "alice".to_owned(),
             "{repo}" => repo.to_owned(),
             "{user}" => "alice".to_owned(),
+            "{team}" => "devs".to_owned(),
             "{op}" => "archive".to_owned(),
             "{ref}" => "main".to_owned(),
             "{oid}" | "{rest}" => head.to_owned(),
@@ -785,6 +786,7 @@ fn conf_rbac_02_pat_scopes_property_test() {
                 .replace("{repo}", "priv")
                 .replace("{org}", "acme")
                 .replace("{user}", "alice")
+                .replace("{team}", "devs")
                 .replace("{ref}", "main")
                 .replace("{oid}", &w.head)
                 .replace(

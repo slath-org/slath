@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE organizations SET default_member_role = $2, require_mfa = $3, updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ccd29df523cc1dd43d8b1401f440c49b07bf1298c4679e9f6e5d5a09f5353604"
+}
