@@ -29,6 +29,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Labels and milestones for issues, managed by maintainers in the web UI and the API.
 - Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
 - Filter issues by labels, assignee, author, and milestone, and sort them by last update.
+- Import a repository (all branches and tags) from an https:// URL in the web UI or the API, with a report of what arrived.
+- Imports refuse internal and reserved addresses, pin the checked address, ignore redirects, and don't keep credentials.
 - Blame view: see which commit last changed each line of a file, linked from every file page.
 - Search issues (titles, descriptions, comments) and repositories, in the web UI and the API, showing only what you can read.
 - Notifications about issues you take part in, are mentioned or assigned in, or watch, in an inbox and by email.

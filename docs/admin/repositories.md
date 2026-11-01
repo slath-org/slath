@@ -5,6 +5,39 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Repositories
 
+## Importing from another server
+
+**Import a repository** (`/-/import`, linked from the home page and the
+new-repository page) creates a repository and copies all branches and
+tags of a Git repository on another server into it. With a token
+(`repo:write`), `POST /api/v1/repos/import` does the same and answers
+with a report that `GET /api/v1/repos/{owner}/{repo}/import` keeps
+current (`queued`, `running`, `done` with branch and tag counts, or
+`failed` with the reason). The repository's front page shows the progress
+and, for administrators, the result.
+
+- Only `https://` URLs work, unless `[import] allow_http = true`. `file://`,
+  `ssh://`, `git://`, and other transports are refused, and so is anything
+  that looks like a Git option.
+- The server name is resolved when the import is requested and again when
+  it runs; every address must be public, and Git connects only to the
+  checked address. Loopback, private, shared, link-local (including cloud
+  metadata), unique-local, multicast, and reserved addresses, IPv6 forms
+  that embed such an IPv4 address, and the instance itself are refused.
+  To import from an internal server, list its network in
+  `[import] allow_networks` (e.g. `["10.20.0.0/16"]`).
+- Redirects aren't followed (use the final URL), bundle URIs are ignored,
+  every object is checked, and submodules aren't fetched.
+- A username and password (or access token) for private sources are used
+  once: they travel encrypted, Git reads them from a file only the server
+  can read for the duration of the fetch, and they are deleted afterwards.
+  They never appear in a process's arguments or in the stored URL.
+- An import may take `limits.import_timeout` (1 hour by default) and fetch
+  up to `limits.push_max_bytes`. If it fails, delete the repository and
+  try again.
+- Only Git data is imported, not issues, merge requests, wikis, or
+  releases. `[import] enabled = false` turns imports off.
+
 ## Branch protection
 
 Repository administrators protect branches under **Settings → Branch

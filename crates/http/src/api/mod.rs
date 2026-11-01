@@ -160,6 +160,7 @@ impl utoipa::Modify for SecurityAddon {
         crate::attachments::api_upload, crate::references::api_references,
         crate::ui::notifications::api_list, crate::ui::notifications::api_patch,
         crate::ui::search::api_issues, crate::ui::search::api_repos,
+        crate::ui::import::api_import, crate::ui::import::api_report,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
@@ -194,5 +195,6 @@ pub fn router() -> Router<AppState> {
         .merge(crate::references::api_router())
         .merge(crate::ui::notifications::api_router())
         .merge(crate::ui::search::api_router())
+        .merge(crate::ui::import::api_router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

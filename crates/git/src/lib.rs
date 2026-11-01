@@ -13,6 +13,7 @@ pub mod browse;
 pub mod commit;
 pub mod diff;
 pub mod error;
+pub mod import;
 pub mod ipc;
 pub mod object;
 pub mod runner;

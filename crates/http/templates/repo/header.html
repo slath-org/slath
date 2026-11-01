@@ -35,3 +35,12 @@
 {%- if header.archived %}
 <div class="notice" role="note"><p>This repository is archived. It's read-only.</p></div>
 {%- endif %}
+{%- if let Some(i) = header.import %}
+  {%- if i.state == "queued" || i.state == "running" %}
+<div class="notice" role="status"><p>This repository is being imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}. Reload the page to see when it's done.</p></div>
+  {%- else if i.state == "failed" && i.url.is_some() %}
+<div class="error-summary" role="alert"><p>The import{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %} failed. {% if let Some(e) = i.error %}{{ e }}{% endif %} Delete this repository and try again.</p></div>
+  {%- else if i.state == "done" && i.url.is_some() %}
+<div class="notice" role="note"><p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p></div>
+  {%- endif %}
+{%- endif %}

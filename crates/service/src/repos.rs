@@ -655,7 +655,7 @@ impl Services {
     }
 
     /// The audit target for a repository (with its organization, if any).
-    async fn repo_target(&self, repo: &Repo) -> crate::audit::Target {
+    pub(crate) async fn repo_target(&self, repo: &Repo) -> crate::audit::Target {
         let mut t = crate::audit::Target::repo(*repo.id.as_uuid());
         if repo.namespace_kind == "org"
             && let Ok(Some((_, _, NamespaceKind::Org(o)))) =

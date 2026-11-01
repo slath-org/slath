@@ -64,6 +64,7 @@ toml_edit = "0.25"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 ureq = { version = "3.5", default-features = false }
 unicode-normalization = "0.1"
+url = "2.5"
 utoipa = { version = "6", features = ["time", "uuid"] }
 webauthn-rs = { version = "0.6", default-features = false, features = ["danger-allow-state-serialisation", "conditional-ui", "resident-key-support"] }
 uuid = { version = "1.29", features = ["v7", "serde"] }

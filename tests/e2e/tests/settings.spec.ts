@@ -12,6 +12,7 @@ for (const [path, heading] of [
   ["/-/notifications", "Notifications"],
   ["/-/notifications?all=true", "Notifications"],
   ["/-/search?q=demo", "Search"],
+  ["/-/import", "Import a repository"],
   ["/-/search?q=demo&type=repos", "Search"],
   ["/-/sudo?next=/", "Confirm your password"],
 ] as const) {

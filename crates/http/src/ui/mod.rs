@@ -8,6 +8,7 @@ pub mod admin;
 pub mod browse;
 pub mod design;
 pub mod identicon;
+pub mod import;
 pub mod issues;
 pub mod labels;
 pub mod notifications;
@@ -345,6 +346,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(labels::router())
         .merge(notifications::router())
         .merge(search::router())
+        .merge(import::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repo_imports SET state = 'done', branches = $2, tags = $3, size_bytes = $4,\n                finished_at = now(), error = NULL WHERE repo_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "acd8c74b75073e659ca593ac7260f2130d293855b78d25f6d0edde17fb1ed8a2"
+}

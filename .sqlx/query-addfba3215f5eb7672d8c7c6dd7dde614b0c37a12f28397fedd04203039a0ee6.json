@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET payload = payload - 'credentials' - 'key_id' WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "addfba3215f5eb7672d8c7c6dd7dde614b0c37a12f28397fedd04203039a0ee6"
+}

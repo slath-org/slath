@@ -77,6 +77,20 @@ pub struct RepoHeader {
     /// The viewer's subscription (`watching`, `ignoring`, `default`), shown
     /// on the repository's front page to signed-in viewers.
     pub watch: Option<&'static str>,
+    /// The import status, shown on the front page.
+    pub import: Option<ImportView>,
+}
+
+/// An import as the front page shows it.
+#[derive(Debug, Clone)]
+pub struct ImportView {
+    /// `queued`, `running`, `done`, or `failed`.
+    pub state: String,
+    /// Source URL and details (administrators only).
+    pub url: Option<String>,
+    pub error: Option<String>,
+    pub branches: i32,
+    pub tags: i32,
 }
 
 impl RepoHeader {
@@ -91,11 +105,26 @@ impl RepoHeader {
             issues: a.repo.issues_enabled,
             tab,
             watch: None,
+            import: None,
         }
     }
 
-    /// Adds the viewer's watch state (front page only).
+    /// Adds the viewer's watch state and the import status (front page only).
     pub async fn with_watch(mut self, state: &AppState, a: &RepoAccess, subject: &Subject) -> Self {
+        // Finished imports are reported for a week.
+        let week_ago = time::OffsetDateTime::now_utc() - time::Duration::days(7);
+        if let Ok(Some(i)) = state.services.import_report(subject, a).await
+            && !(i.state == "done" && i.finished_at.is_some_and(|t| t < week_ago))
+        {
+            let admin = self.can_admin;
+            self.import = Some(ImportView {
+                state: i.state,
+                url: admin.then_some(i.url),
+                error: if admin { i.error } else { None },
+                branches: i.branches.unwrap_or(0),
+                tags: i.tags.unwrap_or(0),
+            });
+        }
         if !matches!(subject, Subject::Anonymous) {
             use slath_service::notifications::Subscription;
             self.watch = Some(match state.services.repo_subscription(subject, a).await {

@@ -3,6 +3,7 @@
 {% block content %}
 <div class="narrow">
 <h1>New repository</h1>
+<p>Or <a href="/-/import">import one from another server</a>.</p>
 {% include "settings/errors.html" %}
 <form method="post" action="/-/new" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

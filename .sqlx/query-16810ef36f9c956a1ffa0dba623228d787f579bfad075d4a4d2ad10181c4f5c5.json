@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repo_imports SET state = 'failed', error = $2, finished_at = now() WHERE repo_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "16810ef36f9c956a1ffa0dba623228d787f579bfad075d4a4d2ad10181c4f5c5"
+}

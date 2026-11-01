@@ -249,6 +249,16 @@ impl Invocation {
         Ok(self)
     }
 
+    /// Reads `path` as the global Git configuration (instead of none). Used
+    /// for import credentials, which must not appear in the argument list
+    /// (visible to every local user) but only in the environment and a file
+    /// readable by the server's user.
+    pub fn global_config_file(mut self, path: &Path) -> Self {
+        self.env
+            .push(("GIT_CONFIG_GLOBAL", path.as_os_str().to_owned()));
+        self
+    }
+
     /// Sets the variables `slath hook` needs to reach the server.
     pub fn hook_env(mut self, token: &str, ipc_socket: &Path) -> Self {
         self.env.push(("SLATH_HOOK_TOKEN", token.into()));

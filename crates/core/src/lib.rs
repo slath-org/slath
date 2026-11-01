@@ -10,6 +10,7 @@ pub mod authz;
 pub mod config;
 pub mod ids;
 pub mod names;
+pub mod net;
 pub mod secret;
 
 pub use secret::Secret;

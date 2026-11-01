@@ -41,6 +41,8 @@ pub struct Config {
     #[serde(default)]
     pub ui: Ui,
     #[serde(default)]
+    pub import: Import,
+    #[serde(default)]
     pub upgrade: Upgrade,
     #[serde(default)]
     pub log: Log,
@@ -313,6 +315,8 @@ pub struct Limits {
     /// Request bodies (API and UI); pushes are limited separately.
     pub http_max_body_bytes: Bytes,
     pub attachment_max_bytes: Bytes,
+    /// The longest a repository import may run.
+    pub import_timeout: Dur,
     /// Uploaded avatar images (before re-encoding).
     pub avatar_max_bytes: Bytes,
     /// How long an unused attachment or avatar file is kept before it is
@@ -359,6 +363,7 @@ impl Default for Limits {
             http_max_body_bytes: Bytes(10 * MIB),
             attachment_max_bytes: Bytes(25 * MIB),
             avatar_max_bytes: Bytes(5 * MIB),
+            import_timeout: Dur::secs(3600),
             blob_grace_period: Dur::secs(86_400),
             text_max_bytes: Bytes(256 * 1024),
             api_page_max: 100,
@@ -469,6 +474,38 @@ impl Default for Ui {
     fn default() -> Self {
         Self {
             external_images: true,
+        }
+    }
+}
+
+/// Importing repositories from other servers.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Import {
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// Also allow `http://` URLs (credentials and data travel unencrypted).
+    #[serde(default)]
+    pub allow_http: bool,
+    /// Networks that may be imported from although the address policy
+    /// denies them (internal servers), e.g. `["10.20.0.0/16"]`.
+    #[serde(default, deserialize_with = "cidrs")]
+    pub allow_networks: Vec<crate::net::Cidr>,
+}
+
+fn cidrs<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<crate::net::Cidr>, D::Error> {
+    Vec::<String>::deserialize(d)?
+        .iter()
+        .map(|s| s.parse().map_err(serde::de::Error::custom))
+        .collect()
+}
+
+impl Default for Import {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            allow_http: false,
+            allow_networks: Vec::new(),
         }
     }
 }
