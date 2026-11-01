@@ -32,6 +32,16 @@ binary = "/usr/bin/git"
 ssh_user = "git"
 ssh_port = 22
 
+# Outgoing email (password resets, notifications). Without it, email
+# features are hidden.
+# [smtp]
+# host = "smtp.example.org"
+# port = 587
+# tls = "starttls"            # starttls | tls | none (none only for a local relay)
+# username = "slath"
+# password_file = "/etc/slath/smtp-password"
+# from = "Slath <noreply@example.org>"
+
 [log]
 format = "json"
 level = "info"

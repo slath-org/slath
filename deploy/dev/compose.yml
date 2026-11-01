@@ -23,5 +23,13 @@ services:
     # sqlx::test creates one database per test; allow plenty of connections.
     command: ["postgres", "-c", "max_connections=300", "-c", "fsync=off"]
 
+  # Catches outgoing email (`just dev-mail`): SMTP on 1025, web UI on 8025.
+  # Point Slath at it with [smtp] host = "127.0.0.1", port = 1025, tls = "none".
+  mail:
+    image: docker.io/axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${SLATH_DEV_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${SLATH_DEV_MAIL_UI_PORT:-8025}:8025"
+
 volumes:
   pgdata:

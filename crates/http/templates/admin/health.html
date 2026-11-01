@@ -2,11 +2,26 @@
 {% block title %}Health · Administration{% endblock %}
 {% block admin %}
 <h1>Health</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
 <dl class="facts">
   <dt>Slath</dt><dd>{{ version }}</dd>
   <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<strong>Problem:</strong> {{ git }}{% endif %}</dd>
+  <dt>Email</dt><dd>{% if let Some(relay) = smtp %}sent through {{ relay }}{% else %}not configured: email features are hidden (set <code>[smtp] host</code>){% endif %}</dd>
   <dt>Database schema</dt><dd>{{ schema }}{% if schema != required_schema %} <strong>(this binary needs {{ required_schema }})</strong>{% else %} (current){% endif %}</dd>
 </dl>
+{%- if smtp.is_some() %}
+<h2>Test email</h2>
+<form method="post" action="/-/admin/health/test-email" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="test-email-to">Send a test message to</label>
+    <input id="test-email-to" name="to" type="email" autocomplete="email" required>
+  </div>
+  <div><button type="submit" class="button">Send test message</button></div>
+</form>
+{%- endif %}
 <h2>Job queue</h2>
 {%- if jobs.is_empty() %}
 <p class="text-secondary">No jobs.</p>

@@ -56,5 +56,6 @@ To use Podman instead of Docker when both are installed, set
 | `just test-backup-restore` | Run the backup and restore drill |
 | `docker build -t slath:test . && just test-compose` | Install with Docker Compose as the guide says, then render every page offline |
 | `just schema-fixture` | Write the release schema and data fixture |
+| `just dev-mail` | Start a mail catcher: SMTP on `127.0.0.1:1025` (`tls = "none"`), inbox at <http://127.0.0.1:8025> |
 | `just dev-db-stop` | Stop PostgreSQL, keeping its data |
 | `just dev-db-reset` | Delete the development database volume |

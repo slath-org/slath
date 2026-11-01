@@ -12,6 +12,9 @@ ignore = [
     # bincode is unmaintained. syntect uses it only to load its own syntax
     # definitions, embedded at compile time; no untrusted input reaches it.
     { id = "RUSTSEC-2025-0141", reason = "only deserializes syntect's built-in syntax dumps" },
+    # Marvin attack on RSA private-key operations. The rsa crate comes in through
+    # webauthn-rs, which only verifies RS256 signatures with public keys.
+    { id = "RUSTSEC-2023-0071", reason = "rsa is used only to verify WebAuthn signatures (public-key operations)" },
 ]
 
 [licenses]
@@ -21,6 +24,8 @@ unused-allowed-license = "allow"
 # Licenses compatible with distributing the server under AGPL-3.0-or-later.
 # Adding a license here needs a reviewed PR.
 allow = [
+    # Public-domain equivalent (quoted_printable via lettre; htmx is 0BSD too).
+    "0BSD",
     "AGPL-3.0-or-later",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
