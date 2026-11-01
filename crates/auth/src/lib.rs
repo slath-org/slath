@@ -3,10 +3,13 @@
 //! Passwords, sessions, tokens, and authentication primitives.
 #![forbid(unsafe_code)]
 
+pub mod crypto;
 pub mod csrf;
 pub mod master_key;
 pub mod password;
 pub mod ssh_key;
 pub mod token;
+pub mod totp;
 
+pub use crypto::Envelope;
 pub use master_key::MasterKey;
