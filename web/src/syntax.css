@@ -1,0 +1,61 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Syntax highlighting: syntect's scope classes (prefixed "syn-") mapped to
+   the theme's syntax tokens, so every theme recolors code. More specific
+   rules come later. */
+.syn-comment {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+.syn-keyword,
+.syn-storage {
+  color: var(--syn-keyword);
+}
+.syn-string {
+  color: var(--syn-string);
+}
+.syn-constant {
+  color: var(--syn-constant);
+}
+.syn-constant.syn-numeric {
+  color: var(--syn-number);
+}
+.syn-entity.syn-name.syn-function,
+.syn-support.syn-function,
+.syn-variable.syn-function {
+  color: var(--syn-function);
+}
+.syn-entity.syn-name.syn-type,
+.syn-entity.syn-name.syn-class,
+.syn-storage.syn-type,
+.syn-support.syn-type,
+.syn-support.syn-class {
+  color: var(--syn-type);
+}
+.syn-entity.syn-name.syn-tag {
+  color: var(--syn-tag);
+}
+.syn-entity.syn-other.syn-attribute-name {
+  color: var(--syn-attribute);
+}
+.syn-punctuation {
+  color: var(--syn-punctuation);
+}
+.syn-markup.syn-inserted {
+  background: var(--diff-add-bg);
+}
+.syn-markup.syn-deleted {
+  background: var(--diff-del-bg);
+}
+.syn-markup.syn-heading,
+.syn-markup.syn-bold {
+  font-weight: var(--weight-semibold);
+}
+/* Text-direction control characters are shown, never applied. */
+.bidi-control {
+  color: var(--warning-fg);
+  background: var(--warning-bg);
+  border: var(--border-width) solid var(--warning);
+  border-radius: var(--radius-sm);
+  font-style: normal;
+}

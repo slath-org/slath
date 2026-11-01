@@ -22,11 +22,13 @@ slath-service = { path = "crates/service" }
 slath-http = { path = "crates/http" }
 slath-ci = { path = "crates/ci" }
 
+ammonia = "4.2"
 argon2 = "0.6"
 askama = { version = "0.16", default-features = false, features = ["derive", "std", "urlencode"] }
 async-compression = { version = "0.4", features = ["gzip", "tokio"] }
 axum = { version = "0.8", default-features = false, features = ["form", "http1", "json", "matched-path", "original-uri", "query", "tokio", "tracing"] }
 base64 = "0.23"
+comrak = { version = "0.59", default-features = false }
 clap = { version = "4.6", features = ["derive"] }
 flate2 = "1.1"
 figment = { version = "0.10", features = ["env", "toml"] }
@@ -42,6 +44,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.11"
 subtle = "2.6"
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "parsing", "html", "regex-fancy"] }
 sqlx = { version = "0.9", default-features = false, features = ["json", "macros", "migrate", "postgres", "runtime-tokio", "time", "tls-rustls-ring-webpki", "uuid"] }
 tempfile = "3.27"
 thiserror = "2.0"

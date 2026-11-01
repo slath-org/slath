@@ -1,0 +1,5 @@
+![x](x" onerror="alert(1))
+![alt" onerror="alert(2)](/a.png)
+![t](/a.png "title\" onload=\"alert(3)")
+![data](data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+)
+[data link](data:text/html,<script>alert(4)</script>)

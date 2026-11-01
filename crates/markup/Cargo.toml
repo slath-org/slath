@@ -11,6 +11,9 @@ homepage.workspace = true
 publish.workspace = true
 
 [dependencies]
+ammonia.workspace = true
+comrak.workspace = true
+syntect.workspace = true
 
 [lints]
 workspace = true

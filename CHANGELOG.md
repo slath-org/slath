@@ -166,3 +166,10 @@ Before 1.0.0, minor versions may contain breaking changes.
   transport `reconcile`. `slath serve` reconciles recently pushed
   repositories at startup and all of them every
   `maintenance.reconcile_interval`.
+- `slath-markup`: Markdown rendering (GitHub-flavored, raw HTML disabled)
+  sanitized by an allowlist without scripts, event handlers, inline styles,
+  `data-*`/`hx-*` attributes, or non-http(s)/mailto links; external images
+  can be turned into links (`ui.external_images = false`); syntax
+  highlighting with CSS classes only, themed through the syntax tokens;
+  binary detection; and visible markers for text-direction control
+  characters. An XSS corpus with snapshots pins the output down.

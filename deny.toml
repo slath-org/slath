@@ -8,7 +8,11 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    # bincode is unmaintained. syntect uses it only to load its own syntax
+    # definitions, embedded at compile time; no untrusted input reaches it.
+    { id = "RUSTSEC-2025-0141", reason = "only deserializes syntect's built-in syntax dumps" },
+]
 
 [licenses]
 version = 2
@@ -28,6 +32,8 @@ allow = [
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
+    # Unicode data tables (finl_unicode via comrak); permissive, like Unicode-3.0.
+    "Unicode-DFS-2016",
     "Zlib",
 ]
 
