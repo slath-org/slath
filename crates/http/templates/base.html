@@ -1,0 +1,32 @@
+{%- import "macros.html" as m -%}
+<!doctype html>
+<html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="htmx-config" content='extensions:"hx-csp",includeIndicatorCSS:false'>
+{%- if let Some(token) = ctx.csrf %}
+<meta name="csrf-token" content="{{ token }}">
+{%- endif %}
+<title>{% block title %}{% endblock %} · Slath</title>
+<link rel="stylesheet" href="{{ ctx.style_url }}">
+<script type="module" src="{{ ctx.app_url }}" nonce="{{ ctx.nonce }}"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="site-header">
+  <nav class="site-nav" aria-label="Main">
+    <a class="site-name" href="/">Slath</a>
+    {% block nav %}{% endblock %}
+  </nav>
+</header>
+<main id="main" tabindex="-1">
+{% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+  <a href="https://slath.org/docs/">Help</a>
+</footer>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

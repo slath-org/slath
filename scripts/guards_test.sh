@@ -99,5 +99,17 @@ expect external-dist fail external-url \
 expect external-link-anchor-ok pass "" \
     "printf '<a href=\"https://example.org\">x</a>\n' > crates/http/templates/page.html"
 
+expect htmx-unstamped-get fail htmx \
+    "printf '<a href=\"/x\" hx-get=\"/x\">x</a>\n' > crates/http/templates/page.html"
+expect htmx-on-click fail htmx \
+    "printf '<button hx-on:click=\"x()\" {%% call m::hx(n) %%}{%% endcall %%}>x</button>\n' > crates/http/templates/page.html"
+expect htmx-stamped-ok pass "" \
+    "printf '<a href=\"/x\" hx-get=\"/x\" {%% call m::hx(n) %%}{%% endcall %%}>x</a>\n' > crates/http/templates/page.html"
+expect htmx-safe-eval-script fail htmx \
+    "printf '// SPDX-License-Identifier: AGPL-3.0-or-later\nhtmx.config.safeEval = true;\n' > web/src/a.ts"
+
+expect e2e-hover fail e2e-hover \
+    "mkdir -p tests/e2e/tests && printf '// SPDX-License-Identifier: AGPL-3.0-or-later\nawait page.locator(\"a\").hover();\n' > tests/e2e/tests/x.spec.ts"
+
 echo "guards_test: $passed passed, $failed failed"
 ((failed == 0))

@@ -1,0 +1,4 @@
+{
+  "$comment": "Axe findings accepted as false positives. Each entry needs a reason and a tracking issue; real violations are fixed, never listed.",
+  "exceptions": []
+}

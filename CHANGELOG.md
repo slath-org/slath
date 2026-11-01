@@ -73,3 +73,19 @@ Before 1.0.0, minor versions may contain breaking changes.
   connectivity and schema, master key permissions), `slath version [--json]`,
   `slath migrate [--dry-run]`, and `slath admin gen-key`. Administrative
   commands accept `--output json`.
+- HTTP server foundations: request IDs (`X-Request-Id`), structured access
+  logs, Prometheus metrics on a separate listener, a request body limit,
+  security headers on every response with a fresh CSP nonce per response,
+  RFC 9457 problem JSON for API errors and HTML error pages for the UI,
+  `/-/healthz`, `/-/readyz` (database, schema, `data_dir`, job workers), and
+  `/-/csp-report`. `serve` now needs the database and accepts `--migrate`.
+- UI shell: Askama templates with a base layout (landmarks, skip link,
+  page titles), the UI bundle built from `web/` with Vite (htmx 4 with the
+  `hx-csp` extension, CSRF header, accessible swaps, error toasts) and
+  embedded in the binary under content-hashed URLs, and a development-only
+  component catalog at `/-/design`. A guard rejects htmx elements without the
+  nonce macro and eval-based htmx features.
+- Browser tests (`just test-e2e`): Playwright in Chromium, Firefox, and
+  WebKit, each in light and dark themes on desktop and touch viewports, with
+  axe-core accessibility checks and failures on third-party requests, CSP
+  violations, and stripped htmx elements.

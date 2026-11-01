@@ -12,6 +12,8 @@ This gets a clean Linux machine from zero to a green `just check`.
   requires it. `scripts/install-git.sh 2.56.0` builds it if your distribution
   lags behind, and `SLATH_TEST_GIT` points the tests at it.
 - Python ≥ 3.11 (helper scripts and their tests).
+- Node.js ≥ 22 (`web/.nvmrc` names the version CI uses) to build the UI
+  bundle that the server embeds. It's needed at build time only.
 - Docker (with the compose plugin) or Podman (with `podman compose`) for the
   development database.
 
@@ -22,7 +24,8 @@ cargo install --locked just     # once, if you don't have just yet
 just setup                      # installs cargo-nextest, cargo-deny, sqlx-cli; creates .env
 just dev-db                     # starts PostgreSQL 18 on 127.0.0.1:54329
 just tools                      # installs the pinned jj versions for the compat tests
-just check                      # fmt, clippy, tests, cargo deny, guards
+just check                      # UI bundle, fmt, clippy, tests, cargo deny, guards
+just test-e2e                   # browser tests (Playwright container, all browsers)
 ```
 
 `cargo install` puts binaries in `~/.cargo/bin`, which must be on `PATH`.
@@ -47,5 +50,7 @@ To use Podman instead of Docker when both are installed, set
 | `just test -E 'test(name)'` | Run matching tests (any nextest filter works) |
 | `just test -p slath-git` | Run one crate's tests |
 | `just fmt` | Format all code |
+| `just web` | Rebuild the UI bundle after changing `web/src` |
+| `just test-e2e -g name` | Run matching browser tests; `E2E_LOCAL=1` runs Playwright without its container |
 | `just dev-db-stop` | Stop PostgreSQL, keeping its data |
 | `just dev-db-reset` | Delete the development database volume |

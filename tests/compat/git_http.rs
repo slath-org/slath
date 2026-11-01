@@ -309,10 +309,15 @@ fn credentials_and_dumb_http() {
     assert!(get("/alice/demo.git/objects/info/packs", Some(&token)).starts_with("HTTP/1.1 404"));
 }
 
+/// The response without the headers that differ on every request by design
+/// (`Date`, `X-Request-Id`), so responses can be compared byte for byte.
 fn strip_date(resp: &[u8]) -> String {
     String::from_utf8_lossy(resp)
         .lines()
-        .filter(|l| !l.to_ascii_lowercase().starts_with("date:"))
+        .filter(|l| {
+            let l = l.to_ascii_lowercase();
+            !l.starts_with("date:") && !l.starts_with("x-request-id:")
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+{% if status == 404 -%}
+<p>The page you were looking for doesn't exist, or you don't have access to it.</p>
+{%- else if let Some(d) = detail -%}
+<p>{{ d }}</p>
+{%- endif %}
+{% if signed_out -%}
+<p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to continue.</p>
+{%- endif %}
+<p><a href="/">Go to the start page</a></p>
+<p class="text-secondary">Error {{ status }}{% if !request_id.is_empty() %} · Request ID <code>{{ request_id }}</code>{% endif %}</p>
+{% endblock %}

@@ -2,19 +2,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! HTTP surface of `slath serve` and the internal IPC endpoint.
 //!
-//! Transport spike: smart HTTP serves repositories listed in the config and
-//! authenticates with one static token. Authorization moves into `service`
-//! later; until then [`githttp`] decides access itself.
+//! Git smart HTTP still serves the repositories listed in the config's
+//! transport-test section and authenticates with one static token; it moves
+//! onto database-backed repositories and tokens with the service layer.
 #![forbid(unsafe_code)]
 
+pub mod assets;
+pub mod error;
 pub mod githttp;
+pub mod health;
 pub mod ipc;
+pub mod metrics;
+pub mod middleware;
+pub mod ui;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::extract::DefaultBodyLimit;
 use slath_core::Secret;
+use slath_core::config::Config;
+use slath_db::PgPool;
 use slath_git::Runner;
 
 /// A repository served by the spike, addressed as `/{namespace}/{name}`.
@@ -25,10 +34,15 @@ pub struct RepoEntry {
     pub git_dir: PathBuf,
 }
 
-/// Shared state of the HTTP server.
+/// Shared state of the HTTP server. Cheap to clone.
 #[derive(Clone)]
 pub struct AppState {
+    pub config: Arc<Config>,
+    pub pool: PgPool,
     pub runner: Runner,
+    pub assets: Arc<assets::Assets>,
+    pub metrics: Arc<metrics::Metrics>,
+    pub liveness: Arc<health::Liveness>,
     /// Keyed by lowercase `(namespace, name)`: names are case-insensitive.
     pub repos: Arc<HashMap<(String, String), RepoEntry>>,
     pub token: Arc<Secret<String>>,
@@ -36,25 +50,36 @@ pub struct AppState {
     pub ipc_socket: PathBuf,
 }
 
+/// Everything [`AppState::new`] needs.
+pub struct StateParts {
+    pub config: Arc<Config>,
+    pub pool: PgPool,
+    pub runner: Runner,
+    pub repos: Vec<RepoEntry>,
+    pub token: Secret<String>,
+    pub hooks: Arc<ipc::HookRegistry>,
+    pub ipc_socket: PathBuf,
+}
+
 impl AppState {
     #[must_use]
-    pub fn new(
-        runner: Runner,
-        repos: Vec<RepoEntry>,
-        token: Secret<String>,
-        hooks: Arc<ipc::HookRegistry>,
-        ipc_socket: PathBuf,
-    ) -> Self {
-        let repos = repos
+    pub fn new(p: StateParts) -> Self {
+        let repos = p
+            .repos
             .into_iter()
             .map(|r| ((r.namespace.to_lowercase(), r.name.to_lowercase()), r))
             .collect();
         Self {
-            runner,
+            config: p.config,
+            pool: p.pool,
+            runner: p.runner,
+            assets: Arc::new(assets::Assets::embedded()),
+            metrics: Arc::default(),
+            liveness: Arc::default(),
             repos: Arc::new(repos),
-            token: Arc::new(token),
-            hooks,
-            ipc_socket,
+            token: Arc::new(p.token),
+            hooks: p.hooks,
+            ipc_socket: p.ipc_socket,
         }
     }
 
@@ -66,5 +91,31 @@ impl AppState {
 
 /// The complete router.
 pub fn router(state: AppState) -> axum::Router {
-    githttp::router().with_state(state)
+    use axum::middleware::from_fn_with_state;
+    use axum::routing::get;
+    let body_limit = state.config.limits.http_max_body_bytes.as_usize();
+    let pages = ui::router()
+        .fallback(ui::fallback)
+        .layer(from_fn_with_state(state.clone(), middleware::render_errors))
+        .layer(DefaultBodyLimit::max(body_limit));
+    let probes = axum::Router::new()
+        .route("/-/healthz", get(health::healthz))
+        .route("/-/readyz", get(health::readyz))
+        .route(
+            "/-/csp-report",
+            axum::routing::post(health::csp_report).layer(DefaultBodyLimit::max(64 * 1024)),
+        );
+    axum::Router::new()
+        .merge(githttp::router())
+        .merge(probes)
+        .merge(pages)
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::security_headers,
+        ))
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::request_context,
+        ))
+        .with_state(state)
 }

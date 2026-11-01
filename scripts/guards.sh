@@ -10,6 +10,8 @@
 #   no-shell      no shell binaries or `-c` in server code
 #   askama-safe   no `|safe` filter in templates unless allowlisted
 #   external-url  no third-party URLs in resource positions
+#   htmx          hx-* elements carry the nonce macro; no eval-based htmx features
+#   e2e-hover     browser tests never hover (no hover-only affordances)
 #
 # Usage: scripts/guards.sh [ROOT]   (ROOT defaults to the repository root)
 # Exceptions: scripts/guards-allowlist.txt, one `<guard> <path>  # reason` per line.
@@ -129,6 +131,21 @@ while IFS= read -r f; do
         fail external-url "$f loads a resource from an absolute or protocol-relative URL"
     fi
 done < <(files '*' crates/http/templates web/src web/dist)
+
+# --- htmx --------------------------------------------------------------------
+# Rules live in check_templates.py (next to this script) so they can parse tags.
+GUARD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! python3 "$GUARD_DIR/check_templates.py" "$ROOT"; then
+    fail htmx "template or script rules violated (see above)"
+fi
+
+# --- e2e-hover -----------------------------------------------------------------
+while IFS= read -r f; do
+    allowed e2e-hover "$f" && continue
+    if grep -nE '\.hover\(' "$f" >/dev/null; then
+        fail e2e-hover "$f hovers; use tapOrClick and keyboard instead"
+    fi
+done < <(files '*.ts' tests/e2e)
 
 if ((failures)); then
     echo "guards: $failures violation(s)" >&2

@@ -1,0 +1,6 @@
+{%- import "macros.html" as m -%}
+<div id="demo-region" aria-live="polite">
+  <p>Counter: <output id="demo-count">{{ count }}</output></p>
+  <a id="demo-next" class="button" href="/-/design?count={{ count + 1 }}"
+     hx-get="/-/design?count={{ count + 1 }}" hx-target="#demo-region" hx-swap="outerHTML" hx-push-url="true" {% call m::hx(ctx.nonce) %}{% endcall %}>Increment</a>
+</div>

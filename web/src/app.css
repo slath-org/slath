@@ -1,0 +1,4 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Base styles. Design tokens and components are added on top of this. */
+@import "./base.css";

@@ -1,0 +1,17 @@
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// Entry point of the UI bundle: htmx 4 with the hx-csp extension, plus the
+// small modules every page needs. Pages work without this script; it only
+// enhances them.
+import "htmx.org";
+import "htmx.org/dist/ext/hx-csp.js";
+import { installCsrf } from "./csrf";
+import { installA11ySwaps } from "./a11y";
+import { installErrorToasts } from "./toast";
+import { installTheme } from "./theme";
+
+installCsrf();
+installA11ySwaps();
+installErrorToasts();
+installTheme();

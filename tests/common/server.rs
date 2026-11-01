@@ -18,8 +18,14 @@ pub fn slath_bin() -> PathBuf {
     if let Some(p) = std::env::var_os("SLATH_BIN") {
         return PathBuf::from(p);
     }
+    // Test binaries live in target/<profile>/deps, helper binaries in
+    // target/<profile>; `slath` is in target/<profile>.
     let exe = std::env::current_exe().unwrap();
-    let bin = exe.parent().and_then(Path::parent).unwrap().join("slath");
+    let dir = exe.parent().unwrap();
+    let bin = [dir.join("slath"), dir.parent().unwrap().join("slath")]
+        .into_iter()
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| dir.join("slath"));
     assert!(
         bin.is_file(),
         "{} not found; build it with `cargo build -p slath`",
@@ -47,8 +53,101 @@ pub const DEMO: TestRepo = TestRepo {
     name: "demo",
 };
 
+/// A fresh, empty PostgreSQL database for one test server, dropped again
+/// when the value is dropped. The server connects with `$DATABASE_URL`'s
+/// credentials (default: the `just dev-db` instance).
+pub struct TestDb {
+    pub url: String,
+    admin_url: String,
+    name: String,
+}
+
+fn admin_url() -> String {
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://slath:slath@127.0.0.1:54329/slath".to_owned())
+}
+
+fn block_on<F: std::future::Future>(f: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(f)
+}
+
+impl TestDb {
+    #[must_use]
+    pub fn create() -> Self {
+        use sqlx::Connection;
+        let admin_url = admin_url();
+        let name = format!("slath_t_{}", uuid::Uuid::now_v7().simple());
+        block_on(async {
+            let mut c = sqlx::PgConnection::connect(&admin_url).await.unwrap();
+            sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+                .execute(&mut c)
+                .await
+                .unwrap();
+        });
+        let base = admin_url
+            .rsplit_once('/')
+            .map_or(admin_url.as_str(), |(b, _)| b);
+        Self {
+            url: format!("{base}/{name}"),
+            admin_url: admin_url.clone(),
+            name,
+        }
+    }
+
+    /// Runs SQL against this database (test setup and inspection).
+    pub fn execute(&self, sql: &str) {
+        Self::run(&self.url, sql);
+    }
+
+    /// Runs SQL on the maintenance connection (e.g. `ALTER DATABASE` on this one).
+    pub fn execute_admin(&self, sql: &str) {
+        Self::run(&self.admin_url, sql);
+    }
+
+    /// The database name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn run(url: &str, sql: &str) {
+        use sqlx::Connection;
+        block_on(async {
+            let mut c = sqlx::PgConnection::connect(url).await.unwrap();
+            sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_owned()))
+                .execute(&mut c)
+                .await
+                .unwrap();
+        });
+    }
+}
+
+impl Drop for TestDb {
+    fn drop(&mut self) {
+        use sqlx::Connection;
+        let (url, name) = (self.admin_url.clone(), self.name.clone());
+        let _ = std::thread::spawn(move || {
+            block_on(async {
+                if let Ok(mut c) = sqlx::PgConnection::connect(&url).await {
+                    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
+                        "DROP DATABASE IF EXISTS {name} WITH (FORCE)"
+                    )))
+                    .execute(&mut c)
+                    .await;
+                }
+            });
+        })
+        .join();
+    }
+}
+
 pub struct TestServer {
     child: Child,
+    pub db: TestDb,
     pub addr: SocketAddr,
     pub dir: tempfile::TempDir,
 }
@@ -70,14 +169,17 @@ impl TestServer {
     #[must_use]
     pub fn start_full(repos: &[TestRepo], extra: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
+        let db = TestDb::create();
         let port = free_port();
         let mut cfg = format!(
-            "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
+            "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
+             [database]\nurl = \"{db_url}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
              [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n\
              [spike]\ntoken = \"{TOKEN}\"\n",
             data = dir.path().join("data").display(),
             run = dir.path().join("run").display(),
             git = git_bin().display(),
+            db_url = db.url,
         );
         for r in repos {
             cfg += &format!(
@@ -90,7 +192,7 @@ impl TestServer {
         std::fs::write(&cfg_path, cfg).unwrap();
         let log = std::fs::File::create(dir.path().join("server.log")).unwrap();
         let mut child = Command::new(slath_bin())
-            .args(["serve", "--config"])
+            .args(["serve", "--migrate", "--config"])
             .arg(&cfg_path)
             .stdout(Stdio::piped())
             .stderr(log)
@@ -113,9 +215,22 @@ impl TestServer {
         };
         Self {
             child,
+            db,
             addr: addr.parse().unwrap(),
             dir,
         }
+    }
+
+    /// Base URL, e.g. `http://127.0.0.1:41234`.
+    #[must_use]
+    pub fn base(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+
+    /// A fresh HTTP client (empty cookie jar) for this server.
+    #[must_use]
+    pub fn client(&self) -> crate::http::Client {
+        crate::http::Client::new(&self.base())
     }
 
     #[must_use]

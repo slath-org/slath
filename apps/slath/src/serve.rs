@@ -8,14 +8,15 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use slath_git::{Runner, RunnerConfig, storage};
-use slath_http::{AppState, RepoEntry, ipc};
+use slath_http::{AppState, RepoEntry, StateParts, ipc};
 use tracing_subscriber::EnvFilter;
 
 use slath_core::config::LogFormat;
 
 use crate::config::Loaded as Config;
+use crate::config::Loaded;
 
-pub fn run(config_path: &Path, _migrate: bool) -> ExitCode {
+pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
     let cfg = match crate::config::load(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -34,7 +35,7 @@ pub fn run(config_path: &Path, _migrate: bool) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match rt.block_on(serve(cfg)) {
+    match rt.block_on(serve(cfg, migrate)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             tracing::error!(error = %e, "serve failed");
@@ -81,22 +82,36 @@ fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
     Ok(hooks)
 }
 
-async fn serve(cfg: Config) -> Result<(), String> {
+async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let hooks_dir = prepare_dirs(&cfg)?;
+    let mut pc = slath_db::PoolConfig::new(crate::config::database_url(&cfg)?);
+    pc.max_connections = cfg.database.max_connections;
+    let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
+    if migrate {
+        slath_db::migrate(&pool).await.map_err(|e| e.to_string())?;
+    }
+    slath_db::check_schema(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
     let mut rc = RunnerConfig::new(
         cfg.git.binary.clone(),
         cfg.storage.data_dir.join("git-home"),
     );
     rc.hooks_dir = Some(hooks_dir.clone());
+    let cpus = std::thread::available_parallelism().map_or(1, usize::from);
+    rc.max_concurrent = cfg.limits.git_max_concurrent(cpus);
+    rc.read_timeout = cfg.limits.git_read_timeout.get();
     let runner = Runner::new(rc).map_err(|e| e.to_string())?;
     let version = runner.check_version().await.map_err(|e| e.to_string())?;
     tracing::info!(%version, "git version ok");
 
-    let Some(spike) = &cfg.spike else {
-        return Err("no [spike] section configured".to_owned());
-    };
+    let (no_repos, no_keys) = (Vec::new(), Vec::new());
+    let (spike_repos, spike_keys) = cfg
+        .spike
+        .as_ref()
+        .map_or((&no_repos, &no_keys), |s| (&s.repos, &s.ssh_keys));
     let mut repos = Vec::new();
-    for r in &spike.repos {
+    for r in spike_repos {
         let git_dir = storage::repo_path(&cfg.storage.data_dir, r.id);
         if !git_dir.exists() {
             storage::create_bare(&runner, &cfg.storage.data_dir, r.id, &r.default_branch)
@@ -112,7 +127,7 @@ async fn serve(cfg: Config) -> Result<(), String> {
     }
 
     let mut keys = HashMap::new();
-    for k in &spike.ssh_keys {
+    for k in spike_keys {
         let (key_type, key_base64, fingerprint) = k.parse()?;
         let repos = k
             .repos
@@ -158,24 +173,51 @@ async fn serve(cfg: Config) -> Result<(), String> {
     let hooks = Arc::clone(&ctx.hooks);
     tokio::spawn(ipc::serve(listener, ctx));
 
-    let state = AppState::new(
+    let Loaded { cfg, spike } = cfg;
+    let token = spike.map_or_else(String::new, |s| s.token.into_inner());
+    let state = AppState::new(StateParts {
+        config: Arc::new(cfg),
+        pool: pool.clone(),
         runner,
         repos,
-        slath_core::Secret::new(spike.token.expose().clone()),
+        token: slath_core::Secret::new(token),
         hooks,
-        socket,
-    );
-    let tcp = tokio::net::TcpListener::bind(cfg.server.listen)
+        ipc_socket: socket,
+    });
+    let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+    let workers = {
+        let mut wc = slath_db::worker::WorkerPoolConfig::new("default");
+        wc.concurrency = state.config.limits.job_workers;
+        let pool_task = slath_db::worker::WorkerPool::new(pool.clone(), wc);
+        let liveness = Arc::clone(&state.liveness);
+        tokio::spawn(async move {
+            let _alive = slath_http::health::workers_running(&liveness);
+            pool_task.run(stop_rx).await;
+        })
+    };
+    let metrics_addr = state.config.server.metrics_listen.trim().to_owned();
+    if !metrics_addr.is_empty() {
+        let l = tokio::net::TcpListener::bind(&metrics_addr)
+            .await
+            .map_err(|e| format!("cannot listen on {metrics_addr} (metrics): {e}"))?;
+        let app = slath_http::metrics::router(Arc::clone(&state.metrics));
+        tokio::spawn(async move { axum::serve(l, app).await });
+    }
+    let listen = state.config.server.listen;
+    let tcp = tokio::net::TcpListener::bind(listen)
         .await
-        .map_err(|e| format!("cannot listen on {}: {e}", cfg.server.listen))?;
+        .map_err(|e| format!("cannot listen on {listen}: {e}"))?;
     let addr = tcp.local_addr().map_err(|e| e.to_string())?;
     tracing::info!(%addr, "listening");
     // Machine-readable line for scripts and the test launcher.
     println!("slath: listening on http://{addr}");
-    axum::serve(tcp, slath_http::router(state))
+    let result = axum::serve(tcp, slath_http::router(state))
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    let _ = stop_tx.send(true);
+    let _ = workers.await;
+    result
 }
 
 async fn shutdown_signal() {

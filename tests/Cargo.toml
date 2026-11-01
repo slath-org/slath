@@ -14,6 +14,10 @@ autotests = false
 [lib]
 path = "common/lib.rs"
 
+[[bin]]
+name = "slath-e2e-server"
+path = "bin/e2e_server.rs"
+
 [[test]]
 name = "fixtures"
 path = "fixtures_determinism.rs"
@@ -22,10 +26,19 @@ path = "fixtures_determinism.rs"
 name = "compat"
 path = "compat/main.rs"
 
+[[test]]
+name = "security"
+path = "security/main.rs"
+
 [dependencies]
 flate2.workspace = true
 slath-git.workspace = true
+sqlx.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+ureq.workspace = true
+uuid.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

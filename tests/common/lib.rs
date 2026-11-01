@@ -5,5 +5,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::missing_panics_doc)]
 
 pub mod fixtures;
+pub mod http;
 pub mod server;
 pub mod sshd;

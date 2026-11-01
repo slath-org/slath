@@ -1,0 +1,4 @@
+{#- Stamps the response's CSP nonce on an element with hx-* attributes.
+    hx-csp strips htmx attributes from elements without it. Every element
+    with an hx-* attribute must use this macro (checked by scripts/guards.sh). -#}
+{%- macro hx(nonce) -%}hx-nonce="{{ nonce }}"{%- endmacro -%}

@@ -12,7 +12,18 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: fmt-check clippy test sqlx-check deny license-deps py-test guards
+check: web fmt-check clippy test sqlx-check deny license-deps py-test guards
+
+# Build the UI bundle (web/ -> web/dist), which the server embeds. Needs Node.js >= 22.
+web:
+    @node -e 'if (+process.versions.node.split(".")[0] < 22) { console.error("Node.js >= 22 is required (see web/.nvmrc), found " + process.version); process.exit(1) }'
+    cd web && { [ -d node_modules ] || npm ci; } && npm run build
+
+# Browser tests (Playwright, all browsers and matrix cells). Playwright runs in
+# its container unless E2E_LOCAL=1. Pass Playwright args, e.g. `-g name`.
+test-e2e *ARGS: web
+    cargo build --locked -p slath -p slath-tests --bins
+    scripts/e2e.sh {{ARGS}}
 
 fmt-check:
     cargo fmt --all --check
