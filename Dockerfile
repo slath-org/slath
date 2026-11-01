@@ -53,15 +53,18 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates openssh-server tini zlib1g libcurl4t64 libexpat1 \
     && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
-    # `slath` runs the server; `git` is the SSH login, mapped to the same UID
-    # so ssh-serve can reach the IPC socket and the repositories.
+    # `slath` runs the server and owns the data. `git` is the SSH login, a
+    # user of its own: its group may connect to the IPC socket in /run/slath
+    # (slath is a member, to hand the socket to it), and that is all.
     && groupadd --gid 10001 slath \
     && useradd --uid 10001 --gid slath --home-dir /var/lib/slath --no-create-home \
         --shell /usr/sbin/nologin slath \
-    && useradd --non-unique --uid 10001 --gid slath --home-dir /var/lib/slath \
-        --no-create-home --shell /bin/sh git \
+    && groupadd --gid 10002 git \
+    && useradd --uid 10002 --gid git --home-dir / --no-create-home --shell /bin/sh git \
     && usermod --password '*' git \
-    && install -d -o slath -g slath -m 0750 /var/lib/slath /run/slath \
+    && usermod --append --groups git slath \
+    && install -d -o slath -g slath -m 0750 /var/lib/slath \
+    && install -d -o slath -g git -m 0710 /run/slath \
     && install -d -m 0755 /etc/slath /run/sshd
 COPY --from=git /opt/git /opt/git
 COPY --from=build /out/slath /usr/bin/slath
@@ -70,7 +73,8 @@ COPY deploy/sshd/slath.conf /etc/ssh/sshd_config.d/slath.conf
 COPY deploy/docker/sshd-entrypoint.sh /usr/local/lib/slath/sshd-entrypoint
 COPY LICENSES/ /usr/share/doc/slath/LICENSES/
 COPY THIRD-PARTY-NOTICES.md /usr/share/doc/slath/
-ENV SLATH_CONFIG=/etc/slath/slath.toml
+# Set here, not in slath.toml, so a mounted configuration keeps it.
+ENV SLATH_CONFIG=/etc/slath/slath.toml SLATH__STORAGE__SOCKET_GROUP=git
 VOLUME ["/var/lib/slath", "/run/slath"]
 EXPOSE 3000 22
 USER slath

@@ -19,6 +19,9 @@ url_file = "/etc/slath/db-url"
 [storage]
 data_dir = "/var/lib/slath"
 run_dir = "/run/slath"
+# The SSH login's group: its members may connect to the IPC socket in
+# run_dir, and nothing else. The slath user must be a member too.
+socket_group = "git"
 
 [secrets]
 # Create with `slath admin gen-key --output /etc/slath/master.key`.

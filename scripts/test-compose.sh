@@ -4,8 +4,9 @@
 #
 # Install conformance for the container profile, following
 # docs/admin/install.md: build the image, start deploy/compose, create the
-# first admin with the CLI, then (tests/ops/compose.rs) sign in, create a
-# repository through the API, and clone it over HTTP and SSH. Afterwards the
+# first admin with the CLI, check that the SSH login can reach nothing but
+# the IPC socket, then (tests/ops/compose.rs) sign in, create a repository
+# through the API, and clone it over HTTP and SSH. Afterwards the
 # release image renders every page with outbound networking disabled
 # (scripts/test-offline.sh).
 #
@@ -47,6 +48,27 @@ curl -fsS "$SLATH_PUBLIC_URL/-/readyz" >/dev/null || { compose logs slath; exit 
 
 printf '%s' "$ADMIN_PASSWORD" | compose exec -T slath \
     slath admin create-user --admin --username ada --email ada@example.org --password-stdin
+
+# The SSH login `git` is a user of its own: it may use the IPC socket, and
+# can't read the server's data, secrets, or environment. sshd has no data.
+compose exec -T slath slath config check
+denied() {
+    if compose exec -T "$@" >/dev/null 2>&1; then
+        echo "compose: '$*' must fail" >&2
+        exit 1
+    fi
+}
+[[ "$(compose exec -T slath id -u git)" != "$(compose exec -T slath id -u slath)" ]]
+[[ " $(compose exec -T slath id -nG git) " != *" slath "* ]]
+denied -u git slath cat /var/lib/slath/master.key
+denied -u git slath ls /var/lib/slath
+denied -u git slath ls /run/slath
+denied -u git slath cat /proc/1/environ
+denied sshd test -e /var/lib/slath/master.key
+compose exec -T -u git sshd slath ssh-keys --socket /run/slath/slath.sock \
+    SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+denied -u nobody sshd slath ssh-keys --socket /run/slath/slath.sock \
+    SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 SLATH_COMPOSE_URL="$SLATH_PUBLIC_URL" SLATH_COMPOSE_SSH_PORT="$SSH_PORT" \
     SLATH_COMPOSE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \

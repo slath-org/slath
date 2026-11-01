@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "apps/*", "tests"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Erich Seifert <dev@erichseifert.de>"]
 edition = "2024"
 rust-version = "1.97"
@@ -37,9 +37,10 @@ getrandom = "0.4"
 jsonschema = { version = "0.60", default-features = false }
 hkdf = "0.13"
 hmac = "0.13"
-nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
+nix = { version = "0.31", default-features = false, features = ["signal", "process", "user"] }
 percent-encoding = "2.3"
 proptest = "1.12"
+rustix = { version = "1.1", default-features = false, features = ["std", "net"] }
 rust-embed = { version = "8.13", features = ["debug-embed"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

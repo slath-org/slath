@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrade notes for 0.1.1. No schema changes. The SSH login `git` becomes a
+# user of its own (docs/admin/upgrading.md#from-010-to-011). Containers need
+# no manual step; systemd installations keep working after replacing the
+# binary and should follow the guide to separate the users.
+
+version = "0.1.1"
+schema_version = 9
+min_upgrade_from = "0.1.0"
+
+[[action]]
+id = "separate-ssh-login"
+severity = "recommended"
+text = "systemd: give the SSH login `git` its own UID and set storage.socket_group = \"git\" (docs/admin/upgrading.md#from-010-to-011)"

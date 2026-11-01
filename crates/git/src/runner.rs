@@ -13,6 +13,7 @@
 //! 7. has its stderr captured (capped) for logs only.
 
 use std::ffi::{OsStr, OsString};
+use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
@@ -286,18 +287,21 @@ impl Invocation {
         })
     }
 
-    /// Spawns the process connected to this process's own stdin, stdout,
-    /// and stderr (used by `ssh-serve`, whose stdio is the SSH channel).
-    pub async fn spawn_inherit(self) -> Result<GitChild, GitError> {
+    /// Spawns the process attached to the given stdin, stdout, and stderr
+    /// (used for SSH, where they are the SSH channel passed in by
+    /// `ssh-serve`). This process keeps no copies of them.
+    pub async fn spawn_attached(self, stdio: [OwnedFd; 3]) -> Result<GitChild, GitError> {
         let permit = Arc::clone(&self.runner.sem)
             .acquire_owned()
             .await
             .map_err(|_| GitError::Closed)?;
         let mut cmd = self.command();
-        cmd.stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+        let [stdin, stdout, stderr] = stdio;
+        cmd.stdin(Stdio::from(stdin))
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr));
         let child = cmd.spawn()?;
+        drop(cmd);
         let group = ProcessGroup::new(&child);
         Ok(GitChild {
             child,

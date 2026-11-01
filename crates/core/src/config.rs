@@ -110,6 +110,25 @@ pub struct Storage {
     pub data_dir: PathBuf,
     #[serde(default = "default_run_dir")]
     pub run_dir: PathBuf,
+    /// Group (name or numeric ID) whose members may connect to the IPC
+    /// socket: the SSH login's group. Unset, only the server's user can.
+    #[serde(default, deserialize_with = "name_or_id")]
+    pub socket_group: Option<String>,
+}
+
+/// A group given by name or numeric ID (`"git"`, `"10002"`, or `10002`, as
+/// environment overrides of digits arrive as numbers).
+fn name_or_id<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Group {
+        Name(String),
+        Id(u32),
+    }
+    Ok(Option::<Group>::deserialize(d)?.map(|g| match g {
+        Group::Name(n) => n,
+        Group::Id(id) => id.to_string(),
+    }))
 }
 
 fn default_data_dir() -> PathBuf {

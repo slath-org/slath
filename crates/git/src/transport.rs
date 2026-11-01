@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Spawning `upload-pack`/`receive-pack` for smart HTTP and SSH.
 
+use std::os::fd::OwnedFd;
 use std::path::Path;
 
 use crate::error::GitError;
@@ -136,17 +137,18 @@ pub async fn spawn_http_rpc(
 }
 
 /// Spawns a full-duplex `upload-pack`/`receive-pack` for SSH, attached to
-/// the caller's stdio.
+/// the SSH channel's stdin, stdout, and stderr.
 pub async fn spawn_ssh(
     runner: &Runner,
     git_dir: &Path,
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
+    stdio: [OwnedFd; 3],
 ) -> Result<GitChild, GitError> {
     invocation(runner, git_dir, service, git_protocol, hooks)
         .arg(git_dir)
-        .spawn_inherit()
+        .spawn_attached(stdio)
         .await
 }
 

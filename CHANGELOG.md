@@ -8,6 +8,25 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-01
+
+Security hardening: the SSH login no longer shares the server's system user. See `docs/admin/upgrading.md` before upgrading a systemd installation.
+
+### Security
+
+- The SSH login `git` can be a separate system user that reaches only the server's socket; Git for SSH now runs in the server, so the login can't read repositories or secrets.
+- The container image and the Compose setup separate the SSH login by default, and the sshd container no longer mounts the data volume.
+- `slath config check` fails if the SSH login's group can read the data directory, the master key, or the database URL file.
+
+### Added
+
+- `storage.socket_group` lets the SSH login's group connect to the server's socket. Without it, only the server's own user can, as before.
+
+### Changed
+
+- The sshd drop-in runs `slath ssh-keys` as `git` instead of `slath`, and the systemd files create `git` as its own user. See `docs/admin/upgrading.md` for existing installations.
+- The install guide shows how to trust only the reverse proxy's actual subnet instead of a broad private range.
+
 ## [0.1.0] - 2026-11-01
 
 First release: self-hosted Git and Jujutsu hosting for small teams.
@@ -92,5 +111,6 @@ First release: self-hosted Git and Jujutsu hosting for small teams.
 - API tokens without `user:read` could list the user's organizations and their members.
 - API tokens without `repo:read` could list the user's private repositories.
 
-[Unreleased]: https://github.com/slath-org/slath/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/slath-org/slath/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/slath-org/slath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/slath-org/slath/releases/tag/v0.1.0

@@ -3,23 +3,30 @@
 //! The IPC server that the helper commands talk to: `slath hook` during
 //! pushes, and `slath ssh-keys`/`slath ssh-serve` for SSH.
 //!
-//! The socket lives in the `run_dir` (mode 0700) and is itself mode 0600.
+//! The socket lives in the `run_dir`. Without a socket group, only the
+//! server's own user may connect (directory 0700, socket 0600). With one
+//! (`storage.socket_group`, the SSH login's group), its members may connect
+//! too (directory 0710, socket 0660); they get no other access, because Git
+//! for SSH runs here, on the descriptors `ssh-serve` passes in.
+//!
 //! Each transport request mints a hook token bound to who pushes, to which
 //! repository, and how; hooks must present it, so a token can't be used for
 //! another repository or after the request ends. Every answer comes from
 //! the service layer, which authorizes it.
 
 use std::collections::HashMap;
+use std::os::fd::OwnedFd;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use slath_git::ipc::{AuthorizedKey, MAX_MESSAGE, Request, Response, TransportGrant};
-use slath_git::transport::Service;
+use slath_git::Runner;
+use slath_git::ipc::{self as proto, AuthorizedKey, MAX_MESSAGE, Request, Response};
+use slath_git::transport::{self, HookEnv, Service};
 use slath_service::Services;
 use slath_service::push::{PushGrant, Transport};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Interest};
 use tokio::net::{UnixListener, UnixStream};
 
 use crate::metrics::Metrics;
@@ -50,14 +57,6 @@ impl HookToken {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.token
-    }
-
-    /// Keeps the token alive until it expires, for requests that outlive the
-    /// minting call (SSH sessions run in a separate process).
-    #[must_use]
-    pub fn detach(mut self) -> String {
-        self.registry = None;
-        std::mem::take(&mut self.token)
     }
 }
 
@@ -104,14 +103,6 @@ impl HookRegistry {
     }
 }
 
-/// Where Git lives, as reported to `ssh-serve`.
-#[derive(Debug, Clone)]
-pub struct GitPaths {
-    pub binary: PathBuf,
-    pub home_dir: PathBuf,
-    pub hooks_dir: Option<PathBuf>,
-}
-
 /// A token bucket for key lookups (sshd calls `ssh-keys` for every key a
 /// client offers).
 #[derive(Debug)]
@@ -124,7 +115,10 @@ struct Bucket {
 pub struct IpcContext {
     pub hooks: Arc<HookRegistry>,
     pub services: Services,
-    pub git: GitPaths,
+    /// Runs Git for SSH sessions.
+    pub runner: Runner,
+    /// This socket's path, for the hooks of SSH pushes.
+    pub socket: PathBuf,
     pub metrics: Arc<Metrics>,
     lookups: Mutex<Bucket>,
 }
@@ -134,14 +128,16 @@ impl IpcContext {
     pub fn new(
         hooks: Arc<HookRegistry>,
         services: Services,
-        git: GitPaths,
+        runner: Runner,
+        socket: PathBuf,
         metrics: Arc<Metrics>,
     ) -> Self {
         let rate = f64::from(services.config.limits.ssh_key_lookups_per_second.max(1));
         Self {
             hooks,
             services,
-            git,
+            runner,
+            socket,
             metrics,
             lookups: Mutex::new(Bucket {
                 tokens: rate,
@@ -173,11 +169,20 @@ impl IpcContext {
     }
 }
 
-/// Binds the IPC socket at `path`, replacing a stale one, with mode 0600.
-pub fn bind(path: &Path) -> std::io::Result<UnixListener> {
+/// Binds the IPC socket at `path`, replacing a stale one. Without `group`,
+/// the directory gets mode 0700 and the socket 0600; with it, both are
+/// handed to that group, with 0710 and 0660. Giving a group away needs this
+/// process to be a member of it.
+pub fn bind(path: &Path, group: Option<u32>) -> std::io::Result<UnixListener> {
+    let (dir_mode, socket_mode) = if group.is_some() {
+        (0o710, 0o660)
+    } else {
+        (0o700, 0o600)
+    };
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        set_group(dir, group)?;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(dir_mode))?;
     }
     match std::fs::remove_file(path) {
         Ok(()) => {}
@@ -185,8 +190,19 @@ pub fn bind(path: &Path) -> std::io::Result<UnixListener> {
         Err(e) => return Err(e),
     }
     let listener = UnixListener::bind(path)?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    set_group(path, group)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(socket_mode))?;
     Ok(listener)
+}
+
+fn set_group(path: &Path, group: Option<u32>) -> std::io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    match group {
+        Some(gid) if std::fs::metadata(path)?.gid() != gid => {
+            std::os::unix::fs::chown(path, None, Some(gid))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Accepts connections until the listener fails.
@@ -209,21 +225,50 @@ pub async fn serve(listener: UnixListener, ctx: Arc<IpcContext>) {
     }
 }
 
-async fn handle_conn(stream: UnixStream, ctx: &IpcContext) -> std::io::Result<()> {
-    let (read, mut write) = stream.into_split();
-    let mut reader = BufReader::new(read.take(MAX_MESSAGE as u64));
-    let mut line = Vec::new();
-    let read_line = reader.read_until(b'\n', &mut line);
-    tokio::time::timeout(Duration::from_secs(10), read_line)
-        .await
-        .map_err(|_| std::io::Error::other("ipc read timeout"))??;
-    let response = match serde_json::from_slice::<Request>(&line) {
-        Ok(req) => handle(req, ctx).await,
-        Err(_) => Response::deny("slath: malformed request"),
+async fn handle_conn(mut stream: UnixStream, ctx: &IpcContext) -> std::io::Result<()> {
+    let (line, trailing) = {
+        let (read, _) = stream.split();
+        let mut reader = BufReader::new(read.take(MAX_MESSAGE as u64));
+        let mut line = Vec::new();
+        let read_line = reader.read_until(b'\n', &mut line);
+        tokio::time::timeout(Duration::from_secs(10), read_line)
+            .await
+            .map_err(|_| std::io::Error::other("ipc read timeout"))??;
+        (line, !reader.buffer().is_empty())
     };
-    let mut out = serde_json::to_vec(&response).map_err(std::io::Error::other)?;
+    // Clients wait for the answer before sending anything else.
+    let request = if trailing {
+        None
+    } else {
+        serde_json::from_slice::<Request>(&line).ok()
+    };
+    let response = match request {
+        Some(Request::SshSession {
+            key_id,
+            service,
+            namespace,
+            repo,
+            git_protocol,
+        }) => {
+            let session = SshRequest {
+                key_id: &key_id,
+                service: &service,
+                namespace: &namespace,
+                repo: &repo,
+                git_protocol: git_protocol.as_deref(),
+            };
+            return ssh_session(stream, ctx, &session).await;
+        }
+        Some(req) => handle(req, ctx).await,
+        None => Response::deny("slath: malformed request"),
+    };
+    write_response(&mut stream, &response).await
+}
+
+async fn write_response(stream: &mut UnixStream, response: &Response) -> std::io::Result<()> {
+    let mut out = serde_json::to_vec(response).map_err(std::io::Error::other)?;
     out.push(b'\n');
-    write.write_all(&out).await
+    stream.write_all(&out).await
 }
 
 const NOT_FOUND: &str = "slath: repository not found";
@@ -254,7 +299,7 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
                 allow: v.denied.is_empty(),
                 messages: v.messages,
                 key: None,
-                transport: None,
+                exit_code: None,
             }
         }
         Request::PostReceive { token, updates } => {
@@ -288,50 +333,147 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
                 }
             }
         }
-        Request::AuthorizeTransport {
-            key_id,
-            service,
-            namespace,
-            repo,
-        } => authorize_transport(ctx, &key_id, &service, &namespace, &repo).await,
+        // Handled by `handle_conn`, which owns the connection.
+        Request::SshSession { .. } => Response::deny("slath: malformed request"),
+    }
+}
+
+struct SshRequest<'a> {
+    key_id: &'a str,
+    service: &'a str,
+    namespace: &'a str,
+    repo: &'a str,
+    git_protocol: Option<&'a str>,
+}
+
+/// What an authorized SSH request runs.
+struct SshGrant {
+    service: Service,
+    git_dir: PathBuf,
+    /// Present for `git-receive-pack`; valid until the session ends.
+    hook_token: Option<HookToken>,
+}
+
+/// How long `ssh-serve` has to pass its descriptors after the go-ahead.
+const FD_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Runs one SSH session: authorize, receive the SSH channel's descriptors,
+/// run Git on them, and report its exit code. If `ssh-serve` goes away
+/// first, Git is killed.
+async fn ssh_session(
+    mut stream: UnixStream,
+    ctx: &IpcContext,
+    req: &SshRequest<'_>,
+) -> std::io::Result<()> {
+    let grant = match authorize_ssh(ctx, req).await {
+        Ok(g) => g,
+        Err(denied) => return write_response(&mut stream, &denied).await,
+    };
+    write_response(&mut stream, &Response::allow()).await?;
+    let recv = stream.async_io(Interest::READABLE, || {
+        proto::recv_fds(&stream).map_err(|e| match e {
+            proto::IpcError::Io(e) => e,
+            other => std::io::Error::other(other.to_string()),
+        })
+    });
+    let fds = match tokio::time::timeout(FD_TIMEOUT, recv).await {
+        Ok(Ok(fds)) => fds,
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "ssh session sent no usable descriptors");
+            return write_response(&mut stream, &Response::deny("slath: malformed request")).await;
+        }
+        Err(_) => return Err(std::io::Error::other("ipc descriptor timeout")),
+    };
+    let Ok(stdio) = <[OwnedFd; 3]>::try_from(fds) else {
+        return write_response(&mut stream, &Response::deny("slath: malformed request")).await;
+    };
+    let hooks = grant.hook_token.as_ref().map(|t| HookEnv {
+        token: t.as_str(),
+        ipc_socket: &ctx.socket,
+        max_input_bytes: Some(ctx.services.config.limits.push_max_bytes.get()),
+    });
+    let spawned = transport::spawn_ssh(
+        &ctx.runner,
+        &grant.git_dir,
+        grant.service,
+        req.git_protocol,
+        hooks.as_ref(),
+        stdio,
+    )
+    .await;
+    let mut child = match spawned {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(error = %e, "cannot start git for ssh");
+            return write_response(&mut stream, &Response::deny("slath: internal error")).await;
+        }
+    };
+    let status = tokio::select! {
+        status = child.wait() => status,
+        () = client_gone(&stream) => {
+            child.kill();
+            return Ok(());
+        }
+    };
+    let code = match status {
+        Ok(s) => s.code().unwrap_or(1),
+        Err(e) => {
+            tracing::error!(error = %e, "waiting for git failed");
+            1
+        }
+    };
+    let done = Response {
+        allow: code == 0,
+        exit_code: Some(code),
+        ..Response::allow()
+    };
+    write_response(&mut stream, &done).await
+}
+
+/// Resolves when the client closes its end or sends anything (it must only
+/// wait for the answer).
+async fn client_gone(stream: &UnixStream) {
+    let mut buf = [0u8; 1];
+    loop {
+        if stream.readable().await.is_err() {
+            return;
+        }
+        match stream.try_read(&mut buf) {
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            _ => return,
+        }
     }
 }
 
 /// Unknown keys, unknown repositories, and repositories the key may not use
 /// all get the same answer, so SSH can't be used to probe for repositories.
-async fn authorize_transport(
-    ctx: &IpcContext,
-    key_id: &str,
-    service: &str,
-    namespace: &str,
-    repo: &str,
-) -> Response {
-    let Some(service) = Service::from_name(service) else {
-        return Response::deny("slath: unsupported command");
+async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGrant, Response> {
+    let Some(service) = Service::from_name(req.service) else {
+        return Err(Response::deny("slath: unsupported command"));
     };
-    let Ok(key_id) = key_id.parse() else {
-        return Response::deny(NOT_FOUND);
+    let Ok(key_id) = req.key_id.parse() else {
+        return Err(Response::deny(NOT_FOUND));
     };
     let subject = match ctx.services.ssh_subject(key_id).await {
         Ok(Some(s)) => s,
-        Ok(None) => return Response::deny(NOT_FOUND),
+        Ok(None) => return Err(Response::deny(NOT_FOUND)),
         Err(e) => {
             tracing::error!(error = %e, "ssh subject lookup failed");
-            return Response::deny("slath: internal error");
+            return Err(Response::deny("slath: internal error"));
         }
     };
     let access = match ctx
         .services
-        .transport_access(&subject, namespace, repo, service.is_write())
+        .transport_access(&subject, req.namespace, req.repo, service.is_write())
         .await
     {
         Ok(a) => a,
         Err(slath_service::ServiceError::NotFound | slath_service::ServiceError::Forbidden) => {
-            return Response::deny(NOT_FOUND);
+            return Err(Response::deny(NOT_FOUND));
         }
         Err(e) => {
             tracing::error!(error = %e, "ssh authorization failed");
-            return Response::deny("slath: internal error");
+            return Err(Response::deny("slath: internal error"));
         }
     };
     let hook_token = if service.is_write() {
@@ -341,29 +483,20 @@ async fn authorize_transport(
             transport: Transport::Ssh,
         };
         match ctx.hooks.mint(grant, HOOK_TOKEN_TTL) {
-            Ok(t) => Some(t.detach()),
+            Ok(t) => Some(t),
             Err(e) => {
                 tracing::error!(error = %e, "minting hook token failed");
-                return Response::deny("slath: internal error");
+                return Err(Response::deny("slath: internal error"));
             }
         }
     } else {
         None
     };
-    let path = |p: &Path| p.to_string_lossy().into_owned();
-    Response {
-        transport: Some(TransportGrant {
-            git_dir: path(&ctx.services.repo_path(access.repo.id)),
-            git_binary: path(&ctx.git.binary),
-            home_dir: path(&ctx.git.home_dir),
-            hooks_dir: ctx.git.hooks_dir.as_deref().map(path),
-            hook_token,
-            max_input_bytes: service
-                .is_write()
-                .then(|| ctx.services.config.limits.push_max_bytes.get()),
-        }),
-        ..Response::allow()
-    }
+    Ok(SshGrant {
+        service,
+        git_dir: ctx.services.repo_path(access.repo.id),
+        hook_token,
+    })
 }
 
 #[cfg(test)]
@@ -399,10 +532,44 @@ mod tests {
         assert!(reg.lookup(&s).is_none(), "the token dies with its request");
         let expired = reg.mint(grant(), Duration::ZERO).unwrap();
         assert!(reg.lookup(expired.as_str()).is_none());
-        let detached = reg.mint(grant(), Duration::from_secs(60)).unwrap().detach();
-        assert!(
-            reg.lookup(&detached).is_some(),
-            "detached tokens live until they expire"
+    }
+
+    #[tokio::test]
+    async fn socket_modes_with_and_without_a_group() {
+        use std::os::unix::fs::MetadataExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let gid = std::fs::metadata(dir.path()).unwrap().gid();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().mode() & 0o7777;
+
+        let private = dir.path().join("private").join("slath.sock");
+        let _l = bind(&private, None).unwrap();
+        assert_eq!(mode(private.parent().unwrap()), 0o700);
+        assert_eq!(mode(&private), 0o600);
+
+        let shared = dir.path().join("shared").join("slath.sock");
+        let _l = bind(&shared, Some(gid)).unwrap();
+        let meta = std::fs::metadata(&shared).unwrap();
+        assert_eq!(meta.gid(), gid);
+        assert_eq!(mode(&shared), 0o660);
+        assert_eq!(
+            mode(shared.parent().unwrap()),
+            0o710,
+            "searchable, not listable"
         );
+        assert_eq!(
+            std::fs::metadata(shared.parent().unwrap()).unwrap().gid(),
+            gid
+        );
+
+        // Rebinding replaces a stale socket and tightens a loosened directory.
+        std::fs::set_permissions(
+            shared.parent().unwrap(),
+            std::fs::Permissions::from_mode(0o777),
+        )
+        .unwrap();
+        drop(_l);
+        let _l = bind(&shared, Some(gid)).unwrap();
+        assert_eq!(mode(shared.parent().unwrap()), 0o710);
     }
 }

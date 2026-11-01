@@ -488,6 +488,15 @@ pub fn run_slath(config: &Path, args: &[&str], stdin: Option<&str>) -> (bool, St
     )
 }
 
+/// The IPC socket's group in tests: this process's group, which the sshd
+/// fixture's `git` login (a different user) is a member of.
+#[must_use]
+pub fn socket_gid() -> u32 {
+    use std::os::unix::fs::MetadataExt;
+    let probe = tempfile::tempfile().unwrap();
+    probe.metadata().unwrap().gid()
+}
+
 /// A configured but not yet started instance: an empty database and data
 /// directory (e.g. a restore target).
 pub struct Instance {
@@ -499,12 +508,20 @@ impl Instance {
     #[must_use]
     pub fn new(extra: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
+        // Private, like a real installation's directories.
+        std::fs::set_permissions(
+            dir.path(),
+            std::os::unix::fs::PermissionsExt::from_mode(0o700),
+        )
+        .unwrap();
         let db = TestDb::create();
         let port = free_port();
         let mut cfg = format!(
             "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
              [database]\nurl = \"{db_url}\"\nmax_connections = 5\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
+             socket_group = \"{gid}\"\n\
              [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
+            gid = socket_gid(),
             data = dir.path().join("data").display(),
             run = dir.path().join("run").display(),
             git = git_bin().display(),

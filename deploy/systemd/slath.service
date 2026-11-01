@@ -17,10 +17,12 @@ Environment=SLATH_CONFIG=/etc/slath/slath.toml
 ExecStart=/usr/bin/slath serve
 Restart=on-failure
 RestartSec=5s
-# /run/slath holds the IPC socket for sshd's helper commands. Keep it
-# traversable for the group, which the `git` SSH user shares.
+# /run/slath holds the IPC socket for sshd's helper commands. Slath hands it
+# to `storage.socket_group` (the `git` login's group) at startup, with mode
+# 0710; the data and configuration stay closed to that group.
+SupplementaryGroups=git
 RuntimeDirectory=slath
-RuntimeDirectoryMode=0750
+RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=restart
 StateDirectory=slath
 StateDirectoryMode=0750
@@ -47,6 +49,9 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
+# Except chown: handing the socket to the `git` group. Without capabilities
+# it can only pick a group of the service's own.
+SystemCallFilter=@chown
 CapabilityBoundingSet=
 ReadWritePaths=/var/lib/slath /run/slath
 

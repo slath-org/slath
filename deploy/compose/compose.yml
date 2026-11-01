@@ -56,7 +56,8 @@ services:
       - run:/run/slath
 
   # Git over SSH: same image, sshd as root; logins as `git` are handed to
-  # `slath ssh-serve`, which talks to `slath` through the socket in `run`.
+  # `slath ssh-serve`, which passes them to `slath` through the socket in
+  # `run`. Git runs in `slath`, so sshd gets no access to the data volume.
   sshd:
     image: ${SLATH_IMAGE:-slath:latest}
     restart: unless-stopped
@@ -68,9 +69,12 @@ services:
     ports:
       - "${SLATH_SSH_BIND:-0.0.0.0:2222}:22"
     volumes:
-      - data:/var/lib/slath
       - run:/run/slath
       - sshd-keys:/etc/ssh/keys
+    # An empty /var/lib/slath of its own: without it, recreating this
+    # container would keep a data volume mounted there by an older compose.yml.
+    tmpfs:
+      - /var/lib/slath:mode=0700
 
   caddy:
     profiles: ["tls"]

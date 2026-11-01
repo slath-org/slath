@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `slath config check`, `slath version`, `slath migrate`, `slath admin gen-key`.
 
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -47,6 +48,58 @@ fn data_dir_writable(dir: &Path) -> Result<String, String> {
     std::fs::write(&probe, b"ok").map_err(|e| format!("{} is not writable: {e}", dir.display()))?;
     let _ = std::fs::remove_file(&probe);
     Ok(format!("{} is writable", dir.display()))
+}
+
+/// Checks that members of `storage.socket_group` (the SSH login) can't
+/// reach the server's private files: the data directory, the master key,
+/// and the database URL file.
+fn socket_group(cfg: &Config) -> Result<String, String> {
+    let Some(gid) = config::socket_gid(cfg)? else {
+        return Ok(
+            "storage.socket_group is not set; only the server's user can connect".to_owned(),
+        );
+    };
+    let mut private = vec![cfg.storage.data_dir.clone()];
+    private.extend(cfg.secrets.master_key_file.iter().cloned());
+    private.extend(cfg.database.url_file.iter().cloned());
+    let exposed: Vec<String> = private
+        .iter()
+        .filter(|p| reachable_by_group(p, gid))
+        .map(|p| p.display().to_string())
+        .collect();
+    if exposed.is_empty() {
+        Ok(format!(
+            "group {gid} can connect to the socket but not read the server's files"
+        ))
+    } else {
+        Err(format!(
+            "readable by group {gid} or by everyone: {}",
+            exposed.join(", ")
+        ))
+    }
+}
+
+/// True if a member of group `gid` who doesn't own anything on the way could
+/// read `path`: every directory above it searchable and the path itself
+/// readable (or, for a directory, searchable). Missing paths aren't.
+fn reachable_by_group(path: &Path, gid: u32) -> bool {
+    let Ok(path) = std::fs::canonicalize(path) else {
+        return false;
+    };
+    let allows = |p: &Path, bits: u32| {
+        std::fs::metadata(p).is_ok_and(|m| group_may(m.mode(), m.gid(), gid, bits))
+    };
+    let parents_searchable = path.ancestors().skip(1).all(|dir| allows(dir, 0o1));
+    let target_bits = if path.is_dir() { 0o5 } else { 0o4 };
+    parents_searchable && allows(&path, target_bits)
+}
+
+/// True if a non-owner in group `gid` has any of `bits` (rwx, 0o7) on a file
+/// with `mode` and group `file_gid`: the group bits if it's the file's group,
+/// the bits for everyone else otherwise.
+fn group_may(mode: u32, file_gid: u32, gid: u32, bits: u32) -> bool {
+    let shift = if file_gid == gid { 3 } else { 0 };
+    (mode >> shift) & bits != 0
 }
 
 async fn database(cfg: &Config) -> Result<String, String> {
@@ -99,6 +152,7 @@ pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
             .map(|v| format!("git {v} at {}", cfg.git.binary.display())),
     );
     push("data_dir", data_dir_writable(&cfg.storage.data_dir));
+    push("socket", socket_group(&cfg));
     push("database", rt.block_on(database(&cfg)));
     if let Some(key) = &cfg.secrets.master_key_file {
         push(
@@ -220,5 +274,54 @@ pub fn gen_key(output: Option<&Path>) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => fail(OutputFormat::Text, &e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn chmod(p: &Path, mode: u32) {
+        std::fs::set_permissions(p, std::fs::Permissions::from_mode(mode)).unwrap();
+    }
+
+    #[test]
+    fn group_and_other_bits() {
+        // The file's own group: group bits.
+        assert!(group_may(0o640, 7, 7, 0o4));
+        assert!(!group_may(0o600, 7, 7, 0o4));
+        assert!(
+            !group_may(0o604, 7, 7, 0o4),
+            "other bits don't apply to the group"
+        );
+        // Another group: the bits for everyone else.
+        assert!(!group_may(0o640, 7, 8, 0o4));
+        assert!(group_may(0o604, 7, 8, 0o4));
+        assert!(group_may(0o711, 7, 8, 0o1));
+    }
+
+    #[test]
+    fn private_files_behind_a_closed_directory_are_unreachable() {
+        let dir = tempfile::tempdir().unwrap();
+        let gid = std::fs::metadata(dir.path()).unwrap().gid();
+        let key = dir.path().join("master.key");
+        std::fs::write(&key, "k").unwrap();
+        chmod(&key, 0o644);
+        chmod(dir.path(), 0o700);
+        assert!(!reachable_by_group(&key, gid));
+        assert!(!reachable_by_group(dir.path(), gid));
+        chmod(dir.path(), 0o750);
+        chmod(&key, 0o600);
+        assert!(!reachable_by_group(&key, gid));
+        assert!(!reachable_by_group(&dir.path().join("missing"), gid));
+        // Only if the temp directory's ancestors are searchable for its group
+        // (they may not be in a sandbox): the open key is then reachable.
+        chmod(&key, 0o640);
+        let above_open =
+            dir.path().ancestors().skip(1).all(|d| {
+                std::fs::metadata(d).is_ok_and(|m| group_may(m.mode(), m.gid(), gid, 0o1))
+            });
+        assert_eq!(reachable_by_group(&key, gid), above_open);
     }
 }

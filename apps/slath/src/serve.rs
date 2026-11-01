@@ -82,6 +82,7 @@ fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
 
 async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let hooks_dir = prepare_dirs(&cfg)?;
+    let socket_gid = crate::config::socket_gid(&cfg)?;
     let mut pc = slath_db::PoolConfig::new(crate::config::database_url(&cfg)?);
     pc.max_connections = cfg.database.max_connections;
     let pool = slath_db::connect(&pc).await.map_err(|e| e.to_string())?;
@@ -95,7 +96,7 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
         cfg.git.binary.clone(),
         cfg.storage.data_dir.join("git-home"),
     );
-    rc.hooks_dir = Some(hooks_dir.clone());
+    rc.hooks_dir = Some(hooks_dir);
     let cpus = std::thread::available_parallelism().map_or(1, usize::from);
     rc.max_concurrent = cfg.limits.git_max_concurrent(cpus);
     rc.read_timeout = cfg.limits.git_read_timeout.get();
@@ -120,15 +121,19 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let ctx = Arc::new(ipc::IpcContext::new(
         Arc::clone(&hooks),
         services.clone(),
-        ipc::GitPaths {
-            binary: cfg.git.binary.clone(),
-            home_dir: cfg.storage.data_dir.join("git-home"),
-            hooks_dir: Some(hooks_dir),
-        },
+        runner.clone(),
+        socket.clone(),
         Arc::clone(&metrics),
     ));
-    let listener =
-        ipc::bind(&socket).map_err(|e| format!("cannot bind {}: {e}", socket.display()))?;
+    let listener = ipc::bind(&socket, socket_gid).map_err(|e| {
+        let hint = match &cfg.storage.socket_group {
+            Some(g) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                format!(" (the server's user must be a member of group {g})")
+            }
+            _ => String::new(),
+        };
+        format!("cannot bind {}: {e}{hint}", socket.display())
+    })?;
     tokio::spawn(ipc::serve(listener, ctx));
 
     let state = AppState::new(

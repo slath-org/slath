@@ -3,7 +3,8 @@
 #
 # TLS in front of Slath (`docker compose --profile tls up -d`). Set
 # SLATH_PUBLIC_URL=https://<SLATH_DOMAIN> and trust the proxy in Slath:
-# SLATH__SERVER__TRUSTED_PROXIES must cover the compose network.
+# SLATH__SERVER__TRUSTED_PROXIES must list the compose network's actual
+# subnet (docs/admin/install.md shows how to look it up).
 
 {$SLATH_DOMAIN} {
 	encode zstd gzip

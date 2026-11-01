@@ -68,6 +68,9 @@ fn validate(cfg: &Config) -> Result<(), String> {
             return Err(format!("{what} must be an absolute path"));
         }
     }
+    if cfg.storage.socket_group.as_deref() == Some("") {
+        return Err("storage.socket_group must not be empty".to_owned());
+    }
     if cfg.database.url.is_some() && cfg.database.url_file.is_some() {
         return Err("database: set either url or url_file, not both".to_owned());
     }
@@ -99,6 +102,23 @@ pub fn database_url(cfg: &Config) -> Result<Secret<String>, String> {
         (Some(url), None) => Ok(Secret::new(url.expose().clone())),
         (None, Some(file)) => read_secret_file(file),
         _ => Err("database: url or url_file is required".to_owned()),
+    }
+}
+
+/// The numeric ID of `storage.socket_group`, if set.
+pub fn socket_gid(cfg: &Config) -> Result<Option<u32>, String> {
+    let Some(group) = &cfg.storage.socket_group else {
+        return Ok(None);
+    };
+    if let Ok(gid) = group.parse::<u32>() {
+        return Ok(Some(gid));
+    }
+    match nix::unistd::Group::from_name(group) {
+        Ok(Some(g)) => Ok(Some(g.gid.as_raw())),
+        Ok(None) => Err(format!(
+            "storage.socket_group: group {group} does not exist"
+        )),
+        Err(e) => Err(format!("storage.socket_group: cannot look up {group}: {e}")),
     }
 }
 
@@ -151,6 +171,39 @@ mod tests {
             let cfg = load_str(&text, &[]).unwrap_or_else(|e| panic!("{file}: {e}"));
             assert!(cfg.secrets.master_key_file.is_some(), "{file}");
         }
+    }
+
+    #[test]
+    fn socket_group_by_name_or_number() {
+        assert_eq!(load_str(MINIMAL, &[]).unwrap().storage.socket_group, None);
+        let with = |line: &str| format!("{MINIMAL}\n        socket_group = {line}\n");
+        for (toml, want) in [
+            ("\"git\"", "git"),
+            ("\"10002\"", "10002"),
+            ("10002", "10002"),
+        ] {
+            let cfg = load_str(&with(toml), &[]).unwrap();
+            assert_eq!(cfg.storage.socket_group.as_deref(), Some(want), "{toml}");
+        }
+        // Environment overrides of digits arrive as numbers.
+        let cfg = load_str(MINIMAL, &[("STORAGE__SOCKET_GROUP", "10002")]).unwrap();
+        assert_eq!(cfg.storage.socket_group.as_deref(), Some("10002"));
+        assert_eq!(socket_gid(&cfg).unwrap(), Some(10002));
+        assert!(
+            load_str(&with("\"\""), &[])
+                .unwrap_err()
+                .contains("socket_group")
+        );
+        assert!(load_str(&with("-1"), &[]).is_err());
+        assert!(socket_gid(&load_str(&with("\"no-such-group-x\""), &[]).unwrap()).is_err());
+        // The shipped example names the SSH login's group (the image sets it
+        // in its environment, so mounted configurations keep it).
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let text = std::fs::read_to_string(root.join("deploy/slath.example.toml")).unwrap();
+        let cfg = load_str(&text, &[]).unwrap();
+        assert_eq!(cfg.storage.socket_group.as_deref(), Some("git"));
+        let dockerfile = std::fs::read_to_string(root.join("Dockerfile")).unwrap();
+        assert!(dockerfile.contains("SLATH__STORAGE__SOCKET_GROUP=git"));
     }
 
     #[test]

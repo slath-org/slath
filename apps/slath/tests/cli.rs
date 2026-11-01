@@ -108,7 +108,14 @@ fn config_check_reports_each_item() {
         .collect();
     assert_eq!(
         names,
-        ["config", "git", "data_dir", "database", "master_key"]
+        [
+            "config",
+            "git",
+            "data_dir",
+            "socket",
+            "database",
+            "master_key"
+        ]
     );
     assert_eq!(v["ok"], true, "{v}");
     assert!(out.status.success());
@@ -119,6 +126,58 @@ fn config_check_reports_each_item() {
     assert!(!out.status.success());
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("FAIL master_key"), "{text}");
+
+    // With a socket group, the master key must be closed to it: a key the
+    // group can read fails the check, even behind group-searchable dirs.
+    use std::os::unix::fs::MetadataExt;
+    let gid = std::fs::metadata(&key).unwrap().gid().to_string();
+    let check = || {
+        let out = Command::new(env!("CARGO_BIN_EXE_slath"))
+            .args(["config", "check", "--output", "json", "--config"])
+            .arg(&cfg)
+            .env("SLATH__STORAGE__SOCKET_GROUP", &gid)
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let socket = v["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "socket")
+            .unwrap()
+            .clone();
+        (
+            socket["ok"].as_bool().unwrap(),
+            socket["detail"].to_string(),
+        )
+    };
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let (ok, detail) = check();
+    assert!(ok, "a closed directory protects the key: {detail}");
+    // Opening the directory to the group exposes the key (and the data
+    // directory); whether it's
+    // reachable also depends on the temp directory's ancestors.
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o750)).unwrap();
+    let ancestors_open = dir.path().ancestors().skip(1).all(|d| {
+        std::fs::metadata(d).is_ok_and(|m| {
+            let bits = if m.gid().to_string() == gid {
+                m.mode() >> 3
+            } else {
+                m.mode()
+            };
+            bits & 0o1 != 0
+        })
+    });
+    let (ok, detail) = check();
+    assert_eq!(ok, !ancestors_open, "{detail}");
+    if ancestors_open {
+        assert!(detail.contains("master.key"), "{detail}");
+    }
+    // Closing it again (the data directory inside is 0755) fixes both.
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    let (ok, detail) = check();
+    assert!(ok, "{detail}");
 }
 
 #[test]

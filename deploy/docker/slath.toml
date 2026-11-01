@@ -16,6 +16,7 @@ url = "postgres://slath@postgres/slath"
 [storage]
 data_dir = "/var/lib/slath"
 run_dir = "/run/slath"
+# storage.socket_group comes from SLATH__STORAGE__SOCKET_GROUP in the image.
 
 [secrets]
 master_key_file = "/var/lib/slath/master.key"

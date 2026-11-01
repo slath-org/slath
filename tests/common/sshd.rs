@@ -3,17 +3,19 @@
 //! A real OpenSSH server in a container, configured with the shipped
 //! `deploy/sshd/slath.conf`, in front of a [`TestServer`].
 //!
-//! The container shares the test server's temp directory (same absolute
-//! path) so `ssh-serve` finds the IPC socket and repositories, and runs Git
-//! as a user with the test runner's UID. Needs Docker (or a compatible CLI
-//! via `$SLATH_CONTAINER_ENGINE`). Set `SLATH_SKIP_SSH_TESTS=1` to skip.
+//! The container sees only the test server's run directory (the IPC socket)
+//! at `/run/slath`. Its `git` login has a UID of its own and reaches the
+//! socket through the socket group (the test runner's group), as in a real
+//! install; Git runs in the test server. Needs Docker (or a compatible CLI
+//! via `$SLATH_CONTAINER_ENGINE`) running containers with host UIDs. Set
+//! `SLATH_SKIP_SSH_TESTS=1` to skip.
 
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use crate::server::{TestServer, slath_bin};
+use crate::server::{TestServer, slath_bin, socket_gid};
 
 fn engine() -> String {
     std::env::var("SLATH_CONTAINER_ENGINE").unwrap_or_else(|_| "docker".to_owned())
@@ -42,7 +44,19 @@ fn run(cmd: &mut Command) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_owned()
 }
 
-/// Builds the fixture image once per content hash and UID.
+/// The test server's UID (the user running the tests).
+#[must_use]
+pub fn server_uid() -> u32 {
+    run(Command::new("id").arg("-u")).parse().unwrap()
+}
+
+/// The container's `git` login: any UID but the server's.
+#[must_use]
+pub fn login_uid() -> u32 {
+    if server_uid() == 10002 { 10003 } else { 10002 }
+}
+
+/// Builds the fixture image once per content hash and IDs.
 fn image() -> String {
     let dir = fixture_dir();
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -51,22 +65,19 @@ fn image() -> String {
             hash = (hash ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
         }
     }
-    let uid = run(Command::new("id").arg("-u"));
-    let tag = format!("slath-test-sshd:{hash:016x}-{uid}");
+    let (uid, gid, git_uid) = (server_uid(), socket_gid(), login_uid());
+    let tag = format!("slath-test-sshd:{hash:016x}-{uid}-{gid}");
     let exists = Command::new(engine())
         .args(["image", "inspect", &tag])
         .output()
         .unwrap();
     if !exists.status.success() {
         run(Command::new(engine())
-            .args([
-                "build",
-                "--quiet",
-                "--build-arg",
-                &format!("UID={uid}"),
-                "-t",
-                &tag,
-            ])
+            .args(["build", "--quiet"])
+            .args(["--build-arg", &format!("UID={uid}")])
+            .args(["--build-arg", &format!("GID={gid}")])
+            .args(["--build-arg", &format!("GIT_UID={git_uid}")])
+            .args(["-t", &tag])
             .arg(&dir));
     }
     tag
@@ -80,25 +91,21 @@ pub struct Sshd {
 impl Sshd {
     #[must_use]
     pub fn start(server: &TestServer) -> Self {
-        let shared = server.dir.path().to_str().unwrap().to_owned();
         let bin = slath_bin().canonicalize().unwrap();
         let bin = bin.to_str().unwrap();
         let conf = Path::new(env!("CARGO_MANIFEST_DIR")).join("../deploy/sshd/slath.conf");
         let conf = conf.canonicalize().unwrap();
-        let socket = server.ipc_socket();
+        let run_dir = server.ipc_socket().parent().unwrap().to_owned();
         let container = run(Command::new(engine())
             .args(["run", "-d", "--rm", "-p", "127.0.0.1::22"])
-            .args(["-v", &format!("{shared}:{shared}")])
             // Installed as root-owned /usr/bin/slath by the entrypoint.
             .args(["-v", &format!("{bin}:/mnt/slath:ro")])
-            // Same path as on the host, for the managed hook symlinks.
-            .args(["-v", &format!("{bin}:{bin}:ro")])
             .args([
                 "-v",
                 &format!("{}:/etc/ssh/sshd_config.d/slath.conf:ro", conf.display()),
             ])
             // The shipped config expects the socket at /run/slath/slath.sock.
-            .args(["-v", &format!("{}:/run/slath/slath.sock", socket.display())])
+            .args(["-v", &format!("{}:/run/slath", run_dir.display())])
             .arg(image()));
         let mapping = run(Command::new(engine()).args(["port", &container, "22/tcp"]));
         let port = mapping
@@ -124,6 +131,21 @@ impl Sshd {
             std::thread::sleep(Duration::from_millis(100));
         }
         panic!("sshd did not come up:\n{}", self.logs());
+    }
+
+    /// Runs `args` in the container as `user`; returns (success, stdout, stderr).
+    #[must_use]
+    pub fn exec_as(&self, user: &str, args: &[&str]) -> (bool, String, String) {
+        let out = Command::new(engine())
+            .args(["exec", "-u", user, &self.container])
+            .args(args)
+            .output()
+            .unwrap();
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
     }
 
     #[must_use]
