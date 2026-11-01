@@ -136,3 +136,15 @@ Before 1.0.0, minor versions may contain breaking changes.
   members, change roles, and edit the profile; the last owner can't leave or
   be demoted. Members can see the member list. Users and organizations share
   one case-insensitive namespace, and profile pages live at `/<name>`.
+- Repositories: create (in your namespace or an organization you belong to;
+  the bare repository is initialized in a temporary directory and renamed
+  into place), browse the empty-repository page with clone URLs and push
+  instructions, and manage settings: description, default branch,
+  visibility (sudo mode), rename (old names redirect people who can read
+  the repository, and nobody else), archive, collaborators with read, write,
+  maintain, or admin roles, and deletion (sudo mode; invisible at once, then
+  moved to the trash and purged after `maintenance.deleted_repo_days`).
+- Authorization policy for every repository action: roles, public reads,
+  archived repositories, token scopes and repository restrictions, and
+  "not found" for anything a subject can't see. A 1444-cell matrix test
+  pins it down.

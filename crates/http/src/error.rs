@@ -225,6 +225,10 @@ impl From<slath_service::ServiceError> for AppError {
                 "Confirm your password",
             )
             .detail("This action needs a recent password confirmation."),
+            S::Moved { namespace, name } => {
+                Self::with_code(StatusCode::MOVED_PERMANENTLY, "moved", "Moved")
+                    .detail(format!("{namespace}/{name}"))
+            }
             S::Conflict(what) => Self::conflict(what),
             S::Invalid(errors) => Self::validation(
                 errors

@@ -4,8 +4,9 @@
 <h1>Explore</h1>
 {%- if ctx.user.is_some() %}
 <ul class="inline-list">
+  <li><a href="/-/new">New repository</a></li>
   <li><a href="/-/orgs/new">New organization</a></li>
 </ul>
 {%- endif %}
-<p>No public repositories yet.</p>
+{% include "repo_list.html" %}
 {% endblock %}

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO repo_redirects (namespace_id, name, repo_id) VALUES ($1, $2, $3)\n             ON CONFLICT (namespace_id, name) DO UPDATE SET repo_id = EXCLUDED.repo_id, created_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad7099d05dcb2571bc0bbc9cad01f4cc847903ec82e57d190e9e00e273921913"
+}

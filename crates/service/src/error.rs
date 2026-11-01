@@ -43,6 +43,9 @@ pub enum ServiceError {
     /// The action needs a recent re-authentication (sudo mode).
     #[error("sudo mode required")]
     SudoRequired,
+    /// The repository was renamed; the subject can read it under its new name.
+    #[error("moved to {namespace}/{name}")]
+    Moved { namespace: String, name: String },
     #[error("conflict: {0}")]
     Conflict(String),
     #[error("validation failed")]

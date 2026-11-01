@@ -9,8 +9,10 @@
 
 pub mod accounts;
 pub mod error;
+pub mod jobs;
 pub mod keys;
 pub mod orgs;
+pub mod repos;
 pub mod sessions;
 pub mod settings;
 pub mod tokens;
@@ -28,15 +30,22 @@ pub struct Services {
     pub pool: PgPool,
     pub config: Arc<Config>,
     pub csrf: Arc<Csrf>,
+    pub runner: slath_git::Runner,
 }
 
 impl Services {
     #[must_use]
-    pub fn new(pool: PgPool, config: Arc<Config>, master: &slath_auth::MasterKey) -> Self {
+    pub fn new(
+        pool: PgPool,
+        config: Arc<Config>,
+        master: &slath_auth::MasterKey,
+        runner: slath_git::Runner,
+    ) -> Self {
         Self {
             pool,
             config,
             csrf: Arc::new(Csrf::new(master.derive("csrf"))),
+            runner,
         }
     }
 }

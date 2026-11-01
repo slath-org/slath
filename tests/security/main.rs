@@ -8,5 +8,6 @@ mod auth;
 mod headers;
 mod keys;
 mod orgs;
+mod repos;
 mod settings;
 mod tokens;

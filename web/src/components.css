@@ -360,3 +360,50 @@ fieldset.field {
   gap: var(--space-2);
   align-items: center;
 }
+
+/* Repository header and tabs */
+.repo-header {
+  margin: 0 0 var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
+}
+.repo-title {
+  font-size: var(--text-lg);
+  margin: 0 0 var(--space-2);
+}
+.tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: var(--focus-width) solid transparent;
+}
+.tabs a:hover {
+  background: var(--surface-subtle);
+}
+.tabs a[aria-current="page"] {
+  font-weight: var(--weight-semibold);
+  border-bottom-color: var(--accent);
+}
+.clone-urls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+.clone-urls .field {
+  flex: 1 1 18rem;
+}
+.clone-urls input {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+}

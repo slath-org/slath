@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.repo_id FROM repo_redirects d JOIN namespaces n ON n.id = d.namespace_id\n         WHERE n.name = $1::citext AND d.name = $2::citext",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repo_redirects",
+            "name": "repo_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5c55cd9bd473f4b1a258eb7416c2f7547335594741afda49a95d11cad9040e82"
+}

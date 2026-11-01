@@ -85,6 +85,34 @@ pub async fn create_bare(
     Ok(final_path)
 }
 
+/// True if the repository has no branches or tags yet.
+pub async fn is_empty(runner: &Runner, git_dir: &Path) -> Result<bool, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+            "refs/heads",
+            "refs/tags",
+        ])
+        .run()
+        .await?;
+    Ok(out.stdout.is_empty())
+}
+
+/// Points `HEAD` at `full_ref` (e.g. `refs/heads/main`) after validating it.
+pub async fn set_head(runner: &Runner, git_dir: &Path, full_ref: &str) -> Result<(), GitError> {
+    let r = RefName::parse(full_ref.as_bytes().to_vec()).map_err(GitError::InvalidArgument)?;
+    runner
+        .repo(git_dir)
+        .args(["symbolic-ref", "HEAD"])
+        .arg_bytes(r.as_bytes())
+        .run()
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

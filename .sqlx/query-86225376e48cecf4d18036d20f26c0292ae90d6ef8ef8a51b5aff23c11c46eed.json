@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM repositories WHERE id = $1 AND state = 'deleting'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "86225376e48cecf4d18036d20f26c0292ae90d6ef8ef8a51b5aff23c11c46eed"
+}

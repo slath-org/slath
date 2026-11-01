@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}New repository{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>New repository</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="/-/new" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="namespace">Owner</label>
+    <select id="namespace" name="namespace"{% if self.error("namespace").is_some() %} aria-invalid="true"{% endif %}>
+    {%- for n in namespaces %}
+      <option value="{{ n }}"{% if n.as_str() == selected.as_str() %} selected{% endif %}>{{ n }}</option>
+    {%- endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
+      aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="name-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters.</p>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="description">Description <span class="text-secondary">(optional)</span></label>
+    <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"
+      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <fieldset class="field" id="visibility">
+    <legend>Visibility</legend>
+    <div class="checkbox">
+      <input id="vis-private" type="radio" name="visibility" value="private"{% if private %} checked{% endif %}>
+      <label for="vis-private"><strong>Private</strong>. Only people you give access can see it.</label>
+    </div>
+    <div class="checkbox">
+      <input id="vis-public" type="radio" name="visibility" value="public"{% if !private %} checked{% endif %}>
+      <label for="vis-public"><strong>Public</strong>. Anyone, including signed-out visitors, can see and clone it.</label>
+    </div>
+  </fieldset>
+  <div class="field">
+    <label for="default_branch">Default branch</label>
+    <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"
+      {%- if self.error("default_branch").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div><button type="submit" class="button button-primary">Create repository</button></div>
+</form>
+</div>
+{% endblock %}

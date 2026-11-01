@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET name = $2, updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b19f03d5a45053f51ed0b445f6b92112e1d927c1a9872a75d71f3a678efe016d"
+}

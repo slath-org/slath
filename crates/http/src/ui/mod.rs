@@ -4,6 +4,7 @@
 //! htmx requests get fragments of the same templates.
 
 pub mod account;
+pub mod browse;
 pub mod design;
 pub mod identicon;
 pub mod profiles;
@@ -244,11 +245,21 @@ pub fn error_page(ctx: &PageCtx, info: &ErrorInfo, request_id: &str) -> Response
 #[template(path = "home.html")]
 struct Home {
     ctx: PageCtx,
+    repos: Vec<repos::RepoCard>,
 }
 
-/// `GET /`.
-pub async fn home(ctx: PageCtx) -> Response {
-    render(&Home { ctx })
+/// `GET /`: recently active public repositories.
+pub async fn home(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    ctx: PageCtx,
+) -> Result<Response, AppError> {
+    let repos = slath_db::repos::list_public(&state.pool, 50)
+        .await
+        .map_err(|e| AppError::internal(&e))?
+        .iter()
+        .map(Into::into)
+        .collect();
+    Ok(render(&Home { ctx, repos }))
 }
 
 /// The 404 fallback for unknown UI routes.
@@ -264,6 +275,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(account::router())
         .merge(settings::router())
         .merge(profiles::router())
+        .merge(repos::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())

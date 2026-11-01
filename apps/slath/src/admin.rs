@@ -28,7 +28,11 @@ pub async fn services(path: &Path) -> Result<Services, String> {
         .map_err(|e| e.to_string())?;
     // Commands don't issue CSRF tokens; any key will do.
     let key = slath_auth::MasterKey::generate().map_err(|e| e.to_string())?;
-    Ok(Services::new(pool, Arc::new(cfg.cfg), &key))
+    let home = cfg.storage.data_dir.join("git-home");
+    std::fs::create_dir_all(&home).map_err(|e| format!("cannot create {}: {e}", home.display()))?;
+    let runner = slath_git::Runner::new(slath_git::RunnerConfig::new(cfg.git.binary.clone(), home))
+        .map_err(|e| e.to_string())?;
+    Ok(Services::new(pool, Arc::new(cfg.cfg), &key, runner))
 }
 
 /// A readable description of a service error for the terminal.

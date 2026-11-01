@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1 class="visually-hidden">{{ header.namespace }}/{{ header.name }}</h1>
+{%- if let Some(d) = description %}
+<p>{{ d }}</p>
+{%- endif %}
+{% include "repo/clone.html" %}
+{%- if empty %}
+<section aria-labelledby="empty-heading">
+  <h2 id="empty-heading">This repository is empty</h2>
+  {%- if can_push %}
+  <p>Push an existing repository:</p>
+  <pre class="code-view" tabindex="0" role="region" aria-label="Commands to push an existing repository"><code>git remote add origin {{ https_url }}
+git push -u origin {{ default_branch }}</code></pre>
+  <p>Or start a new one:</p>
+  <pre class="code-view" tabindex="0" role="region" aria-label="Commands to start a new repository"><code>git init -b {{ default_branch }}
+git commit --allow-empty -m "Initial commit"
+git remote add origin {{ https_url }}
+git push -u origin {{ default_branch }}</code></pre>
+  <p class="text-secondary">Git over HTTPS uses a <a href="/-/settings/tokens">personal access token</a> as the password.</p>
+  {%- else %}
+  <p class="text-secondary">Nothing has been pushed yet.</p>
+  {%- endif %}
+</section>
+{%- endif %}
+{% endblock %}

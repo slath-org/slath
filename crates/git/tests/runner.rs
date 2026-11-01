@@ -370,3 +370,32 @@ async fn create_bare_writes_config_and_renames_into_place() {
     assert!(!data.join(format!("repos/.tmp/{id2}.git")).exists());
     let _ = f.repo;
 }
+
+/// Aborting repository creation at any point leaves either nothing or a
+/// complete repository at the final path, never a half-initialized one.
+#[tokio::test(flavor = "multi_thread")]
+async fn create_bare_is_atomic_under_cancellation() {
+    use slath_git::storage;
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let home = dir.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let runner = slath_git::Runner::new(slath_git::RunnerConfig::new(git_bin(), home)).unwrap();
+    for delay_ms in [0u64, 1, 2, 5, 10, 20, 40, 80] {
+        let id = slath_core::ids::RepoId::new();
+        let fut = storage::create_bare(&runner, &data, id, "main");
+        let _ = tokio::time::timeout(std::time::Duration::from_millis(delay_ms), fut).await;
+        let path = storage::repo_path(&data, id);
+        if path.exists() {
+            let cfg = std::fs::read_to_string(path.join("config")).unwrap();
+            for (key, _) in storage::REPO_CONFIG {
+                let leaf = key.rsplit('.').next().unwrap();
+                assert!(
+                    cfg.to_ascii_lowercase()
+                        .contains(&leaf.to_ascii_lowercase()),
+                    "{delay_ms} ms: {key} missing"
+                );
+            }
+        }
+    }
+}

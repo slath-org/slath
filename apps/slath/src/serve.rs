@@ -183,7 +183,8 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     };
     let Loaded { cfg, spike } = cfg;
     let cfg = Arc::new(cfg);
-    let services = slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master);
+    let services =
+        slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master, runner.clone());
     let token = spike.map_or_else(String::new, |s| s.token.into_inner());
     let state = AppState::new(StateParts {
         config: cfg,
@@ -199,13 +200,33 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let workers = {
         let mut wc = slath_db::worker::WorkerPoolConfig::new("default");
         wc.concurrency = state.config.limits.job_workers;
-        let pool_task = slath_db::worker::WorkerPool::new(pool.clone(), wc);
+        let pool_task = state
+            .services
+            .register_jobs(slath_db::worker::WorkerPool::new(pool.clone(), wc));
         let liveness = Arc::clone(&state.liveness);
         tokio::spawn(async move {
             let _alive = slath_http::health::workers_running(&liveness);
             pool_task.run(stop_rx).await;
         })
     };
+    {
+        // Periodic maintenance: purge repositories whose trash time is up.
+        let svc = state.services.clone();
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(3600));
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        if let Err(e) = svc.purge_deleted_repos().await {
+                            tracing::warn!(error = %e, "purging deleted repositories failed");
+                        }
+                    }
+                    _ = stop.changed() => return,
+                }
+            }
+        });
+    }
     let metrics_addr = state.config.server.metrics_listen.trim().to_owned();
     if !metrics_addr.is_empty() {
         let l = tokio::net::TcpListener::bind(&metrics_addr)

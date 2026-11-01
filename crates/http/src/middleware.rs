@@ -171,6 +171,8 @@ fn is_api(path: &str) -> bool {
 /// axum (rejections, the 404 fallback) get the generic error for the status.
 pub async fn render_errors(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let path = req.uri().path().to_owned();
+    let query = req.uri().query().map(str::to_owned);
+    let method = req.method().clone();
     let request_id = req
         .extensions()
         .get::<RequestId>()
@@ -199,6 +201,19 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
         }
         None => return res,
     };
+    if info.code == "moved"
+        && let Some(target) = info
+            .detail
+            .as_deref()
+            .and_then(|d| moved_location(&path, query.as_deref(), d))
+    {
+        let status = if method == axum::http::Method::GET || method == axum::http::Method::HEAD {
+            StatusCode::MOVED_PERMANENTLY
+        } else {
+            StatusCode::PERMANENT_REDIRECT
+        };
+        return (status, [(header::LOCATION, target)]).into_response();
+    }
     let mut out = if is_api(&path) {
         let body = serde_json::to_vec(&Problem::new(&info, &request_id)).unwrap_or_default();
         (
@@ -235,4 +250,61 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
         );
     }
     out
+}
+
+/// The redirect for a renamed repository: the request path with the
+/// namespace and repository segments replaced by `new` (`ns/name`).
+/// Repository paths are `/{ns}/{repo}/…` in the UI and
+/// `/api/v1/repos/{ns}/{repo}/…` in the API.
+fn moved_location(path: &str, query: Option<&str>, new: &str) -> Option<String> {
+    let segments: Vec<&str> = path.split('/').collect();
+    let at = if path.starts_with("/api/v1/repos/") {
+        4
+    } else {
+        1
+    };
+    if segments.len() < at + 2 {
+        return None;
+    }
+    let git_suffix = segments[at + 1].ends_with(".git");
+    let (ns, name) = new.split_once('/')?;
+    let mut out: Vec<String> = segments.iter().map(|s| (*s).to_owned()).collect();
+    out[at] = ns.to_owned();
+    out[at + 1] = if git_suffix {
+        format!("{name}.git")
+    } else {
+        name.to_owned()
+    };
+    let mut loc = out.join("/");
+    if let Some(q) = query {
+        loc.push('?');
+        loc.push_str(q);
+    }
+    Some(loc)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn moved_locations() {
+        let m = super::moved_location;
+        assert_eq!(
+            m("/a/old/tree/main", None, "a/new").as_deref(),
+            Some("/a/new/tree/main")
+        );
+        assert_eq!(
+            m(
+                "/a/old.git/info/refs",
+                Some("service=git-upload-pack"),
+                "a/new"
+            )
+            .as_deref(),
+            Some("/a/new.git/info/refs?service=git-upload-pack")
+        );
+        assert_eq!(
+            m("/api/v1/repos/a/old/branches", None, "b/new").as_deref(),
+            Some("/api/v1/repos/b/new/branches")
+        );
+        assert_eq!(m("/a", None, "a/new"), None);
+    }
 }

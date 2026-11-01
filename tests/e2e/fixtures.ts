@@ -81,6 +81,7 @@ export const test: ReturnType<typeof base.extend<Fixtures>> = base.extend<Fixtur
     async ({ page, baseURL }, use) => {
       const origin = new URL(baseURL!).origin;
       const guard = { foreignRequests: [] as string[], cspViolations: [] as string[], stripped: [] as string[], allowStrip: false };
+      let sawSelect = false;
       page.on("request", (req) => {
         const url = req.url();
         if (url.startsWith("data:") || url.startsWith("blob:") || url === "about:blank") return;
@@ -88,12 +89,19 @@ export const test: ReturnType<typeof base.extend<Fixtures>> = base.extend<Fixtur
       });
       page.on("console", (msg) => {
         const text = msg.text();
+        if (text === "slath-e2e:has-select") {
+          sawSelect = true;
+          return;
+        }
         if (/Content[- ]Security[- ]Policy|Refused to (load|execute|apply)|trusted.?types/i.test(text)) {
           guard.cspViolations.push(text);
         }
       });
       await page.exposeFunction("__slathStrip", (desc: string) => guard.stripped.push(desc));
       await page.addInitScript(() => {
+        document.addEventListener("DOMContentLoaded", () => {
+          if (document.querySelector("select")) console.log("slath-e2e:has-select");
+        });
         document.addEventListener("securitypolicyviolation", (e) => {
           console.error(`Content Security Policy violation: ${e.violatedDirective} ${e.blockedURI}`);
         });
@@ -106,10 +114,11 @@ export const test: ReturnType<typeof base.extend<Fixtures>> = base.extend<Fixtur
       // WebKit's built-in <select> rendering reports an inline-style CSP
       // violation of its own (reproduced with a bare <select> under
       // style-src 'self'). It isn't page content, so on WebKit pages that
-      // contain a <select> exactly these two messages are ignored; Chromium
+      // contained a <select> (on any page of the test) exactly these two
+      // messages are ignored; Chromium
       // and Firefox still check those pages fully.
       let violations = guard.cspViolations;
-      if (test.info().project.name.startsWith("webkit") && !page.isClosed() && (await page.locator("select").count()) > 0) {
+      if (test.info().project.name.startsWith("webkit") && sawSelect) {
         violations = violations.filter(
           (v) =>
             !v.startsWith("Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline'") &&

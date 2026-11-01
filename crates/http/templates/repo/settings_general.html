@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="with-sidebar">
+{% let section = "general" %}
+{% include "repo/settings_nav.html" %}
+<div class="sidebar-content">
+<h1>General</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/general" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="description">Description</label>
+    <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"{% if self.error("description").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div class="field">
+    <label for="default_branch">Default branch</label>
+    <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"{% if self.error("default_branch").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div><button type="submit" class="button button-primary">Save</button></div>
+</form>
+
+<h2>Visibility</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/visibility" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <fieldset class="field" id="visibility">
+    <legend>Who can see this repository</legend>
+    <div class="checkbox">
+      <input id="vis-private" type="radio" name="visibility" value="private"{% if private %} checked{% endif %}>
+      <label for="vis-private"><strong>Private</strong>. Only people with access.</label>
+    </div>
+    <div class="checkbox">
+      <input id="vis-public" type="radio" name="visibility" value="public"{% if !private %} checked{% endif %}>
+      <label for="vis-public"><strong>Public</strong>. Everyone, including signed-out visitors.</label>
+    </div>
+  </fieldset>
+  <div><button type="submit" class="button">Change visibility</button></div>
+</form>
+
+<h2>Rename</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/rename" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="name">Repository name</label>
+    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" autocapitalize="none" spellcheck="false" aria-describedby="name-hint"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="name-hint" class="hint">Links, clones, and API calls with the old name are redirected for people who can see the repository.</p>
+  </div>
+  <div><button type="submit" class="button">Rename</button></div>
+</form>
+
+<h2>Archive</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/state/{% if archived %}unarchive{% else %}archive{% endif %}" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <p>{% if archived %}Unarchiving makes the repository writable again.{% else %}Archiving makes the repository read-only. You can unarchive it later.{% endif %}</p>
+  <div><button type="submit" class="button">{% if archived %}Unarchive{% else %}Archive{% endif %} repository</button></div>
+</form>
+</div>
+</div>
+{% endblock %}

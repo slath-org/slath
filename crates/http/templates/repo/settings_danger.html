@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Danger zone · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="with-sidebar">
+{% let section = "danger" %}
+{% include "repo/settings_nav.html" %}
+<div class="sidebar-content">
+<h1>Danger zone</h1>
+{% if let Some(e) = error -%}
+<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2>There is a problem</h2>
+  <p><a href="#confirm">{{ e }}</a></p>
+</div>
+{%- endif %}
+<h2>Delete this repository</h2>
+<p>The repository disappears immediately. An administrator can restore it for a few days; after that it's gone for good.</p>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/danger" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="confirm">Type <strong>{{ full_name }}</strong> to confirm</label>
+    <input id="confirm" name="confirm" type="text" required autocapitalize="none" spellcheck="false" autocomplete="off"{% if error.is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div><button type="submit" class="button button-danger">Delete repository</button></div>
+</form>
+</div>
+</div>
+{% endblock %}

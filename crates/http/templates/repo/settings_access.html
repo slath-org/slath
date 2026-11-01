@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Access · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="with-sidebar">
+{% let section = "access" %}
+{% include "repo/settings_nav.html" %}
+<div class="sidebar-content">
+<h1>Access</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<h2>Collaborators</h2>
+{%- if collaborators.is_empty() %}
+<p class="text-secondary">No collaborators. {% if header.namespace != "" %}Owners of the namespace already have full access.{% endif %}</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="collab-caption">
+<table class="table">
+  <caption id="collab-caption" class="visually-hidden">Collaborators</caption>
+  <thead><tr><th scope="col">User</th><th scope="col">Role</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for c in collaborators %}
+    <tr>
+      <td><a href="/{{ c.name }}">{{ c.name }}</a></td>
+      <td>{{ c.role }}</td>
+      <td>
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/access/{{ c.name }}/remove" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> {{ c.name }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+<h2>Add or change a collaborator</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/access" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" required autocapitalize="none" spellcheck="false"
+      {%- if self.error("username").is_some() %} aria-invalid="true" aria-describedby="username-error"{% endif %}>
+    {%- if let Some(e) = self.error("username") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <fieldset class="field">
+    <legend>Role</legend>
+    <div class="checkbox"><input id="role-read" type="radio" name="role" value="read" checked><label for="role-read"><strong>Read</strong>. Browse and clone.</label></div>
+    <div class="checkbox"><input id="role-write" type="radio" name="role" value="write"><label for="role-write"><strong>Write</strong>. Push to unprotected branches.</label></div>
+    <div class="checkbox"><input id="role-maintain" type="radio" name="role" value="maintain"><label for="role-maintain"><strong>Maintain</strong>. Also move and delete tags.</label></div>
+    <div class="checkbox"><input id="role-admin" type="radio" name="role" value="admin"><label for="role-admin"><strong>Admin</strong>. Everything, including settings and deletion.</label></div>
+  </fieldset>
+  <div><button type="submit" class="button button-primary">Save collaborator</button></div>
+</form>
+</div>
+</div>
+{% endblock %}

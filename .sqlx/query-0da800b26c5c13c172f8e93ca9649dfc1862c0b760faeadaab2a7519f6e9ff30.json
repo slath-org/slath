@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM repo_redirects WHERE namespace_id = $1 AND name = $2::citext",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0da800b26c5c13c172f8e93ca9649dfc1862c0b760faeadaab2a7519f6e9ff30"
+}

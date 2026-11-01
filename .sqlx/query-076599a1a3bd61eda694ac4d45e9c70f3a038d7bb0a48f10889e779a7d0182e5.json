@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT namespace_id, name::text AS \"name!\" FROM repositories WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "namespace_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "namespace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "076599a1a3bd61eda694ac4d45e9c70f3a038d7bb0a48f10889e779a7d0182e5"
+}
