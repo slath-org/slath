@@ -251,6 +251,7 @@ impl Services {
     /// complete repository, never a half-initialized one.
     pub async fn create_repo(&self, subject: &Subject, input: NewRepoInput) -> Result<RepoAccess> {
         user_with_scope(subject, Scope::RepoWrite)?;
+        self.require_confirmed(subject).await?;
         let mut errors: Vec<FieldError> = Vec::new();
         let name = match RepoName::parse(input.name.trim()) {
             Ok(n) => Some(n),

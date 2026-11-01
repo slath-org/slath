@@ -8,7 +8,10 @@ pub mod admin;
 pub mod browse;
 pub mod design;
 pub mod identicon;
+pub mod passkeys;
 pub mod profiles;
+pub mod recovery;
+pub mod registration;
 pub mod repos;
 pub mod settings;
 
@@ -53,6 +56,13 @@ pub struct PageCtx {
     pub icons_url: String,
     /// Path and query of this request (for "sign in and come back").
     pub here: String,
+    /// Read-only maintenance is on (an upgrade is running).
+    pub maintenance: bool,
+    /// The user is an administrator who must sign in with a second factor
+    /// before administration works.
+    pub admin_needs_mfa: bool,
+    /// The user must confirm their address before creating anything.
+    pub needs_confirmation: bool,
 }
 
 /// Returns the value of cookie `name`.
@@ -125,6 +135,11 @@ impl PageCtx {
             here: uri
                 .path_and_query()
                 .map_or_else(|| "/".to_owned(), |p| p.as_str().to_owned()),
+            maintenance: state.services.maintenance().is_on(),
+            admin_needs_mfa: session.is_some_and(|s| state.services.admin_needs_mfa(s)),
+            needs_confirmation: session.is_some_and(|s| {
+                !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
+            }),
         }
     }
 
@@ -317,6 +332,9 @@ pub fn router() -> axum::Router<AppState> {
     let r = axum::Router::new()
         .route_as("/", Access::Public, get(home))
         .merge(account::router())
+        .merge(recovery::router())
+        .merge(registration::router())
+        .merge(passkeys::router())
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())

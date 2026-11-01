@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Create an account{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Create an account</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="/-/register" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- if let Some(t) = invite %}
+  <input type="hidden" name="invite" value="{{ t }}">
+  {%- endif %}
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="39" required aria-describedby="username-hint{% if self.error("username").is_some() %} username-error{% endif %}"
+      {%- if self.error("username").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="username-hint" class="hint">Letters, digits, dots, dashes, and underscores. It's part of your repositories' addresses.</p>
+    {%- if let Some(e) = self.error("username") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="email">Email address</label>
+    <input id="email" name="email" type="email" value="{{ email }}" autocomplete="email" required{% if bound %} readonly{% endif %} aria-describedby="email-hint{% if self.error("email").is_some() %} email-error{% endif %}"
+      {%- if self.error("email").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="email-hint" class="hint">{% if bound %}The invitation was sent to this address.{% else %}For password resets and notifications. Never shown to others.{% if confirm %} You'll get a link to confirm it.{% endif %}{% endif %}</p>
+    {%- if let Some(e) = self.error("email") %}
+    <p id="email-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" required aria-describedby="password-hint{% if self.error("password").is_some() %} password-error{% endif %}"
+      {%- if self.error("password").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="password-hint" class="hint">At least 12 characters. A phrase of several words works well.</p>
+    {%- if let Some(e) = self.error("password") %}
+    <p id="password-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="confirm_password">Confirm password</label>
+    <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required
+      {%- if let Some(e) = self.error("confirm_password") %} aria-invalid="true" aria-describedby="confirm_password-error"{% endif %}>
+    {%- if let Some(e) = self.error("confirm_password") %}
+    <p id="confirm_password-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Create account</button></div>
+</form>
+<p>Already have an account? <a href="/-/login">Sign in</a></p>
+</div>
+{% endblock %}

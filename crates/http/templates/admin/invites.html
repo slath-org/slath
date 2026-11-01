@@ -1,0 +1,60 @@
+{% extends "admin/layout.html" %}
+{% block title %}Invitations · Administration{% endblock %}
+{% block admin %}
+<h1>Invitations</h1>
+{%- if let Some(link) = link %}
+<div class="success-summary" role="status">
+  <p>Invitation created. Send this link to the person you're inviting; it's shown only once and works for {{ days }} days:</p>
+  <p><code class="secret-key">{{ link }}</code></p>
+</div>
+{%- endif %}
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{%- if !invite_mode %}
+<div class="notice" role="note"><p>Registration is set to <code>{{ mode }}</code>. Invitations work when <code>[auth] registration</code> is <code>invite</code> or <code>open</code>.</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<h2>New invitation</h2>
+<form method="post" action="/-/admin/invites" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="email">Email address <span class="text-secondary">(optional)</span></label>
+    <input id="email" name="email" type="email" autocomplete="off" aria-describedby="email-hint">
+    <p id="email-hint" class="hint">If set, the account must use this address{% if email_enabled %}, and the link is emailed to it{% endif %}.</p>
+  </div>
+  <div class="field">
+    <label for="note">Note <span class="text-secondary">(optional)</span></label>
+    <input id="note" name="note" type="text" maxlength="200" autocomplete="off">
+  </div>
+  <div><button type="submit" class="button button-primary">Create invitation</button></div>
+</form>
+<h2>Invitations</h2>
+{%- if invites.is_empty() %}
+<p class="text-secondary">No invitations yet.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="invites-caption">
+<table class="table">
+  <caption id="invites-caption" class="visually-hidden">Invitations</caption>
+  <thead><tr><th scope="col">Created</th><th scope="col">For</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for i in invites %}
+    <tr>
+      <td><time datetime="{{ i.created.iso }}">{{ i.created.text }}</time>{% if let Some(by) = i.by %} by {{ by }}{% endif %}</td>
+      <td>{{ i.target }}</td>
+      <td>{{ i.state }}</td>
+      <td>
+      {%- if i.revocable %}
+        <form method="post" action="/-/admin/invites/{{ i.id }}/revoke" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Revoke<span class="visually-hidden"> invitation for {{ i.target }}</span></button>
+        </form>
+      {%- endif %}
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+{% endblock %}

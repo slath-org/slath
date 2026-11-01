@@ -60,6 +60,7 @@ impl Services {
         display_name: &str,
     ) -> Result<OrgId> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
+        self.require_confirmed(subject).await?;
         if !self.config.auth.users_can_create_orgs && !is_site_admin(subject) {
             return Err(ServiceError::Forbidden);
         }

@@ -57,6 +57,15 @@
   </nav>
 </header>
 <main id="main" tabindex="-1">
+{%- if ctx.needs_confirmation %}
+<div class="notice" role="note"><p>Confirm your email address to create repositories and organizations: open the link we sent you. <a href="/-/settings/profile">Email settings</a></p></div>
+{%- endif %}
+{%- if ctx.admin_needs_mfa %}
+<div class="notice" role="note"><p>Administration needs two-factor authentication. <a href="/-/settings/security">Set it up</a>, then sign out and sign in again with a code.</p></div>
+{%- endif %}
+{%- if ctx.maintenance %}
+<div class="notice" role="status"><p>Maintenance in progress: Slath is read-only for a few minutes. Changes can't be saved until it's finished.</p></div>
+{%- endif %}
 {% block content %}{% endblock %}
 </main>
 <footer class="site-footer">
