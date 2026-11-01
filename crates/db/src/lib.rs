@@ -6,6 +6,7 @@
 
 pub mod jobs;
 pub mod orgs;
+pub mod refs;
 pub mod repos;
 pub mod sessions;
 pub mod ssh_keys;

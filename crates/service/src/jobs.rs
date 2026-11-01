@@ -11,6 +11,8 @@ use crate::Services;
 
 /// Moves a deleted repository's directory into the trash.
 pub const REPO_TRASH: &str = "repo.trash";
+/// Follow-up work after refs changed (webhooks, merge requests, CI later).
+pub const REF_UPDATED: &str = "ref.updated";
 
 fn repo_id(job: &LeasedJob) -> Result<RepoId, JobError> {
     job.payload
@@ -29,6 +31,9 @@ impl Services {
             let s = s.clone();
             async move { s.trash_repo(repo_id(&job)?).await }
         })
+        // Nothing reacts to ref changes yet; the job exists so pushes record
+        // their follow-up work durably from the start.
+        .handle(REF_UPDATED, |_job: LeasedJob| async { Ok(()) })
     }
 
     async fn trash_repo(&self, id: RepoId) -> Result<(), JobError> {

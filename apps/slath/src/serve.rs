@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `slath serve`.
 
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use slath_git::{Runner, RunnerConfig, storage};
-use slath_http::{AppState, RepoEntry, StateParts, ipc};
+use slath_git::{Runner, RunnerConfig};
+use slath_http::{AppState, StateParts, ipc};
 use tracing_subscriber::EnvFilter;
 
 use slath_core::config::LogFormat;
 
 use crate::config::Loaded as Config;
-use crate::config::Loaded;
 
 pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
     let cfg = match crate::config::load(config_path) {
@@ -105,74 +103,6 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
     let version = runner.check_version().await.map_err(|e| e.to_string())?;
     tracing::info!(%version, "git version ok");
 
-    let (no_repos, no_keys) = (Vec::new(), Vec::new());
-    let (spike_repos, spike_keys) = cfg
-        .spike
-        .as_ref()
-        .map_or((&no_repos, &no_keys), |s| (&s.repos, &s.ssh_keys));
-    let mut repos = Vec::new();
-    for r in spike_repos {
-        let git_dir = storage::repo_path(&cfg.storage.data_dir, r.id);
-        if !git_dir.exists() {
-            storage::create_bare(&runner, &cfg.storage.data_dir, r.id, &r.default_branch)
-                .await
-                .map_err(|e| format!("cannot create repository {}/{}: {e}", r.namespace, r.name))?;
-            tracing::info!(namespace = %r.namespace, name = %r.name, "repository created");
-        }
-        repos.push(RepoEntry {
-            namespace: r.namespace.to_string(),
-            name: r.name.to_string(),
-            git_dir,
-        });
-    }
-
-    let mut keys = HashMap::new();
-    for k in spike_keys {
-        let (key_type, key_base64, fingerprint) = k.parse()?;
-        let repos = k
-            .repos
-            .iter()
-            .map(|r| {
-                r.split_once('/')
-                    .map(|(ns, name)| (ns.to_lowercase(), name.to_lowercase()))
-                    .ok_or_else(|| format!("ssh key {}: repo {r:?} must be namespace/name", k.id))
-            })
-            .collect::<Result<HashSet<_>, _>>()?;
-        let key = ipc::SshKey {
-            id: k.id.clone(),
-            key_type,
-            key_base64,
-            repos,
-        };
-        if keys.insert(fingerprint, key).is_some() {
-            return Err(format!("ssh key {} is listed twice", k.id));
-        }
-    }
-    let ctx = Arc::new(ipc::IpcContext {
-        hooks: Arc::new(ipc::HookRegistry::default()),
-        keys,
-        repos: repos
-            .iter()
-            .map(|r| {
-                (
-                    (r.namespace.to_lowercase(), r.name.to_lowercase()),
-                    r.git_dir.clone(),
-                )
-            })
-            .collect(),
-        git: ipc::GitPaths {
-            binary: cfg.git.binary.clone(),
-            home_dir: cfg.storage.data_dir.join("git-home"),
-            hooks_dir: Some(hooks_dir),
-        },
-    });
-
-    let socket = cfg.storage.run_dir.join("slath.sock");
-    let listener =
-        ipc::bind(&socket).map_err(|e| format!("cannot bind {}: {e}", socket.display()))?;
-    let hooks = Arc::clone(&ctx.hooks);
-    tokio::spawn(ipc::serve(listener, ctx));
-
     let master = match &cfg.secrets.master_key_file {
         Some(path) => slath_auth::MasterKey::load(path).map_err(|e| e.to_string())?,
         None => {
@@ -181,21 +111,37 @@ async fn serve(cfg: Config, migrate: bool) -> Result<(), String> {
             slath_auth::MasterKey::load_or_create(&path).map_err(|e| e.to_string())?
         }
     };
-    let Loaded { cfg, spike } = cfg;
-    let cfg = Arc::new(cfg);
+    let cfg = Arc::new(cfg.cfg);
     let services =
         slath_service::Services::new(pool.clone(), Arc::clone(&cfg), &master, runner.clone());
-    let token = spike.map_or_else(String::new, |s| s.token.into_inner());
-    let state = AppState::new(StateParts {
-        config: cfg,
-        services,
-        pool: pool.clone(),
-        runner,
-        repos,
-        token: slath_core::Secret::new(token),
-        hooks,
-        ipc_socket: socket,
-    })?;
+    let metrics: Arc<slath_http::metrics::Metrics> = Arc::default();
+    let hooks: Arc<ipc::HookRegistry> = Arc::default();
+    let socket = cfg.storage.run_dir.join("slath.sock");
+    let ctx = Arc::new(ipc::IpcContext::new(
+        Arc::clone(&hooks),
+        services.clone(),
+        ipc::GitPaths {
+            binary: cfg.git.binary.clone(),
+            home_dir: cfg.storage.data_dir.join("git-home"),
+            hooks_dir: Some(hooks_dir),
+        },
+        Arc::clone(&metrics),
+    ));
+    let listener =
+        ipc::bind(&socket).map_err(|e| format!("cannot bind {}: {e}", socket.display()))?;
+    tokio::spawn(ipc::serve(listener, ctx));
+
+    let state = AppState::new(
+        StateParts {
+            config: cfg,
+            services,
+            pool: pool.clone(),
+            runner,
+            hooks,
+            ipc_socket: socket,
+        },
+        metrics,
+    )?;
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let workers = {
         let mut wc = slath_db::worker::WorkerPoolConfig::new("default");

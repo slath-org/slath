@@ -188,6 +188,12 @@ impl Invocation {
         self
     }
 
+    /// Adds a Git config override (`-c key=value`) for this invocation.
+    /// Only for values Slath computes itself, never user input.
+    pub fn config(self, key: &str, value: impl std::fmt::Display) -> Self {
+        self.arg("-c").arg(format!("{key}={value}"))
+    }
+
     /// Adds a byte-string argument (ref names and paths may be non-UTF-8).
     pub fn arg_bytes(self, arg: &[u8]) -> Self {
         self.arg(OsStr::from_bytes(arg))

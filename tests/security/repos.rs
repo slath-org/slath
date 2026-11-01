@@ -2,28 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Repository lifecycle and visibility.
 
-use slath_tests::http::{Client, Resp, submit};
+use slath_tests::http::{Client, Resp, create_repo, submit};
 use slath_tests::server::TestServer;
 
 pub const PW: &str = "correct horse battery staple";
-
-/// Creates a repository through the UI.
-pub fn create_repo(c: &mut Client, ns: &str, name: &str, visibility: &str) -> Resp {
-    let r = submit(
-        c,
-        "/-/new",
-        "/-/new",
-        &[
-            ("namespace", ns),
-            ("name", name),
-            ("description", ""),
-            ("visibility", visibility),
-            ("default_branch", "main"),
-        ],
-    );
-    assert_eq!(r.status, 303, "create {ns}/{name}: {}", r.body);
-    r
-}
 
 /// Status and body with per-response values (nonces, tokens, IDs) blanked.
 pub fn normalized(r: &Resp) -> (u16, String) {

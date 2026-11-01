@@ -131,6 +131,9 @@ pub struct TransportGrant {
     pub hooks_dir: Option<String>,
     /// Present for `git-receive-pack`.
     pub hook_token: Option<String>,
+    /// Largest pack a push may send (`receive.maxInputSize`).
+    #[serde(default)]
+    pub max_input_bytes: Option<u64>,
 }
 
 #[derive(Debug, thiserror::Error)]

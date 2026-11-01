@@ -216,6 +216,8 @@ pub(crate) fn user_with_scope(subject: &Subject, scope: Scope) -> Result<UserId>
             ..
         } => match credential {
             Credential::Session => Ok(*id),
+            // SSH keys authenticate Git transport only, never account actions.
+            Credential::SshKey { .. } => Err(ServiceError::Forbidden),
             Credential::Token { scopes, .. } if scopes.iter().any(|s| s.implies(scope)) => Ok(*id),
             Credential::Token { .. } => Err(ServiceError::Forbidden),
         },

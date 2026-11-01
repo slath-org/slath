@@ -127,6 +127,7 @@ pub fn serve(socket: &Path, key_id: &str) -> ExitCode {
         let hooks = grant.hook_token.as_deref().map(|token| HookEnv {
             token,
             ipc_socket: socket,
+            max_input_bytes: grant.max_input_bytes,
         });
         let git_dir = PathBuf::from(&grant.git_dir);
         let mut child = match transport::spawn_ssh(

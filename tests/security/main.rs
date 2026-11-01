@@ -5,9 +5,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod auth;
+mod git;
 mod headers;
 mod keys;
 mod orgs;
 mod repos;
 mod settings;
+mod ssh;
 mod tokens;

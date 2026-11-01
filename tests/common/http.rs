@@ -269,3 +269,33 @@ pub fn login(c: &mut Client, name: &str, password: &str) -> Resp {
         &[("username", name), ("password", password)],
     )
 }
+
+/// Creates a repository through the UI (expects success).
+pub fn create_repo(c: &mut Client, ns: &str, name: &str, visibility: &str) -> Resp {
+    let r = submit(
+        c,
+        "/-/new",
+        "/-/new",
+        &[
+            ("namespace", ns),
+            ("name", name),
+            ("description", ""),
+            ("visibility", visibility),
+            ("default_branch", "main"),
+        ],
+    );
+    assert_eq!(r.status, 303, "create {ns}/{name}: {}", r.body);
+    r
+}
+
+/// Creates a token through the settings page and returns it.
+pub fn create_token(c: &mut Client, name: &str, scopes: &[&str]) -> String {
+    let mut fields = vec![("name", name), ("expires", "30")];
+    for s in scopes {
+        fields.push(("scopes", s));
+    }
+    let r = submit(c, "/-/settings/tokens", "/-/settings/tokens", &fields);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let start = r.body.find("value=\"slath_pat_").expect("token shown") + "value=\"".len();
+    r.body[start..start + 53].to_owned()
+}

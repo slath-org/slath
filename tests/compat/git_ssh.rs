@@ -14,7 +14,6 @@ use slath_tests::server::{DEMO, GitClient, TestRepo, TestServer};
 use slath_tests::sshd::{self, Sshd};
 
 const OTHER: TestRepo = TestRepo {
-    id: "0192f1a2-3b4c-7d5e-8f60-000000000002",
     namespace: "bob",
     name: "other",
 };
@@ -66,10 +65,8 @@ fn setup() -> Option<Env> {
     }
     let keys = tempfile::tempdir().unwrap();
     let (key, public) = sshd::keygen(keys.path(), "alice");
-    let extra = format!(
-        "[[spike.ssh_keys]]\nid = \"0192f1a2-3b4c-7d5e-8f60-0000000000aa\"\npublic_key = \"{public}\"\nrepos = [\"alice/demo\"]\n"
-    );
-    let server = TestServer::start_full(&[DEMO, OTHER], &extra);
+    let server = TestServer::start_with(&[DEMO, OTHER]);
+    server.add_ssh_key("alice", &public);
     let sshd = Sshd::start(&server);
     Some(Env {
         sshd,
@@ -305,4 +302,24 @@ fn conf_git_02_unknown_key_is_rejected() {
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("Permission denied (publickey)"), "{stderr}");
+}
+
+#[test]
+fn conf_auth_03_deleted_key_is_rejected_on_the_next_connection() {
+    let Some(env) = setup() else { return };
+    let work = tempfile::tempdir().unwrap();
+    let ok = env.git(work.path(), &["ls-remote", &env.sshd.url("alice", "demo")]);
+    assert!(
+        ok.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    env.server.db.execute("DELETE FROM ssh_keys");
+    let denied = env.git(work.path(), &["ls-remote", &env.sshd.url("alice", "demo")]);
+    assert!(!denied.status.success());
+    assert!(
+        String::from_utf8_lossy(&denied.stderr).contains("Permission denied"),
+        "{}",
+        String::from_utf8_lossy(&denied.stderr)
+    );
 }

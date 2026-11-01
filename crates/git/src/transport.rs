@@ -53,6 +53,8 @@ impl Service {
 pub struct HookEnv<'a> {
     pub token: &'a str,
     pub ipc_socket: &'a Path,
+    /// `receive.maxInputSize`: the largest pack the push may send.
+    pub max_input_bytes: Option<u64>,
 }
 
 /// Formats one pkt-line.
@@ -85,6 +87,9 @@ fn invocation(
     }
     if let Some(h) = hooks {
         inv = inv.hook_env(h.token, h.ipc_socket);
+        if let Some(max) = h.max_input_bytes {
+            inv = inv.config("receive.maxInputSize", max);
+        }
     }
     inv.arg(service.subcommand())
 }

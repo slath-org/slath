@@ -4,36 +4,39 @@
 //! pushes, and `slath ssh-keys`/`slath ssh-serve` for SSH.
 //!
 //! The socket lives in the `run_dir` (mode 0700) and is itself mode 0600.
-//! Each transport request mints a hook token bound to its repository; hooks
-//! must present it, so a token can't be used for another repository or
-//! after the request ends.
+//! Each transport request mints a hook token bound to who pushes, to which
+//! repository, and how; hooks must present it, so a token can't be used for
+//! another repository or after the request ends. Every answer comes from
+//! the service layer, which authorizes it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use slath_git::args::RefName;
-use slath_git::ipc::{AuthorizedKey, MAX_MESSAGE, RefUpdate, Request, Response, TransportGrant};
+use slath_git::ipc::{AuthorizedKey, MAX_MESSAGE, Request, Response, TransportGrant};
 use slath_git::transport::Service;
+use slath_service::Services;
+use slath_service::push::{PushGrant, Transport};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
+
+use crate::metrics::Metrics;
 
 /// How long a hook token stays valid (the transport idle timeout).
 pub const HOOK_TOKEN_TTL: Duration = Duration::from_secs(600);
 
-/// What a hook token grants.
 #[derive(Debug, Clone)]
-pub struct HookGrant {
-    pub git_dir: PathBuf,
-    pub expires: Instant,
+struct Entry {
+    grant: PushGrant,
+    expires: Instant,
 }
 
 /// In-memory registry of live hook tokens.
 #[derive(Debug, Default)]
 pub struct HookRegistry {
-    grants: Mutex<HashMap<String, HookGrant>>,
+    grants: Mutex<HashMap<String, Entry>>,
 }
 
 /// Removes its token from the registry when dropped (end of the request).
@@ -70,43 +73,35 @@ impl Drop for HookToken {
 
 impl HookRegistry {
     /// Mints a random 256-bit token for one transport request.
-    pub fn mint(self: &Arc<Self>, git_dir: PathBuf, ttl: Duration) -> std::io::Result<HookToken> {
+    pub fn mint(self: &Arc<Self>, grant: PushGrant, ttl: Duration) -> std::io::Result<HookToken> {
         let mut bytes = [0u8; 32];
         getrandom::fill(&mut bytes).map_err(|e| std::io::Error::other(e.to_string()))?;
         let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        let grant = HookGrant {
-            git_dir,
-            expires: Instant::now() + ttl,
-        };
         let mut grants = self
             .grants
             .lock()
             .map_err(|_| std::io::Error::other("poisoned"))?;
         grants.retain(|_, g| g.expires > Instant::now());
-        grants.insert(token.clone(), grant);
+        grants.insert(
+            token.clone(),
+            Entry {
+                grant,
+                expires: Instant::now() + ttl,
+            },
+        );
         Ok(HookToken {
             token,
             registry: Some(Arc::clone(self)),
         })
     }
 
-    fn lookup(&self, token: &str) -> Option<HookGrant> {
+    fn lookup(&self, token: &str) -> Option<PushGrant> {
         let grants = self.grants.lock().ok()?;
         grants
             .get(token)
             .filter(|g| g.expires > Instant::now())
-            .cloned()
+            .map(|e| e.grant.clone())
     }
-}
-
-/// An SSH key the spike server accepts, and the repositories it may use.
-#[derive(Debug, Clone)]
-pub struct SshKey {
-    pub id: String,
-    pub key_type: String,
-    pub key_base64: String,
-    /// Lowercase `(namespace, name)` pairs.
-    pub repos: HashSet<(String, String)>,
 }
 
 /// Where Git lives, as reported to `ssh-serve`.
@@ -117,15 +112,65 @@ pub struct GitPaths {
     pub hooks_dir: Option<PathBuf>,
 }
 
-/// State the IPC server answers from.
+/// A token bucket for key lookups (sshd calls `ssh-keys` for every key a
+/// client offers).
 #[derive(Debug)]
+struct Bucket {
+    tokens: f64,
+    last: Instant,
+}
+
+/// State the IPC server answers from.
 pub struct IpcContext {
     pub hooks: Arc<HookRegistry>,
-    /// Keyed by fingerprint (`SHA256:…`).
-    pub keys: HashMap<String, SshKey>,
-    /// Lowercase `(namespace, name)` to the repository's Git directory.
-    pub repos: HashMap<(String, String), PathBuf>,
+    pub services: Services,
     pub git: GitPaths,
+    pub metrics: Arc<Metrics>,
+    lookups: Mutex<Bucket>,
+}
+
+impl IpcContext {
+    #[must_use]
+    pub fn new(
+        hooks: Arc<HookRegistry>,
+        services: Services,
+        git: GitPaths,
+        metrics: Arc<Metrics>,
+    ) -> Self {
+        let rate = f64::from(services.config.limits.ssh_key_lookups_per_second.max(1));
+        Self {
+            hooks,
+            services,
+            git,
+            metrics,
+            lookups: Mutex::new(Bucket {
+                tokens: rate,
+                last: Instant::now(),
+            }),
+        }
+    }
+
+    fn allow_lookup(&self) -> bool {
+        let rate = f64::from(
+            self.services
+                .config
+                .limits
+                .ssh_key_lookups_per_second
+                .max(1),
+        );
+        let Ok(mut b) = self.lookups.lock() else {
+            return false;
+        };
+        let now = Instant::now();
+        b.tokens = (b.tokens + now.duration_since(b.last).as_secs_f64() * rate).min(rate);
+        b.last = now;
+        if b.tokens >= 1.0 {
+            b.tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Binds the IPC socket at `path`, replacing a stale one, with mode 0600.
@@ -173,7 +218,7 @@ async fn handle_conn(stream: UnixStream, ctx: &IpcContext) -> std::io::Result<()
         .await
         .map_err(|_| std::io::Error::other("ipc read timeout"))??;
     let response = match serde_json::from_slice::<Request>(&line) {
-        Ok(req) => handle(req, ctx),
+        Ok(req) => handle(req, ctx).await,
         Err(_) => Response::deny("slath: malformed request"),
     };
     let mut out = serde_json::to_vec(&response).map_err(std::io::Error::other)?;
@@ -181,75 +226,121 @@ async fn handle_conn(stream: UnixStream, ctx: &IpcContext) -> std::io::Result<()
     write.write_all(&out).await
 }
 
-fn handle(req: Request, ctx: &IpcContext) -> Response {
+const NOT_FOUND: &str = "slath: repository not found";
+
+async fn handle(req: Request, ctx: &IpcContext) -> Response {
     match req {
         Request::PreReceive {
             token,
             updates,
-            quarantine: _,
+            quarantine,
         } => {
             let Some(grant) = ctx.hooks.lookup(&token) else {
+                ctx.metrics
+                    .inc("slath_hook_denials_total", "reason=\"invalid_token\"");
                 return Response::deny("slath: push rejected: invalid or expired hook token");
             };
-            pre_receive(&grant, &updates)
+            let v = ctx
+                .services
+                .pre_receive(&grant, &updates, &quarantine)
+                .await;
+            for r in &v.denied {
+                ctx.metrics.inc(
+                    "slath_hook_denials_total",
+                    &format!("reason=\"{}\"", r.as_str()),
+                );
+            }
+            Response {
+                allow: v.denied.is_empty(),
+                messages: v.messages,
+                key: None,
+                transport: None,
+            }
         }
         Request::PostReceive { token, updates } => {
             let Some(grant) = ctx.hooks.lookup(&token) else {
                 return Response::deny("slath: invalid or expired hook token");
             };
-            for u in &updates {
-                tracing::info!(
-                    repo = %grant.git_dir.display(),
-                    r#ref = %String::from_utf8_lossy(&u.name),
-                    old = %u.old,
-                    new = %u.new,
-                    "ref updated"
-                );
-            }
-            Response::allow()
-        }
-        Request::LookupKey { fingerprint } => match ctx.keys.get(&fingerprint) {
-            Some(k) => Response {
-                key: Some(AuthorizedKey {
-                    key_id: k.id.clone(),
-                    key_type: k.key_type.clone(),
-                    key_base64: k.key_base64.clone(),
-                }),
+            Response {
+                messages: ctx.services.post_receive(&grant, &updates).await,
                 ..Response::allow()
-            },
-            None => Response::deny("unknown key"),
-        },
+            }
+        }
+        Request::LookupKey { fingerprint } => {
+            if !ctx.allow_lookup() {
+                tracing::warn!("ssh key lookups rate limited");
+                return Response::deny("rate limited");
+            }
+            match ctx.services.ssh_lookup(&fingerprint).await {
+                Ok(Some(k)) => Response {
+                    key: Some(AuthorizedKey {
+                        key_id: k.key_id.to_string(),
+                        key_type: k.key_type,
+                        key_base64: k.key_base64,
+                    }),
+                    ..Response::allow()
+                },
+                Ok(None) => Response::deny("unknown key"),
+                Err(e) => {
+                    tracing::error!(error = %e, "ssh key lookup failed");
+                    // Fail closed: sshd treats the error like an unknown key.
+                    Response::deny("lookup failed")
+                }
+            }
+        }
         Request::AuthorizeTransport {
             key_id,
             service,
             namespace,
             repo,
-        } => authorize_transport(ctx, &key_id, &service, &namespace, &repo),
+        } => authorize_transport(ctx, &key_id, &service, &namespace, &repo).await,
     }
 }
 
 /// Unknown keys, unknown repositories, and repositories the key may not use
 /// all get the same answer, so SSH can't be used to probe for repositories.
-fn authorize_transport(
+async fn authorize_transport(
     ctx: &IpcContext,
     key_id: &str,
     service: &str,
     namespace: &str,
     repo: &str,
 ) -> Response {
-    const NOT_FOUND: &str = "slath: repository not found";
     let Some(service) = Service::from_name(service) else {
         return Response::deny("slath: unsupported command");
     };
-    let wanted = (namespace.to_lowercase(), repo.to_lowercase());
-    let Some(key) = ctx.keys.values().find(|k| k.id == key_id) else {
+    let Ok(key_id) = key_id.parse() else {
         return Response::deny(NOT_FOUND);
     };
-    let (true, Some(git_dir)) = (key.repos.contains(&wanted), ctx.repos.get(&wanted)) else {
-        return Response::deny(NOT_FOUND);
+    let subject = match ctx.services.ssh_subject(key_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => return Response::deny(NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "ssh subject lookup failed");
+            return Response::deny("slath: internal error");
+        }
+    };
+    let access = match ctx
+        .services
+        .transport_access(&subject, namespace, repo, service.is_write())
+        .await
+    {
+        Ok(a) => a,
+        Err(slath_service::ServiceError::NotFound | slath_service::ServiceError::Forbidden) => {
+            return Response::deny(NOT_FOUND);
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "ssh authorization failed");
+            return Response::deny("slath: internal error");
+        }
     };
     let hook_token = if service.is_write() {
-        match ctx.hooks.mint(git_dir.clone(), HOOK_TOKEN_TTL) {
+        let grant = PushGrant {
+            subject,
+            repo_id: access.repo.id,
+            transport: Transport::Ssh,
+        };
+        match ctx.hooks.mint(grant, HOOK_TOKEN_TTL) {
             Ok(t) => Some(t.detach()),
             Err(e) => {
                 tracing::error!(error = %e, "minting hook token failed");
@@ -262,186 +353,56 @@ fn authorize_transport(
     let path = |p: &Path| p.to_string_lossy().into_owned();
     Response {
         transport: Some(TransportGrant {
-            git_dir: path(git_dir),
+            git_dir: path(&ctx.services.repo_path(access.repo.id)),
             git_binary: path(&ctx.git.binary),
             home_dir: path(&ctx.git.home_dir),
             hooks_dir: ctx.git.hooks_dir.as_deref().map(path),
             hook_token,
+            max_input_bytes: service
+                .is_write()
+                .then(|| ctx.services.config.limits.push_max_bytes.get()),
         }),
         ..Response::allow()
-    }
-}
-
-/// Spike policy: everything except Slath's reserved namespaces. Ref-type,
-/// role, and protection checks come later.
-fn pre_receive(_grant: &HookGrant, updates: &[RefUpdate]) -> Response {
-    let mut messages = Vec::new();
-    for u in updates {
-        let name = String::from_utf8_lossy(&u.name);
-        match RefName::parse(u.name.clone()) {
-            Ok(r) if r.is_reserved() => {
-                messages.push(format!(
-                    "slath: {name}: refs/slath/ and refs/merge-requests/ are reserved"
-                ));
-            }
-            Ok(_) => {}
-            Err(why) => messages.push(format!("slath: {name}: {why}")),
-        }
-    }
-    if messages.is_empty() {
-        Response::allow()
-    } else {
-        messages.push("slath: push rejected".to_owned());
-        Response {
-            allow: false,
-            messages,
-            key: None,
-            transport: None,
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use slath_core::authz::Subject;
+    use slath_core::ids::RepoId;
 
-    fn update(name: &str) -> RefUpdate {
-        RefUpdate {
-            old: "0".repeat(40),
-            new: "1".repeat(40),
-            name: name.as_bytes().to_vec(),
-        }
-    }
-
-    fn ctx() -> IpcContext {
-        let repos = HashMap::from([
-            (
-                ("alice".into(), "demo".into()),
-                PathBuf::from("/data/repos/a.git"),
-            ),
-            (
-                ("bob".into(), "other".into()),
-                PathBuf::from("/data/repos/b.git"),
-            ),
-        ]);
-        let key = SshKey {
-            id: "k1".into(),
-            key_type: "ssh-ed25519".into(),
-            key_base64: "AAAA".into(),
-            repos: HashSet::from([("alice".into(), "demo".into())]),
-        };
-        IpcContext {
-            hooks: Arc::default(),
-            keys: HashMap::from([("SHA256:abc".into(), key)]),
-            repos,
-            git: GitPaths {
-                binary: "/usr/bin/git".into(),
-                home_dir: "/h".into(),
-                hooks_dir: None,
-            },
+    fn grant() -> PushGrant {
+        PushGrant {
+            subject: Subject::Anonymous,
+            repo_id: RepoId::new(),
+            transport: Transport::Http,
         }
     }
 
     #[test]
-    fn reserved_refs_are_denied_atomically() {
-        let ctx = ctx();
-        let t = ctx
-            .hooks
-            .mint("/x".into(), Duration::from_secs(60))
-            .unwrap();
-        let req = |names: &[&str]| Request::PreReceive {
-            token: t.as_str().to_owned(),
-            updates: names.iter().map(|n| update(n)).collect(),
-            quarantine: Default::default(),
-        };
-        assert!(handle(req(&["refs/heads/main", "refs/tags/v1"]), &ctx).allow);
-        let r = handle(req(&["refs/heads/main", "refs/slath/x"]), &ctx);
-        assert!(!r.allow);
-        assert!(r.messages[0].contains("refs/slath/x"));
-        assert!(!handle(req(&["refs/merge-requests/1/head"]), &ctx).allow);
-    }
-
-    #[test]
-    fn tokens_are_checked_and_expire() {
-        let ctx = ctx();
-        let req = |token: &str| Request::PreReceive {
-            token: token.to_owned(),
-            updates: vec![update("refs/heads/main")],
-            quarantine: Default::default(),
-        };
-        assert!(!handle(req("bogus"), &ctx).allow);
-        let expired = ctx.hooks.mint("/x".into(), Duration::ZERO).unwrap();
-        assert!(!handle(req(expired.as_str()), &ctx).allow);
-        let live = ctx
-            .hooks
-            .mint("/x".into(), Duration::from_secs(60))
-            .unwrap();
+    fn tokens_are_random_expire_and_die_with_their_request() {
+        let reg: Arc<HookRegistry> = Arc::default();
+        let g = grant();
+        let live = reg.mint(g.clone(), Duration::from_secs(60)).unwrap();
+        let other = reg.mint(grant(), Duration::from_secs(60)).unwrap();
+        assert_eq!(live.as_str().len(), 64);
+        assert_ne!(live.as_str(), other.as_str());
+        let found = reg.lookup(live.as_str()).unwrap();
+        assert_eq!(
+            found.repo_id, g.repo_id,
+            "a token is bound to its repository"
+        );
+        assert!(reg.lookup("bogus").is_none());
         let s = live.as_str().to_owned();
-        assert_eq!(s.len(), 64);
-        assert!(handle(req(&s), &ctx).allow);
         drop(live);
+        assert!(reg.lookup(&s).is_none(), "the token dies with its request");
+        let expired = reg.mint(grant(), Duration::ZERO).unwrap();
+        assert!(reg.lookup(expired.as_str()).is_none());
+        let detached = reg.mint(grant(), Duration::from_secs(60)).unwrap().detach();
         assert!(
-            !handle(req(&s), &ctx).allow,
-            "token must die with its request"
+            reg.lookup(&detached).is_some(),
+            "detached tokens live until they expire"
         );
-    }
-
-    #[test]
-    fn key_lookup() {
-        let ctx = ctx();
-        let r = handle(
-            Request::LookupKey {
-                fingerprint: "SHA256:abc".into(),
-            },
-            &ctx,
-        );
-        assert_eq!(r.key.map(|k| k.key_id), Some("k1".into()));
-        assert!(
-            handle(
-                Request::LookupKey {
-                    fingerprint: "SHA256:zzz".into()
-                },
-                &ctx
-            )
-            .key
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn transport_authorization() {
-        let ctx = ctx();
-        let auth = |key: &str, svc: &str, ns: &str, repo: &str| {
-            handle(
-                Request::AuthorizeTransport {
-                    key_id: key.into(),
-                    service: svc.into(),
-                    namespace: ns.into(),
-                    repo: repo.into(),
-                },
-                &ctx,
-            )
-        };
-        let read = auth("k1", "git-upload-pack", "Alice", "Demo");
-        assert!(read.allow);
-        assert!(
-            read.transport
-                .as_ref()
-                .is_some_and(|t| t.hook_token.is_none())
-        );
-        let write = auth("k1", "git-receive-pack", "alice", "demo");
-        let token = write.transport.and_then(|t| t.hook_token).unwrap();
-        assert!(
-            ctx.hooks.lookup(&token).is_some(),
-            "detached token must stay valid"
-        );
-        // Not allowed, missing, and unknown key look the same.
-        let other = auth("k1", "git-upload-pack", "bob", "other");
-        let missing = auth("k1", "git-upload-pack", "bob", "nope");
-        let unknown = auth("k2", "git-upload-pack", "alice", "demo");
-        assert!(!other.allow);
-        assert_eq!(other, missing);
-        assert_eq!(other, unknown);
-        assert!(!auth("k1", "git-upload-archive", "alice", "demo").allow);
     }
 }

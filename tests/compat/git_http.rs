@@ -250,7 +250,7 @@ fn conf_git_01_gzip_request_bodies_are_accepted() {
     let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     gz.write_all(&raw).unwrap();
     let body = gz.finish().unwrap();
-    let auth = base64_basic(&format!("git:{}", slath_tests::server::TOKEN));
+    let auth = base64_basic(&format!("git:{}", server.token));
     let mut req = format!(
         "POST /alice/demo.git/git-upload-pack HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {auth}\r\n\
          Content-Type: application/x-git-upload-pack-request\r\nContent-Encoding: gzip\r\n\
@@ -275,7 +275,7 @@ fn credentials_and_dumb_http() {
         strip_date(&server.raw_request(req.as_bytes()))
     };
     let refs = "/info/refs?service=git-upload-pack";
-    let token = format!("git:{}", slath_tests::server::TOKEN);
+    let token = format!("git:{}", server.token);
     // Missing or wrong credentials: byte-identical 401 for existing and
     // missing repositories.
     let existing = get(&format!("/alice/demo.git{refs}"), None);
@@ -285,15 +285,38 @@ fn credentials_and_dumb_http() {
         "{existing}"
     );
     assert_eq!(existing, get(&format!("/alice/nope.git{refs}"), None));
+    let unknown_token = format!("git:slath_pat_{}", "A".repeat(43));
     assert_eq!(
         existing,
-        get(&format!("/alice/demo.git{refs}"), Some("git:wrong"))
+        get(&format!("/alice/demo.git{refs}"), Some(&unknown_token))
+    );
+    assert_eq!(
+        existing,
+        get(&format!("/alice/nope.git{refs}"), Some(&unknown_token))
+    );
+    // An account password gets a hint to use a token instead, identical for
+    // existing and missing repositories.
+    let password = get(
+        &format!("/alice/demo.git{refs}"),
+        Some("alice:slath test password"),
+    );
+    assert!(password.starts_with("HTTP/1.1 401"), "{password}");
+    assert!(
+        password.contains("use a personal access token"),
+        "{password}"
+    );
+    assert_eq!(
+        password,
+        get(
+            &format!("/alice/nope.git{refs}"),
+            Some("alice:slath test password")
+        )
     );
     assert_eq!(
         existing,
         get(
             &format!("/alice/demo.git{refs}"),
-            Some(&format!(":{}", slath_tests::server::TOKEN))
+            Some(&format!(":{}", server.token))
         )
     );
     // Authenticated: 404 for missing repos; both URL forms resolve.

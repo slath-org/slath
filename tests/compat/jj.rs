@@ -236,10 +236,8 @@ fn conf_jj_01_clone_and_push_over_ssh() {
     }
     let keys = tempfile::tempdir().unwrap();
     let (key, public) = sshd::keygen(keys.path(), "jj");
-    let extra = format!(
-        "[[spike.ssh_keys]]\nid = \"0192f1a2-3b4c-7d5e-8f60-0000000000bb\"\npublic_key = \"{public}\"\nrepos = [\"alice/demo\"]\n"
-    );
-    let server = seeded_server(&extra);
+    let server = seeded_server("");
+    server.add_ssh_key("alice", &public);
     let sshd = Sshd::start(&server);
     round_trip(
         &server,

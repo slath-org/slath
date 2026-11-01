@@ -47,9 +47,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Conformance harness: a nextest `ci` profile with JUnit output and
   `just conformance-report CASES [--gate <milestone>]`, which maps `conf_<area>_<nn>_*`
   tests to conformance cases and writes `target/conformance/report.{json,md}`.
-- `slath serve` (transport spike) serves Git smart HTTP for repositories
-  listed in the config, with protocol v0/v2, gzip request bodies, and a
-  static token. Pushes go through managed `pre-receive`/`post-receive` hooks
+- Git smart HTTP with protocol v0/v2 and gzip request bodies. Pushes go through managed `pre-receive`/`post-receive` hooks
   (`slath hook`), which reach the server over a 0600 Unix socket, deny
   `refs/slath/**` and `refs/merge-requests/**`, and fail closed when the
   server can't be reached.
@@ -148,3 +146,17 @@ Before 1.0.0, minor versions may contain breaking changes.
   archived repositories, token scopes and repository restrictions, and
   "not found" for anything a subject can't see. A 1444-cell matrix test
   pins it down.
+- Git over HTTPS and SSH now serve the repositories in the database.
+  HTTPS authenticates with a personal access token as the password (account
+  passwords are refused with a hint), fetches public repositories
+  anonymously, and answers private and non-existent repositories with the
+  same 401 (anonymous) or 404 (signed in). SSH keys come from the database
+  through an exact fingerprint lookup. Renamed repositories redirect Git
+  clients who can read them. Transfers have an idle timeout, and pushes are
+  limited by `limits.push_max_bytes`.
+- The push policy: refs under `refs/slath/` and `refs/merge-requests/` and
+  anything but branches and tags are refused, pushes need write access
+  (re-checked with the push's own token or key), archived repositories are
+  read-only, and moving or deleting tags needs the maintain role. One refused
+  update rejects the whole push. Accepted pushes are recorded (push events,
+  ref updates, and the ref snapshot), and push options aren't accepted.

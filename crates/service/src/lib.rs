@@ -12,6 +12,7 @@ pub mod error;
 pub mod jobs;
 pub mod keys;
 pub mod orgs;
+pub mod push;
 pub mod repos;
 pub mod sessions;
 pub mod settings;

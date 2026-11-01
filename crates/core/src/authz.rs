@@ -155,6 +155,10 @@ impl fmt::Display for Scope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Credential {
     Session,
+    /// An SSH key (Git over SSH): the user's full rights, like a session.
+    SshKey {
+        id: crate::ids::SshKeyId,
+    },
     Token {
         id: TokenId,
         scopes: Vec<Scope>,
@@ -509,7 +513,7 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
                 return HIDDEN;
             }
             match credential {
-                Credential::Session => (res.role, true, None),
+                Credential::Session | Credential::SshKey { .. } => (res.role, true, None),
                 Credential::Token {
                     scopes, repo_ids, ..
                 } => {

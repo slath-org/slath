@@ -9,8 +9,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
-/// Token the spike server accepts (any non-empty username).
-pub const TOKEN: &str = "slath-test-token-0123456789";
+/// Password of every account the launcher creates.
+pub const PASSWORD: &str = "slath test password";
 
 /// Path of the `slath` binary: `$SLATH_BIN`, or next to the test's deps dir.
 #[must_use]
@@ -40,15 +40,15 @@ pub fn git_bin() -> PathBuf {
     std::env::var_os("SLATH_TEST_GIT").map_or_else(|| PathBuf::from("/usr/bin/git"), PathBuf::from)
 }
 
+/// A repository the launcher creates (private, owned by the user named
+/// like its namespace).
 pub struct TestRepo {
-    pub id: &'static str,
     pub namespace: &'static str,
     pub name: &'static str,
 }
 
 /// The default repository of [`TestServer::start`].
 pub const DEMO: TestRepo = TestRepo {
-    id: "0192f1a2-3b4c-7d5e-8f60-718293a4b5c6",
     namespace: "alice",
     name: "demo",
 };
@@ -161,6 +161,9 @@ impl Drop for TestDb {
 
 pub struct TestServer {
     child: Child,
+    /// A token of `alice` with `repo:write` and `user:read`, if the server
+    /// was started with repositories.
+    pub token: String,
     pub db: TestDb,
     pub addr: SocketAddr,
     pub dir: tempfile::TempDir,
@@ -179,7 +182,7 @@ impl TestServer {
     }
 
     /// Starts a server hosting `repos`, with `extra` appended to the config
-    /// (e.g. `[[spike.ssh_keys]]` tables).
+    /// (e.g. `[auth]` settings).
     #[must_use]
     pub fn start_full(repos: &[TestRepo], extra: &str) -> Self {
         Self::start_opts(repos, extra, &[])
@@ -195,19 +198,12 @@ impl TestServer {
         let mut cfg = format!(
             "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
              [database]\nurl = \"{db_url}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
-             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n\
-             [spike]\ntoken = \"{TOKEN}\"\n",
+             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
             data = dir.path().join("data").display(),
             run = dir.path().join("run").display(),
             git = git_bin().display(),
             db_url = db.url,
         );
-        for r in repos {
-            cfg += &format!(
-                "[[spike.repos]]\nid = \"{}\"\nnamespace = \"{}\"\nname = \"{}\"\n",
-                r.id, r.namespace, r.name
-            );
-        }
         cfg += extra;
         let cfg_path = dir.path().join("slath.toml");
         std::fs::write(&cfg_path, cfg).unwrap();
@@ -235,12 +231,47 @@ impl TestServer {
             let log = std::fs::read_to_string(dir.path().join("server.log")).unwrap_or_default();
             panic!("slath serve did not start:\n{log}");
         };
-        Self {
+        let mut server = Self {
             child,
+            token: String::new(),
             db,
             addr: addr.parse().unwrap(),
             dir,
+        };
+        if !repos.is_empty() {
+            server.seed(repos);
         }
+        server
+    }
+
+    /// Creates the repositories' owners (and `alice`), the repositories, and
+    /// `alice`'s token.
+    fn seed(&mut self, repos: &[TestRepo]) {
+        let mut users = vec!["alice"];
+        users.extend(repos.iter().map(|r| r.namespace));
+        users.sort_unstable();
+        users.dedup();
+        for u in &users {
+            self.create_user(u, PASSWORD, false);
+        }
+        for r in repos {
+            let mut c = self.login(r.namespace, PASSWORD);
+            crate::http::create_repo(&mut c, r.namespace, r.name, "private");
+        }
+        let mut alice = self.login("alice", PASSWORD);
+        self.token = crate::http::create_token(&mut alice, "tests", &["repo:write", "user:read"]);
+    }
+
+    /// Adds an SSH public key (one `authorized_keys` line) to a user.
+    pub fn add_ssh_key(&self, user: &str, public_key: &str) {
+        let mut c = self.login(user, PASSWORD);
+        let r = crate::http::submit(
+            &mut c,
+            "/-/settings/keys",
+            "/-/settings/keys",
+            &[("title", "test key"), ("key", public_key)],
+        );
+        assert_eq!(r.status, 303, "adding the key failed: {}", r.body);
     }
 
     #[must_use]
@@ -324,18 +355,23 @@ impl TestServer {
     /// Bare repository path of a test repo (ID-based layout).
     #[must_use]
     pub fn repo_path(&self, repo: &TestRepo) -> PathBuf {
+        let id = self.db.query_one(&format!(
+            "SELECT r.id::text FROM repositories r JOIN namespaces n ON n.id = r.namespace_id \
+             WHERE n.name = '{}' AND r.name = '{}'",
+            repo.namespace, repo.name
+        ));
         self.data_dir()
             .join("repos")
-            .join(&repo.id[..2])
-            .join(format!("{}.git", repo.id))
+            .join(&id[..2])
+            .join(format!("{id}.git"))
     }
 
     /// Clone URL with credentials embedded.
     #[must_use]
     pub fn url(&self, repo: &TestRepo) -> String {
         format!(
-            "http://git:{TOKEN}@{}/{}/{}.git",
-            self.addr, repo.namespace, repo.name
+            "http://git:{}@{}/{}/{}.git",
+            self.token, self.addr, repo.namespace, repo.name
         )
     }
 

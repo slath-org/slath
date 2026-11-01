@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, oid FROM git_refs WHERE repo_id = $1 ORDER BY name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "git_refs",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "git_refs",
+            "name": "oid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b02f3cfd13e14ab0107bed0ea36506f0a38d1eac0e4392e7eec4ddf6762cfe84"
+}

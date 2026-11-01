@@ -13,6 +13,7 @@ publish.workspace = true
 [dependencies]
 serde_json.workspace = true
 slath-core.workspace = true
+slath-git.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 time.workspace = true

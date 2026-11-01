@@ -8,11 +8,8 @@ use std::path::{Path, PathBuf};
 
 use figment::Figment;
 use figment::providers::{Env, Format, Toml};
-use serde::Deserialize;
 use slath_core::Secret;
 use slath_core::config::Config;
-use slath_core::ids::RepoId;
-use slath_core::names::{NamespaceName, RepoName};
 
 /// Default location of the configuration file.
 pub const DEFAULT_PATH: &str = "/etc/slath/slath.toml";
@@ -21,9 +18,6 @@ pub const DEFAULT_PATH: &str = "/etc/slath/slath.toml";
 #[derive(Debug)]
 pub struct Loaded {
     pub cfg: Config,
-    /// Legacy transport-test section; removed once repositories, tokens, and
-    /// keys live in the database.
-    pub spike: Option<Spike>,
 }
 
 impl std::ops::Deref for Loaded {
@@ -41,21 +35,13 @@ pub fn load(path: &Path) -> Result<Loaded, String> {
 fn load_with_env(path: &Path, env: Env) -> Result<Loaded, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let mut table: toml::Table =
-        toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    let spike = table
-        .remove("spike")
-        .map(|v| v.try_into::<Spike>())
-        .transpose()
-        .map_err(|e| format!("{}: [spike]: {e}", path.display()))?;
-    let cleaned = toml::to_string(&table).map_err(|e| e.to_string())?;
     let cfg: Config = Figment::new()
-        .merge(Toml::string(&cleaned))
+        .merge(Toml::string(&text))
         .merge(env)
         .extract()
         .map_err(|e| format!("{}: {}", path.display(), describe(&e)))?;
     validate(&cfg)?;
-    Ok(Loaded { cfg, spike })
+    Ok(Loaded { cfg })
 }
 
 /// Formats a figment error with the full key path (`server.listen: …`).
@@ -116,73 +102,6 @@ pub fn database_url(cfg: &Config) -> Result<Secret<String>, String> {
     }
 }
 
-/// Legacy transport-test section: config-defined repositories and one static token.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Spike {
-    /// Password accepted for HTTP Basic auth (any non-empty username).
-    #[serde(deserialize_with = "spike_token")]
-    pub token: Secret<String>,
-    #[serde(default)]
-    pub repos: Vec<SpikeRepo>,
-    #[serde(default)]
-    pub ssh_keys: Vec<SpikeSshKey>,
-}
-
-/// An SSH key and the spike repositories (`namespace/name`) it may use.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpikeSshKey {
-    pub id: String,
-    /// One `authorized_keys`-style line: `<type> <base64> [comment]`.
-    pub public_key: String,
-    #[serde(default)]
-    pub repos: Vec<String>,
-}
-
-impl SpikeSshKey {
-    /// Splits the key into type and base64 blob and computes the OpenSSH
-    /// fingerprint (`SHA256:` + unpadded base64 of the blob's SHA-256).
-    pub fn parse(&self) -> Result<(String, String, String), String> {
-        use base64::Engine;
-        use sha2::Digest;
-        let mut parts = self.public_key.split_whitespace();
-        let (Some(kind), Some(b64)) = (parts.next(), parts.next()) else {
-            return Err(format!("ssh key {}: expected '<type> <base64>'", self.id));
-        };
-        let blob = base64::engine::general_purpose::STANDARD
-            .decode(b64)
-            .map_err(|e| format!("ssh key {}: {e}", self.id))?;
-        let digest = sha2::Sha256::digest(&blob);
-        let fp = base64::engine::general_purpose::STANDARD_NO_PAD.encode(digest);
-        Ok((kind.to_owned(), b64.to_owned(), format!("SHA256:{fp}")))
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpikeRepo {
-    pub id: RepoId,
-    pub namespace: NamespaceName,
-    pub name: RepoName,
-    #[serde(default = "default_branch")]
-    pub default_branch: String,
-}
-
-fn default_branch() -> String {
-    "main".to_owned()
-}
-
-fn spike_token<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Secret<String>, D::Error> {
-    let s = String::deserialize(d)?;
-    if s.len() < 16 {
-        return Err(serde::de::Error::custom(
-            "token must be at least 16 characters",
-        ));
-    }
-    Ok(Secret::new(s))
-}
-
 /// Resolves the config path: `--config`, else `$SLATH_CONFIG`, else the default.
 pub fn resolve_path(flag: Option<PathBuf>) -> PathBuf {
     flag.or_else(|| std::env::var_os("SLATH_CONFIG").map(PathBuf::from))
@@ -230,7 +149,6 @@ mod tests {
         assert_eq!(cfg.limits.diff_max_files, 300);
         assert_eq!(cfg.limits.push_max_bytes.get(), 2 << 30);
         assert_eq!(cfg.git.ssh_port, 22);
-        assert!(cfg.spike.is_none());
     }
 
     #[test]
@@ -301,30 +219,5 @@ mod tests {
             f.display()
         );
         assert!(load_str(&both, &[]).is_err());
-    }
-
-    #[test]
-    fn spike_section_is_split_off() {
-        let text = format!(
-            "{MINIMAL}\n[spike]\ntoken = \"0123456789abcdef\"\n[[spike.repos]]\n\
-             id = \"0192f1a2-3b4c-7d5e-8f60-718293a4b5c6\"\nnamespace = \"alice\"\nname = \"demo\"\n"
-        );
-        let cfg = load_str(&text, &[]).unwrap();
-        let spike = cfg.spike.unwrap();
-        assert_eq!(spike.repos[0].default_branch, "main");
-        assert!(!format!("{spike:?}").contains("0123456789abcdef"));
-    }
-
-    #[test]
-    fn ssh_key_fingerprints_match_openssh() {
-        // `ssh-keygen -lf` of this key prints the fingerprint below.
-        let key = SpikeSshKey {
-            id: "k".into(),
-            public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl test".into(),
-            repos: vec![],
-        };
-        let (kind, _, fp) = key.parse().unwrap();
-        assert_eq!(kind, "ssh-ed25519");
-        assert_eq!(fp, "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU");
     }
 }
