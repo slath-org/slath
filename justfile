@@ -35,6 +35,12 @@ test-e2e *ARGS: web
     cargo build --locked -p slath -p slath-tests --bins
     scripts/e2e.sh {{ARGS}}
 
+# Restore drill: back up a populated instance during pushes, restore it to an
+# empty database and data directory, and compare; plus hostile backups.
+test-backup-restore:
+    cargo build --locked -p slath --bins
+    cargo nextest run --locked -p slath-tests --test ops -E 'test(/backup|restore/)'
+
 fmt-check:
     cargo fmt --all --check
 

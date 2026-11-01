@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod admin;
+mod backup;
 mod check;
 mod config;
 mod hook;
@@ -74,6 +75,11 @@ enum Command {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Back up the database and repositories, or restore a backup.
+    Backup {
+        #[command(subcommand)]
+        command: BackupCommand,
+    },
     /// Administration commands.
     Admin {
         #[command(subcommand)]
@@ -99,6 +105,33 @@ enum Command {
         socket: PathBuf,
         #[arg(long)]
         key_id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum BackupCommand {
+    /// Write a backup into an empty directory while the server keeps running.
+    Create {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Target directory (created if missing; must be empty).
+        #[arg(long)]
+        output: PathBuf,
+        /// Keep passwords and other secrets in the copied configuration.
+        /// The master key is never included.
+        #[arg(long)]
+        include_secrets: bool,
+        #[arg(long, value_enum, default_value_t)]
+        output_format: OutputFormat,
+    },
+    /// Restore a backup into an empty database and data directory.
+    Restore {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, value_enum, default_value_t)]
+        output_format: OutputFormat,
     },
 }
 
@@ -187,6 +220,28 @@ fn main() -> ExitCode {
             },
             output,
         ),
+        Command::Backup {
+            command:
+                BackupCommand::Create {
+                    config,
+                    output,
+                    include_secrets,
+                    output_format,
+                },
+        } => backup::create(
+            &config::resolve_path(config),
+            &output,
+            include_secrets,
+            output_format,
+        ),
+        Command::Backup {
+            command:
+                BackupCommand::Restore {
+                    config,
+                    input,
+                    output_format,
+                },
+        } => backup::restore(&config::resolve_path(config), &input, output_format),
         Command::Fsck {
             config,
             reconcile,

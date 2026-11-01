@@ -192,21 +192,15 @@ impl TestServer {
     /// the server (e.g. `SLATH__SERVER__PUBLIC_URL`).
     #[must_use]
     pub fn start_opts(repos: &[TestRepo], extra: &str, env: &[(&str, &str)]) -> Self {
-        let dir = tempfile::tempdir().unwrap();
-        let db = TestDb::create();
-        let port = free_port();
-        let mut cfg = format!(
-            "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
-             [database]\nurl = \"{db_url}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
-             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
-            data = dir.path().join("data").display(),
-            run = dir.path().join("run").display(),
-            git = git_bin().display(),
-            db_url = db.url,
-        );
-        cfg += extra;
+        let mut server = Instance::new(extra).start(env);
+        if !repos.is_empty() {
+            server.seed(repos);
+        }
+        server
+    }
+
+    fn launch(dir: tempfile::TempDir, db: TestDb, env: &[(&str, &str)]) -> Self {
         let cfg_path = dir.path().join("slath.toml");
-        std::fs::write(&cfg_path, cfg).unwrap();
         let log = std::fs::File::create(dir.path().join("server.log")).unwrap();
         let mut child = Command::new(slath_bin())
             .args(["serve", "--migrate", "--config"])
@@ -231,17 +225,13 @@ impl TestServer {
             let log = std::fs::read_to_string(dir.path().join("server.log")).unwrap_or_default();
             panic!("slath serve did not start:\n{log}");
         };
-        let mut server = Self {
+        Self {
             child,
             token: String::new(),
             db,
             addr: addr.parse().unwrap(),
             dir,
-        };
-        if !repos.is_empty() {
-            server.seed(repos);
         }
-        server
     }
 
     /// Creates the repositories' owners (and `alice`), the repositories, and
@@ -282,28 +272,7 @@ impl TestServer {
     /// Runs a `slath` subcommand against this server's config; returns
     /// (success, stdout, stderr).
     pub fn slath(&self, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
-        let mut cmd = Command::new(slath_bin());
-        cmd.args(args)
-            .env("SLATH_CONFIG", self.config_path())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = cmd.spawn().unwrap();
-        if let Some(input) = stdin {
-            child
-                .stdin
-                .take()
-                .unwrap()
-                .write_all(input.as_bytes())
-                .unwrap();
-        }
-        drop(child.stdin.take());
-        let out = child.wait_with_output().unwrap();
-        (
-            out.status.success(),
-            String::from_utf8_lossy(&out.stdout).into_owned(),
-            String::from_utf8_lossy(&out.stderr).into_owned(),
-        )
+        run_slath(&self.config_path(), args, stdin)
     }
 
     /// Creates a user through the CLI and returns its ID.
@@ -463,5 +432,74 @@ impl GitClient {
         let out = self.cmd(cwd).args(args).output().unwrap();
         assert!(!out.status.success(), "git {args:?} unexpectedly succeeded");
         String::from_utf8_lossy(&out.stderr).into_owned()
+    }
+}
+
+/// Runs a `slath` subcommand with `config`; returns (success, stdout, stderr).
+pub fn run_slath(config: &Path, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
+    let mut cmd = Command::new(slath_bin());
+    cmd.args(args)
+        .env("SLATH_CONFIG", config)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().unwrap();
+    if let Some(input) = stdin {
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
+    }
+    drop(child.stdin.take());
+    let out = child.wait_with_output().unwrap();
+    (
+        out.status.success(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+/// A configured but not yet started instance: an empty database and data
+/// directory (e.g. a restore target).
+pub struct Instance {
+    pub dir: tempfile::TempDir,
+    pub db: TestDb,
+}
+
+impl Instance {
+    #[must_use]
+    pub fn new(extra: &str) -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let db = TestDb::create();
+        let port = free_port();
+        let mut cfg = format!(
+            "[server]\nlisten = \"127.0.0.1:{port}\"\npublic_url = \"http://127.0.0.1:{port}\"\nmetrics_listen = \"\"\n\
+             [database]\nurl = \"{db_url}\"\n[storage]\ndata_dir = \"{data}\"\nrun_dir = \"{run}\"\n\
+             [git]\nbinary = \"{git}\"\n[log]\nformat = \"pretty\"\nlevel = \"info\"\n",
+            data = dir.path().join("data").display(),
+            run = dir.path().join("run").display(),
+            git = git_bin().display(),
+            db_url = db.url,
+        );
+        cfg += extra;
+        std::fs::write(dir.path().join("slath.toml"), cfg).unwrap();
+        Self { dir, db }
+    }
+
+    #[must_use]
+    pub fn config_path(&self) -> PathBuf {
+        self.dir.path().join("slath.toml")
+    }
+
+    pub fn slath(&self, args: &[&str], stdin: Option<&str>) -> (bool, String, String) {
+        run_slath(&self.config_path(), args, stdin)
+    }
+
+    /// Starts `slath serve --migrate` on this instance.
+    #[must_use]
+    pub fn start(self, env: &[(&str, &str)]) -> TestServer {
+        TestServer::launch(self.dir, self.db, env)
     }
 }

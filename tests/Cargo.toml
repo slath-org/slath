@@ -30,6 +30,10 @@ path = "compat/main.rs"
 name = "security"
 path = "security/main.rs"
 
+[[test]]
+name = "ops"
+path = "ops/main.rs"
+
 [dependencies]
 flate2.workspace = true
 slath-git.workspace = true

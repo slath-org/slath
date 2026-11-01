@@ -208,3 +208,11 @@ Before 1.0.0, minor versions may contain breaking changes.
   reactivate, grant and revoke administration, and restore repositories from
   the trash. Changes need sudo mode; everyone else gets "not found".
   Organization owners see their organization's audit log at `/<org>/-/audit`.
+- `slath backup create` and `slath backup restore`. Backups run while the
+  server is serving: one consistent database snapshot (no `pg_dump` needed),
+  repository refs and objects, the configuration without secrets, and a
+  manifest with counts and SHA-256 checksums. Restores verify the whole
+  backup first and refuse links, unlisted files, unsafe paths, and checksum
+  mismatches; they recreate repositories with Slath's own Git config, never
+  the backup's, check connectivity, and reconcile the database. `just
+  test-backup-restore` runs the restore drill. See `docs/admin/backup.md`.

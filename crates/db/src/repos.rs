@@ -465,6 +465,36 @@ pub async fn all_ids(exec: impl PgExecutor<'_>) -> Result<Vec<RepoId>, DbError> 
     Ok(rows.into_iter().map(RepoId::from_uuid).collect())
 }
 
+/// Every repository's default branch.
+pub async fn default_branches(exec: impl PgExecutor<'_>) -> Result<Vec<(RepoId, String)>, DbError> {
+    let rows = sqlx::query!("SELECT id, default_branch FROM repositories ORDER BY id")
+        .fetch_all(exec)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (RepoId::from_uuid(r.id), r.default_branch))
+        .collect())
+}
+
+/// Entity counts for backup and restore summaries.
+pub async fn entity_counts(pool: &sqlx::PgPool) -> Result<Vec<(&'static str, u64)>, DbError> {
+    let r = sqlx::query!(
+        r#"SELECT (SELECT count(*) FROM users) AS "users!",
+                  (SELECT count(*) FROM organizations) AS "organizations!",
+                  (SELECT count(*) FROM repositories) AS "repositories!",
+                  (SELECT count(*) FROM git_refs) AS "refs!""#
+    )
+    .fetch_one(pool)
+    .await?;
+    let n = |v: i64| u64::try_from(v).unwrap_or(0);
+    Ok(vec![
+        ("users", n(r.users)),
+        ("organizations", n(r.organizations)),
+        ("repositories", n(r.repositories)),
+        ("refs", n(r.refs)),
+    ])
+}
+
 /// Live repositories pushed to since `since` (all live ones for `None`).
 pub async fn active_ids_pushed_since(
     exec: impl PgExecutor<'_>,

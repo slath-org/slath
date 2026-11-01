@@ -2304,6 +2304,7 @@ dependencies = [
  "figment",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "slath-auth",
  "slath-core",
  "slath-db",
@@ -2353,6 +2354,8 @@ dependencies = [
 name = "slath-db"
 version = "0.0.0"
 dependencies = [
+ "futures-util",
+ "serde",
  "serde_json",
  "slath-core",
  "slath-git",

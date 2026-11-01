@@ -113,6 +113,22 @@ pub async fn set_head(runner: &Runner, git_dir: &Path, full_ref: &str) -> Result
     Ok(())
 }
 
+/// Checks that every object reachable from the refs is present
+/// (`git fsck --connectivity-only`).
+pub async fn check_connectivity(runner: &Runner, git_dir: &Path) -> Result<(), GitError> {
+    runner
+        .repo(git_dir)
+        .args([
+            "fsck",
+            "--connectivity-only",
+            "--no-dangling",
+            "--no-progress",
+        ])
+        .run()
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

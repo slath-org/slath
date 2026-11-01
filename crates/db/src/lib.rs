@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audit;
+pub mod backup;
 pub mod idempotency;
 pub mod jobs;
 pub mod orgs;
@@ -51,6 +52,9 @@ pub enum DbError {
          install a newer Slath or restore the pre-upgrade backup"
     )]
     SchemaAhead { found: i32, required: i32 },
+    /// A backup can't be taken or restored.
+    #[error("{0}")]
+    Backup(String),
 }
 
 impl DbError {
