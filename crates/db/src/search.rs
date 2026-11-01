@@ -59,7 +59,8 @@ pub async fn issues(
                 WHERE r.state <> 'deleting' AND r.issues_enabled
                   AND ($6::uuid IS NULL OR r.id = $6)
                   AND (r.visibility = 'public' OR $3
-                       OR (slath_can_read(r.id, $2::uuid)
+                       OR ((slath_can_read(r.id, $2::uuid)
+                            OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL))
                            AND ($4::uuid[] IS NULL OR r.id = ANY($4))))
            ),
            hits AS (
@@ -104,6 +105,8 @@ pub struct RepoHit {
     pub name: String,
     pub description: Option<String>,
     pub private: bool,
+    /// `public`, `internal`, or `private`.
+    pub visibility: String,
 }
 
 /// Repositories whose name or description contains `q`, most similar first.
@@ -121,7 +124,9 @@ pub async fn repos(
              FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
             WHERE r.state <> 'deleting'
               AND (r.visibility = 'public' OR $3
-                   OR (slath_can_read(r.id, $2::uuid) AND ($4::uuid[] IS NULL OR r.id = ANY($4))))
+                   OR ((slath_can_read(r.id, $2::uuid)
+                        OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL))
+                       AND ($4::uuid[] IS NULL OR r.id = ANY($4))))
               AND (r.name::text ILIKE $1 OR r.description ILIKE $1
                    OR (n.name::text || '/' || r.name::text) ILIKE $1)
             ORDER BY greatest(similarity(r.name::text, $5), similarity(coalesce(r.description, ''), $5)) DESC,
@@ -143,7 +148,8 @@ pub async fn repos(
             namespace: r.namespace,
             name: r.name,
             description: r.description,
-            private: r.visibility == "private",
+            private: r.visibility != "public",
+            visibility: r.visibility,
         })
         .collect())
 }

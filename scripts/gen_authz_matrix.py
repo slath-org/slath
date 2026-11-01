@@ -84,7 +84,7 @@ def implies(have: str, need: str) -> bool:
 def rows():
     for action, cells in TABLE.items():
         anon, *by_role = cells
-        for vis in ("public", "private"):
+        for vis in ("public", "internal", "private"):
             for state in ("active", "archived"):
                 def decide(allowed: bool, can_read: bool) -> str:
                     if not can_read:
@@ -95,9 +95,10 @@ def rows():
 
                 yield (action, vis, state, "anon", "none", "session",
                        decide(anon, vis == "public"))
-                # A signed-in user without a role reads public repos implicitly.
+                # A signed-in user without a role reads public and internal
+                # repos implicitly.
                 yield (action, vis, state, "user", "none", "session",
-                       decide(by_role[0], vis == "public"))
+                       decide(by_role[0], vis in ("public", "internal")))
                 for role, allowed in zip(ROLES, by_role):
                     yield (action, vis, state, "user", role, "session", decide(allowed, True))
         # Suspended users and repositories being deleted: nothing, invisibly.
@@ -112,6 +113,7 @@ def rows():
         yield (action, "private", "active", "user", "admin", "token-other:repo:write", "deny_hidden")
         yield (action, "public", "active", "user", "admin", "token-other:repo:write",
                "allow" if anon else "deny_visible")
+        yield (action, "internal", "active", "user", "admin", "token-other:repo:write", "deny_hidden")
         # Forking needs the repository to allow it.
         if action == "repo.fork":
             yield (action, "public", "active", "user", "admin", "session-noforks", "deny_visible")

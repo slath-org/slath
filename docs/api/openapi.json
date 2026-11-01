@@ -4972,7 +4972,7 @@
               "string",
               "null"
             ],
-            "description": "`private` (default) or `public`."
+            "description": "`private` (default), `internal`, or `public`."
           }
         }
       },
@@ -5034,7 +5034,7 @@
           },
           "visibility": {
             "type": "string",
-            "description": "`public` or `private`."
+            "description": "`public`, `internal` (signed-in users), or `private`."
           }
         }
       },
@@ -5433,7 +5433,7 @@
           },
           "visibility": {
             "type": "string",
-            "description": "`public` or `private`."
+            "description": "`public`, `internal` (signed-in users), or `private`."
           }
         }
       },
@@ -5460,7 +5460,7 @@
           },
           "visibility": {
             "type": "string",
-            "description": "`public` or `private`."
+            "description": "`public`, `internal`, or `private`."
           }
         }
       },
@@ -5784,7 +5784,7 @@
               "string",
               "null"
             ],
-            "description": "`public` or `private`."
+            "description": "`public`, `internal` (signed-in users), or `private`."
           }
         }
       },

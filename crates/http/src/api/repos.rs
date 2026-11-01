@@ -44,7 +44,7 @@ pub struct Repo {
     /// `namespace/name`.
     pub full_name: String,
     pub description: Option<String>,
-    /// `public` or `private`.
+    /// `public`, `internal` (signed-in users), or `private`.
     pub visibility: String,
     pub default_branch: String,
     pub archived: bool,
@@ -99,11 +99,12 @@ pub async fn list_repos(
 fn visibility(v: &str) -> Result<Visibility, AppError> {
     match v {
         "public" => Ok(Visibility::Public),
+        "internal" => Ok(Visibility::Internal),
         "private" => Ok(Visibility::Private),
         _ => Err(AppError::validation(vec![FieldError {
             field: "visibility".to_owned(),
             code: "invalid".to_owned(),
-            message: "Use public or private.".to_owned(),
+            message: "Use public, internal, or private.".to_owned(),
         }])),
     }
 }
@@ -114,7 +115,7 @@ pub struct NewRepo {
     pub namespace: String,
     pub name: String,
     pub description: Option<String>,
-    /// `public` or `private`.
+    /// `public`, `internal` (signed-in users), or `private`.
     pub visibility: String,
     /// Defaults to `main`.
     pub default_branch: Option<String>,
@@ -175,7 +176,7 @@ pub async fn get_repo(
 pub struct UpdateRepo {
     pub description: Option<String>,
     pub default_branch: Option<String>,
-    /// `public` or `private`.
+    /// `public`, `internal` (signed-in users), or `private`.
     pub visibility: Option<String>,
     /// A new name; the old one keeps redirecting readers.
     pub name: Option<String>,

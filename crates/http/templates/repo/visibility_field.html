@@ -1,0 +1,15 @@
+  <fieldset class="field" id="visibility">
+    <legend>Who can see this repository</legend>
+    <div class="checkbox">
+      <input id="vis-private" type="radio" name="visibility" value="private"{% if visibility == "private" %} checked{% endif %}>
+      <label for="vis-private"><strong>Private</strong>. Only people you give access.</label>
+    </div>
+    <div class="checkbox">
+      <input id="vis-internal" type="radio" name="visibility" value="internal"{% if visibility == "internal" %} checked{% endif %}>
+      <label for="vis-internal"><strong>Internal</strong>. Everyone who is signed in to this instance; not signed-out visitors.</label>
+    </div>
+    <div class="checkbox">
+      <input id="vis-public" type="radio" name="visibility" value="public"{% if visibility == "public" %} checked{% endif %}>
+      <label for="vis-public"><strong>Public</strong>. Everyone, including signed-out visitors.</label>
+    </div>
+  </fieldset>

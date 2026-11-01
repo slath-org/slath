@@ -334,3 +334,71 @@ fn org_members_create_repositories_in_their_org() {
     // owner administers it.
     assert_eq!(a.get("/acme/tool/settings/general").status, 200);
 }
+
+#[test]
+fn conf_rbac_01_internal_repositories_need_a_sign_in() {
+    use slath_tests::http::{create_repo, create_token, submit};
+    let s = slath_tests::server::TestServer::start_with(&[]);
+    s.create_user("alice", slath_tests::server::PASSWORD, false);
+    s.create_user("bob", slath_tests::server::PASSWORD, false);
+    let mut a = s.login("alice", slath_tests::server::PASSWORD);
+    create_repo(&mut a, "alice", "team", "internal");
+    let r = submit(
+        &mut a,
+        "/alice/team/issues/new",
+        "/alice/team/issues",
+        &[("title", "Internal walrus"), ("body", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(a.get("/alice/team").body.contains("Internal</span>"));
+
+    // Any signed-in user reads it, opens issues, but can't change it.
+    let mut bob = s.login("bob", slath_tests::server::PASSWORD);
+    assert_eq!(bob.get("/alice/team").status, 200);
+    assert_eq!(bob.get("/alice/team/issues/1").status, 200);
+    assert!(
+        bob.get("/alice").body.contains("alice/team") || bob.get("/alice").body.contains("team")
+    );
+    assert!(
+        bob.get("/-/search?q=walrus")
+            .body
+            .contains("Internal walrus")
+    );
+    assert_eq!(bob.get("/alice/team/settings/general").status, 404);
+    let r = submit(
+        &mut bob,
+        "/alice/team/issues/new",
+        "/alice/team/issues",
+        &[("title", "From bob"), ("body", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let token = create_token(&mut bob, "t", &["repo:read"]);
+    let r = bob.api("GET", "/api/v1/repos/alice/team", Some(&token), None);
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["visibility"], "internal");
+
+    // Signed-out visitors and tokens without access see nothing.
+    let mut anon = s.client();
+    for path in ["/alice/team", "/alice/team/issues/1", "/alice/team/commits"] {
+        assert_eq!(anon.get(path).status, 404, "{path}");
+    }
+    assert!(!anon.get("/alice").body.contains("alice/team"));
+    assert!(!anon.get("/-/search?q=walrus").body.contains("walrus</bdi>"));
+    assert_eq!(
+        anon.api("GET", "/api/v1/repos/alice/team", None, None)
+            .status,
+        404
+    );
+    let r = anon.get("/alice/team.git/info/refs?service=git-upload-pack");
+    assert!(r.status == 401 || r.status == 404, "{}", r.status);
+
+    // The visibility can be changed in the settings and the API.
+    let write = create_token(&mut a, "w", &["repo:write"]);
+    let r = a.api(
+        "PATCH",
+        "/api/v1/repos/alice/team",
+        Some(&write),
+        Some(&serde_json::json!({"visibility": "secret"})),
+    );
+    assert_eq!(r.status, 422);
+}

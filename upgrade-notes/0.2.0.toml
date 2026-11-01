@@ -5,7 +5,7 @@
 # with `slath upgrade` (docs/admin/upgrading.md).
 
 version = "0.2.0"
-schema_version = 23
+schema_version = 24
 min_upgrade_from = "0.1.0"
 
 [[action]]

@@ -49,6 +49,7 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                 .unwrap_or_else(|_| panic!("line {}: action", i + 1));
             let visibility = match f[1] {
                 "public" => Visibility::Public,
+                "internal" => Visibility::Internal,
                 "private" => Visibility::Private,
                 v => panic!("line {}: visibility {v}", i + 1),
             };
@@ -146,7 +147,7 @@ fn matrix_matches_policy() {
 fn matrix_is_complete() {
     let csv = include_str!("matrix.csv");
     for action in Action::ALL {
-        for vis in ["public", "private"] {
+        for vis in ["public", "internal", "private"] {
             for state in ["active", "archived"] {
                 for (subject, role) in [
                     ("anon", "none"),

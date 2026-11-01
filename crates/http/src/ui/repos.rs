@@ -19,13 +19,31 @@ use crate::auth::{MaybeSession, RequireSession, Sudo};
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
+/// The form and badge value of a visibility.
+#[must_use]
+pub const fn visibility_name(v: Visibility) -> &'static str {
+    slath_db::repos::visibility_str(v)
+}
+
+/// A visibility from a form or API value.
+#[must_use]
+pub fn parse_visibility(s: &str) -> Option<Visibility> {
+    match s {
+        "public" => Some(Visibility::Public),
+        "internal" => Some(Visibility::Internal),
+        "private" => Some(Visibility::Private),
+        _ => None,
+    }
+}
+
 /// A repository in a list (profile pages, explore).
 #[derive(Debug, Clone)]
 pub struct RepoCard {
     pub namespace: String,
     pub name: String,
     pub description: Option<String>,
-    pub private: bool,
+    /// `public`, `internal`, or `private`.
+    pub visibility: &'static str,
     pub archived: bool,
 }
 
@@ -35,7 +53,7 @@ impl From<&slath_db::repos::Repo> for RepoCard {
             namespace: r.namespace.clone(),
             name: r.name.clone(),
             description: r.description.clone(),
-            private: r.visibility == Visibility::Private,
+            visibility: visibility_name(r.visibility),
             archived: r.state == RepoState::Archived,
         }
     }
@@ -67,7 +85,8 @@ pub async fn cards_for_namespace(
 pub struct RepoHeader {
     pub namespace: String,
     pub name: String,
-    pub private: bool,
+    /// `public`, `internal`, or `private`.
+    pub visibility: &'static str,
     pub archived: bool,
     pub can_admin: bool,
     /// The repository has issues.
@@ -99,7 +118,7 @@ impl RepoHeader {
         Self {
             namespace: a.repo.namespace.clone(),
             name: a.repo.name.clone(),
-            private: a.repo.visibility == Visibility::Private,
+            visibility: visibility_name(a.repo.visibility),
             archived: a.repo.state == RepoState::Archived,
             can_admin: a.can(subject, Action::RepoSettings),
             issues: a.repo.issues_enabled,
@@ -145,7 +164,7 @@ struct NewRepoPage {
     selected: String,
     name: String,
     description: String,
-    private: bool,
+    visibility: &'static str,
     default_branch: String,
     errors: Vec<FieldError>,
 }
@@ -192,7 +211,7 @@ async fn new_repo(
         selected,
         name: String::new(),
         description: String::new(),
-        private: true,
+        visibility: "private",
         default_branch: "main".to_owned(),
         errors: Vec::new(),
     }))
@@ -218,11 +237,7 @@ async fn create_repo(
     RequireSession(session): RequireSession,
     Form(f): Form<NewRepoForm>,
 ) -> Result<Response, AppError> {
-    let visibility = if f.visibility == "public" {
-        Visibility::Public
-    } else {
-        Visibility::Private
-    };
+    let visibility = parse_visibility(&f.visibility).unwrap_or(Visibility::Private);
     let input = NewRepoInput {
         namespace: f.namespace.clone(),
         name: f.name.clone(),
@@ -242,7 +257,7 @@ async fn create_repo(
                 selected: f.namespace,
                 name: f.name,
                 description: f.description,
-                private: visibility == Visibility::Private,
+                visibility: visibility_name(visibility),
                 default_branch: f.default_branch,
                 errors,
             });
@@ -327,7 +342,7 @@ struct GeneralSettings<'a> {
     description: String,
     default_branch: String,
     name: String,
-    private: bool,
+    visibility: &'static str,
     archived: bool,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
@@ -392,7 +407,7 @@ fn general_page<'a>(
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
         name: a.repo.name.clone(),
-        private: a.repo.visibility == Visibility::Private,
+        visibility: visibility_name(a.repo.visibility),
         archived: a.repo.state == RepoState::Archived,
         ctx,
         message,
@@ -479,15 +494,18 @@ async fn save_visibility(
     Form(f): Form<VisibilityForm>,
 ) -> Result<Response, AppError> {
     let a = settings_access(&state, &s.subject, &ns, &repo).await?;
-    let v = match f.visibility.as_str() {
-        "public" => Visibility::Public,
-        "private" => Visibility::Private,
-        _ => {
+    let v = match parse_visibility(&f.visibility) {
+        Some(v) => v,
+        None => {
             return invalid_page(
                 &a,
                 &s.subject,
                 ctx,
-                ServiceError::invalid("visibility", "invalid", "Choose public or private."),
+                ServiceError::invalid(
+                    "visibility",
+                    "invalid",
+                    "Choose private, internal, or public.",
+                ),
             );
         }
     };

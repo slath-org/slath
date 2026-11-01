@@ -31,7 +31,7 @@ struct IssueRow {
 struct RepoRow {
     full: String,
     description: Option<String>,
-    private: bool,
+    visibility: String,
 }
 
 #[derive(Template)]
@@ -117,7 +117,7 @@ async fn search_page(
             .map(|h| RepoRow {
                 full: format!("{}/{}", h.namespace, h.name),
                 description: h.description,
-                private: h.private,
+                visibility: h.visibility,
             })
             .collect();
     }
@@ -162,7 +162,7 @@ pub struct RepoHitJson {
     pub namespace: String,
     pub name: String,
     pub description: Option<String>,
-    /// `public` or `private`.
+    /// `public`, `internal`, or `private`.
     pub visibility: String,
 }
 
@@ -247,7 +247,7 @@ pub async fn api_repos(
             namespace: h.namespace,
             name: h.name,
             description: h.description,
-            visibility: if h.private { "private" } else { "public" }.to_owned(),
+            visibility: h.visibility,
         })
         .collect();
     Ok(page(&state, &uri, items, offset, limit))

@@ -1,6 +1,6 @@
 <div class="repo-header">
   <p class="repo-title"><a href="/{{ header.namespace }}">{{ header.namespace }}</a> / <a href="/{{ header.namespace }}/{{ header.name }}"><strong>{{ header.name }}</strong></a>
-  {%- if header.private %} <span class="badge">Private</span>{% else %} <span class="badge">Public</span>{% endif %}
+  {%- if header.visibility == "private" %} <span class="badge">Private</span>{% else if header.visibility == "internal" %} <span class="badge">Internal</span>{% else %} <span class="badge">Public</span>{% endif %}
   {%- if header.archived %} <span class="badge">Archived</span>{% endif %}</p>
   {%- if let Some(w) = header.watch %}
   <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form repo-watch">

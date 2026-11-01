@@ -776,7 +776,7 @@ async fn raw(
     {
         h.insert(header::CONTENT_DISPOSITION, v);
     }
-    let cache = if a.repo.visibility == Visibility::Private {
+    let cache = if a.repo.visibility != Visibility::Public {
         "private, no-store"
     } else {
         "no-cache"
@@ -1245,7 +1245,7 @@ async fn archive(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static("sandbox; default-src 'none'"),
     );
-    let cache = if a.repo.visibility == Visibility::Private {
+    let cache = if a.repo.visibility != Visibility::Public {
         "private, no-store"
     } else {
         "no-cache"

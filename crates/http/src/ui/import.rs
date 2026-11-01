@@ -33,7 +33,7 @@ struct ImportPage {
     description: String,
     url: String,
     username: String,
-    private: bool,
+    visibility: &'static str,
     allow_http: bool,
     errors: Vec<FieldError>,
 }
@@ -74,7 +74,7 @@ async fn page(
         description: String::new(),
         url: String::new(),
         username: String::new(),
-        private: true,
+        visibility: "private",
         allow_http: state.config.import.allow_http,
         errors: Vec::new(),
     }))
@@ -104,16 +104,13 @@ async fn submit(
     RequireSession(s): RequireSession,
     Form(f): Form<ImportForm>,
 ) -> Result<Response, AppError> {
-    let private = f.visibility != "public";
+    let visibility = super::repos::parse_visibility(&f.visibility)
+        .unwrap_or(slath_core::authz::Visibility::Private);
     let input = ImportInput {
         namespace: f.namespace.clone(),
         name: f.name.clone(),
         description: f.description.clone(),
-        visibility: if private {
-            Visibility::Private
-        } else {
-            Visibility::Public
-        },
+        visibility,
         url: f.url.clone(),
         username: f.username.clone(),
         password: Secret::new(f.password),
@@ -131,7 +128,7 @@ async fn submit(
                 description: f.description,
                 url: f.url,
                 username: f.username,
-                private,
+                visibility: super::repos::visibility_name(visibility),
                 allow_http: state.config.import.allow_http,
                 errors,
             });
@@ -150,7 +147,7 @@ pub struct NewImport {
     #[serde(default)]
     pub name: String,
     pub description: Option<String>,
-    /// `private` (default) or `public`.
+    /// `private` (default), `internal`, or `public`.
     pub visibility: Option<String>,
     /// An `https://` URL of a Git repository.
     #[serde(default)]
@@ -201,13 +198,16 @@ pub async fn api_import(
     ApiUser(s): ApiUser,
     Json(n): Json<NewImport>,
 ) -> Result<Response, AppError> {
-    let visibility = match n.visibility.as_deref() {
-        None | Some("private") => Visibility::Private,
-        Some("public") => Visibility::Public,
-        Some(_) => {
-            return Err(
-                ServiceError::invalid("visibility", "invalid", "Use private or public.").into(),
-            );
+    let visibility = match n.visibility.as_deref().map(super::repos::parse_visibility) {
+        None => Visibility::Private,
+        Some(Some(v)) => v,
+        Some(None) => {
+            return Err(ServiceError::invalid(
+                "visibility",
+                "invalid",
+                "Use private, internal, or public.",
+            )
+            .into());
         }
     };
     let a = state

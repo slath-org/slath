@@ -30,7 +30,7 @@
   {%- for r in repos %}
   <li class="item-row">
     <div class="item-main">
-      <a class="item-title" href="/{{ r.full }}"><bdi>{{ r.full }}</bdi></a>{% if r.private %} <span class="badge">Private</span>{% endif %}
+      <a class="item-title" href="/{{ r.full }}"><bdi>{{ r.full }}</bdi></a>{% if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
       {%- if let Some(d) = r.description %}
       <p class="item-meta text-secondary">{{ d }}</p>
       {%- endif %}

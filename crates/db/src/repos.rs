@@ -31,10 +31,10 @@ pub struct Repo {
 }
 
 pub(crate) fn visibility(s: &str) -> Visibility {
-    if s == "public" {
-        Visibility::Public
-    } else {
-        Visibility::Private
+    match s {
+        "public" => Visibility::Public,
+        "internal" => Visibility::Internal,
+        _ => Visibility::Private,
     }
 }
 
@@ -50,6 +50,7 @@ pub(crate) fn repo_state(s: &str) -> RepoState {
 pub const fn visibility_str(v: Visibility) -> &'static str {
     match v {
         Visibility::Public => "public",
+        Visibility::Internal => "internal",
         Visibility::Private => "private",
     }
 }
@@ -224,6 +225,7 @@ pub async fn list_visible_in_namespace(
                   r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $3
+                OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
                 OR slath_can_read(r.id, $2::uuid))
              ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4"#,
         namespace.as_uuid(),
@@ -534,6 +536,7 @@ pub async fn list_visible(
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            WHERE r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $2
+                OR (r.visibility = 'internal' AND $1::uuid IS NOT NULL)
                 OR slath_can_read(r.id, $1::uuid))
            ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4"#,
         viewer,

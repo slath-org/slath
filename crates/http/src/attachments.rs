@@ -222,7 +222,7 @@ async fn serve(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
-    let cache = if a.repo.visibility == slath_core::authz::Visibility::Private {
+    let cache = if a.repo.visibility != slath_core::authz::Visibility::Public {
         "private, no-store"
     } else {
         "private, max-age=3600"

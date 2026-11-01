@@ -27,7 +27,11 @@ pub enum Role {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibility {
+    /// Everyone, including anonymous visitors, can read it.
     Public,
+    /// Every signed-in user can read it; anonymous visitors can't see it.
+    Internal,
+    /// Only people with a role can see it.
     Private,
 }
 
@@ -529,8 +533,15 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
             }
         }
     };
-    let public = res.visibility == Visibility::Public;
-    let can_read = public || role.is_some();
+    // Public repositories are readable by everyone, internal ones by every
+    // signed-in user (a token restricted to other repositories counts as
+    // anonymous here), private ones only with a role.
+    let open = match res.visibility {
+        Visibility::Public => true,
+        Visibility::Internal => signed_in,
+        Visibility::Private => false,
+    };
+    let can_read = open || role.is_some();
     if !can_read {
         return HIDDEN;
     }

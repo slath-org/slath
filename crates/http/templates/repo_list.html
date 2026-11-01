@@ -5,7 +5,7 @@
 {%- for r in repos %}
   <li>
     <a href="/{{ r.namespace }}/{{ r.name }}" class="repo-name">{{ r.namespace }}/{{ r.name }}</a>
-    {%- if r.private %} <span class="badge">Private</span>{% endif %}
+    {%- if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
     {%- if r.archived %} <span class="badge">Archived</span>{% endif %}
     {%- if let Some(d) = r.description %}
     <p class="text-secondary">{{ d }}</p>

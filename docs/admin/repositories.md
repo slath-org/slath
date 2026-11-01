@@ -38,6 +38,19 @@ and, for administrators, the result.
 - Only Git data is imported, not issues, merge requests, wikis, or
   releases. `[import] enabled = false` turns imports off.
 
+## Visibility
+
+Every repository is **private** (only people with access), **internal**
+(every signed-in user of the instance can read it, open issues, and
+clone it; signed-out visitors and anonymous Git clients get "not
+found"), or **public** (everyone). Owners choose it when creating or
+importing a repository and change it under **Settings → General**, which
+asks for the password again; the API takes `"visibility": "internal"`.
+Internal works like public for everyone who is signed in: it gives no
+role, so only collaborators, teams, and organization members can push or
+change settings. Raw files and attachments of internal repositories are
+never cached by shared caches.
+
 ## Branch protection
 
 Repository administrators protect branches under **Settings → Branch
