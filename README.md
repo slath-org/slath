@@ -29,6 +29,14 @@ See [docs/dev/setup.md](docs/dev/setup.md). In short:
 just setup && just dev-db && just tools && just check
 ```
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first;
+all commits need a DCO sign-off. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md), and [GOVERNANCE.md](GOVERNANCE.md)
+describes how decisions are made. Report security vulnerabilities privately
+as described in [SECURITY.md](SECURITY.md).
+
 ## License
 
 Copyright © 2026 Erich Seifert. The server is licensed under the

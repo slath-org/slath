@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: CC-BY-SA-4.0
+name: Bug report
+description: Something in Slath doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Don't report security vulnerabilities here. Follow SECURITY.md instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, configuration, and repository contents needed to see the problem.
+      placeholder: |
+        1. Start `slath serve` with …
+        2. Run `git clone …`
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: slath-version
+    attributes:
+      label: Slath version or commit
+      placeholder: e.g. 3f2a1c9
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Git and jj versions (client and server), PostgreSQL version, reverse proxy, and anything else that may matter.
+      placeholder: |
+        OS: Debian 13
+        Git (server): 2.56.0
+        Git/jj (client): jj 0.46.0
+        PostgreSQL: 18.1
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      description: Relevant log lines or client output. Remove secrets, tokens, and private repository names.
+      render: text
