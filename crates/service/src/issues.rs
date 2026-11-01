@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 use slath_core::authz::{self, Action, Subject};
 use slath_core::ids::{RepoId, UserId};
-use slath_db::issues::{Comment, Filter, Issue};
+use slath_db::issues::{Comment, Issue};
 use slath_markup::refs::{Ref, RefContext, Resolved};
 
 use crate::Services;
@@ -87,7 +87,7 @@ impl Services {
     }
 
     /// The repository with `action` allowed, if issues are enabled there.
-    async fn issues_access(
+    pub(crate) async fn issues_access(
         &self,
         subject: &Subject,
         ns: &str,
@@ -107,15 +107,16 @@ impl Services {
         subject: &Subject,
         ns: &str,
         repo: &str,
-        filter: &Filter,
+        filter: &crate::labels::FilterInput,
         offset: i64,
         limit: i64,
     ) -> Result<(RepoAccess, Vec<Issue>, (i64, i64))> {
         let a = self
             .issues_access(subject, ns, repo, Action::RepoRead)
             .await?;
-        let items = slath_db::issues::list(&self.pool, a.repo.id, filter, offset, limit).await?;
-        let counts = slath_db::issues::counts(&self.pool, a.repo.id).await?;
+        let filter = self.resolve_filter(&a, filter).await?;
+        let items = slath_db::issues::list(&self.pool, a.repo.id, &filter, offset, limit).await?;
+        let counts = slath_db::issues::counts(&self.pool, a.repo.id, &filter).await?;
         Ok((a, items, counts))
     }
 

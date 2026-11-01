@@ -158,12 +158,25 @@ pub async fn list(
     Ok(rows.into_iter().map(|r| to_issue!(r)).collect())
 }
 
-/// `(open, closed)` issue counts of a repository.
-pub async fn counts(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<(i64, i64), DbError> {
+/// `(open, closed)` counts of the issues matching a filter (its state is
+/// ignored).
+pub async fn counts(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    f: &Filter,
+) -> Result<(i64, i64), DbError> {
     let r = sqlx::query!(
-        r#"SELECT count(*) FILTER (WHERE state = 'open') AS "open!", count(*) FILTER (WHERE state = 'closed') AS "closed!"
-           FROM issues WHERE repo_id = $1"#,
-        repo.as_uuid()
+        r#"SELECT count(*) FILTER (WHERE i.state = 'open') AS "open!", count(*) FILTER (WHERE i.state = 'closed') AS "closed!"
+           FROM issues i WHERE i.repo_id = $1
+             AND ($2::uuid IS NULL OR i.author_id = $2)
+             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM issue_assignees a WHERE a.issue_id = i.id AND a.user_id = $3))
+             AND (SELECT count(*) FROM issue_labels l WHERE l.issue_id = i.id AND l.label_id = ANY($4)) = cardinality($4)
+             AND ($5::uuid IS NULL OR i.milestone_id = $5)"#,
+        repo.as_uuid(),
+        f.author.map(|u| *u.as_uuid()),
+        f.assignee.map(|u| *u.as_uuid()),
+        &f.labels,
+        f.milestone
     )
     .fetch_one(exec)
     .await?;

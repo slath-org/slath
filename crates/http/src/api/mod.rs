@@ -6,6 +6,7 @@
 //! `docs/api/openapi.json`.
 
 pub mod issues;
+pub mod labels;
 pub mod orgs;
 pub mod repos;
 pub mod support;
@@ -154,6 +155,8 @@ impl utoipa::Modify for SecurityAddon {
         repos::list_protections, repos::post_protection, repos::delete_protection,
         issues::list_issues, issues::create_issue, issues::get_issue, issues::update_issue,
         issues::list_comments, issues::create_comment, issues::update_comment, issues::delete_comment,
+        labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,
+        labels::list_milestones, labels::create_milestone, labels::update_milestone, labels::delete_milestone,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
@@ -183,5 +186,6 @@ pub fn router() -> Router<AppState> {
         .merge(orgs::router())
         .merge(repos::router())
         .merge(issues::router())
+        .merge(labels::router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

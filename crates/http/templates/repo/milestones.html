@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Milestones · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+{% let section = "milestones" %}
+{% include "repo/issues_nav.html" %}
+<h1>Milestones</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+{%- if milestones.is_empty() %}
+<p class="text-secondary empty-state">No milestones yet.</p>
+{%- else %}
+<ul class="item-list">
+{%- for v in milestones %}
+  <li class="item-row">
+    <span class="item-state item-state-{{ v.m.state }}">{% call m::icon(ctx, "flag") %}{% endcall %}<span class="visually-hidden">{{ v.m.state }}</span></span>
+    <div class="item-main">
+      <a class="item-title" href="{{ v.href }}"><bdi>{{ v.m.title }}</bdi></a>
+      <p class="item-meta text-secondary">{% if v.m.state == "closed" %}Closed{% else if v.due.is_empty() %}No due date{% else %}Due <time datetime="{{ v.due }}">{{ v.due }}</time>{% endif %} · {{ v.m.closed_issues }} of {{ v.total }} issue{% if v.total != 1 %}s{% endif %} closed</p>
+      {%- if let Some(d) = v.m.description %}
+      <p class="item-meta"><bdi>{{ d }}</bdi></p>
+      {%- endif %}
+      <progress class="milestone-progress" max="100" value="{{ v.percent }}" aria-label="{{ v.m.title }}: {{ v.percent }}% complete">{{ v.percent }}%</progress>
+    </div>
+    {%- if manage %}
+    <div class="item-actions">
+      <a class="button button-quiet" href="?edit={{ v.m.id }}#title">Edit<span class="visually-hidden"> milestone {{ v.m.title }}</span></a>
+      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/milestones/{{ v.m.id }}/delete" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <button type="submit" class="button button-quiet">Delete<span class="visually-hidden"> milestone {{ v.m.title }}</span></button>
+      </form>
+    </div>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if manage %}
+<h2>{% if editing.is_some() %}Edit milestone{% else %}New milestone{% endif %}</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/milestones{% if let Some(id) = editing %}/{{ id }}{% endif %}" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ title }}" required maxlength="100"{% if let Some(e) = self.error("title") %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
+    {%- if let Some(e) = self.error("title") %}
+    <p id="title-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="due_on">Due date <span class="text-secondary">(optional)</span></label>
+    <input id="due_on" name="due_on" type="date" value="{{ due_on }}"{% if let Some(e) = self.error("due_on") %} aria-invalid="true" aria-describedby="due_on-error"{% endif %}>
+    {%- if let Some(e) = self.error("due_on") %}
+    <p id="due_on-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="description">Description <span class="text-secondary">(optional)</span></label>
+    <textarea id="description" name="description" rows="3"{% if let Some(e) = self.error("description") %} aria-invalid="true" aria-describedby="description-error"{% endif %}>{{ description }}</textarea>
+    {%- if let Some(e) = self.error("description") %}
+    <p id="description-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  {%- if editing.is_some() %}
+  <div class="field">
+    <label for="state">State</label>
+    <select id="state" name="state">
+      <option value="open"{% if open %} selected{% endif %}>Open</option>
+      <option value="closed"{% if !open %} selected{% endif %}>Closed</option>
+    </select>
+  </div>
+  {%- endif %}
+  <div class="button-row">
+    <button type="submit" class="button button-primary">{% if editing.is_some() %}Save milestone{% else %}Create milestone{% endif %}</button>
+    {%- if editing.is_some() %}
+    <a class="button" href="/{{ header.namespace }}/{{ header.name }}/milestones">Cancel</a>
+    {%- endif %}
+  </div>
+</form>
+{%- endif %}
+{% endblock %}

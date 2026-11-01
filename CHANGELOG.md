@@ -24,6 +24,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - An older binary on an upgraded database names the upgrade and the backup to restore.
 - Issues: open, edit, close with a reason, reopen, and comment, with a timeline of changes, in the web UI and the API.
 - References in issues and comments (`#12`, `owner/repo#12`, `@name`, commit IDs) link only for people who can read the target.
+- Labels and milestones for issues, managed by maintainers in the web UI and the API.
+- Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
+- Filter issues by labels, assignee, author, and milestone, and sort them by last update.
 - Branch protection: block force pushes and deletion, limit who may push directly, and require merge requests with an audited admin bypass.
 - Teams: organization owners group members into teams, and repository administrators give teams a role.
 - Organizations can require two-factor authentication for access to their repositories and give every member read access.

@@ -322,3 +322,156 @@ fn issue_api_follows_the_same_rules() {
         404
     );
 }
+
+/// Labels and milestones need the maintain role; triage needs write;
+/// assignees must be able to read the repository; filters combine.
+#[test]
+fn labels_milestones_and_assignees_via_api() {
+    let (s, mut a) = setup();
+    add_collaborator(&mut a, "alice/priv", "carol", "write");
+    let token = create_token(&mut a, "issues", &["issues:write", "repo:read"]);
+    let mut carol = s.login("carol", PASSWORD);
+    let carol_token = create_token(&mut carol, "t", &["issues:write", "repo:read"]);
+    let mut c = s.client();
+    let api = |c: &mut Client, m: &str, path: &str, t: &str, body: Option<serde_json::Value>| {
+        c.api(
+            m,
+            &format!("/api/v1/repos/alice/priv{path}"),
+            Some(t),
+            body.as_ref(),
+        )
+    };
+    let r = api(
+        &mut c,
+        "POST",
+        "/labels",
+        &token,
+        Some(json!({"name": "bug", "color": "#D73A4A"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["color"], "d73a4a");
+    let r = api(
+        &mut c,
+        "POST",
+        "/labels",
+        &carol_token,
+        Some(json!({"name": "ui"})),
+    );
+    assert_eq!(r.status, 403, "write doesn't manage labels");
+    let r = api(
+        &mut c,
+        "POST",
+        "/labels",
+        &token,
+        Some(json!({"name": "BUG"})),
+    );
+    assert_eq!(r.status, 422, "names are unique regardless of case");
+    let r = api(
+        &mut c,
+        "POST",
+        "/milestones",
+        &token,
+        Some(json!({"title": "v1", "due_on": "2026-12-31"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let ms = r.json()["id"].as_str().unwrap().to_owned();
+
+    for t in ["One", "Two"] {
+        assert_eq!(
+            api(&mut c, "POST", "/issues", &token, Some(json!({"title": t}))).status,
+            201
+        );
+    }
+    // carol (write) triages.
+    let r = api(
+        &mut c,
+        "PATCH",
+        "/issues/1",
+        &carol_token,
+        Some(json!({"labels": ["bug"], "milestone": "v1", "assignees": ["carol"]})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let j = r.json();
+    assert_eq!(j["labels"], json!(["bug"]));
+    assert_eq!(j["milestone"], "v1");
+    assert_eq!(j["assignees"], json!(["carol"]));
+    // bob can't read alice/priv, so he can't be assigned.
+    let r = api(
+        &mut c,
+        "PATCH",
+        "/issues/2",
+        &token,
+        Some(json!({"assignees": ["bob"]})),
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert_eq!(
+        api(
+            &mut c,
+            "PATCH",
+            "/issues/2",
+            &token,
+            Some(json!({"labels": ["bug"]}))
+        )
+        .status,
+        200
+    );
+
+    let list = |c: &mut Client, q: &str| -> Vec<i64> {
+        let r = c.api(
+            "GET",
+            &format!("/api/v1/repos/alice/priv/issues?{q}"),
+            Some(&token),
+            None,
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+        let mut n: Vec<i64> = r.json()["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["number"].as_i64().unwrap())
+            .collect();
+        n.sort_unstable();
+        n
+    };
+    assert_eq!(list(&mut c, "labels=bug"), [1, 2]);
+    assert_eq!(list(&mut c, "labels=bug&milestone=v1"), [1]);
+    assert_eq!(list(&mut c, "labels=bug&assignee=carol"), [1]);
+    assert_eq!(list(&mut c, "labels=bug&assignee=alice"), Vec::<i64>::new());
+
+    // Closing the milestone and deleting the label.
+    let r = api(
+        &mut c,
+        "PATCH",
+        &format!("/milestones/{ms}"),
+        &token,
+        Some(json!({"state": "closed"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["state"], "closed");
+    assert_eq!(
+        api(&mut c, "DELETE", "/labels/bug", &carol_token, None).status,
+        403
+    );
+    assert_eq!(
+        api(&mut c, "DELETE", "/labels/bug", &token, None).status,
+        204
+    );
+    assert_eq!(list(&mut c, "labels=bug"), Vec::<i64>::new());
+
+    // Those who can't read the repository see nothing.
+    let mut bob = s.login("bob", PASSWORD);
+    let bob_token = create_token(&mut bob, "t", &["issues:write", "repo:read"]);
+    assert_eq!(api(&mut c, "GET", "/labels", &bob_token, None).status, 404);
+    assert_eq!(
+        api(
+            &mut c,
+            "POST",
+            "/milestones",
+            &bob_token,
+            Some(json!({"title": "x"}))
+        )
+        .status,
+        404
+    );
+    assert_eq!(s.client().get("/alice/priv/labels").status, 404);
+}

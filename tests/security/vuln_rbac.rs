@@ -146,6 +146,8 @@ fn concrete(template: &str, repo: &str, head: &str) -> String {
             "{team}" => "devs".to_owned(),
             "{n}" | "{number}" => "1".to_owned(),
             "{id}" => "0192f1a2-3b4c-7d5e-8f60-718293a4b5c6".to_owned(),
+            "{what}" => "labels".to_owned(),
+            "{name}" => "bug".to_owned(),
             "{op}" => "archive".to_owned(),
             "{ref}" => "main".to_owned(),
             "{oid}" | "{rest}" => head.to_owned(),

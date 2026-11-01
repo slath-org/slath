@@ -16,6 +16,7 @@ pub mod error;
 pub mod issues;
 pub mod jobs;
 pub mod keys;
+pub mod labels;
 pub mod maintenance;
 pub mod mfa;
 pub mod notifications;

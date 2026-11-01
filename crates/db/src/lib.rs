@@ -12,6 +12,7 @@ pub mod idempotency;
 pub mod invitations;
 pub mod issues;
 pub mod jobs;
+pub mod labels;
 pub mod mfa;
 pub mod orgs;
 pub mod protections;

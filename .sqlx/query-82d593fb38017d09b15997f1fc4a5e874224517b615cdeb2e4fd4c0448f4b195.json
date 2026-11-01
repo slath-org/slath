@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) FILTER (WHERE i.state = 'open') AS \"open!\", count(*) FILTER (WHERE i.state = 'closed') AS \"closed!\"\n           FROM issues i WHERE i.repo_id = $1\n             AND ($2::uuid IS NULL OR i.author_id = $2)\n             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM issue_assignees a WHERE a.issue_id = i.id AND a.user_id = $3))\n             AND (SELECT count(*) FROM issue_labels l WHERE l.issue_id = i.id AND l.label_id = ANY($4)) = cardinality($4)\n             AND ($5::uuid IS NULL OR i.milestone_id = $5)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "open!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "closed!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "82d593fb38017d09b15997f1fc4a5e874224517b615cdeb2e4fd4c0448f4b195"
+}

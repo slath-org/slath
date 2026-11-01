@@ -7,9 +7,9 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use slath_db::issues::Filter;
 use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
+use slath_service::labels::FilterInput;
 use utoipa::{IntoParams, ToSchema};
 
 use super::support::{PageParams, page};
@@ -37,13 +37,64 @@ pub struct Issue {
     /// `None` for deleted accounts.
     pub author: Option<String>,
     pub comments: i64,
+    /// Label names.
+    pub labels: Vec<String>,
+    /// Usernames.
+    pub assignees: Vec<String>,
+    /// Milestone title.
+    pub milestone: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub closed_at: Option<String>,
 }
 
+/// Labels, assignees, and milestones of a page of issues.
+struct Meta {
+    meta: slath_service::labels::IssueMeta,
+    milestones: Vec<slath_db::labels::Milestone>,
+}
+
+impl Meta {
+    async fn load(
+        state: &AppState,
+        s: &slath_core::authz::Subject,
+        (ns, repo): (&str, &str),
+        ids: &[uuid::Uuid],
+    ) -> Result<Self, AppError> {
+        Ok(Self {
+            meta: state.services.issue_meta(ids).await?,
+            milestones: state.services.milestones(s, ns, repo).await?.1,
+        })
+    }
+
+    fn json(&mut self, i: slath_db::issues::Issue, body_html: String) -> Issue {
+        let labels = self
+            .meta
+            .labels
+            .remove(&i.id)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|l| l.name)
+            .collect();
+        let assignees = self.meta.assignees.remove(&i.id).unwrap_or_default();
+        let milestone = self
+            .milestones
+            .iter()
+            .find(|m| Some(m.id) == i.milestone_id)
+            .map(|m| m.title.clone());
+        let mut j = issue_json(i, body_html);
+        j.labels = labels;
+        j.assignees = assignees;
+        j.milestone = milestone;
+        j
+    }
+}
+
 fn issue_json(i: slath_db::issues::Issue, body_html: String) -> Issue {
     Issue {
+        labels: Vec::new(),
+        assignees: Vec::new(),
+        milestone: None,
         number: i.number,
         title: i.title,
         body: i.body,
@@ -70,6 +121,14 @@ pub struct IssueQuery {
     pub state: Option<String>,
     /// `created` (default) or `updated`.
     pub sort: Option<String>,
+    /// Comma-separated label names; issues must have all of them.
+    pub labels: Option<String>,
+    /// Username.
+    pub assignee: Option<String>,
+    /// Username.
+    pub author: Option<String>,
+    /// Milestone title.
+    pub milestone: Option<String>,
 }
 
 /// A repository's issues, newest first.
@@ -84,14 +143,19 @@ pub async fn list_issues(
     Query(p): Query<PageParams>,
 ) -> Result<Response, AppError> {
     let (offset, limit) = (p.offset(&state)?, p.limit(state.config.limits.api_page_max));
-    let filter = Filter {
-        state: match q.state.as_deref() {
-            Some("all") => None,
-            Some("closed") => Some("closed".to_owned()),
-            _ => Some("open".to_owned()),
-        },
+    let filter = FilterInput {
+        state: q.state,
         sort_updated: q.sort.as_deref() == Some("updated"),
-        ..Filter::default()
+        labels: q
+            .labels
+            .as_deref()
+            .unwrap_or("")
+            .split(',')
+            .map(str::to_owned)
+            .collect(),
+        assignee: q.assignee,
+        author: q.author,
+        milestone: q.milestone,
     };
     let (a, items, _) = state
         .services
@@ -101,13 +165,15 @@ pub async fn list_issues(
         ns: a.repo.namespace.clone(),
         repo: a.repo.name.clone(),
     };
+    let ids: Vec<uuid::Uuid> = items.iter().map(|i| i.id).collect();
+    let mut meta = Meta::load(&state, &s, (&ns, &repo), &ids).await?;
     let mut out = Vec::new();
     for i in items {
         let html = state
             .services
             .render_markdown(&s, Some(&ctx), &i.body)
             .await?;
-        out.push(issue_json(i, html));
+        out.push(meta.json(i, html));
     }
     Ok(page(&state, &uri, out, offset, limit))
 }
@@ -161,7 +227,8 @@ pub async fn get_issue(
         .services
         .render_markdown(&s, Some(&ctx), &i.body)
         .await?;
-    Ok(Json(issue_json(i, html)))
+    let mut meta = Meta::load(&state, &s, (&ns, &repo), &[i.id]).await?;
+    Ok(Json(meta.json(i, html)))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -172,6 +239,12 @@ pub struct UpdateIssue {
     pub state: Option<String>,
     /// With `state: closed`: `completed` (default), `not_planned`, `duplicate`.
     pub state_reason: Option<String>,
+    /// Replaces the labels (names; triage).
+    pub labels: Option<Vec<String>>,
+    /// Replaces the assignees (usernames, at most 10; triage).
+    pub assignees: Option<Vec<String>>,
+    /// Milestone title; an empty string removes it (triage).
+    pub milestone: Option<String>,
 }
 
 /// Edits an issue, or closes or reopens it (author or triage).
@@ -208,6 +281,24 @@ pub async fn update_issue(
         state
             .services
             .set_issue_state(&s, &ns, &repo, number, open, b.state_reason.as_deref())
+            .await?;
+    }
+    if let Some(l) = &b.labels {
+        state
+            .services
+            .set_issue_labels(&s, &ns, &repo, number, l)
+            .await?;
+    }
+    if let Some(u) = &b.assignees {
+        state
+            .services
+            .set_issue_assignees(&s, &ns, &repo, number, u)
+            .await?;
+    }
+    if let Some(m) = &b.milestone {
+        state
+            .services
+            .set_issue_milestone(&s, &ns, &repo, number, Some(m))
             .await?;
     }
     get_issue(State(state), ApiSubject(s), Path((ns, repo, number))).await

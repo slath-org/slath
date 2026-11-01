@@ -1,0 +1,75 @@
+<aside class="issue-sidebar" aria-label="Issue details">
+  <section aria-labelledby="side-assignees">
+    <h2 id="side-assignees" class="sidebar-heading">Assignees</h2>
+    {%- if assignees.is_empty() %}
+    <p class="text-secondary">No one</p>
+    {%- else %}
+    <ul class="plain-list">
+      {%- for u in assignees %}
+      <li><a href="/{{ u }}">{{ u }}</a></li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if perms.triage %}
+    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/assignees" class="form sidebar-form" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <div class="field">
+        <label for="assignees">Assign people</label>
+        <input id="assignees" name="assignees" type="text" value="{{ assignees|join(", ") }}" autocapitalize="none" spellcheck="false" aria-describedby="assignees-hint">
+        <p id="assignees-hint" class="hint">Usernames, separated by commas.</p>
+      </div>
+      <button type="submit" class="button">Save assignees</button>
+    </form>
+    {%- endif %}
+  </section>
+  <section aria-labelledby="side-labels">
+    <h2 id="side-labels" class="sidebar-heading">Labels</h2>
+    {%- if labels.is_empty() %}
+    <p class="text-secondary">None</p>
+    {%- else %}
+    <ul class="plain-list">
+      {%- for l in labels %}
+      <li><a class="label-chip" href="{{ self.label_href(l.name) }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></a></li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if perms.triage && !label_choices.is_empty() %}
+    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/labels" class="form sidebar-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <fieldset class="field">
+        <legend>Apply labels</legend>
+        {%- for (l, on) in label_choices %}
+        <div class="checkbox">
+          <input type="checkbox" id="label-{{ l.id }}" name="labels" value="{{ l.name }}"{% if on %} checked{% endif %}>
+          <label for="label-{{ l.id }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></label>
+        </div>
+        {%- endfor %}
+      </fieldset>
+      <button type="submit" class="button">Save labels</button>
+    </form>
+    {%- endif %}
+  </section>
+  <section aria-labelledby="side-milestone">
+    <h2 id="side-milestone" class="sidebar-heading">Milestone</h2>
+    {%- if let Some(m) = milestone %}
+    <p><a href="/{{ header.namespace }}/{{ header.name }}/milestones">{{ m }}</a></p>
+    {%- else %}
+    <p class="text-secondary">None</p>
+    {%- endif %}
+    {%- if perms.triage && (!milestone_choices.is_empty() || milestone.is_some()) %}
+    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/milestone" class="form sidebar-form">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <div class="field">
+        <label for="milestone">Set milestone</label>
+        <select id="milestone" name="milestone">
+          <option value="">None</option>
+          {%- for t in milestone_choices %}
+          <option value="{{ t }}"{% if milestone.as_deref() == Some(t.as_str()) %} selected{% endif %}>{{ t }}</option>
+          {%- endfor %}
+        </select>
+      </div>
+      <button type="submit" class="button">Save milestone</button>
+    </form>
+    {%- endif %}
+  </section>
+</aside>

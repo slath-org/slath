@@ -886,8 +886,19 @@ fieldset.field {
   min-width: 0;
 }
 .item-title {
+  display: inline-block;
+  min-height: 1.5rem;
   font-weight: var(--weight-semibold);
   overflow-wrap: anywhere;
+}
+.item-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-block: var(--space-1);
+}
+.item-labels .label-chip {
+  margin: 0;
 }
 .item-meta {
   margin: 0;
@@ -976,4 +987,93 @@ fieldset.field {
 }
 .markdown a.ref-closed {
   color: var(--text-secondary);
+}
+
+/* Labels and milestones */
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  margin-inline-end: var(--space-1);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  min-height: 1.5rem;
+  font-size: var(--text-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+a.label-chip:hover {
+  border-color: var(--text-secondary);
+}
+.label-swatch {
+  flex: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.milestone-progress {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  margin-block-start: var(--space-1);
+  accent-color: var(--success);
+}
+.issue-filters {
+  margin-block-end: var(--space-3);
+}
+.issue-filters summary {
+  cursor: pointer;
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+}
+.filter-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+  max-width: none;
+}
+.filter-form .button-row {
+  grid-column: 1 / -1;
+}
+.issue-layout {
+  display: grid;
+  gap: var(--space-5);
+}
+@media (min-width: 60rem) {
+  .issue-layout {
+    grid-template-columns: minmax(0, 1fr) 16rem;
+  }
+}
+.issue-main {
+  min-width: 0;
+}
+.issue-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.issue-sidebar section {
+  padding-block-end: var(--space-3);
+  border-block-end: var(--border-width) solid var(--border);
+}
+.sidebar-heading {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  margin: 0 0 var(--space-2);
+}
+.issue-sidebar p {
+  margin: 0;
+}
+.sidebar-form {
+  margin-block-start: var(--space-2);
+}
+.sidebar-form input[type="text"],
+.sidebar-form select {
+  width: 100%;
 }

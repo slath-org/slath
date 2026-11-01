@@ -17,6 +17,8 @@
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
 {% include "settings/errors.html" %}
+<div class="issue-layout">
+<div class="issue-main">
 <ol class="timeline">
   <li class="timeline-comment">
     <article aria-label="Description">
@@ -93,5 +95,8 @@
   {%- endif %}
 </form>
 {%- endif %}
+</div>
+{% include "repo/issue_sidebar.html" %}
+</div>
 </div>
 {% endblock %}

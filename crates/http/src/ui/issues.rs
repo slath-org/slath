@@ -10,9 +10,9 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::authz::{Action, Subject};
-use slath_db::issues::Filter;
 use slath_markup::refs::RefContext;
 use slath_service::issues::{IssuePerms, TimelineItem};
+use slath_service::labels::FilterInput;
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -38,6 +38,8 @@ fn ref_ctx(a: &RepoAccess) -> RefContext {
 }
 
 struct IssueRow {
+    labels: Vec<slath_db::labels::Label>,
+    assignees: Vec<String>,
     number: i32,
     title: String,
     state: String,
@@ -58,12 +60,75 @@ struct ListPage {
     closed: i64,
     can_create: bool,
     next: Option<String>,
+    q: ListQuery,
+    /// The filter as a query string without the state.
+    query: String,
+    milestones: Vec<String>,
+    filtered: bool,
 }
 
-#[derive(Deserialize, Default)]
+impl ListPage {
+    fn label_href(&self, name: &str) -> String {
+        super::labels::filter_href(&self.header.namespace, &self.header.name, "labels", name)
+    }
+}
+
+#[derive(Deserialize, Default, Clone)]
 struct ListQuery {
     state: Option<String>,
     page: Option<i64>,
+    /// Comma-separated; issues must have all of them.
+    #[serde(default)]
+    labels: String,
+    #[serde(default)]
+    assignee: String,
+    #[serde(default)]
+    author: String,
+    #[serde(default)]
+    milestone: String,
+    /// `created` (default) or `updated`.
+    #[serde(default)]
+    sort: String,
+}
+
+fn enc(v: &str) -> String {
+    let mut out = String::new();
+    for b in v.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+impl ListQuery {
+    fn input(&self, state: &str) -> FilterInput {
+        FilterInput {
+            state: Some(state.to_owned()),
+            labels: self.labels.split(',').map(str::to_owned).collect(),
+            assignee: Some(self.assignee.clone()),
+            author: Some(self.author.clone()),
+            milestone: Some(self.milestone.clone()),
+            sort_updated: self.sort == "updated",
+        }
+    }
+
+    /// The filter as `&key=value` pairs (empty values left out).
+    fn query(&self) -> String {
+        [
+            ("labels", &self.labels),
+            ("assignee", &self.assignee),
+            ("author", &self.author),
+            ("milestone", &self.milestone),
+            ("sort", &self.sort),
+        ]
+        .iter()
+        .filter(|(_, v)| !v.trim().is_empty())
+        .map(|(k, v)| format!("&{k}={}", enc(v.trim())))
+        .collect()
+    }
 }
 
 async fn list(
@@ -80,23 +145,25 @@ async fn list(
         _ => "open",
     };
     let page = q.page.unwrap_or(1).clamp(1, 10_000);
-    let filter = Filter {
-        state: (st != "all").then(|| st.to_owned()),
-        ..Filter::default()
-    };
     let (a, items, (open, closed)) = state
         .services
         .issue_list(
             &subject,
             &ns,
             &repo,
-            &filter,
+            &q.input(st),
             (page - 1) * PER_PAGE,
             PER_PAGE + 1,
         )
         .await?;
     let more = items.len() as i64 > PER_PAGE;
+    let ids: Vec<uuid::Uuid> = items.iter().take(PER_PAGE as usize).map(|i| i.id).collect();
+    let mut meta = state.services.issue_meta(&ids).await?;
+    let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
+    let query = q.query();
     Ok(render(&ListPage {
+        milestones: ms.into_iter().map(|m| m.title).collect(),
+        filtered: !query.is_empty(),
         header: RepoHeader::new(&a, &subject, "issues"),
         can_create: a.can(&subject, Action::IssueCreate),
         issues: items
@@ -108,6 +175,8 @@ async fn list(
                 } else {
                     "circle-check"
                 },
+                labels: meta.labels.remove(&i.id).unwrap_or_default(),
+                assignees: meta.assignees.remove(&i.id).unwrap_or_default(),
                 number: i.number,
                 title: i.title,
                 state: i.state,
@@ -119,7 +188,9 @@ async fn list(
         state: st.to_owned(),
         open,
         closed,
-        next: more.then(|| format!("?state={st}&page={}", page + 1)),
+        next: more.then(|| format!("?state={st}{query}&page={}", page + 1)),
+        query,
+        q,
         ctx,
     }))
 }
@@ -338,6 +409,18 @@ struct IssuePage {
     perms: IssuePerms,
     message: Option<&'static str>,
     errors: Vec<FieldError>,
+    labels: Vec<slath_db::labels::Label>,
+    assignees: Vec<String>,
+    milestone: Option<String>,
+    /// For triagers: every label of the repository and whether it's set.
+    label_choices: Vec<(slath_db::labels::Label, bool)>,
+    milestone_choices: Vec<String>,
+}
+
+impl IssuePage {
+    fn label_href(&self, name: &str) -> String {
+        super::labels::filter_href(&self.header.namespace, &self.header.name, "labels", name)
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -345,7 +428,7 @@ struct StatusQuery {
     status: Option<String>,
 }
 
-async fn issue_page(
+pub(super) async fn issue_page(
     state: &AppState,
     ctx: PageCtx,
     subject: &Subject,
@@ -393,9 +476,39 @@ async fn issue_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let perms = state.services.issue_perms(subject, &a, &issue);
+    let mut meta = state.services.issue_meta(&[issue.id]).await?;
+    let labels = meta.labels.remove(&issue.id).unwrap_or_default();
+    let (_, ms) = state.services.milestones(subject, ns, repo).await?;
+    let milestone = ms
+        .iter()
+        .find(|m| Some(m.id) == issue.milestone_id)
+        .map(|m| m.title.clone());
+    let (label_choices, milestone_choices) = if perms.triage {
+        let (_, all) = state.services.labels(subject, ns, repo).await?;
+        (
+            all.into_iter()
+                .map(|l| {
+                    let on = labels.iter().any(|x| x.id == l.id);
+                    (l, on)
+                })
+                .collect(),
+            ms.iter()
+                .filter(|m| m.state == "open" || Some(m.id) == issue.milestone_id)
+                .map(|m| m.title.clone())
+                .collect(),
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let mut res = render(&IssuePage {
         header: RepoHeader::new(&a, subject, "issues"),
-        perms: state.services.issue_perms(subject, &a, &issue),
+        assignees: meta.assignees.remove(&issue.id).unwrap_or_default(),
+        labels,
+        milestone,
+        label_choices,
+        milestone_choices,
+        perms,
         created: issue.created_at.into(),
         state_icon: if issue.state == "open" {
             "circle-dot"

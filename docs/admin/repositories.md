@@ -45,3 +45,21 @@ ambiguous.
   can read where the mention was made.
 - Titles have up to 256 characters; descriptions and comments are limited
   by `limits.text_max_bytes` (256 KiB by default).
+
+### Labels, milestones, and assignees
+
+- The maintain role creates, edits, and deletes labels (name up to 50
+  characters, a color, an optional description) and milestones (title up
+  to 100 characters, optional due date and description; open or closed)
+  on the repository's Labels and Milestones pages. Label names and
+  milestone titles are unique per repository regardless of case.
+  Deleting a label removes it from all issues; deleting a milestone leaves
+  its issues without one.
+- The write role applies labels, sets the milestone, and assigns up to 10
+  people from the issue's sidebar. Only people who can read the repository
+  can be assigned. Each change appears on the issue's timeline.
+- The issue list filters by labels, assignee, author, and milestone, and
+  sorts by creation or last update. Filters combine: an issue must match
+  all of them, including every listed label. The API takes the same
+  filters (`labels`, `assignee`, `author`, `milestone`, `sort`) and sets
+  `labels`, `assignees`, and `milestone` with `PATCH` on an issue.

@@ -317,6 +317,7 @@ fn concrete(template: &str, head: &str) -> String {
             "{op}" if template.contains("/settings/state/") => "archive".to_owned(),
             "{op}" => "suspend".to_owned(),
             "{id}" => "0192f1a2-3b4c-7d5e-8f60-718293a4b5c6".to_owned(),
+            "{what}" => "labels".to_owned(),
             "{file}" => "alice.svg".to_owned(),
             "{hash}" => "0".to_owned(),
             "{ref}" => "main".to_owned(),
