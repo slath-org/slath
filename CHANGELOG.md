@@ -131,3 +131,8 @@ Before 1.0.0, minor versions may contain breaking changes.
   keys, certificates, private keys, and keys whose data doesn't match their
   type are rejected with an explanation. A key can belong to only one
   account, and the error for a duplicate doesn't reveal whose it is.
+- Organizations: any user can create one (or only site administrators, with
+  `auth.users_can_create_orgs = false`) and becomes its owner. Owners add
+  members, change roles, and edit the profile; the last owner can't leave or
+  be demoted. Members can see the member list. Users and organizations share
+  one case-insensitive namespace, and profile pages live at `/<name>`.

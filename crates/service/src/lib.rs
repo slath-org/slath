@@ -10,6 +10,7 @@
 pub mod accounts;
 pub mod error;
 pub mod keys;
+pub mod orgs;
 pub mod sessions;
 pub mod settings;
 pub mod tokens;

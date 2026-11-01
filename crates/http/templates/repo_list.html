@@ -1,0 +1,16 @@
+{%- if repos.is_empty() %}
+<p class="text-secondary">No repositories yet.</p>
+{%- else %}
+<ul class="repo-list">
+{%- for r in repos %}
+  <li>
+    <a href="/{{ r.namespace }}/{{ r.name }}" class="repo-name">{{ r.namespace }}/{{ r.name }}</a>
+    {%- if r.private %} <span class="badge">Private</span>{% endif %}
+    {%- if r.archived %} <span class="badge">Archived</span>{% endif %}
+    {%- if let Some(d) = r.description %}
+    <p class="text-secondary">{{ d }}</p>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}

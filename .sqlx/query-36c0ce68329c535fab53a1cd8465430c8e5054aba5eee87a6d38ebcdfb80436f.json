@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text AS \"name!\", m.role FROM org_members m\n           JOIN organizations o ON o.id = m.org_id JOIN namespaces n ON n.id = o.namespace_id\n           WHERE m.user_id = $1 ORDER BY n.name LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "role",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "org_members",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "36c0ce68329c535fab53a1cd8465430c8e5054aba5eee87a6d38ebcdfb80436f"
+}

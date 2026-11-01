@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}New organization{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>New organization</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="/-/orgs" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
+      aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="name-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters. Users and organizations share names.</p>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="display_name">Display name</label>
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
+      {%- if self.error("display_name").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div><button type="submit" class="button button-primary">Create organization</button></div>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<div class="profile-head">
+  <img src="/-/avatars/{{ name }}.svg" alt="" width="64" height="64">
+  <div>
+    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}</h1>
+    <p class="text-secondary">Joined <time datetime="{{ joined.iso }}">{{ joined.text }}</time></p>
+  </div>
+</div>
+{%- if !orgs.is_empty() %}
+<h2>Organizations</h2>
+<ul class="inline-list">
+{%- for o in orgs %}
+  <li><a href="/{{ o }}">{{ o }}</a></li>
+{%- endfor %}
+</ul>
+{%- endif %}
+<h2>Repositories</h2>
+{% include "repo_list.html" %}
+{% endblock %}

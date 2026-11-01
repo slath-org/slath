@@ -64,7 +64,7 @@ pub(crate) fn state(s: &str) -> UserState {
 /// namespace table) or a reserved name fails with [`DbError::Conflict`].
 pub async fn create(tx: &mut sqlx::PgConnection, u: &NewUser<'_>) -> Result<UserId, DbError> {
     let reserved: bool = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM reserved_names WHERE name = $1) AS "r!""#,
+        r#"SELECT EXISTS (SELECT 1 FROM reserved_names WHERE name = $1::citext) AS "r!""#,
         u.name
     )
     .fetch_one(&mut *tx)
@@ -115,7 +115,7 @@ pub async fn find_for_login(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.kind, u.state, u.display_name,
                   u.email::text AS email, u.is_admin, u.theme, u.created_at, u.password_hash
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
-           WHERE n.name = $1"#,
+           WHERE n.name = $1::citext"#,
         name
     )
     .fetch_optional(exec)

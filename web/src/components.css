@@ -306,3 +306,57 @@ fieldset.field {
   font-family: var(--font-mono);
   font-size: var(--code-size);
 }
+
+/* Profiles and lists */
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+.profile-head img {
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--border);
+  flex: none;
+}
+.profile-head h1,
+.profile-head p {
+  margin: 0;
+}
+.profile-handle {
+  font-weight: var(--weight-regular);
+  font-size: var(--text-lg);
+}
+.inline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+.inline-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+.repo-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.repo-list li {
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width) solid var(--border);
+}
+.repo-list p {
+  margin: var(--space-1) 0 0;
+}
+.repo-name {
+  font-weight: var(--weight-semibold);
+}
+.role-form {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}

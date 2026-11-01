@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Members · {{ org }}{% endblock %}
+{% block content %}
+<p><a href="/{{ org }}">{{ org }}</a></p>
+<h1>Members</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="members-caption" id="members">
+<table class="table">
+  <caption id="members-caption" class="visually-hidden">Members of {{ org }}</caption>
+  <thead><tr><th scope="col">Member</th><th scope="col">Role</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for mem in members %}
+    <tr>
+      <td><a href="/{{ mem.name }}">{{ mem.name }}</a>{% if let Some(d) = mem.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td>
+      {%- if can_manage %}
+        <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/role" class="inline-form role-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <label for="role-{{ loop.index }}" class="visually-hidden">Role of {{ mem.name }}</label>
+          <select id="role-{{ loop.index }}" name="role">
+            <option value="member"{% if mem.role == "member" %} selected{% endif %}>Member</option>
+            <option value="owner"{% if mem.role == "owner" %} selected{% endif %}>Owner</option>
+          </select>
+          <button type="submit" class="button">Change<span class="visually-hidden"> role of {{ mem.name }}</span></button>
+        </form>
+      {%- else %}
+        {%- if mem.role == "owner" %}Owner{% else %}Member{% endif %}
+      {%- endif %}
+      </td>
+      <td>
+      {%- if can_manage || viewer.as_deref() == Some(mem.name.as_str()) %}
+        <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/remove" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">{% if viewer.as_deref() == Some(mem.name.as_str()) %}Leave{% else %}Remove<span class="visually-hidden"> {{ mem.name }}</span>{% endif %}</button>
+        </form>
+      {%- endif %}
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- if can_manage %}
+<h2>Add a member</h2>
+<form method="post" action="/{{ org }}/-/members" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" required autocapitalize="none" spellcheck="false"
+      {%- if self.error("username").is_some() %} aria-invalid="true" aria-describedby="username-error"{% endif %}>
+    {%- if let Some(e) = self.error("username") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="new-role">Role</label>
+    <select id="new-role" name="role">
+      <option value="member" selected>Member</option>
+      <option value="owner">Owner</option>
+    </select>
+  </div>
+  <div><button type="submit" class="button button-primary">Add member</button></div>
+</form>
+{%- endif %}
+{% endblock %}

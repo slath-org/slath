@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ org }}{% endblock %}
+{% block content %}
+<div class="narrow">
+<p><a href="/{{ org }}">{{ org }}</a></p>
+<h1>Organization settings</h1>
+{% include "settings/errors.html" %}
+<form method="post" action="/{{ org }}/-/settings" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="display_name">Display name</label>
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
+      {%- if self.error("display_name").is_some() %} aria-invalid="true"{% endif %}>
+  </div>
+  <div class="field">
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="3" maxlength="500"
+      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>{{ description }}</textarea>
+  </div>
+  <div><button type="submit" class="button button-primary">Save</button></div>
+</form>
+</div>
+{% endblock %}

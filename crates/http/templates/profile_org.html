@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+<div class="profile-head">
+  <img src="/-/avatars/{{ name }}.svg" alt="" width="64" height="64">
+  <div>
+    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}</h1>
+    {%- if let Some(d) = description %}
+    <p>{{ d }}</p>
+    {%- endif %}
+  </div>
+</div>
+{%- if is_member || can_manage %}
+<nav aria-label="Organization">
+  <ul class="inline-list">
+    <li><a href="/{{ name }}/-/members">Members</a></li>
+    {%- if can_manage %}
+    <li><a href="/{{ name }}/-/settings">Settings</a></li>
+    {%- endif %}
+  </ul>
+</nav>
+{%- endif %}
+<h2>Repositories</h2>
+{% include "repo_list.html" %}
+{% endblock %}

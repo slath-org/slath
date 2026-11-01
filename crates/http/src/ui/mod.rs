@@ -6,6 +6,8 @@
 pub mod account;
 pub mod design;
 pub mod identicon;
+pub mod profiles;
+pub mod repos;
 pub mod settings;
 
 use askama::Template;
@@ -261,6 +263,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/", get(home))
         .merge(account::router())
         .merge(settings::router())
+        .merge(profiles::router())
         .route("/-/assets/{hash}/{*file}", get(crate::assets::serve));
     if cfg!(debug_assertions) {
         r.merge(design::router())

@@ -21,7 +21,7 @@ pub struct NewAccount {
     pub is_admin: bool,
 }
 
-fn name_error(e: &NameError) -> FieldError {
+pub(crate) fn name_error(e: &NameError) -> FieldError {
     let code = match e {
         NameError::Empty => "required",
         NameError::TooLong => "too_long",

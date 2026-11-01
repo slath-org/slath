@@ -137,3 +137,53 @@ async fn bots_need_owners_and_have_no_password(pool: PgPool) {
     .await;
     assert!(r.is_err(), "bot without owner must be rejected");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn name_lookups_are_case_insensitive(pool: PgPool) {
+    let mut tx = pool.begin().await.unwrap();
+    slath_db::users::create(
+        &mut tx,
+        &slath_db::users::NewUser {
+            name: "Alice",
+            email: None,
+            email_verified: false,
+            display_name: None,
+            password_hash: None,
+            is_admin: false,
+        },
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    for spelling in ["alice", "ALICE", "Alice"] {
+        let found = slath_db::users::find_for_login(&pool, spelling)
+            .await
+            .unwrap();
+        assert_eq!(
+            found.map(|r| r.user.name),
+            Some("Alice".to_owned()),
+            "{spelling}"
+        );
+        assert!(
+            slath_db::orgs::resolve_namespace(&pool, spelling)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+    // Reserved names are reserved in every spelling, even below the core check.
+    let mut tx = pool.begin().await.unwrap();
+    let r = slath_db::users::create(
+        &mut tx,
+        &slath_db::users::NewUser {
+            name: "API",
+            email: None,
+            email_verified: false,
+            display_name: None,
+            password_hash: None,
+            is_admin: false,
+        },
+    )
+    .await;
+    assert!(matches!(r, Err(DbError::Conflict("name"))));
+}

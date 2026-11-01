@@ -7,5 +7,6 @@
 mod auth;
 mod headers;
 mod keys;
+mod orgs;
 mod settings;
 mod tokens;

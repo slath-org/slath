@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.kind, u.state, u.display_name,\n                  u.email::text AS email, u.is_admin, u.theme, u.created_at, u.password_hash\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           WHERE n.name = $1",
+  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.kind, u.state, u.display_name,\n                  u.email::text AS email, u.is_admin, u.theme, u.created_at, u.password_hash\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           WHERE n.name = $1::citext",
   "describe": {
     "columns": [
       {
@@ -139,5 +139,5 @@
       true
     ]
   },
-  "hash": "d10a44ae651a66edc79ae4fdf82b78bd04eae74ab4c13404016f14f84a1b0eba"
+  "hash": "7fd84fffa20149ad270010f1f4fcf325ad3767d50e8f2e5bf8e1791be92adcfe"
 }
