@@ -16,7 +16,11 @@ use crate::runner::Runner;
 /// so Git itself allows non-fast-forwards and deletions.
 pub const REPO_CONFIG: &[(&str, &str)] = &[
     ("core.logAllRefUpdates", "true"),
-    ("receive.fsckObjects", "true"),
+    // Every object entering the repository is checked: pushes and the
+    // internal fetches for forks and merge requests alike.
+    ("transfer.fsckObjects", "true"),
+    // Push options could become a side channel around policy; none are used.
+    ("receive.advertisePushOptions", "false"),
     ("receive.denyNonFastForwards", "false"),
     ("receive.denyDeletes", "false"),
     ("transfer.hideRefs", "refs/slath"),
