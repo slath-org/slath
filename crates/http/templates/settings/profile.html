@@ -22,6 +22,25 @@
     <p id="display_name-error" class="field-error">{{ e }}</p>
     {%- endif %}
   </div>
+  <div class="field">
+    <label for="email">Email address</label>
+    <input id="email" name="email" type="email" value="{{ email }}" maxlength="254" autocomplete="email" aria-describedby="email-hint{% if self.error("email").is_some() %} email-error{% endif %}"
+      {%- if self.error("email").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="email-hint" class="hint">
+      {%- if email.is_empty() %}Used for password resets and notifications. Never shown to others.
+      {%- else if email_verified %}Confirmed. Never shown to others.
+      {%- else if email_enabled %}Not confirmed yet: open the link we sent to it. Password resets need a confirmed address.
+      {%- else %}Not confirmed. Never shown to others.{% endif %}</p>
+    {%- if let Some(e) = self.error("email") %}
+    <p id="email-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
   <div><button type="submit" class="button button-primary">Save profile</button></div>
 </form>
+{%- if email_enabled && !email.is_empty() && !email_verified %}
+<form method="post" action="/-/settings/profile/verify" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button">Send the confirmation link again</button>
+</form>
+{%- endif %}
 {% endblock %}

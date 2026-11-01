@@ -10,7 +10,7 @@ use slath_core::names::{NameError, NamespaceName};
 
 use crate::Services;
 use crate::error::{FieldError, Result, ServiceError};
-use crate::sessions::{NewSessionInfo, SessionCookie};
+use crate::sessions::NewSessionInfo;
 
 /// Input for a new human account.
 pub struct NewAccount {
@@ -33,7 +33,7 @@ pub(crate) fn name_error(e: &NameError) -> FieldError {
     FieldError::new("username", code, e.to_string())
 }
 
-fn valid_email(e: &str) -> bool {
+pub(crate) fn valid_email(e: &str) -> bool {
     let Some((local, domain)) = e.split_once('@') else {
         return false;
     };
@@ -55,6 +55,85 @@ pub(crate) async fn hash_password(p: Secret<String>) -> Result<String> {
         .map_err(ServiceError::internal)
 }
 
+/// A validated new account, with its password hashed.
+pub(crate) struct CheckedAccount {
+    pub name: NamespaceName,
+    pub email: Option<String>,
+    pub display_name: Option<String>,
+    pub password_hash: Option<String>,
+    pub is_admin: bool,
+}
+
+/// Validates a new account (all problems at once) and hashes its password.
+pub(crate) async fn check_account(a: NewAccount) -> Result<CheckedAccount> {
+    let mut errors = Vec::new();
+    let name = match NamespaceName::parse(&a.username) {
+        Ok(n) => Some(n),
+        Err(e) => {
+            errors.push(name_error(&e));
+            None
+        }
+    };
+    let email = a.email.as_deref().map(str::trim).filter(|e| !e.is_empty());
+    if let Some(e) = email
+        && !valid_email(e)
+    {
+        errors.push(FieldError::new(
+            "email",
+            "invalid",
+            "Enter an email address like name@example.org.",
+        ));
+    }
+    let pw = a.password.map(|p| password::normalize(p.expose()));
+    if let Some(p) = &pw
+        && let Err(e) = password::check_policy(p, &a.username, email)
+    {
+        errors.push(FieldError::new("password", "policy", e.to_string()));
+    }
+    let Some(name) = name.filter(|_| errors.is_empty()) else {
+        return Err(ServiceError::Invalid(errors));
+    };
+    let password_hash = match pw {
+        Some(p) => Some(hash_password(p).await?),
+        None => None,
+    };
+    Ok(CheckedAccount {
+        name,
+        email: email.map(str::to_owned),
+        display_name: a.display_name.filter(|d| !d.trim().is_empty()),
+        password_hash,
+        is_admin: a.is_admin,
+    })
+}
+
+/// Inserts a checked account in the caller's transaction.
+pub(crate) async fn insert_account(
+    tx: &mut sqlx::PgConnection,
+    a: &CheckedAccount,
+) -> Result<UserId> {
+    slath_db::users::create(
+        tx,
+        &slath_db::users::NewUser {
+            name: a.name.as_str(),
+            email: a.email.as_deref(),
+            email_verified: false,
+            display_name: a.display_name.as_deref(),
+            password_hash: a.password_hash.as_deref(),
+            is_admin: a.is_admin,
+        },
+    )
+    .await
+    .map_err(|e| match e {
+        slath_db::DbError::Conflict("name") => {
+            ServiceError::invalid("username", "taken", "This name is already taken.")
+        }
+        slath_db::DbError::Conflict(_) => {
+            ServiceError::invalid("email", "taken", "This email address is already in use.")
+        }
+        other => other.into(),
+    })
+}
+
 impl Services {
     /// Creates a human account. Allowed for the system (CLI bootstrap) and
     /// site administrators.
@@ -68,68 +147,33 @@ impl Services {
             } => {}
             _ => return Err(ServiceError::NotFound),
         }
-        let mut errors = Vec::new();
-        let name = match NamespaceName::parse(&a.username) {
-            Ok(n) => Some(n),
-            Err(e) => {
-                errors.push(name_error(&e));
-                None
-            }
-        };
-        let email = a.email.as_deref().map(str::trim).filter(|e| !e.is_empty());
-        if let Some(e) = email
-            && !valid_email(e)
-        {
-            errors.push(FieldError::new(
-                "email",
-                "invalid",
-                "Enter an email address like name@example.org.",
-            ));
-        }
-        let pw = a.password.map(|p| password::normalize(p.expose()));
-        if let Some(p) = &pw
-            && let Err(e) = password::check_policy(p, &a.username, email)
-        {
-            errors.push(FieldError::new("password", "policy", e.to_string()));
-        }
-        let Some(name) = name.filter(|_| errors.is_empty()) else {
-            return Err(ServiceError::Invalid(errors));
-        };
-        let hash = match pw {
-            Some(p) => Some(hash_password(p).await?),
-            None => None,
-        };
+        let checked = check_account(a).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        let id = slath_db::users::create(
-            &mut tx,
-            &slath_db::users::NewUser {
-                name: name.as_str(),
-                email,
-                email_verified: false,
-                display_name: a.display_name.as_deref().filter(|d| !d.trim().is_empty()),
-                password_hash: hash.as_deref(),
-                is_admin: a.is_admin,
-            },
-        )
-        .await
-        .map_err(|e| match e {
-            slath_db::DbError::Conflict("name") => {
-                ServiceError::invalid("username", "taken", "This name is already taken.")
-            }
-            slath_db::DbError::Conflict(_) => {
-                ServiceError::invalid("email", "taken", "This email address is already in use.")
-            }
-            other => other.into(),
-        })?;
+        let id = insert_account(&mut tx, &checked).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.after_account_created(subject, id, &checked).await;
+        Ok(id)
+    }
+
+    /// Verification email and audit record of a new account.
+    pub(crate) async fn after_account_created(
+        &self,
+        subject: &Subject,
+        id: UserId,
+        a: &CheckedAccount,
+    ) {
+        if a.email.is_some()
+            && let Err(e) = self.send_verification(id).await
+        {
+            tracing::warn!(error = %e, "sending the verification email failed");
+        }
         self.audit(
             subject,
             "user.create",
             crate::audit::Target::new("user", Some(*id.as_uuid())),
-            serde_json::json!({"username": name.as_str(), "admin": a.is_admin}),
+            serde_json::json!({"username": a.name.as_str(), "admin": a.is_admin}),
         )
         .await;
-        Ok(id)
     }
 
     /// True if the instance has no accounts yet (the login page then explains
@@ -146,7 +190,7 @@ impl Services {
         username: &str,
         password: Secret<String>,
         info: NewSessionInfo,
-    ) -> Result<(SessionCookie, UserId), LoginError> {
+    ) -> Result<crate::mfa::SignIn, LoginError> {
         let limits = &self.config.limits;
         let account_key = format!(
             "account:{}",
@@ -234,6 +278,17 @@ impl Services {
                 .await
                 .map_err(LoginError::from_db)?;
         }
+        if self
+            .has_second_factor(record.user.id)
+            .await
+            .map_err(|e| LoginError::Internal(e.to_string()))?
+        {
+            let challenge = self
+                .start_challenge(record.user.id, "login", "password", serde_json::json!({}))
+                .await
+                .map_err(|e| LoginError::Internal(e.to_string()))?;
+            return Ok(crate::mfa::SignIn::SecondFactor(challenge));
+        }
         let cookie = self
             .create_session(
                 record.user.id,
@@ -256,7 +311,7 @@ impl Services {
             serde_json::json!({}),
         )
         .await;
-        Ok((cookie, record.user.id))
+        Ok(crate::mfa::SignIn::Session(cookie, record.user.id))
     }
 }
 
@@ -268,6 +323,12 @@ pub enum LoginError {
     Invalid,
     #[error("too many attempts")]
     Throttled,
+    /// The second-factor step expired or was used up; sign in again.
+    #[error("sign in again")]
+    Expired,
+    /// The account has a second factor: a valid code is needed too.
+    #[error("a second-factor code is required")]
+    CodeRequired,
     #[error("internal error: {0}")]
     Internal(String),
 }

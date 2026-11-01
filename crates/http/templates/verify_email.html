@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Confirm your email address{% endblock %}
+{% block content %}
+<div class="narrow">
+<h1>Confirm your email address</h1>
+{%- if let Some(m) = outcome %}
+<div class="{% if ok %}success-summary{% else %}error-summary{% endif %}" role="{% if ok %}status{% else %}alert{% endif %}"><p>{{ m }}</p></div>
+<p><a href="/">Continue</a></p>
+{%- else if let Some(email) = email %}
+<p>Confirm that <strong>{{ email }}</strong> is your address.</p>
+<form method="post" action="/-/verify-email" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="token" value="{{ token }}">
+  <div><button type="submit" class="button button-primary">Confirm</button></div>
+</form>
+{%- else %}
+<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2>This link doesn't work</h2>
+  <p>It has expired or was already used. You can send a new one from your profile settings.</p>
+</div>
+{%- endif %}
+</div>
+{% endblock %}
