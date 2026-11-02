@@ -5,6 +5,8 @@
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_01_code_browser_pages_accessible", async ({ page }) => {
+  // Seven pages, each with an accessibility scan.
+  test.slow();
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo");
   await expect(page.getByRole("heading", { name: "README.md" })).toBeVisible();
