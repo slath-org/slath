@@ -30,8 +30,12 @@ for _ in $(seq 1 60); do
     sleep 1
 done
 
+# The admin pages are rendered too; they need a second factor by default,
+# which this rendering check doesn't set up (sign-in with MFA is tested in
+# the browser tests).
 "$ENGINE" run -d --name "$NAME-app" --network "container:$NAME-db" \
     -e SLATH__DATABASE__URL=postgres://slath:slath@127.0.0.1/slath \
+    -e SLATH__AUTH__REQUIRE_MFA_FOR_ADMINS=false \
     -e SLATH__SERVER__LISTEN=127.0.0.1:3000 \
     -e SLATH__SERVER__PUBLIC_URL=http://127.0.0.1:3000 \
     --entrypoint /bin/sh "$IMAGE" \
