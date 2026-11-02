@@ -277,6 +277,22 @@ pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Re
 }
 
 /// Saves a user's appearance settings.
+/// The Markdown editor mode (`wysiwyg` or `source`).
+pub async fn set_editor_mode(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    mode: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET editor_mode = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        mode
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 pub async fn set_appearance(
     exec: impl PgExecutor<'_>,
     id: UserId,

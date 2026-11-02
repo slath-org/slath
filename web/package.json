@@ -10,6 +10,13 @@
     "lint:css": "stylelint \"src/**/*.css\""
   },
   "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/highlight": "1.2.5",
+    "@milkdown/kit": "7.23.0",
     "htmx.org": "4.0.0"
   },
   "devDependencies": {

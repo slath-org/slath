@@ -68,9 +68,11 @@
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <div class="field">
     <label for="comment-body">Add a comment</label>
-    <textarea id="comment-body" name="body" rows="6" required></textarea>
+    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ issue.number }}">
+    <textarea id="comment-body" name="body" rows="6" required autocomplete="off"></textarea>
+    </slath-editor>
   </div>
-  <div class="button-row"><button type="submit" class="button button-primary">Comment</button></div>
+  <div class="button-row"><button type="submit" class="button button-primary">Comment</button> <button type="submit" class="button" formaction="/-/ui/markdown/preview?repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}&amp;field=body" formnovalidate data-editor-nojs>Preview</button></div>
 </form>
 {%- else if ctx.user.is_none() %}
 <p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to comment.</p>

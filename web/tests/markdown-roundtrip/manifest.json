@@ -1,0 +1,305 @@
+{
+  "_spdx": {
+    "SPDX-FileCopyrightText": "2026 Erich Seifert <dev@erichseifert.de>",
+    "SPDX-License-Identifier": "AGPL-3.0-or-later"
+  },
+  "_doc": "Round-trip corpus for the Markdown editor. lossless=true: serialize(parse(x)) must equal x byte for byte. All files: serialization must be idempotent and the comrak rendering of the output must equal that of the input. The .md files carry no SPDX header because any header would change the document under test; this manifest covers them.",
+  "files": {
+    "01-headings.md": {
+      "lossless": true,
+      "constructs": [
+        "heading-atx"
+      ]
+    },
+    "02-emphasis.md": {
+      "lossless": true,
+      "constructs": [
+        "emphasis",
+        "strong"
+      ]
+    },
+    "03-list-bullet.md": {
+      "lossless": true,
+      "constructs": [
+        "list-bullet-tight"
+      ]
+    },
+    "04-list-ordered.md": {
+      "lossless": true,
+      "constructs": [
+        "list-ordered-tight"
+      ]
+    },
+    "05-list-nested.md": {
+      "lossless": true,
+      "constructs": [
+        "list-nested"
+      ]
+    },
+    "06-tasklist.md": {
+      "lossless": true,
+      "constructs": [
+        "tasklist"
+      ]
+    },
+    "07-code-span.md": {
+      "lossless": true,
+      "constructs": [
+        "code-span"
+      ]
+    },
+    "08-code-fenced.md": {
+      "lossless": true,
+      "constructs": [
+        "code-fenced",
+        "info-string"
+      ]
+    },
+    "09-blockquote.md": {
+      "lossless": true,
+      "constructs": [
+        "blockquote",
+        "softbreak"
+      ]
+    },
+    "10-table.md": {
+      "lossless": true,
+      "constructs": [
+        "table"
+      ]
+    },
+    "11-table-align.md": {
+      "lossless": true,
+      "constructs": [
+        "table",
+        "table-align"
+      ]
+    },
+    "12-links-inline.md": {
+      "lossless": true,
+      "constructs": [
+        "link-inline",
+        "link-title"
+      ]
+    },
+    "13-autolinks.md": {
+      "lossless": true,
+      "constructs": [
+        "autolink-extended"
+      ]
+    },
+    "14-images.md": {
+      "lossless": true,
+      "constructs": [
+        "image",
+        "image-title"
+      ]
+    },
+    "15-hardbreak-backslash.md": {
+      "lossless": true,
+      "constructs": [
+        "hardbreak-backslash"
+      ]
+    },
+    "16-references.md": {
+      "lossless": true,
+      "constructs": [
+        "references"
+      ]
+    },
+    "17-suggestion.md": {
+      "lossless": true,
+      "constructs": [
+        "code-fenced",
+        "suggestion"
+      ]
+    },
+    "18-unicode-emoji.md": {
+      "lossless": true,
+      "constructs": [
+        "unicode"
+      ]
+    },
+    "19-strikethrough.md": {
+      "lossless": true,
+      "constructs": [
+        "strikethrough"
+      ]
+    },
+    "20-thematic-break.md": {
+      "lossless": true,
+      "constructs": [
+        "thematic-break"
+      ]
+    },
+    "21-softbreaks.md": {
+      "lossless": true,
+      "constructs": [
+        "softbreak"
+      ]
+    },
+    "22-issue-body.md": {
+      "lossless": true,
+      "constructs": [
+        "heading-atx",
+        "list-ordered-tight",
+        "strong",
+        "references",
+        "code-fenced",
+        "tasklist"
+      ]
+    },
+    "23-footnotes.md": {
+      "lossless": true,
+      "constructs": [
+        "footnote"
+      ]
+    },
+    "24-escapes.md": {
+      "lossless": true,
+      "constructs": [
+        "escapes"
+      ]
+    },
+    "25-ordered-start.md": {
+      "lossless": true,
+      "constructs": [
+        "list-ordered-start"
+      ]
+    },
+    "26-blockquote-nested.md": {
+      "lossless": true,
+      "constructs": [
+        "blockquote",
+        "blockquote-nested",
+        "list-in-quote"
+      ]
+    },
+    "27-code-in-list.md": {
+      "lossless": true,
+      "constructs": [
+        "list-loose",
+        "code-in-list"
+      ]
+    },
+    "28-link-code-mix.md": {
+      "lossless": true,
+      "constructs": [
+        "link-inline",
+        "code-span",
+        "strong"
+      ]
+    },
+    "40-emphasis-underscore.md": {
+      "lossless": false,
+      "constructs": [
+        "emphasis-underscore"
+      ]
+    },
+    "41-bullets-star-plus.md": {
+      "lossless": false,
+      "constructs": [
+        "list-bullet-star",
+        "list-bullet-plus"
+      ]
+    },
+    "42-ordered-paren.md": {
+      "lossless": false,
+      "constructs": [
+        "list-ordered-paren"
+      ]
+    },
+    "43-list-loose.md": {
+      "lossless": false,
+      "constructs": [
+        "list-loose"
+      ],
+      "note": "loose list; must stay loose (renders <p> in <li>)"
+    },
+    "44-fence-tilde.md": {
+      "lossless": false,
+      "constructs": [
+        "code-fenced-tilde",
+        "code-fenced-long"
+      ]
+    },
+    "45-code-indented.md": {
+      "lossless": false,
+      "constructs": [
+        "code-indented"
+      ]
+    },
+    "46-setext.md": {
+      "lossless": false,
+      "constructs": [
+        "heading-setext"
+      ]
+    },
+    "47-links-reference.md": {
+      "lossless": false,
+      "constructs": [
+        "link-reference"
+      ]
+    },
+    "48-hardbreak-spaces.md": {
+      "lossless": false,
+      "constructs": [
+        "hardbreak-spaces"
+      ]
+    },
+    "49-html-text.md": {
+      "lossless": false,
+      "constructs": [
+        "html-inline",
+        "html-block"
+      ],
+      "note": "raw HTML is off on the server; renders as text/omitted"
+    },
+    "50-entities.md": {
+      "lossless": false,
+      "constructs": [
+        "entities"
+      ]
+    },
+    "51-autolink-angle.md": {
+      "lossless": false,
+      "constructs": [
+        "autolink-angle"
+      ]
+    },
+    "52-heading-closing.md": {
+      "lossless": false,
+      "constructs": [
+        "heading-closing-seq",
+        "not-a-heading"
+      ]
+    },
+    "53-table-unpadded.md": {
+      "lossless": false,
+      "constructs": [
+        "table-unpadded"
+      ]
+    },
+    "54-trailing-and-blank.md": {
+      "lossless": false,
+      "constructs": [
+        "extra-blank-lines",
+        "trailing-spaces"
+      ]
+    },
+    "55-table-inline.md": {
+      "lossless": true,
+      "constructs": [
+        "table",
+        "table-inline",
+        "table-escaped-pipe"
+      ]
+    },
+    "56-image-in-link.md": {
+      "lossless": true,
+      "constructs": [
+        "image-in-link"
+      ]
+    }
+  }
+}

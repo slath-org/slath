@@ -4,7 +4,7 @@ import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fi
 
 for (const [path, heading] of [
   ["/-/settings/profile", "Profile"],
-  ["/-/settings/security", "Password"],
+  ["/-/settings/security", "Security"],
   ["/-/settings/sessions", "Sessions"],
   ["/-/settings/keys", "SSH keys"],
   ["/-/settings/tokens", "Access tokens"],

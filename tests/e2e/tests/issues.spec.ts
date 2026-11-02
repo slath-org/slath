@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, write, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   test.slow();
@@ -18,11 +18,11 @@ test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   await expectAccessible(page);
   const title = `Broken on ${testInfo.project.name}`;
   await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Description").fill("It fails with **bold** text and #1.");
+  await write(page, "Description", "It fails with bold text.");
   await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
   await expectAccessible(page);
-  await page.getByLabel("Add a comment").fill("A comment.");
+  await write(page, "Add a comment", "A comment.");
   await tapOrClick(page, page.getByRole("button", { name: "Comment", exact: true }));
   await expect(page.getByText("A comment.")).toBeVisible();
   await tapOrClick(page, page.getByRole("button", { name: "Close issue" }));

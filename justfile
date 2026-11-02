@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: tokens-check web fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses upgrade-notes guards css-lint
+check: tokens-check web bundle-size fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses upgrade-notes guards css-lint
 
 # Regenerate web/src/tokens.css from web/src/tokens.json.
 tokens:
@@ -28,6 +28,10 @@ tokens-check:
 web:
     @node -e 'if (+process.versions.node.split(".")[0] < 22) { console.error("Node.js >= 22 is required (see web/.nvmrc), found " + process.version); process.exit(1) }'
     cd web && { [ -d node_modules ] || npm ci; } && npm run build
+
+# The Markdown editor stays within its download budget per mode.
+bundle-size:
+    python3 scripts/check_bundle_size.py
 
 # Browser tests (Playwright, all browsers and matrix cells). Playwright runs in
 # its container unless E2E_LOCAL=1. Pass Playwright args, e.g. `-g name`.

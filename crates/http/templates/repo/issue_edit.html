@@ -19,13 +19,15 @@
   {%- endif %}
   <div class="field">
     <label for="body">{% if title.is_some() %}Description{% else %}Comment{% endif %}</label>
-    <textarea id="body" name="body" rows="12"
+    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
+    <textarea id="body" name="body" rows="12" autocomplete="off"
       {%- if self.error("body").is_some() %} aria-invalid="true" aria-describedby="body-error"{% endif %}>{{ body }}</textarea>
+    </slath-editor>
     {%- if let Some(e) = self.error("body") %}
     <p id="body-error" class="field-error">{{ e }}</p>
     {%- endif %}
   </div>
-  <div class="button-row"><button type="submit" class="button button-primary">Save</button> <a class="button button-quiet" href="{{ back }}">Cancel</a></div>
+  <div class="button-row"><button type="submit" class="button button-primary">Save</button> <button type="submit" class="button" formaction="/-/ui/markdown/preview?repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}&amp;field=body" formnovalidate data-editor-nojs>Preview</button> <a class="button button-quiet" href="{{ back }}">Cancel</a></div>
 </form>
 </div>
 {% endblock %}

@@ -1112,3 +1112,178 @@ a.label-chip:hover {
   white-space: nowrap;
   vertical-align: bottom;
 }
+
+/* Markdown editor (<slath-editor>). Without JavaScript it is just its
+   textarea; the shell adds the bar, the editing surface, and the preview. */
+slath-editor {
+  display: block;
+}
+.editor {
+  position: relative;
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.editor:focus-within {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--border-width);
+}
+.editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-block-end: var(--border-width) solid var(--border);
+  background: var(--surface-subtle);
+  border-start-start-radius: var(--radius-md);
+  border-start-end-radius: var(--radius-md);
+}
+.editor-tabs {
+  display: flex;
+  gap: var(--space-1);
+}
+.editor-tab {
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+.editor-tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+}
+.editor-tool {
+  min-inline-size: var(--target-min);
+  min-block-size: var(--target-min);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.editor-tool:hover,
+.editor-tab:hover {
+  background: var(--surface);
+}
+.editor-tool:focus-visible,
+.editor-tab:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+}
+.editor-surface {
+  min-block-size: 10rem;
+}
+.editor-rich .editor-content {
+  min-block-size: 10rem;
+  padding: var(--space-2) var(--space-3);
+  outline: none;
+}
+.editor-preview {
+  min-block-size: 10rem;
+  padding: var(--space-2) var(--space-3);
+}
+.editor-notice,
+.editor-draft,
+.editor-upload {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+}
+.editor-status:empty {
+  display: none;
+}
+.editor-status {
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.editor .ac-list {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  min-inline-size: 16rem;
+  max-inline-size: 28rem;
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.editor .ac-option {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-3);
+  cursor: pointer;
+}
+.editor .ac-option[aria-selected="true"] {
+  background: var(--selection);
+}
+.editor .ac-detail {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-help table {
+  margin-block: var(--space-3);
+}
+.preview-box {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+/* What ProseMirror needs to edit correctly (from prosemirror-view's
+   stylesheet, MIT): kept spaces, wrapping, and selection display. */
+.editor-rich .ProseMirror {
+  position: relative;
+  overflow-wrap: break-word;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+}
+.editor-rich .ProseMirror pre {
+  white-space: pre-wrap;
+}
+.editor-rich .ProseMirror li {
+  position: relative;
+}
+.editor-rich .ProseMirror-hideselection *::selection {
+  background: transparent;
+}
+.editor-rich .ProseMirror-hideselection {
+  caret-color: transparent;
+}
+.editor-rich .ProseMirror [draggable][contenteditable="false"] {
+  user-select: text;
+}
+.editor-rich .ProseMirror-selectednode {
+  outline: var(--focus-width) solid var(--focus-ring);
+}
+.editor-rich img.ProseMirror-separator {
+  display: inline;
+  margin: 0;
+  border: none;
+}
+.editor-image-placeholder {
+  color: var(--text-secondary);
+}
+
+/* File pickers (avatars): a full-size target. */
+input[type="file"] {
+  min-block-size: var(--target-min);
+  max-inline-size: 100%;
+}

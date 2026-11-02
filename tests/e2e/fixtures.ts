@@ -51,6 +51,32 @@ export async function tapOrClick(_page: Page, target: Locator): Promise<void> {
   }
 }
 
+/**
+ * The editing surface of a Markdown editor whose label starts with `label`
+ * (the editor names it "<label> (rich text)" or "<label> (Markdown source)").
+ */
+export function editor(page: Page, label: string): Locator {
+  return page.getByRole("textbox", { name: new RegExp(`^${label} \\(`) });
+}
+
+/**
+ * Makes the editor on the page use rich text. The mode is stored per
+ * account, and tests running in parallel share the account.
+ */
+export async function richText(page: Page): Promise<void> {
+  await expect(page.locator("slath-editor[data-state=ready]").first()).toBeVisible();
+  const toRich = page.getByRole("button", { name: "Switch to rich text" }).first();
+  if (await toRich.isVisible()) await toRich.click();
+  await expect(page.getByRole("button", { name: "Switch to Markdown source" }).first()).toBeVisible();
+}
+
+/** Types into a Markdown editor (works for both modes in every browser). */
+export async function write(page: Page, label: string, text: string): Promise<void> {
+  const box = editor(page, label);
+  await tapOrClick(page, box);
+  await page.keyboard.type(text);
+}
+
 /** Accounts created by slath-e2e-server. */
 export const USERS = {
   admin: { name: "sysadmin", password: "e2e admin password" },

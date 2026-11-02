@@ -1,6 +1,7 @@
 # Lucide icons included in the sprite (scripts/build_icons.py). One name per
 # line. Only icons the UI uses belong here; remove unused ones.
 archive
+bold
 book-open
 check
 chevron-down
@@ -10,6 +11,7 @@ circle-check
 circle-dot
 circle-x
 clock
+code
 copy
 download
 external-link
@@ -23,10 +25,15 @@ git-branch
 git-commit-horizontal
 git-fork
 globe
+heading
 history
 info
+italic
 key-round
 link
+list
+list-ordered
+list-todo
 lock
 log-in
 log-out
@@ -34,15 +41,19 @@ menu
 message-square
 monitor
 moon
+paperclip
 pencil
 plus
 search
 settings
 shield
+square-code
 star
 sun
+table
 tag
 terminal
+text-quote
 trash-2
 triangle-alert
 user

@@ -29,6 +29,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Labels and milestones for issues, managed by maintainers in the web UI and the API.
 - Assign up to 10 people to an issue, set its labels and milestone; each change is shown on the timeline.
 - Filter issues by labels, assignee, author, and milestone, and sort them by last update.
+- A Markdown editor for issues and comments with rich-text and source modes, a toolbar, shortcuts, and a server-rendered preview.
+- The editor suggests people, issues, labels, and milestones, uploads pasted or dropped files, and keeps unsent drafts in the browser.
 - Internal repositories: visible to every signed-in user and "not found" for signed-out visitors and anonymous Git clients.
 - Sign in with OpenID Connect providers (`[[auth.oidc]]`), link them under Settings → Security, and optionally register at first sign-in.
 - OpenID sign-ins check every token property, never link accounts by email, and still ask for the second factor.

@@ -1,0 +1,3 @@
+- [ ] write the spike
+- [x] read D-31
+- [ ] measure bundles

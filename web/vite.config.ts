@@ -10,6 +10,14 @@ export default defineConfig({
   base: "./",
   // public/ holds generated files copied as is (the icon sprite).
   publicDir: "public",
+  resolve: {
+    alias: {
+      // micromark's entity decoder: see src/editor/decode-entity.ts.
+      "decode-named-character-reference": decodeURIComponent(
+        new URL("src/editor/decode-entity.ts", import.meta.url).pathname,
+      ),
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

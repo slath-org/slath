@@ -13,6 +13,7 @@ import { installTheme } from "./theme";
 import { installMenus } from "./menu";
 import { installDialogs } from "./dialog";
 import { installPasskeys } from "./passkeys";
+import { installEditors } from "./editor";
 
 installCsrf();
 installA11ySwaps();
@@ -22,3 +23,4 @@ installTheme();
 installMenus();
 installDialogs();
 installPasskeys();
+installEditors();

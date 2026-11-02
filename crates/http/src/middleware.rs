@@ -142,7 +142,7 @@ pub async fn security_headers(
         set(
             h,
             HeaderName::from_static("content-security-policy-report-only"),
-            "require-trusted-types-for 'script'; trusted-types htmx; \
+            "require-trusted-types-for 'script'; trusted-types htmx slath-editor ProseMirrorClipboard; \
              report-uri /-/csp-report; report-to csp",
         );
         set(

@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-OWN_OUTPUT = {"app.js", "app.js.map", "style.css", "icons.svg"}
+OWN_OUTPUT = {"app.js", "app.js.map", "style.css", "icons.svg", "shell.js", "shell.js.map"}
 NOTICE_NAMES = {"htmx.org": "htmx", "lucide-static": "Lucide"}
 
 
@@ -45,8 +45,36 @@ def check(root: Path) -> list[str]:
     if dist.is_dir():
         for f in sorted(p for p in dist.rglob("*") if p.is_file()):
             rel = f.relative_to(dist).as_posix()
-            if rel not in OWN_OUTPUT and f"`{rel}`" not in notices:
+            covered = rel in OWN_OUTPUT or f"`{rel}`" in notices
+            # A source map belongs to its script.
+            if rel.endswith(".map") and f"`{rel[:-4]}`" in notices:
+                covered = True
+            if not covered:
                 errors.append(f"web/dist/{rel} is neither Slath's own output nor listed in THIRD-PARTY-NOTICES.md")
+        # Every npm package bundled into a script (per its source map) needs
+        # a row with the version that was bundled.
+        for m in sorted(dist.glob("*.js.map")):
+            try:
+                sources = json.loads(m.read_text(encoding="utf-8")).get("sources", [])
+            except (OSError, ValueError):
+                errors.append(f"web/dist/{m.name} is not a readable source map")
+                continue
+            for src in sources:
+                i = src.rfind("node_modules/")
+                if i < 0:
+                    continue
+                parts = src[i + len("node_modules/"):].split("/")
+                name = "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+                pkg_json = root / "web/node_modules" / name / "package.json"
+                if not pkg_json.is_file():
+                    continue
+                version = json.loads(pkg_json.read_text(encoding="utf-8")).get("version", "")
+                label = NOTICE_NAMES.get(name, name)
+                row = re.search(rf"^\| {re.escape(label)} \| ([^|]+) \|", notices, re.M)
+                if not row:
+                    errors.append(f"bundled package {name} ({m.name}) has no row in THIRD-PARTY-NOTICES.md")
+                elif row.group(1).strip() != version:
+                    errors.append(f"bundled package {name} is {version} but THIRD-PARTY-NOTICES.md says {row.group(1).strip()}")
     for link in re.findall(r"\]\((LICENSES/[^)]+)\)", notices):
         if not (root / link).is_file():
             errors.append(f"THIRD-PARTY-NOTICES.md links to missing {link}")

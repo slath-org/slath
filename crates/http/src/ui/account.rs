@@ -75,6 +75,9 @@ pub async fn login_page(
         providers: state.services.oidc_providers(),
         notice: match q.status.as_deref() {
             Some("password-reset") => Some("Your password was changed. Sign in with it now."),
+            Some("signed-out") => {
+                Some("You're signed out. Text you hadn't sent yet was removed from this browser.")
+            }
             _ => None,
         },
     }))
@@ -324,7 +327,9 @@ pub async fn logout(
             .await
             .map_err(|e| AppError::internal(&e))?;
     }
-    let mut res = Redirect::to("/").into_response();
+    // The sign-in page says that unsent editor drafts were removed (the
+    // page's script removes them when the sign-out form is sent).
+    let mut res = Redirect::to("/-/login?status=signed-out").into_response();
     res.headers_mut()
         .append(header::SET_COOKIE, set_cookie(&state, name, "", None));
     Ok(res)

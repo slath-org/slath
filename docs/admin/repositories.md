@@ -170,6 +170,27 @@ and stored as a new PNG, so EXIF data such as GPS coordinates and camera
 details is not kept. Without an upload, a pattern generated from the name is
 shown. Avatars never come from external services.
 
+### Writing Markdown
+
+Issue descriptions and comments use the Markdown editor:
+
+- **Rich text** shows formatting while you type; **Markdown** shows the
+  source with highlighting. The button next to the toolbar switches between
+  them, and the choice is remembered. Text the rich editor would rewrite
+  (for example setext headings or reference-style links) opens as source.
+  Text you don't change is saved exactly as it was.
+- The toolbar and its shortcuts (listed under **Shortcuts**) format text;
+  Tab always leaves the editor. Typing `@`, `#`, `~`, `%`, or `owner/repo#`
+  offers people, issues, labels, and milestones.
+- **Preview** shows the text as it will be published.
+- Files can be attached with the paperclip button, by pasting, or by
+  dropping them; links to issues and commits on this instance become short
+  references when pasted.
+- Unsent text is kept in the browser until the form is sent; signing out
+  removes it.
+- Without JavaScript, the field is a plain text box with a **Preview**
+  button.
+
 ### Labels, milestones, and assignees
 
 - The maintain role creates, edits, and deletes labels (name up to 50

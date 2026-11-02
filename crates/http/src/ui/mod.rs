@@ -7,6 +7,7 @@ pub mod account;
 pub mod admin;
 pub mod browse;
 pub mod design;
+pub mod editor;
 pub mod identicon;
 pub mod import;
 pub mod issues;
@@ -70,6 +71,10 @@ pub struct PageCtx {
     pub admin_needs_mfa: bool,
     /// The user must confirm their address before creating anything.
     pub needs_confirmation: bool,
+    /// The Markdown editor mode: `wysiwyg` or `source`.
+    pub editor_mode: &'static str,
+    /// User content may load images from other sites.
+    pub external_images: bool,
 }
 
 /// Returns the value of cookie `name`.
@@ -144,6 +149,11 @@ impl PageCtx {
                 .map_or_else(|| "/".to_owned(), |p| p.as_str().to_owned()),
             maintenance: state.services.maintenance().is_on(),
             admin_needs_mfa: session.is_some_and(|s| state.services.admin_needs_mfa(s)),
+            external_images: state.config.ui.external_images,
+            editor_mode: match session.map(|s| s.row.editor_mode.as_str()) {
+                Some("source") => "source",
+                _ => "wysiwyg",
+            },
             needs_confirmation: session.is_some_and(|s| {
                 !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
             }),
@@ -343,6 +353,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(registration::router())
         .merge(passkeys::router())
         .merge(oidc::router())
+        .merge(editor::router())
         .merge(teams::router())
         .merge(issues::router())
         .merge(labels::router())

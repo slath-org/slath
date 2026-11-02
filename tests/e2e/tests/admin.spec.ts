@@ -3,6 +3,8 @@
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_01_admin_pages_accessible", async ({ page }) => {
+  // Seven pages with an axe run each; the audit log grows during the suite.
+  test.slow();
   await signIn(page, USERS.admin);
   await tapOrClick(page, page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Admin", exact: true }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Users");

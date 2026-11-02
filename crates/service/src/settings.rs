@@ -51,6 +51,19 @@ impl Services {
         }
     }
 
+    /// Remembers the Markdown editor mode (`wysiwyg` or `source`).
+    pub async fn set_editor_mode(&self, session: &Session, mode: &str) -> Result<()> {
+        if !matches!(mode, "wysiwyg" | "source") {
+            return Err(ServiceError::invalid(
+                "mode",
+                "invalid",
+                "Choose wysiwyg or source.",
+            ));
+        }
+        slath_db::users::set_editor_mode(&self.pool, session.user_id(), mode).await?;
+        Ok(())
+    }
+
     /// Saves theme (`system`/`light`/`dark`), density
     /// (`comfortable`/`compact`), and code font size (12-20 px).
     pub async fn update_appearance(

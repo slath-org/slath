@@ -53,6 +53,8 @@ pub struct SessionRow {
     pub theme: String,
     pub density: String,
     pub code_font_size: i16,
+    /// `wysiwyg` or `source`.
+    pub editor_mode: String,
     pub created_at: OffsetDateTime,
     pub last_seen_at: OffsetDateTime,
     pub expires_at: OffsetDateTime,
@@ -102,7 +104,7 @@ pub async fn find(
     let row = sqlx::query!(
         r#"SELECT s.id_hash, s.user_id, n.name::text AS "user_name!", u.kind, u.state, u.is_admin,
                   (u.email IS NULL OR u.email_verified) AS "email_confirmed!", u.theme,
-                  u.density, u.code_font_size,
+                  u.density, u.code_font_size, u.editor_mode,
                   s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,
                   host(s.ip) AS ip, s.user_agent
            FROM sessions s
@@ -125,6 +127,7 @@ pub async fn find(
         theme: r.theme,
         density: r.density,
         code_font_size: r.code_font_size,
+        editor_mode: r.editor_mode,
         created_at: r.created_at,
         last_seen_at: r.last_seen_at,
         expires_at: r.expires_at,
