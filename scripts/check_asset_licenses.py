@@ -17,7 +17,16 @@ import re
 import sys
 from pathlib import Path
 
-OWN_OUTPUT = {"app.js", "app.js.map", "style.css", "icons.svg", "shell.js", "shell.js.map"}
+OWN_OUTPUT = {
+    "app.js",
+    "app.js.map",
+    "style.css",
+    "icons.svg",
+    "shell.js",
+    "shell.js.map",
+    "logo-light.svg",
+    "logo-dark.svg",
+}
 NOTICE_NAMES = {"htmx.org": "htmx", "lucide-static": "Lucide"}
 
 

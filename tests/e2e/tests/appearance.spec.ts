@@ -27,6 +27,48 @@ test("conf_a11y_03_os_scheme_switch_updates_live", async ({ page }) => {
   await expect.poll(() => bg(page)).toBe(light);
 });
 
+test("logo_follows_the_theme", async ({ page }) => {
+  const light = page.locator(".site-name .logo-light");
+  const dark = page.locator(".site-name .logo-dark");
+  // The system scheme picks the logo...
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/-/login");
+  await expect(light).toBeVisible();
+  await expect(dark).toBeHidden();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(dark).toBeVisible();
+  await expect(light).toBeHidden();
+  // The favicon follows the system scheme, one per scheme.
+  const lightIcon = page.locator('link[rel="icon"][data-scheme="light"]');
+  const darkIcon = page.locator('link[rel="icon"][data-scheme="dark"]');
+  await expect(lightIcon).toHaveAttribute("media", "(prefers-color-scheme: light)");
+  await expect(lightIcon).toHaveAttribute("href", /logo-light\.svg$/);
+  await expect(darkIcon).toHaveAttribute("media", "(prefers-color-scheme: dark)");
+  await expect(darkIcon).toHaveAttribute("href", /logo-dark\.svg$/);
+  // A chosen theme wins over the system scheme, for the logo and the
+  // favicon, at once and after a reload.
+  const menu = page.locator("#appearance-menu");
+  await tapOrClick(page, menu.locator("summary"));
+  const saved = page.waitForResponse((r) => r.url().endsWith("/-/appearance") && r.request().method() === "POST");
+  await tapOrClick(page, menu.getByText("Light", { exact: true }));
+  await expect(light).toBeVisible();
+  await expect(dark).toBeHidden();
+  await expect(lightIcon).toHaveAttribute("media", "all");
+  await expect(darkIcon).toHaveAttribute("media", "not all");
+  await saved;
+  await page.goto("/-/login");
+  await expect(light).toBeVisible();
+  await expect(lightIcon).toHaveAttribute("media", "all");
+  await expect(darkIcon).toHaveAttribute("media", "not all");
+  // Back to the system scheme.
+  await tapOrClick(page, menu.locator("summary"));
+  const back = page.waitForResponse((r) => r.url().endsWith("/-/appearance"));
+  await tapOrClick(page, menu.getByText("System", { exact: true }));
+  await back;
+  await expect(darkIcon).toHaveAttribute("media", "(prefers-color-scheme: dark)");
+  await expect(dark).toBeVisible();
+});
+
 test("conf_a11y_03_theme_override_persists_without_wrong_first_paint", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");

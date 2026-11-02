@@ -6,11 +6,30 @@
 // is right. Without JavaScript the menu's "Apply" button submits the form;
 // with it, a choice applies at once and is saved in the background.
 
+/** Shows the favicon of the chosen theme, or the system scheme's. */
+function favicon(theme: string): void {
+  for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel="icon"][data-scheme]')) {
+    const scheme = link.dataset.scheme ?? "";
+    const media =
+      theme === "light" || theme === "dark"
+        ? theme === scheme
+          ? "all"
+          : "not all"
+        : `(prefers-color-scheme: ${scheme})`;
+    if (link.media === media) continue;
+    // Browsers pick up a changed icon reliably only from a new element.
+    const fresh = link.cloneNode() as HTMLLinkElement;
+    fresh.media = media;
+    link.replaceWith(fresh);
+  }
+}
+
 function apply(name: string, value: string): void {
   const root = document.documentElement;
   if (name === "theme") {
     if (value === "light" || value === "dark") root.dataset.theme = value;
     else delete root.dataset.theme;
+    favicon(value);
   } else if (name === "density" && (value === "comfortable" || value === "compact")) {
     root.dataset.density = value;
   }

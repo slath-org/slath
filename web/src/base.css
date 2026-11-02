@@ -149,6 +149,29 @@ pre {
   color: var(--text);
   text-decoration: none;
 }
+.site-name {
+  gap: var(--space-2);
+}
+.site-name .logo {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+/* One logo per theme: the explicit choice wins, otherwise the system's. */
+.logo-dark,
+:root[data-theme="dark"] .logo-light {
+  display: none;
+}
+:root[data-theme="dark"] .logo-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .logo-dark {
+    display: block;
+  }
+}
 /* Header links are targets, not running text. */
 .site-name,
 .site-nav .nav-end > a {

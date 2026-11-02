@@ -11,6 +11,9 @@
 {%- endif %}
 <title>{% block title %}{% endblock %} · Slath</title>
 <link rel="preload" href="{{ ctx.font_url }}" as="font" type="font/woff2" crossorigin>
+{#- One favicon per theme: the chosen theme's, or the system scheme's. #}
+<link rel="icon" type="image/svg+xml" href="{{ ctx.logo.light_url }}" data-scheme="light" media="{% if ctx.theme == Some("light") %}all{% else if ctx.theme == Some("dark") %}not all{% else %}(prefers-color-scheme: light){% endif %}">
+<link rel="icon" type="image/svg+xml" href="{{ ctx.logo.dark_url }}" data-scheme="dark" media="{% if ctx.theme == Some("dark") %}all{% else if ctx.theme == Some("light") %}not all{% else %}(prefers-color-scheme: dark){% endif %}">
 <link rel="stylesheet" href="{{ ctx.style_url }}">
 <script type="module" src="{{ ctx.app_url }}" nonce="{{ ctx.nonce }}"></script>
 </head>
@@ -18,7 +21,7 @@
 <a class="skip-link" href="#main">Skip to main content</a>
 <header class="site-header">
   <nav class="site-nav" aria-label="Main">
-    <a class="site-name" href="/">Slath</a>
+    <a class="site-name" href="/"><img class="logo logo-light" src="{{ ctx.logo.light_url }}" alt="" width="24" height="24"><img class="logo logo-dark" src="{{ ctx.logo.dark_url }}" alt="" width="24" height="24">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
       <a class="nav-icon" href="/-/search" title="Search">{% call m::icon(ctx, "search") %}{% endcall %}<span class="visually-hidden">Search</span></a>

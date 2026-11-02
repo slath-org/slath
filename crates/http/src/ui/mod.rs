@@ -57,6 +57,25 @@ impl NavUser {
     }
 }
 
+/// The logo in the header and as the favicon, one image per theme. Pages
+/// only use these URLs, so a logo set by the instance can replace the
+/// bundled one here.
+#[derive(Debug, Clone)]
+pub struct Logo {
+    pub light_url: String,
+    pub dark_url: String,
+}
+
+impl Logo {
+    #[must_use]
+    pub fn bundled(assets: &crate::assets::Assets) -> Self {
+        Self {
+            light_url: assets.url("logo-light.svg"),
+            dark_url: assets.url("logo-dark.svg"),
+        }
+    }
+}
+
 /// Per-request data every page template needs.
 #[derive(Debug, Clone)]
 pub struct PageCtx {
@@ -78,6 +97,8 @@ pub struct PageCtx {
     pub font_url: String,
     /// The icon sprite; icons are `<use href="{icons_url}#name">`.
     pub icons_url: String,
+    /// The logo for light and dark themes (the bundled Slath logo).
+    pub logo: Logo,
     /// Path and query of this request (for "sign in and come back").
     pub here: String,
     /// Read-only maintenance is on (an upgrade is running).
@@ -157,6 +178,7 @@ impl PageCtx {
             style_url: state.assets.url("style.css"),
             font_url: state.assets.url("SourceSans3-Upright.woff2"),
             icons_url: state.assets.url("icons.svg"),
+            logo: Logo::bundled(&state.assets),
             here: uri
                 .path_and_query()
                 .map_or_else(|| "/".to_owned(), |p| p.as_str().to_owned()),

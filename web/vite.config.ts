@@ -8,7 +8,8 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   base: "./",
-  // public/ holds generated files copied as is (the icon sprite).
+  // public/ holds files copied as is: the generated icon sprite and the
+  // logos from src/brand.
   publicDir: "public",
   resolve: {
     alias: {

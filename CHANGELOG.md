@@ -12,6 +12,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 - Administrators need two-factor authentication to use administration unless `require_mfa_for_admins` is turned off; see the upgrading guide.
 - Search, notifications, settings, administration, sign out, and edit or delete actions are icon buttons with names for screen readers and tooltips.
+- The Slath logo appears in the top bar and as the favicon, in the variant for the light or dark theme in use.
 - The top bar shows your avatar instead of your user name; it links to your profile and shows the name as a tooltip.
 - Repository pages show Watch/Unwatch on every tab, at the right of the repository name on wide screens.
 - Issues, Labels, and Milestones are a side menu, like the repository settings; section headings have more space above them.
