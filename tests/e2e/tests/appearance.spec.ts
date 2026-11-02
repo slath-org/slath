@@ -171,6 +171,8 @@ async function smallTargets(page: Page): Promise<string[]> {
     for (const el of document.querySelectorAll<HTMLElement>(selector)) {
       const style = getComputedStyle(el);
       if (style.visibility === "hidden" || style.display === "none" || el.closest("[hidden], dialog:not([open]), details:not([open]) > :not(summary)")) continue;
+      // Disabled controls (e.g. rendered task-list boxes) aren't targets.
+      if ((el as HTMLInputElement).disabled) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) continue;
       // A small checkbox or radio counts with its label as the target.
