@@ -4,7 +4,7 @@
 {% include "repo/header.html" %}
 <h1>{{ heading }}</h1>
 {%- if refs.is_empty() %}
-<p class="text-secondary">None yet.</p>
+<p class="text-secondary empty-state">None yet.</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="refs-caption">
 <table class="table">

@@ -6,12 +6,12 @@
 <div class="issue-heading">
   <h1><bdi>{{ issue.title }}</bdi> <span class="text-secondary">#{{ issue.number }}</span></h1>
   {%- if perms.edit %}
-  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/edit">Edit</a>
+  <a class="button button-icon" title="Edit issue" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit issue</span></a>
   {%- endif %}
 </div>
 <p class="issue-status">
   <span class="state-label state-{{ issue.state }}">{% call m::icon(ctx, state_icon) %}{% endcall %}{% if issue.state == "open" %}Open{% else %}Closed{% if let Some(r) = issue.state_reason %} ({{ reason_text }}){% endif %}{% endif %}</span>
-  <span class="text-secondary">{% if let Some(a) = issue.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} opened this <time datetime="{{ created.iso }}">{{ created.text }}</time> · {{ issue.comments }} comment{% if issue.comments != 1 %}s{% endif %}</span>
+  <span class="text-secondary">{% if let Some(a) = issue.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} opened this <time datetime="{{ created.iso }}">{{ created.text }}</time>{% if let Some(u) = updated %} · updated <time datetime="{{ u.iso }}">{{ u.text }}</time>{% endif %} · {{ issue.comments }} comment{% if issue.comments != 1 %}s{% endif %}</span>
 </p>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -42,17 +42,17 @@
       {%- if !c.deleted && (c.own || perms.moderate) %}
       <div class="comment-actions">
         {%- if c.own %}
-        <a class="button button-quiet" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/edit">Edit<span class="visually-hidden"> comment</span></a>
+        <a class="button button-quiet button-icon" title="Edit comment" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit comment</span></a>
         {%- endif %}
         {%- if perms.moderate %}
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/{% if c.hidden %}unhide{% else %}hide{% endif %}" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button button-quiet">{% if c.hidden %}Unhide{% else %}Hide{% endif %}<span class="visually-hidden"> comment</span></button>
+          <button type="submit" class="button button-quiet button-icon" title="{% if c.hidden %}Unhide{% else %}Hide{% endif %} comment">{% if c.hidden %}{% call m::icon(ctx, "eye") %}{% endcall %}{% else %}{% call m::icon(ctx, "eye-off") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if c.hidden %}Unhide{% else %}Hide{% endif %} comment</span></button>
         </form>
         {%- endif %}
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/comments/{{ c.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button button-quiet">Delete<span class="visually-hidden"> comment</span></button>
+          <button type="submit" class="button button-quiet button-icon" title="Delete comment">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete comment</span></button>
         </form>
       </div>
       {%- endif %}
@@ -72,7 +72,16 @@
     <textarea id="comment-body" name="body" rows="6" required autocomplete="off"></textarea>
     </slath-editor>
   </div>
-  <div class="button-row"><button type="submit" class="button button-primary">Comment</button> <button type="submit" class="button" formaction="/-/ui/markdown/preview?repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}&amp;field=body" formnovalidate data-editor-nojs>Preview</button></div>
+  <div class="button-row">
+    <button type="submit" class="button button-primary" aria-keyshortcuts="Control+Enter" title="Comment (Ctrl+Enter)">Comment</button>
+    {%- if perms.close %}
+    {%- if issue.state == "open" %}
+    <button type="submit" name="state" value="closed" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" title="Comment and close (Ctrl+Shift+Enter)">{% call m::icon(ctx, "circle-check") %}{% endcall %}Comment and close</button>
+    {%- else %}
+    <button type="submit" name="state" value="open" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" title="Comment and reopen (Ctrl+Shift+Enter)">{% call m::icon(ctx, "circle-dot") %}{% endcall %}Comment and reopen</button>
+    {%- endif %}
+    {%- endif %}
+  </div>
 </form>
 {%- else if ctx.user.is_none() %}
 <p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to comment.</p>

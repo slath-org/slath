@@ -96,7 +96,7 @@ async fn assigning_a_user_without_read_access_is_rejected(pool: PgPool) {
 async fn filters_combine_with_and(pool: PgPool) {
     let (env, alice) = setup(pool).await;
     let svc = &env.svc;
-    svc.save_label(&alice, "alice", "demo", None, "bug", "#d73a4a", "")
+    svc.save_label(&alice, "alice", "demo", None, "crash", "#d73a4a", "")
         .await
         .unwrap();
     svc.save_label(&alice, "alice", "demo", None, "ui", "0e8a16", "")
@@ -105,21 +105,21 @@ async fn filters_combine_with_and(pool: PgPool) {
     svc.save_milestone(&alice, "alice", "demo", None, "v1", "", "2026-12-31", true)
         .await
         .unwrap();
-    for t in ["bug+ui", "bug", "ui", "bug+ui+v1"] {
+    for t in ["crash+ui", "crash", "ui", "crash+ui+v1"] {
         svc.create_issue(&alice, "alice", "demo", t, "")
             .await
             .unwrap();
     }
-    svc.set_issue_labels(&alice, "alice", "demo", 1, &["bug".into(), "UI".into()])
+    svc.set_issue_labels(&alice, "alice", "demo", 1, &["crash".into(), "UI".into()])
         .await
         .unwrap();
-    svc.set_issue_labels(&alice, "alice", "demo", 2, &["bug".into()])
+    svc.set_issue_labels(&alice, "alice", "demo", 2, &["crash".into()])
         .await
         .unwrap();
     svc.set_issue_labels(&alice, "alice", "demo", 3, &["ui".into()])
         .await
         .unwrap();
-    svc.set_issue_labels(&alice, "alice", "demo", 4, &["bug".into(), "ui".into()])
+    svc.set_issue_labels(&alice, "alice", "demo", 4, &["crash".into(), "ui".into()])
         .await
         .unwrap();
     svc.set_issue_milestone(&alice, "alice", "demo", 4, Some("V1"))
@@ -140,7 +140,7 @@ async fn filters_combine_with_and(pool: PgPool) {
     let labels = |l: &[&str]| l.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     assert_eq!(
         list(FilterInput {
-            labels: labels(&["bug"]),
+            labels: labels(&["crash"]),
             ..FilterInput::default()
         })
         .await,
@@ -148,7 +148,7 @@ async fn filters_combine_with_and(pool: PgPool) {
     );
     assert_eq!(
         list(FilterInput {
-            labels: labels(&["bug", "ui"]),
+            labels: labels(&["crash", "ui"]),
             ..FilterInput::default()
         })
         .await
@@ -157,7 +157,7 @@ async fn filters_combine_with_and(pool: PgPool) {
     );
     assert_eq!(
         list(FilterInput {
-            labels: labels(&["bug", "ui"]),
+            labels: labels(&["crash", "ui"]),
             milestone: Some("v1".into()),
             ..FilterInput::default()
         })
@@ -167,7 +167,7 @@ async fn filters_combine_with_and(pool: PgPool) {
     );
     assert_eq!(
         list(FilterInput {
-            labels: labels(&["bug"]),
+            labels: labels(&["crash"]),
             assignee: Some("alice".into()),
             ..FilterInput::default()
         })
@@ -178,7 +178,7 @@ async fn filters_combine_with_and(pool: PgPool) {
     // An unknown label matches nothing rather than being ignored.
     assert_eq!(
         list(FilterInput {
-            labels: labels(&["bug", "nope"]),
+            labels: labels(&["crash", "nope"]),
             ..FilterInput::default()
         })
         .await
@@ -230,12 +230,12 @@ async fn labels_and_milestones_are_validated_and_need_maintain(pool: PgPool) {
             Err(ServiceError::Invalid(_))
         ));
     }
-    svc.save_label(&alice, "alice", "demo", None, "bug", "fff000", "")
+    svc.save_label(&alice, "alice", "demo", None, "crash", "fff000", "")
         .await
         .unwrap();
     // Names are unique regardless of case.
     assert!(matches!(
-        svc.save_label(&alice, "alice", "demo", None, "Bug", "fff000", "")
+        svc.save_label(&alice, "alice", "demo", None, "Crash", "fff000", "")
             .await,
         Err(ServiceError::Invalid(_))
     ));
@@ -253,7 +253,7 @@ async fn labels_and_milestones_are_validated_and_need_maintain(pool: PgPool) {
     svc.create_issue(&bob, "alice", "demo", "One", "")
         .await
         .unwrap();
-    svc.set_issue_labels(&bob, "alice", "demo", 1, &["bug".into()])
+    svc.set_issue_labels(&bob, "alice", "demo", 1, &["crash".into()])
         .await
         .unwrap();
     assert!(matches!(

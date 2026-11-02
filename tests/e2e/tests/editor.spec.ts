@@ -83,12 +83,12 @@ test("conf_editor_01_saving_without_edits_keeps_the_text", async ({ page }) => {
   }, md);
   await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Untouched body");
-  await tapOrClick(page, page.getByRole("link", { name: "Edit", exact: true }));
+  await tapOrClick(page, page.getByRole("link", { name: "Edit issue", exact: true }));
   await expect(page.locator("slath-editor[data-state=ready]")).toBeVisible();
   // Saving without touching the text sends it back unchanged.
   await tapOrClick(page, page.getByRole("button", { name: "Save" }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Untouched body");
-  await tapOrClick(page, page.getByRole("link", { name: "Edit", exact: true }));
+  await tapOrClick(page, page.getByRole("link", { name: "Edit issue", exact: true }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Edit issue");
   expect(await page.locator("slath-editor textarea").inputValue()).toBe(md);
 });
@@ -191,12 +191,9 @@ test("conf_editor_01_without_javascript", async ({ browser, baseURL }) => {
   await page.goto("/alice/demo/issues/new");
   await page.getByLabel("Title").fill("No script");
   await page.getByLabel("Description").fill("**plain** textarea");
-  await page.getByRole("button", { name: "Preview" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Preview");
-  await expect(page.locator(".preview-box strong")).toHaveText("plain");
-  await page.goBack();
   await page.getByRole("button", { name: "Open issue" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("No script");
+  await expect(page.locator(".markdown strong").first()).toHaveText("plain");
   await context.close();
 });
 

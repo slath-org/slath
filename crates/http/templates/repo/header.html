@@ -6,14 +6,9 @@
   <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form repo-watch">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     {%- if *w == "watching" %}
-    <button type="submit" name="state" value="default" class="button" aria-describedby="watch-state">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
-    <span id="watch-state" class="text-secondary">You're notified about all issues.</span>
-    {%- else if *w == "ignoring" %}
-    <button type="submit" name="state" value="default" class="button" aria-describedby="watch-state">{% call m::icon(ctx, "eye") %}{% endcall %}Stop ignoring</button>
-    <span id="watch-state" class="text-secondary">You're notified only when mentioned or assigned.</span>
+    <button type="submit" name="state" value="default" class="button" title="Stop getting notifications about every issue">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
     {%- else %}
-    <button type="submit" name="state" value="watching" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button>
-    <button type="submit" name="state" value="ignoring" class="button button-quiet">Ignore</button>
+    <button type="submit" name="state" value="watching" class="button" title="Get notifications about every issue">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button>
     {%- endif %}
   </form>
   {%- endif %}

@@ -11,6 +11,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 ### Changed
 
 - Administrators need two-factor authentication to use administration unless `require_mfa_for_admins` is turned off; see the upgrading guide.
+- Search, notifications, settings, sign out, and edit or delete actions are icon buttons with names for screen readers and tooltips.
 
 ### Added
 
@@ -39,7 +40,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Blame view: see which commit last changed each line of a file, linked from every file page.
 - Search issues (titles, descriptions, comments) and repositories, in the web UI and the API, showing only what you can read.
 - Notifications about issues you take part in, are mentioned or assigned in, or watch, in an inbox and by email.
-- Watch or ignore repositories and subscribe to or unsubscribe from single issues; emails have a one-click unsubscribe link.
+- Watch or unwatch repositories and subscribe to or unsubscribe from single issues; emails have a one-click unsubscribe link.
+- New repositories start with a set of common labels such as bug, enhancement, and good first issue.
+- Comment and close (or reopen) an issue in one step, also with Ctrl+Shift+Enter; the assignee field suggests names as you type.
+- Issues show when they were last updated.
 - Notifications stop, and older ones are hidden, when someone loses access to the repository.
 - Attach files to issues and comments (web UI and API); images display inline, everything else including SVG downloads.
 - Attachments of private repositories are only served to people who can read the repository.

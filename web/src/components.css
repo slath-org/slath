@@ -848,12 +848,15 @@ fieldset.field {
   line-height: var(--leading-code);
 }
 .count {
+  margin-inline-start: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 .empty-state {
-  padding-block: var(--space-6);
-  text-align: center;
+  padding-block: var(--space-4);
 }
 
 /* Issue and merge request lists */
@@ -1209,7 +1212,11 @@ slath-editor {
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
-.editor .ac-list {
+.suggest-field {
+  position: relative;
+}
+.editor .ac-list,
+.suggest-list {
   position: absolute;
   z-index: 10;
   margin: 0;
@@ -1222,7 +1229,8 @@ slath-editor {
   background: var(--surface);
   box-shadow: var(--shadow-overlay);
 }
-.editor .ac-option {
+.editor .ac-option,
+.suggest-list .ac-option {
   display: flex;
   gap: var(--space-3);
   align-items: center;
@@ -1230,10 +1238,12 @@ slath-editor {
   padding: 0 var(--space-3);
   cursor: pointer;
 }
-.editor .ac-option[aria-selected="true"] {
+.editor .ac-option[aria-selected="true"],
+.suggest-list .ac-option[aria-selected="true"] {
   background: var(--selection);
 }
-.editor .ac-detail {
+.editor .ac-detail,
+.suggest-list .ac-detail {
   overflow: hidden;
   color: var(--text-secondary);
   text-overflow: ellipsis;
@@ -1241,11 +1251,6 @@ slath-editor {
 }
 .editor-help table {
   margin-block: var(--space-3);
-}
-.preview-box {
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
 }
 /* What ProseMirror needs to edit correctly (from prosemirror-view's
    stylesheet, MIT): kept spaces, wrapping, and selection display. */
@@ -1286,4 +1291,19 @@ slath-editor {
 input[type="file"] {
   min-block-size: var(--target-min);
   max-inline-size: 100%;
+}
+
+/* Icon-only controls: the name is in a visually hidden span and in the
+   title tooltip; the target stays full size. */
+.button-icon {
+  min-inline-size: var(--target-min);
+  justify-content: center;
+  padding-inline: var(--space-2);
+}
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--target-min);
+  min-block-size: var(--target-min);
 }

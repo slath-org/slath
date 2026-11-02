@@ -24,10 +24,10 @@
     <span class="item-count text-secondary">{{ l.open_issues }} open issue{% if l.open_issues != 1 %}s{% endif %}</span>
     {%- if manage %}
     <div class="item-actions">
-      <a class="button button-quiet" href="?edit={{ l.id }}#name">Edit<span class="visually-hidden"> label {{ l.name }}</span></a>
+      <a class="button button-quiet button-icon" title="Edit label" href="?edit={{ l.id }}#name">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit label {{ l.name }}</span></a>
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/labels/{{ l.id }}/delete" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <button type="submit" class="button button-quiet">Delete<span class="visually-hidden"> label {{ l.name }}</span></button>
+        <button type="submit" class="button button-quiet button-icon" title="Delete label">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete label {{ l.name }}</span></button>
       </form>
     </div>
     {%- endif %}

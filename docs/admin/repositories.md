@@ -127,9 +127,11 @@ ambiguous.
   team's members), and about every issue in repositories they watch.
   Creating a repository watches it. Nobody is notified about their own
   actions.
-- The Watch button on a repository's front page watches it or ignores it
-  (then only mentions and assignments notify). The Notifications box in an
-  issue's sidebar subscribes to or unsubscribes from that issue.
+- The Watch button on a repository's front page watches it; Unwatch goes
+  back to being notified only about issues you take part in. The
+  Notifications box in an issue's sidebar shows whether you are subscribed
+  and subscribes to or unsubscribes from that issue; unsubscribing silences
+  it even if you opened it or watch the repository.
 - Notifications collect in the inbox (`/-/notifications`, one entry per
   issue, marked unread on new activity) and, if the instance sends email
   and the address is confirmed, as one email per event, threaded per issue
@@ -183,16 +185,21 @@ Issue descriptions and comments use the Markdown editor:
   Tab always leaves the editor. Typing `@`, `#`, `~`, `%`, or `owner/repo#`
   offers people, issues, labels, and milestones.
 - **Preview** shows the text as it will be published.
+- Ctrl+Enter sends the form. In a comment, Ctrl+Shift+Enter comments and
+  closes the issue (or reopens a closed one); without text it only changes
+  the state.
 - Files can be attached with the paperclip button, by pasting, or by
   dropping them; links to issues and commits on this instance become short
   references when pasted.
 - Unsent text is kept in the browser until the form is sent; signing out
   removes it.
-- Without JavaScript, the field is a plain text box with a **Preview**
-  button.
+- Without JavaScript, the field is a plain text box.
 
 ### Labels, milestones, and assignees
 
+- A new repository starts with the labels bug, enhancement, documentation,
+  question, good first issue, help wanted, duplicate, and wontfix, which
+  can be changed or deleted like any other.
 - The maintain role creates, edits, and deletes labels (name up to 50
   characters, a color, an optional description) and milestones (title up
   to 100 characters, optional due date and description; open or closed)
@@ -201,7 +208,7 @@ Issue descriptions and comments use the Markdown editor:
   Deleting a label removes it from all issues; deleting a milestone leaves
   its issues without one.
 - The write role applies labels, sets the milestone, and assigns up to 10
-  people from the issue's sidebar. Only people who can read the repository
+  people from the issue's sidebar, which suggests names while you type. Only people who can read the repository
   can be assigned. Each change appears on the issue's timeline.
 - The issue list filters by labels, assignee, author, and milestone, and
   sorts by creation or last update. Filters combine: an issue must match

@@ -1,6 +1,7 @@
 # Lucide icons included in the sprite (scripts/build_icons.py). One name per
 # line. Only icons the UI uses belong here; remove unused ones.
 archive
+bell
 bold
 book-open
 check

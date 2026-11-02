@@ -30,9 +30,9 @@
     <form method="post" action="/-/notifications/{{ r.id }}/mark" class="inline-form">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
       {%- if r.unread %}
-      <button type="submit" name="mark" value="read" class="button button-quiet">Mark as read<span class="visually-hidden">: {{ r.title }}</span></button>
+      <button type="submit" name="mark" value="read" class="button button-quiet button-icon" title="Mark as read">{% call m::icon(ctx, "check") %}{% endcall %}<span class="visually-hidden">Mark as read: {{ r.title }}</span></button>
       {%- else %}
-      <button type="submit" name="mark" value="unread" class="button button-quiet">Mark as unread<span class="visually-hidden">: {{ r.title }}</span></button>
+      <button type="submit" name="mark" value="unread" class="button button-quiet button-icon" title="Mark as unread">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">Mark as unread: {{ r.title }}</span></button>
       {%- endif %}
     </form>
   </li>

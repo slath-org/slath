@@ -251,7 +251,7 @@
         <a class="item-title" href="#inbox-heading"><bdi>Login fails with a passkey on Safari</bdi></a> <span class="badge">Unread</span>
         <p class="item-meta text-secondary">alice/demo#12 · You were mentioned · <time datetime="2026-11-01T11:00:00Z">yesterday</time></p>
       </div>
-      <button type="button" class="button button-quiet">Mark as read<span class="visually-hidden">: Login fails with a passkey on Safari</span></button>
+      <button type="button" class="button button-quiet button-icon" title="Mark as read">{% call m::icon(ctx, "check") %}{% endcall %}<span class="visually-hidden">Mark as read: Login fails with a passkey on Safari</span></button>
     </li>
     <li class="item-row">
       <span class="item-state item-state-closed">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">closed</span></span>

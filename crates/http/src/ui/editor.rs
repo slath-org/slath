@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Support for the Markdown editor: the server-rendered preview (an htmx
-//! fragment for the editor, a full page for forms without JavaScript) and
-//! the remembered editor mode.
+//! Support for the Markdown editor: the server-rendered preview shown in
+//! the editor's Preview tab, and the remembered editor mode.
 
-use askama::Template;
 use axum::body::Bytes;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -14,7 +12,6 @@ use serde::Deserialize;
 use slath_core::authz::Action;
 use slath_markup::refs::RefContext;
 
-use super::{HxRequest, MarkupHtml, PageCtx, render};
 use crate::AppState;
 use crate::auth::{MaybeSession, RequireSession, form_pairs};
 use crate::error::AppError;
@@ -30,21 +27,11 @@ struct PreviewQuery {
     field: String,
 }
 
-#[derive(Template)]
-#[template(path = "markdown_preview.html")]
-struct PreviewPage {
-    ctx: PageCtx,
-    html: MarkupHtml,
-    empty: bool,
-}
-
 /// `POST /-/ui/markdown/preview`: renders the posted text as the server
 /// will show it to the viewer.
 async fn preview(
     State(state): State<AppState>,
-    ctx: PageCtx,
     session: MaybeSession,
-    hx: HxRequest,
     Query(q): Query<PreviewQuery>,
     body: Bytes,
 ) -> Result<Response, AppError> {
@@ -84,19 +71,12 @@ async fn preview(
         .services
         .render_markdown(&subject, rc.as_ref(), &text)
         .await?;
-    if hx.htmx {
-        let out = if html.trim().is_empty() {
-            "<p class=\"text-secondary\">Nothing to preview.</p>".to_owned()
-        } else {
-            html
-        };
-        return Ok(([("content-type", "text/html; charset=utf-8")], out).into_response());
-    }
-    Ok(render(&PreviewPage {
-        ctx,
-        empty: html.trim().is_empty(),
-        html: MarkupHtml::from_markup(html),
-    }))
+    let out = if html.trim().is_empty() {
+        "<p class=\"text-secondary\">Nothing to preview.</p>".to_owned()
+    } else {
+        html
+    };
+    Ok(([("content-type", "text/html; charset=utf-8")], out).into_response())
 }
 
 #[derive(Deserialize)]

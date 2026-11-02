@@ -401,6 +401,8 @@ struct IssuePage {
     header: RepoHeader,
     issue: slath_db::issues::Issue,
     created: Time,
+    /// When the issue last changed (edits, comments, state), if later than its creation.
+    updated: Option<Time>,
     state_icon: &'static str,
     reason_text: &'static str,
     body_html: MarkupHtml,
@@ -415,8 +417,8 @@ struct IssuePage {
     /// For triagers: every label of the repository and whether it's set.
     label_choices: Vec<(slath_db::labels::Label, bool)>,
     milestone_choices: Vec<String>,
-    /// `watching`, `ignoring`, or `default` (signed-in viewers only).
-    subscription: Option<&'static str>,
+    /// The viewer gets notifications about this issue (signed-in viewers only).
+    subscribed: Option<bool>,
 }
 
 impl IssuePage {
@@ -503,20 +505,14 @@ pub(super) async fn issue_page(
     } else {
         (Vec::new(), Vec::new())
     };
-    let subscription = if matches!(subject, Subject::Anonymous) {
+    let subscribed = if matches!(subject, Subject::Anonymous) {
         None
     } else {
         state.services.mark_issue_read(subject, &issue).await;
-        Some(
-            match state.services.issue_subscription(subject, &issue).await {
-                slath_service::notifications::Subscription::Watching => "watching",
-                slath_service::notifications::Subscription::Ignoring => "ignoring",
-                slath_service::notifications::Subscription::Default => "default",
-            },
-        )
+        Some(state.services.issue_notified(subject, &a, &issue).await)
     };
     let mut res = render(&IssuePage {
-        subscription,
+        subscribed,
         header: RepoHeader::new(&a, subject, "issues"),
         assignees: meta.assignees.remove(&issue.id).unwrap_or_default(),
         labels,
@@ -524,6 +520,8 @@ pub(super) async fn issue_page(
         label_choices,
         milestone_choices,
         perms,
+        updated: (issue.updated_at - issue.created_at > time::Duration::minutes(1))
+            .then(|| issue.updated_at.into()),
         created: issue.created_at.into(),
         state_icon: if issue.state == "open" {
             "circle-dot"
@@ -695,6 +693,9 @@ async fn set_state(
 struct CommentForm {
     #[serde(default)]
     body: String,
+    /// "Comment and close" (`closed`) or "Comment and reopen" (`open`).
+    #[serde(default)]
+    state: Option<String>,
 }
 
 async fn comment(
@@ -705,14 +706,44 @@ async fn comment(
     Form(f): Form<CommentForm>,
 ) -> Result<Response, AppError> {
     let n = number(&n)?;
-    match state
-        .services
-        .add_issue_comment(&s.subject, &ns, &repo, n, &f.body)
-        .await
-    {
-        Ok(c) => {
+    let change = f
+        .state
+        .as_deref()
+        .filter(|s| matches!(*s, "closed" | "open"));
+    // With a state change, the comment is optional.
+    let added = if change.is_some() && f.body.trim().is_empty() {
+        Ok(None)
+    } else {
+        state
+            .services
+            .add_issue_comment(&s.subject, &ns, &repo, n, &f.body)
+            .await
+            .map(Some)
+    };
+    let added = match (added, change) {
+        (Ok(c), Some(to)) => {
+            let open = to == "open";
+            state
+                .services
+                .set_issue_state(
+                    &s.subject,
+                    &ns,
+                    &repo,
+                    n,
+                    open,
+                    (!open).then_some("completed"),
+                )
+                .await
+                .map(|()| c)
+        }
+        (r, None) => r,
+        (Err(e), Some(_)) => Err(e),
+    };
+    match added {
+        Ok(Some(c)) => {
             Ok(Redirect::to(&format!("/{ns}/{repo}/issues/{n}#comment-{}", c.id)).into_response())
         }
+        Ok(None) => Ok(Redirect::to(&format!("/{ns}/{repo}/issues/{n}")).into_response()),
         Err(ServiceError::Invalid(errors)) => {
             issue_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
         }

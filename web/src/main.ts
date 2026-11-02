@@ -14,6 +14,7 @@ import { installMenus } from "./menu";
 import { installDialogs } from "./dialog";
 import { installPasskeys } from "./passkeys";
 import { installEditors } from "./editor";
+import { installSuggestions } from "./suggest";
 
 installCsrf();
 installA11ySwaps();
@@ -24,3 +25,4 @@ installMenus();
 installDialogs();
 installPasskeys();
 installEditors();
+installSuggestions();

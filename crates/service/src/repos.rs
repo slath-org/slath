@@ -56,6 +56,18 @@ pub struct NewRepoInput {
     pub default_branch: String,
 }
 
+/// Labels every new repository starts with.
+const DEFAULT_LABELS: &[(&str, &str, &str)] = &[
+    ("bug", "d73a4a", "Something isn't working"),
+    ("enhancement", "a2eeef", "A new feature or an improvement"),
+    ("documentation", "0075ca", "Changes to the documentation"),
+    ("question", "d876e3", "Needs more information"),
+    ("good first issue", "7057ff", "Good for newcomers"),
+    ("help wanted", "008672", "Extra attention is welcome"),
+    ("duplicate", "cfd3d7", "This issue already exists"),
+    ("wontfix", "ffffff", "This will not be worked on"),
+];
+
 fn invalid_name(e: &slath_core::names::NameError) -> ServiceError {
     let mut f = crate::accounts::name_error(e);
     f.field = "name".to_owned();
@@ -319,6 +331,10 @@ impl Services {
                 .is_some_and(|(_, _, k)| matches!(k, NamespaceKind::Org(_)))
         {
             slath_db::repos::set_collaborator(&mut *tx, id, *creator, Role::Admin).await?;
+        }
+        // A starting set of labels, which maintainers can change or delete.
+        for (name, color, description) in DEFAULT_LABELS {
+            slath_db::labels::create_label(&mut *tx, id, name, color, Some(description)).await?;
         }
         // Creators watch what they create.
         if let Subject::User { id: creator, .. } = subject {

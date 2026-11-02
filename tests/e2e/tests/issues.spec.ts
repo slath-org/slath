@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, write, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, editor, write, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   test.slow();
@@ -28,7 +28,7 @@ test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   await tapOrClick(page, page.getByRole("button", { name: "Close issue" }));
   await expect(page.getByText("closed this as completed")).toBeVisible();
   await expectAccessible(page);
-  await tapOrClick(page, page.getByRole("link", { name: "Edit", exact: true }));
+  await tapOrClick(page, page.getByRole("link", { name: "Edit issue", exact: true }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Edit issue");
   await expectAccessible(page);
 });
@@ -84,4 +84,51 @@ test("conf_a11y_01_label_and_milestone_pages_accessible", async ({ page }, testI
   await expect(page.getByRole("link", { name: title, exact: true })).toBeVisible();
   await expect(page.locator(".item-row")).toHaveCount(1);
   await expectAccessible(page);
+});
+
+test("issue_page_actions_assignee_suggestions_and_comment_and_close", async ({ page }, testInfo) => {
+  test.slow();
+  await signIn(page, USERS.alice);
+  // New repositories come with a set of labels.
+  await page.goto("/alice/demo/labels");
+  await expect(page.getByText("good first issue", { exact: true })).toBeVisible();
+  await page.goto("/alice/demo/issues/new");
+  const title = `Shortcuts ${testInfo.project.name}`;
+  await page.getByLabel("Title").fill(title);
+  await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(title);
+  // The author is subscribed: only "Unsubscribe" is offered.
+  const notifications = page.getByRole("complementary", { name: "Issue details" });
+  await expect(notifications.getByRole("button", { name: "Unsubscribe" })).toBeVisible();
+  await expect(notifications.getByRole("button", { name: "Subscribe", exact: true })).toHaveCount(0);
+  // Assignees: suggestions while typing.
+  const assignees = page.getByRole("combobox", { name: "Assign people" });
+  await assignees.fill("");
+  await assignees.pressSequentially("ali");
+  const people = page.getByRole("listbox", { name: "People" });
+  await expect(people.getByRole("option").first()).toContainText("alice");
+  await expectAccessible(page);
+  await assignees.press("Enter");
+  await expect(assignees).toHaveValue("alice, ");
+  await tapOrClick(page, page.getByRole("button", { name: "Save assignees" }));
+  await expect(page.getByRole("complementary", { name: "Issue details" }).getByRole("link", { name: "alice" })).toBeVisible();
+  // Comment and close with Ctrl+Shift+Enter.
+  await expect(page.locator("slath-editor[data-state=ready]")).toBeVisible();
+  await write(page, "Add a comment", "Done here.");
+  await expect(editor(page, "Add a comment")).toContainText("Done here.");
+  await page.keyboard.press("ControlOrMeta+Shift+Enter");
+  await expect(page.getByText("Done here.")).toBeVisible();
+  await expect(page.getByText("closed this as completed")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Comment and reopen/ })).toBeVisible();
+});
+
+test("repository_watch_toggle", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo");
+  // One button that says what it does; no "Ignore". (Other tests share the
+  // account and may toggle it meanwhile, so only the shape is checked.)
+  const buttons = page.locator(".repo-watch").getByRole("button");
+  await expect(buttons).toHaveCount(1);
+  await expect(buttons).toHaveText(/^(Watch|Unwatch)$/);
+  await expect(page.getByRole("button", { name: "Ignore" })).toHaveCount(0);
 });

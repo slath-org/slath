@@ -346,7 +346,7 @@ fn labels_milestones_and_assignees_via_api() {
         "POST",
         "/labels",
         &token,
-        Some(json!({"name": "bug", "color": "#D73A4A"})),
+        Some(json!({"name": "crash", "color": "#D73A4A"})),
     );
     assert_eq!(r.status, 201, "{}", r.body);
     assert_eq!(r.json()["color"], "d73a4a");
@@ -363,7 +363,7 @@ fn labels_milestones_and_assignees_via_api() {
         "POST",
         "/labels",
         &token,
-        Some(json!({"name": "BUG"})),
+        Some(json!({"name": "CRASH"})),
     );
     assert_eq!(r.status, 422, "names are unique regardless of case");
     let r = api(
@@ -388,11 +388,11 @@ fn labels_milestones_and_assignees_via_api() {
         "PATCH",
         "/issues/1",
         &carol_token,
-        Some(json!({"labels": ["bug"], "milestone": "v1", "assignees": ["carol"]})),
+        Some(json!({"labels": ["crash"], "milestone": "v1", "assignees": ["carol"]})),
     );
     assert_eq!(r.status, 200, "{}", r.body);
     let j = r.json();
-    assert_eq!(j["labels"], json!(["bug"]));
+    assert_eq!(j["labels"], json!(["crash"]));
     assert_eq!(j["milestone"], "v1");
     assert_eq!(j["assignees"], json!(["carol"]));
     // bob can't read alice/priv, so he can't be assigned.
@@ -410,7 +410,7 @@ fn labels_milestones_and_assignees_via_api() {
             "PATCH",
             "/issues/2",
             &token,
-            Some(json!({"labels": ["bug"]}))
+            Some(json!({"labels": ["crash"]}))
         )
         .status,
         200
@@ -433,10 +433,13 @@ fn labels_milestones_and_assignees_via_api() {
         n.sort_unstable();
         n
     };
-    assert_eq!(list(&mut c, "labels=bug"), [1, 2]);
-    assert_eq!(list(&mut c, "labels=bug&milestone=v1"), [1]);
-    assert_eq!(list(&mut c, "labels=bug&assignee=carol"), [1]);
-    assert_eq!(list(&mut c, "labels=bug&assignee=alice"), Vec::<i64>::new());
+    assert_eq!(list(&mut c, "labels=crash"), [1, 2]);
+    assert_eq!(list(&mut c, "labels=crash&milestone=v1"), [1]);
+    assert_eq!(list(&mut c, "labels=crash&assignee=carol"), [1]);
+    assert_eq!(
+        list(&mut c, "labels=crash&assignee=alice"),
+        Vec::<i64>::new()
+    );
 
     // Closing the milestone and deleting the label.
     let r = api(
@@ -449,14 +452,14 @@ fn labels_milestones_and_assignees_via_api() {
     assert_eq!(r.status, 200, "{}", r.body);
     assert_eq!(r.json()["state"], "closed");
     assert_eq!(
-        api(&mut c, "DELETE", "/labels/bug", &carol_token, None).status,
+        api(&mut c, "DELETE", "/labels/crash", &carol_token, None).status,
         403
     );
     assert_eq!(
-        api(&mut c, "DELETE", "/labels/bug", &token, None).status,
+        api(&mut c, "DELETE", "/labels/crash", &token, None).status,
         204
     );
-    assert_eq!(list(&mut c, "labels=bug"), Vec::<i64>::new());
+    assert_eq!(list(&mut c, "labels=crash"), Vec::<i64>::new());
 
     // Those who can't read the repository see nothing.
     let mut bob = s.login("bob", PASSWORD);

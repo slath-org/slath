@@ -3,7 +3,7 @@
 {% block admin %}
 <h1>Organizations</h1>
 {%- if orgs.is_empty() %}
-<p class="text-secondary">No organizations.</p>
+<p class="text-secondary empty-state">No organizations.</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="orgs-caption">
 <table class="table">

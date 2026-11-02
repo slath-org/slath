@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // The <slath-editor> shell around a Markdown <textarea>. The textarea stays
-// the form field and works without JavaScript; this adds a toolbar
+// the form field and works without JavaScript (as plain text); this adds a toolbar
 // (role=toolbar, roving tabindex), shortcuts with a help dialog, Write and
 // Preview tabs (the preview is the server's renderer), a rich-text and a
 // source mode (each loaded on demand), reference suggestions, attachment
@@ -83,7 +83,6 @@ export async function mount(host: HTMLElement): Promise<void> {
     (textarea.id && document.querySelector(`label[for="${textarea.id}"]`)?.textContent?.trim()) || "Text";
   const n = ++ids;
 
-  form?.querySelectorAll<HTMLElement>("[data-editor-nojs]").forEach((b) => (b.hidden = true));
   host.classList.add("editor");
 
   // Tabs.
@@ -194,6 +193,10 @@ export async function mount(host: HTMLElement): Promise<void> {
   };
   for (const a of ACTIONS) row(a.label, a.keys);
   row("Suggestions", "@ people, # issues, ~ labels, % milestones; ↑ ↓ to choose, Enter or Tab to insert, Esc to close");
+  row("Send", "Control+Enter");
+  if (form?.querySelector("[data-submit-alt]")) {
+    row(form.querySelector("[data-submit-alt]")?.textContent?.trim() ?? "Second action", "Control+Shift+Enter");
+  }
   row("Leave the editor", "Tab");
   table.append(tbody);
   const closeHelp = el("button", "button", "Close");
@@ -217,12 +220,15 @@ export async function mount(host: HTMLElement): Promise<void> {
   const draftKey = `${window.location.pathname}:${textarea.name}:${textarea.id}`;
 
   const current = () => (mode && dirty ? mode.getMarkdown() : textarea.value);
+  /** The text the current mode was opened with. */
+  let loaded = original;
   const sync = () => {
+    // The editor may not have reported the latest keystrokes yet (a
+    // shortcut can send the form right after typing), so compare directly.
+    if (mode && !dirty && mode.getMarkdown().trimEnd() !== loaded.trimEnd()) dirty = true;
     if (mode && dirty) textarea.value = mode.getMarkdown();
   };
   let draftTimer: number | undefined;
-  /** The text the current mode was opened with. */
-  let loaded = original;
   const changed = () => {
     // Editors may report changes that aren't edits (DOM normalization);
     // only a different document counts.
@@ -350,6 +356,15 @@ export async function mount(host: HTMLElement): Promise<void> {
         mode.run(action.command);
         return;
       }
+      // Ctrl+Enter sends the form; Ctrl+Shift+Enter uses its second action
+      // (e.g. "Comment and close").
+      if (e.key === "Enter" && mod(e) && form) {
+        e.preventDefault();
+        e.stopPropagation();
+        const alt = e.shiftKey ? form.querySelector<HTMLButtonElement>("[data-submit-alt]") : null;
+        if (!e.shiftKey || alt) form.requestSubmit(alt ?? undefined);
+        return;
+      }
       if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
         // The browser moves focus; the editing mode must not take the key.
         e.stopPropagation();
@@ -442,7 +457,9 @@ export async function mount(host: HTMLElement): Promise<void> {
   // Sending the form: write back edits, check required, drop the draft.
   form?.addEventListener("submit", (e) => {
     sync();
-    if (required && textarea.value.trim() === "") {
+    // A second action (close, reopen) may go without text.
+    const alt = (e as SubmitEvent).submitter?.hasAttribute("data-submit-alt") ?? false;
+    if (required && !alt && textarea.value.trim() === "") {
       e.preventDefault();
       status.textContent = `${labelText} is required.`;
       mode?.focus();

@@ -26,10 +26,10 @@
     </div>
     {%- if manage %}
     <div class="item-actions">
-      <a class="button button-quiet" href="?edit={{ v.m.id }}#title">Edit<span class="visually-hidden"> milestone {{ v.m.title }}</span></a>
+      <a class="button button-quiet button-icon" title="Edit milestone" href="?edit={{ v.m.id }}#title">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit milestone {{ v.m.title }}</span></a>
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/milestones/{{ v.m.id }}/delete" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <button type="submit" class="button button-quiet">Delete<span class="visually-hidden"> milestone {{ v.m.title }}</span></button>
+        <button type="submit" class="button button-quiet button-icon" title="Delete milestone">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete milestone {{ v.m.title }}</span></button>
       </form>
     </div>
     {%- endif %}

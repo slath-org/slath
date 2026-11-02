@@ -104,7 +104,7 @@ async fn conf_editor_02_autocomplete_follows_read_access(pool: PgPool) {
     svc.create_issue(&alice, "alice", "secret", "Hidden plans", "")
         .await
         .unwrap();
-    svc.save_label(&alice, "alice", "secret", None, "bug", "ff0000", "")
+    svc.save_label(&alice, "alice", "secret", None, "crash", "ff0000", "")
         .await
         .unwrap();
 
@@ -132,10 +132,10 @@ async fn conf_editor_02_autocomplete_follows_read_access(pool: PgPool) {
         .unwrap();
     assert_eq!(items.len(), 1);
     let labels = svc
-        .reference_suggestions(&alice, "alice", "secret", "label", "~b", None)
+        .reference_suggestions(&alice, "alice", "secret", "label", "~cr", None)
         .await
         .unwrap();
-    assert_eq!(labels[0].value, "~bug");
+    assert_eq!(labels[0].value, "~crash");
     assert_eq!(labels[0].color.as_deref(), Some("ff0000"));
     // People: no email anywhere, ranked by access.
     let users = svc

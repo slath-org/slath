@@ -5,7 +5,7 @@
 <p>SSH keys let you clone and push over SSH. Each key belongs to exactly one account.</p>
 {% include "settings/errors.html" %}
 {%- if keys.is_empty() %}
-<p class="text-secondary">You have no SSH keys.</p>
+<p class="text-secondary empty-state">You have no SSH keys.</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="keys-caption">
 <table class="table">

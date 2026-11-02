@@ -1,17 +1,13 @@
 <aside class="issue-sidebar" aria-label="Issue details">
-  {%- if let Some(sub) = subscription %}
+  {%- if let Some(on) = subscribed %}
   <section aria-labelledby="side-notifications">
     <h2 id="side-notifications" class="sidebar-heading">Notifications</h2>
-    <p class="text-secondary">
-      {%- if *sub == "watching" %}You're subscribed to this issue.
-      {%- else if *sub == "ignoring" %}You're not notified about this issue.
-      {%- else %}You're notified if you take part, are mentioned, or watch the repository.{% endif %}</p>
+    <p class="text-secondary">{% if *on %}You get notifications about this issue.{% else %}You don't get notifications about this issue.{% endif %}</p>
     <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/subscription" class="inline-form">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      {%- if *sub == "watching" || *sub == "default" %}
+      {%- if *on %}
       <button type="submit" name="state" value="ignoring" class="button">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unsubscribe</button>
-      {%- endif %}
-      {%- if *sub != "watching" %}
+      {%- else %}
       <button type="submit" name="state" value="watching" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Subscribe</button>
       {%- endif %}
     </form>
@@ -31,9 +27,9 @@
     {%- if perms.triage %}
     <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/assignees" class="form sidebar-form" novalidate>
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <div class="field">
+      <div class="field suggest-field">
         <label for="assignees">Assign people</label>
-        <input id="assignees" name="assignees" type="text" value="{{ assignees|join(", ") }}" autocapitalize="none" spellcheck="false" aria-describedby="assignees-hint">
+        <input id="assignees" name="assignees" type="text" value="{{ assignees|join(", ") }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="assignees-hint" data-suggest-users="{{ header.namespace }}/{{ header.name }}" data-suggest-item="{{ issue.number }}">
         <p id="assignees-hint" class="hint">Usernames, separated by commas.</p>
       </div>
       <button type="submit" class="button">Save assignees</button>

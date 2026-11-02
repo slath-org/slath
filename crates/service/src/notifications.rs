@@ -539,6 +539,37 @@ impl Services {
         }
     }
 
+    /// Whether the subject currently gets notifications about an issue: an
+    /// explicit choice wins; otherwise taking part (author, commenter,
+    /// assignee) or watching the repository subscribes them.
+    pub async fn issue_notified(&self, subject: &Subject, a: &RepoAccess, issue: &Issue) -> bool {
+        let Subject::User { id, .. } = subject else {
+            return false;
+        };
+        match self.issue_subscription(subject, issue).await {
+            Subscription::Watching => return true,
+            Subscription::Ignoring => return false,
+            Subscription::Default => {}
+        }
+        if issue.author_id == Some(*id) {
+            return true;
+        }
+        let pool = &self.pool;
+        if slath_db::notifications::commenters(pool, issue.id)
+            .await
+            .is_ok_and(|c| c.contains(id))
+        {
+            return true;
+        }
+        if slath_db::labels::assignees(pool, &[issue.id])
+            .await
+            .is_ok_and(|v| v.iter().any(|(_, u, _)| u == id))
+        {
+            return true;
+        }
+        self.repo_subscription(subject, a).await == Subscription::Watching
+    }
+
     /// Subscribes to or ignores an issue thread the subject can read.
     pub async fn set_issue_subscription(
         &self,

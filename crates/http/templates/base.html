@@ -21,9 +21,9 @@
     <a class="site-name" href="/">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
-      <a href="/-/search">{% call m::icon(ctx, "search") %}{% endcall %}Search</a>
+      <a class="nav-icon" href="/-/search" title="Search">{% call m::icon(ctx, "search") %}{% endcall %}<span class="visually-hidden">Search</span></a>
       <details class="menu" id="appearance-menu">
-        <summary class="button button-quiet">{% call m::icon(ctx, "sun") %}{% endcall %}<span>Appearance</span></summary>
+        <summary class="button button-quiet button-icon" title="Appearance">{% call m::icon(ctx, "sun") %}{% endcall %}<span class="visually-hidden">Appearance</span></summary>
         <form method="post" action="/-/appearance" class="menu-panel" data-theme-form>
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
           <input type="hidden" name="next" value="{{ ctx.here }}">
@@ -42,15 +42,15 @@
         </form>
       </details>
     {%- if let Some(user) = ctx.user %}
-      <a href="/-/notifications">Notifications</a>
+      <a class="nav-icon" href="/-/notifications" title="Notifications">{% call m::icon(ctx, "bell") %}{% endcall %}<span class="visually-hidden">Notifications</span></a>
       <a href="/{{ user.name }}">{{ user.name }}</a>
-      <a href="/-/settings">Settings</a>
+      <a class="nav-icon" href="/-/settings" title="Settings">{% call m::icon(ctx, "settings") %}{% endcall %}<span class="visually-hidden">Settings</span></a>
       {%- if user.is_admin %}
       <a href="/-/admin">Admin</a>
       {%- endif %}
       <form method="post" action="/-/logout" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <button type="submit" class="button button-quiet">Sign out</button>
+        <button type="submit" class="button button-quiet button-icon" title="Sign out">{% call m::icon(ctx, "log-out") %}{% endcall %}<span class="visually-hidden">Sign out</span></button>
       </form>
     {%- else %}
       <a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a>

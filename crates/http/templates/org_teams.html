@@ -8,7 +8,7 @@
 {%- endif %}
 {% include "settings/errors.html" %}
 {%- if teams.is_empty() %}
-<p class="text-secondary">No teams yet.{% if can_manage %} Teams give groups of members access to repositories.{% endif %}</p>
+<p class="text-secondary empty-state">No teams yet.{% if can_manage %} Teams give groups of members access to repositories.{% endif %}</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="teams-caption">
 <table class="table">
