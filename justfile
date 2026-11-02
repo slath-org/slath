@@ -121,7 +121,7 @@ py-test:
 conformance-report CASES *ARGS:
     cargo nextest run --workspace --locked --profile ci --no-tests=pass || true
     python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml \
-        $(for f in target/e2e/junit.xml target/compose/junit.xml; do [ -f "$f" ] && printf -- '--junit %s ' "$f"; done) {{ARGS}}
+        $(for f in target/e2e/junit.xml target/compose/junit.xml target/upgrade-matrix-report/junit.xml; do [ -f "$f" ] && printf -- '--junit %s ' "$f"; done) {{ARGS}}
 
 # Static guards (SPDX, Git spawns, shells, |safe, external URLs) and their tests.
 guards:

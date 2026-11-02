@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Upgrade notes for 0.2.0 (in development; completed at release). Upgrade
-# with `slath upgrade` (docs/admin/upgrading.md).
+# Upgrade notes for 0.2.0. Upgrade with `slath upgrade`
+# (docs/admin/upgrading.md).
 
 version = "0.2.0"
 schema_version = 24

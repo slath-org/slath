@@ -40,7 +40,8 @@ Please give us a reasonable chance to fix the issue before you disclose it.
 
 | Version | Supported |
 | --- | --- |
-| 0.1.x | Yes |
+| 0.2.x | Yes |
+| 0.1.x | No |
 | `main` | Yes |
 
 Until 1.0, security fixes go into the latest minor release only. From 1.0

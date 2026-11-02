@@ -3527,7 +3527,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slath"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -3556,7 +3556,7 @@ dependencies = [
 
 [[package]]
 name = "slath-auth"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "argon2 0.6.0",
  "base64 0.23.1",
@@ -3577,11 +3577,11 @@ dependencies = [
 
 [[package]]
 name = "slath-ci"
-version = "0.1.1"
+version = "0.2.0"
 
 [[package]]
 name = "slath-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "serde",
@@ -3591,7 +3591,7 @@ dependencies = [
 
 [[package]]
 name = "slath-db"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "futures-util",
  "serde",
@@ -3608,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "slath-git"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "nix",
@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "slath-http"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "askama",
  "async-compression",
@@ -3657,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "slath-markup"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ammonia",
  "comrak",
@@ -3667,7 +3667,7 @@ dependencies = [
 
 [[package]]
 name = "slath-service"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "askama",
  "base64 0.23.1",
@@ -3697,7 +3697,7 @@ dependencies = [
 
 [[package]]
 name = "slath-tests"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "flate2",

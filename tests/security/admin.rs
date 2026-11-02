@@ -32,7 +32,7 @@ fn ssh_key() -> String {
 }
 
 #[test]
-fn conf_sec_audit_each_action_writes_exactly_one_event_without_secrets() {
+fn conf_rbac_03_each_audited_action_writes_one_event_without_secrets() {
     let s = TestServer::start_with(&[]);
     s.create_user("alice", PW, false);
     s.create_user("bob", PW, false);
@@ -358,7 +358,7 @@ fn admins_create_users_and_restore_deleted_repositories() {
 }
 
 #[test]
-fn org_owners_see_their_organizations_audit_log_only() {
+fn conf_rbac_03_org_owners_see_their_organizations_audit_log_only() {
     let s = TestServer::start_with(&[]);
     for u in ["alice", "bob"] {
         s.create_user(u, PW, false);

@@ -4,6 +4,7 @@
 //! (`tests/fixtures/schema/v<version>.sql`), the starting point of future
 //! upgrade tests. Run with `just schema-fixture` when preparing a release.
 
+use serde_json::json;
 use slath_tests::fixtures;
 use slath_tests::http::{create_repo, create_token, submit};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
@@ -75,6 +76,83 @@ fn write_schema_fixture() {
     s.add_ssh_key("bob", &public);
     let mut b = s.login("bob", PASSWORD);
     let _ = create_token(&mut b, "ci", &["repo:read"]);
+
+    // Since 0.2: an internal repository, a team with a repository role,
+    // branch protection, and issues with labels, a milestone, an assignee,
+    // comments, a mention, and a closed issue.
+    create_repo(&mut a, "alice", "inside", "internal");
+    for (page, action, fields) in [
+        (
+            "/acme/-/teams",
+            "/acme/-/teams",
+            &[("name", "core"), ("description", "Core team")][..],
+        ),
+        (
+            "/acme/-/teams/core",
+            "/acme/-/teams/core/members",
+            &[("username", "bob")][..],
+        ),
+        (
+            "/acme/tools/settings/access",
+            "/acme/tools/settings/access/teams",
+            &[("team", "core"), ("role", "write")][..],
+        ),
+        (
+            "/alice/demo/settings/protections",
+            "/alice/demo/settings/protections",
+            &[
+                ("pattern", "main"),
+                ("push_role", "maintain"),
+                ("block_force_push", "1"),
+            ][..],
+        ),
+    ] {
+        let r = submit(&mut a, page, action, fields);
+        assert_eq!(r.status, 303, "{action}: {}", r.body);
+    }
+    let token = create_token(&mut a, "fixture", &["issues:write", "repo:read"]);
+    let mut c = s.client();
+    let mut api = |m: &str, path: &str, body: serde_json::Value| {
+        let r = c.api(
+            m,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(&token),
+            Some(&body),
+        );
+        assert!(r.status < 300, "{m} {path}: {} {}", r.status, r.body);
+    };
+    api(
+        "POST",
+        "/milestones",
+        json!({"title": "v1.0", "due_on": "2027-01-31"}),
+    );
+    api(
+        "POST",
+        "/issues",
+        json!({"title": "Crash when the config is empty", "body": "Steps:\n\n1. Start with an empty file.\n\n@bob, can you look?"}),
+    );
+    api(
+        "PATCH",
+        "/issues/1",
+        json!({"labels": ["bug", "good first issue"], "milestone": "v1.0", "assignees": ["bob"]}),
+    );
+    api(
+        "POST",
+        "/issues",
+        json!({"title": "Document the config file", "body": ""}),
+    );
+    api(
+        "PATCH",
+        "/issues/2",
+        json!({"state": "closed", "state_reason": "completed"}),
+    );
+    let r = submit(
+        &mut b,
+        "/alice/demo/issues/1",
+        "/alice/demo/issues/1/comments",
+        &[("body", "On it, thanks @alice. See #2.")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
 
     let engine = std::env::var("SLATH_CONTAINER_ENGINE").unwrap_or_else(|_| "docker".to_owned());
     let container = std::env::var("SLATH_DEV_DB_CONTAINER")

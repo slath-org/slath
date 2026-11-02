@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-02
+
+Team alpha: issues, notifications, single sign-on, and one-command upgrades. Administrators need two-factor authentication; see `docs/admin/upgrading.md` before upgrading.
+
 ### Changed
 
 - Administrators need two-factor authentication to use administration unless `require_mfa_for_admins` is turned off; see the upgrading guide.
@@ -178,6 +182,7 @@ First release: self-hosted Git and Jujutsu hosting for small teams.
 - API tokens without `user:read` could list the user's organizations and their members.
 - API tokens without `repo:read` could list the user's private repositories.
 
-[Unreleased]: https://github.com/slath-org/slath/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/slath-org/slath/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/slath-org/slath/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/slath-org/slath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/slath-org/slath/releases/tag/v0.1.0
