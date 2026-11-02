@@ -418,9 +418,25 @@ fieldset.field {
   margin: 0 0 var(--space-4);
   border-bottom: var(--border-width) solid var(--border);
 }
+/* Breadcrumb on the left; repository-wide actions (Watch, …) on the
+   right of the same row, wrapping below it on narrow screens. */
+.repo-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-2);
+}
 .repo-title {
   font-size: var(--text-lg);
-  margin: 0 0 var(--space-2);
+  margin: 0;
+}
+.repo-title .badge {
+  margin-inline-start: var(--space-3);
+}
+.repo-title .badge + .badge {
+  margin-inline-start: var(--space-1);
 }
 .tabs ul {
   list-style: none;
@@ -1085,12 +1101,11 @@ a.label-chip:hover {
 .notification-list .item-row:not(.item-unread) .item-title {
   font-weight: var(--weight-regular);
 }
-.repo-watch {
+.repo-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-block-end: var(--space-2);
 }
 
 /* Blame */
@@ -1306,4 +1321,11 @@ input[type="file"] {
   justify-content: center;
   min-inline-size: var(--target-min);
   min-block-size: var(--target-min);
+}
+.nav-avatar img {
+  display: block;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
 }

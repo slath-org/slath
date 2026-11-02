@@ -39,6 +39,22 @@ use crate::routes::{Access, RouteExt};
 pub struct NavUser {
     pub name: String,
     pub is_admin: bool,
+    /// The uploaded avatar, or the pattern generated from the name.
+    pub avatar_url: String,
+}
+
+impl NavUser {
+    #[must_use]
+    pub fn from_session(row: &slath_db::sessions::SessionRow) -> Self {
+        Self {
+            name: row.user_name.clone(),
+            is_admin: row.is_admin,
+            avatar_url: match &row.avatar_sha256 {
+                Some(sha) => format!("/-/avatars/{sha}.png"),
+                None => format!("/-/avatars/{}.svg", row.user_name),
+            },
+        }
+    }
 }
 
 /// Per-request data every page template needs.
@@ -131,10 +147,7 @@ impl PageCtx {
             .map(|s| s.row.code_font_size)
             .filter(|n| (12..=20).contains(n) && *n != 14);
         Self {
-            user: session.map(|s| NavUser {
-                name: s.row.user_name.clone(),
-                is_admin: s.row.is_admin,
-            }),
+            user: session.map(|s| NavUser::from_session(&s.row)),
             nonce,
             csrf,
             theme,

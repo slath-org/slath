@@ -190,10 +190,9 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
     let mut page = crate::ui::PageCtx::from_request(&state, &req);
     let res = next.run(req).await;
     if let Some(m) = res.extensions().get::<crate::auth::MaybeSession>() {
-        page.user = m.0.as_ref().map(|s| crate::ui::NavUser {
-            name: s.row.user_name.clone(),
-            is_admin: s.row.is_admin,
-        });
+        page.user =
+            m.0.as_ref()
+                .map(|s| crate::ui::NavUser::from_session(&s.row));
     }
     let status = res.status();
     let info = match res.extensions().get::<ErrorInfo>() {

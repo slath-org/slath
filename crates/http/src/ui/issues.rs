@@ -164,7 +164,7 @@ async fn list(
     Ok(render(&ListPage {
         milestones: ms.into_iter().map(|m| m.title).collect(),
         filtered: !query.is_empty(),
-        header: RepoHeader::new(&a, &subject, "issues"),
+        header: RepoHeader::load(&state, &a, &subject, "issues").await,
         can_create: a.can(&subject, Action::IssueCreate),
         issues: items
             .into_iter()
@@ -225,7 +225,7 @@ async fn new_page(
         return Err(AppError::not_found());
     }
     Ok(render(&NewPage {
-        header: RepoHeader::new(&a, &s.subject, "issues"),
+        header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
         ctx,
         title: String::new(),
         body: String::new(),
@@ -262,7 +262,7 @@ async fn create(
                 .repo_access(&s.subject, &ns, &repo, Action::RepoRead)
                 .await?;
             let mut res = render(&NewPage {
-                header: RepoHeader::new(&a, &s.subject, "issues"),
+                header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
                 ctx,
                 title: f.title,
                 body: f.body,
@@ -513,7 +513,7 @@ pub(super) async fn issue_page(
     };
     let mut res = render(&IssuePage {
         subscribed,
-        header: RepoHeader::new(&a, subject, "issues"),
+        header: RepoHeader::load(state, &a, subject, "issues").await,
         assignees: meta.assignees.remove(&issue.id).unwrap_or_default(),
         labels,
         milestone,
@@ -615,7 +615,7 @@ async fn edit_page(
         return Err(AppError::forbidden());
     }
     Ok(render(&EditPage {
-        header: RepoHeader::new(&a, &s.subject, "issues"),
+        header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
         heading: format!("Edit issue #{}", issue.number),
         action: issue_url(&a, issue.number, "/edit"),
         back: issue_url(&a, issue.number, ""),
@@ -645,7 +645,7 @@ async fn edit(
         Err(ServiceError::Invalid(errors)) => {
             let (a, _) = state.services.issue(&s.subject, &ns, &repo, n).await?;
             let mut res = render(&EditPage {
-                header: RepoHeader::new(&a, &s.subject, "issues"),
+                header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
                 heading: format!("Edit issue #{n}"),
                 action: issue_url(&a, n, "/edit"),
                 back: issue_url(&a, n, ""),
@@ -777,7 +777,7 @@ async fn comment_edit_page(
         })
         .ok_or_else(AppError::not_found)?;
     Ok(render(&EditPage {
-        header: RepoHeader::new(&a, &s.subject, "issues"),
+        header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
         heading: "Edit comment".to_owned(),
         action: issue_url(&a, n, &format!("/comments/{id}/edit")),
         back: issue_url(&a, n, &format!("#comment-{id}")),
@@ -808,7 +808,7 @@ async fn comment_edit(
         Err(ServiceError::Invalid(errors)) => {
             let (a, _) = state.services.issue(&s.subject, &ns, &repo, n).await?;
             let mut res = render(&EditPage {
-                header: RepoHeader::new(&a, &s.subject, "issues"),
+                header: RepoHeader::load(&state, &a, &s.subject, "issues").await,
                 heading: "Edit comment".to_owned(),
                 action: issue_url(&a, n, &format!("/comments/{id}/edit")),
                 back: issue_url(&a, n, &format!("#comment-{id}")),

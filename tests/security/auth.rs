@@ -16,7 +16,9 @@ fn session_cookie(c: &Client) -> Option<String> {
 
 fn signed_in_as(c: &mut Client, name: &str) -> bool {
     let home = c.get("/");
-    home.body.contains(&format!("href=\"/{name}\">{name}</a>"))
+    // The top bar links the signed-in user's avatar to their profile.
+    home.body
+        .contains(&format!("class=\"nav-icon nav-avatar\" href=\"/{name}\""))
 }
 
 /// The page with values that differ per response (nonces, tokens, IDs) blanked.
@@ -252,7 +254,7 @@ fn logout_revokes_the_session_on_the_next_request() {
     let mut thief = s.client();
     thief.cookies.insert("slath_session".into(), stolen);
     let r = thief.get("/");
-    assert!(!r.body.contains("href=\"/alice\">alice</a>"));
+    assert!(!signed_in_as(&mut thief, "alice"));
     // The dead cookie is cleared.
     assert!(
         r.set_cookies()

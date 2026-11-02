@@ -127,8 +127,21 @@ test("repository_watch_toggle", async ({ page }) => {
   await page.goto("/alice/demo");
   // One button that says what it does; no "Ignore". (Other tests share the
   // account and may toggle it meanwhile, so only the shape is checked.)
-  const buttons = page.locator(".repo-watch").getByRole("button");
+  const buttons = page.locator(".repo-actions").getByRole("button");
   await expect(buttons).toHaveCount(1);
   await expect(buttons).toHaveText(/^(Watch|Unwatch)$/);
   await expect(page.getByRole("button", { name: "Ignore" })).toHaveCount(0);
+  // Repository-wide actions are on every tab, not only on the front page.
+  for (const path of ["/alice/demo/issues", "/alice/demo/commits", "/alice/demo/labels"]) {
+    await page.goto(path);
+    await expect(page.locator(".repo-actions").getByRole("button")).toHaveText(/^(Watch|Unwatch)$/);
+  }
+  // Issues, Labels, and Milestones are a side menu, like settings sections.
+  const sections = page.getByRole("navigation", { name: "Issues" });
+  await expect(sections).toHaveClass(/sidebar/);
+  await expect(sections.getByRole("link", { name: "Labels" })).toHaveAttribute("aria-current", "page");
+  // The top bar shows the avatar, named and titled with the user name.
+  const me = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true });
+  await expect(me).toHaveAttribute("title", "alice");
+  await expect(me.locator("img")).toBeVisible();
 });

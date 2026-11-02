@@ -309,11 +309,12 @@ async fn tree_page(
         )
     };
     let header = if home {
-        RepoHeader::new(a, subject, "code")
-            .with_watch(state, a, subject)
+        RepoHeader::load(state, a, subject, "code")
+            .await
+            .with_import(state, a, subject)
             .await
     } else {
-        RepoHeader::new(a, subject, "code")
+        RepoHeader::load(state, a, subject, "code").await
     };
     Ok(render(&TreePage {
         header,
@@ -434,7 +435,7 @@ async fn blob(
     let limit = state.config.limits.render_max_file_bytes.as_usize();
     let path_str = String::from_utf8_lossy(r.path.as_bytes()).into_owned();
     let mut page = BlobPage {
-        header: RepoHeader::new(&a, &subject, "code"),
+        header: RepoHeader::load(&state, &a, &subject, "code").await,
         title: format!(
             "{} · {}/{}",
             lossy(r.path.as_bytes()),
@@ -575,7 +576,7 @@ async fn blame(
         _ => return Err(AppError::not_found()),
     };
     let mut page = BlamePage {
-        header: RepoHeader::new(&a, &subject, "code"),
+        header: RepoHeader::load(&state, &a, &subject, "code").await,
         title: format!(
             "Blame · {} · {}/{}",
             lossy(r.path.as_bytes()),
@@ -841,7 +842,7 @@ async fn commits_for(
     entries.truncate(PER_PAGE);
     let base = link(a, "commits", &r, r.path.as_bytes());
     Ok(render(&CommitsPage {
-        header: RepoHeader::new(a, subject, "commits"),
+        header: RepoHeader::load(state, a, subject, "commits").await,
         reference: Some(ref_view(&r)),
         empty_text: "No commits.".to_owned(),
         path: lossy(r.path.as_bytes()),
@@ -889,7 +890,7 @@ async fn commits(
         .await
         .map_err(|e| AppError::internal(&e))?;
     Ok(render(&CommitsPage {
-        header: RepoHeader::new(&a, &subject, "commits"),
+        header: RepoHeader::load(&state, &a, &subject, "commits").await,
         reference: None,
         empty_text: if empty {
             "No commits yet. Once someone pushes, the history appears here.".to_owned()
@@ -1055,7 +1056,7 @@ async fn commit(
         })
         .collect();
     Ok(render(&CommitPage {
-        header: RepoHeader::new(&a, &subject, "commits"),
+        header: RepoHeader::load(&state, &a, &subject, "commits").await,
         short: oid.as_str()[..12].to_owned(),
         subject: slath_markup::reveal_bidi(subject_line).into_owned(),
         body: slath_markup::reveal_bidi(body.trim()).into_owned(),
@@ -1122,7 +1123,7 @@ async fn refs(
         ("tags", "Tags")
     };
     Ok(render(&RefsPage {
-        header: RepoHeader::new(&a, &subject, tab),
+        header: RepoHeader::load(&state, &a, &subject, tab).await,
         heading,
         refs: list
             .into_iter()

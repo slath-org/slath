@@ -127,7 +127,7 @@ ambiguous.
   team's members), and about every issue in repositories they watch.
   Creating a repository watches it. Nobody is notified about their own
   actions.
-- The Watch button on a repository's front page watches it; Unwatch goes
+- The Watch button at the top of every repository page watches it; Unwatch goes
   back to being notified only about issues you take part in. The
   Notifications box in an issue's sidebar shows whether you are subscribed
   and subscribes to or unsubscribes from that issue; unsubscribing silences

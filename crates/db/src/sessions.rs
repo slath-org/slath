@@ -48,6 +48,8 @@ pub struct SessionRow {
     pub user_kind: UserKind,
     pub user_state: UserState,
     pub is_admin: bool,
+    /// The uploaded avatar's SHA-256, if any.
+    pub avatar_sha256: Option<String>,
     /// The user's email address is confirmed (or they have none).
     pub email_confirmed: bool,
     pub theme: String,
@@ -103,7 +105,7 @@ pub async fn find(
 ) -> Result<Option<SessionRow>, DbError> {
     let row = sqlx::query!(
         r#"SELECT s.id_hash, s.user_id, n.name::text AS "user_name!", u.kind, u.state, u.is_admin,
-                  (u.email IS NULL OR u.email_verified) AS "email_confirmed!", u.theme,
+                  u.avatar_blob_sha256, (u.email IS NULL OR u.email_verified) AS "email_confirmed!", u.theme,
                   u.density, u.code_font_size, u.editor_mode,
                   s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,
                   host(s.ip) AS ip, s.user_agent
@@ -123,6 +125,7 @@ pub async fn find(
         user_kind: crate::users::kind(&r.kind),
         user_state: crate::users::state(&r.state),
         is_admin: r.is_admin,
+        avatar_sha256: r.avatar_blob_sha256,
         email_confirmed: r.email_confirmed,
         theme: r.theme,
         density: r.density,

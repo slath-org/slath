@@ -96,7 +96,7 @@ async fn labels_page(
         StatusCode::UNPROCESSABLE_ENTITY
     };
     let mut res = render(&LabelsPage {
-        header: RepoHeader::new(&a, subject, "issues"),
+        header: RepoHeader::load(state, &a, subject, "issues").await,
         manage: a.can(subject, Action::LabelsManage),
         labels,
         message,
@@ -288,7 +288,7 @@ async fn milestones_page(
                 }
             })
             .collect(),
-        header: RepoHeader::new(&a, subject, "issues"),
+        header: RepoHeader::load(state, &a, subject, "issues").await,
         message,
         errors,
         editing,

@@ -45,6 +45,14 @@ h3 {
   font-size: var(--text-lg);
   line-height: var(--leading-heading);
 }
+/* A section heading belongs to what follows: more space above it than
+   below, so it doesn't read as the end of the previous section. */
+h2:not(:first-child) {
+  margin-block-start: var(--space-6);
+}
+h3:not(:first-child) {
+  margin-block-start: var(--space-5);
+}
 p {
   margin: 0 0 var(--space-4);
 }

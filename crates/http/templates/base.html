@@ -43,10 +43,10 @@
       </details>
     {%- if let Some(user) = ctx.user %}
       <a class="nav-icon" href="/-/notifications" title="Notifications">{% call m::icon(ctx, "bell") %}{% endcall %}<span class="visually-hidden">Notifications</span></a>
-      <a href="/{{ user.name }}">{{ user.name }}</a>
+      <a class="nav-icon nav-avatar" href="/{{ user.name }}" title="{{ user.name }}"><img src="{{ user.avatar_url }}" alt="" width="24" height="24"><span class="visually-hidden">{{ user.name }}</span></a>
       <a class="nav-icon" href="/-/settings" title="Settings">{% call m::icon(ctx, "settings") %}{% endcall %}<span class="visually-hidden">Settings</span></a>
       {%- if user.is_admin %}
-      <a href="/-/admin">Admin</a>
+      <a class="nav-icon" href="/-/admin" title="Admin">{% call m::icon(ctx, "wrench") %}{% endcall %}<span class="visually-hidden">Admin</span></a>
       {%- endif %}
       <form method="post" action="/-/logout" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

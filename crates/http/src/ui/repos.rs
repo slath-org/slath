@@ -94,7 +94,7 @@ pub struct RepoHeader {
     /// Which tab is active: `code`, `issues`, `settings`, ….
     pub tab: &'static str,
     /// The viewer's subscription (`watching`, `ignoring`, `default`), shown
-    /// on the repository's front page to signed-in viewers.
+    /// to signed-in viewers on every repository page.
     pub watch: Option<&'static str>,
     /// The import status, shown on the front page.
     pub import: Option<ImportView>,
@@ -128,8 +128,32 @@ impl RepoHeader {
         }
     }
 
-    /// Adds the viewer's watch state and the import status (front page only).
-    pub async fn with_watch(mut self, state: &AppState, a: &RepoAccess, subject: &Subject) -> Self {
+    /// The header with the viewer's watch state.
+    pub async fn load(
+        state: &AppState,
+        a: &RepoAccess,
+        subject: &Subject,
+        tab: &'static str,
+    ) -> Self {
+        let mut header = Self::new(a, subject, tab);
+        if !matches!(subject, Subject::Anonymous) {
+            use slath_service::notifications::Subscription;
+            header.watch = Some(match state.services.repo_subscription(subject, a).await {
+                Subscription::Watching => "watching",
+                Subscription::Ignoring => "ignoring",
+                Subscription::Default => "default",
+            });
+        }
+        header
+    }
+
+    /// Adds the import status (front page only).
+    pub async fn with_import(
+        mut self,
+        state: &AppState,
+        a: &RepoAccess,
+        subject: &Subject,
+    ) -> Self {
         // Finished imports are reported for a week.
         let week_ago = time::OffsetDateTime::now_utc() - time::Duration::days(7);
         if let Ok(Some(i)) = state.services.import_report(subject, a).await
@@ -142,14 +166,6 @@ impl RepoHeader {
                 error: if admin { i.error } else { None },
                 branches: i.branches.unwrap_or(0),
                 tags: i.tags.unwrap_or(0),
-            });
-        }
-        if !matches!(subject, Subject::Anonymous) {
-            use slath_service::notifications::Subscription;
-            self.watch = Some(match state.services.repo_subscription(subject, a).await {
-                Subscription::Watching => "watching",
-                Subscription::Ignoring => "ignoring",
-                Subscription::Default => "default",
             });
         }
         self
@@ -321,8 +337,9 @@ pub async fn repo_home(
     }
     let (https_url, ssh_url) = clone_urls(&state, &a.repo.namespace, &a.repo.name);
     Ok(render(&RepoHome {
-        header: RepoHeader::new(&a, &subject, "code")
-            .with_watch(&state, &a, &subject)
+        header: RepoHeader::load(&state, &a, &subject, "code")
+            .await
+            .with_import(&state, &a, &subject)
             .await,
         description: a.repo.description.clone(),
         can_push: a.can(&subject, Action::RepoPush),
@@ -396,14 +413,14 @@ async fn settings_access(
 }
 
 fn general_page<'a>(
+    header: RepoHeader,
     a: &RepoAccess,
-    subject: &Subject,
     ctx: PageCtx,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 ) -> GeneralSettings<'a> {
     GeneralSettings {
-        header: RepoHeader::new(a, subject, "settings"),
+        header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
         name: a.repo.name.clone(),
@@ -425,8 +442,8 @@ async fn settings_general(
     let subject = session.subject();
     let a = settings_access(&state, &subject, &ns, &repo).await?;
     Ok(render(&general_page(
+        RepoHeader::load(&state, &a, &subject, "settings").await,
         &a,
-        &subject,
         ctx,
         status_message(q.status.as_deref()),
         Vec::new(),
@@ -437,7 +454,8 @@ fn repo_url(a: &RepoAccess, rest: &str) -> String {
     format!("/{}/{}{rest}", a.repo.namespace, a.repo.name)
 }
 
-fn invalid_page(
+async fn invalid_page(
+    state: &AppState,
     a: &RepoAccess,
     subject: &Subject,
     ctx: PageCtx,
@@ -445,7 +463,8 @@ fn invalid_page(
 ) -> Result<Response, AppError> {
     match e {
         ServiceError::Invalid(errors) => {
-            let mut res = render(&general_page(a, subject, ctx, None, errors));
+            let header = RepoHeader::load(state, a, subject, "settings").await;
+            let mut res = render(&general_page(header, a, ctx, None, errors));
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
             Ok(res)
         }
@@ -476,7 +495,7 @@ async fn save_general(
         .await
     {
         Ok(()) => Ok(Redirect::to(&repo_url(&a, "/settings/general?status=saved")).into_response()),
-        Err(e) => invalid_page(&a, &s.subject, ctx, e),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
     }
 }
 
@@ -498,6 +517,7 @@ async fn save_visibility(
         Some(v) => v,
         None => {
             return invalid_page(
+                &state,
                 &a,
                 &s.subject,
                 ctx,
@@ -506,7 +526,8 @@ async fn save_visibility(
                     "invalid",
                     "Choose private, internal, or public.",
                 ),
-            );
+            )
+            .await;
         }
     };
     match state
@@ -517,7 +538,7 @@ async fn save_visibility(
         Ok(()) => {
             Ok(Redirect::to(&repo_url(&a, "/settings/general?status=visibility")).into_response())
         }
-        Err(e) => invalid_page(&a, &s.subject, ctx, e),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
     }
 }
 
@@ -541,7 +562,7 @@ async fn rename(
             a.repo.namespace
         ))
         .into_response()),
-        Err(e) => invalid_page(&a, &s.subject, ctx, e),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
     }
 }
 
@@ -634,7 +655,7 @@ async fn access_page(
     };
     let mut res = render(&AccessSettings {
         ctx,
-        header: RepoHeader::new(a, subject, "settings"),
+        header: RepoHeader::load(state, a, subject, "settings").await,
         collaborators,
         message,
         errors,
@@ -756,7 +777,7 @@ async fn protections_page(
     };
     let mut res = render(&ProtectionsSettings {
         ctx,
-        header: RepoHeader::new(a, subject, "settings"),
+        header: RepoHeader::load(state, a, subject, "settings").await,
         rules,
         message,
         errors,
@@ -918,7 +939,7 @@ async fn settings_danger(
     let subject = session.subject();
     let a = settings_access(&state, &subject, &ns, &repo).await?;
     Ok(render(&DangerSettings {
-        header: RepoHeader::new(&a, &subject, "settings"),
+        header: RepoHeader::load(&state, &a, &subject, "settings").await,
         full_name: format!("{}/{}", a.repo.namespace, a.repo.name),
         ctx,
         error: None,
@@ -942,7 +963,7 @@ async fn delete_repo(
     let full_name = format!("{}/{}", a.repo.namespace, a.repo.name);
     if !f.confirm.trim().eq_ignore_ascii_case(&full_name) {
         let mut res = render(&DangerSettings {
-            header: RepoHeader::new(&a, &s.subject, "settings"),
+            header: RepoHeader::load(&state, &a, &s.subject, "settings").await,
             full_name,
             ctx,
             error: Some("Type the repository's full name to confirm."),
