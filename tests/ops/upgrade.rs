@@ -164,6 +164,15 @@ fn conf_ops_07_crash_at_every_step_is_finished_by_rerunning() {
             "success",
             "{step}"
         );
+        // The re-run finished the interrupted upgrade, even when the schema
+        // was already current, and cleared its marker.
+        assert_eq!(
+            inst.db.query_one(
+                "SELECT count(*)::text FROM instance_settings WHERE key = 'upgrade_in_progress'"
+            ),
+            "0",
+            "{step}"
+        );
         // Running it once more is a no-op.
         let (ok, out, _) = inst.slath(&["upgrade", "--yes"], None);
         assert!(ok && out.contains("Already up to date"), "{step}: {out}");

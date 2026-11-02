@@ -11,6 +11,9 @@ use crate::DbError;
 pub const MAINTENANCE: &str = "maintenance";
 /// Version of the last binary that served this database: `"0.2.0"`.
 pub const SERVED_BY: &str = "served_by_version";
+/// An upgrade that started and hasn't finished successfully:
+/// `{"from_version": …, "from_schema": …, "to_version": …}`.
+pub const UPGRADE_IN_PROGRESS: &str = "upgrade_in_progress";
 
 pub async fn get(exec: impl PgExecutor<'_>, key: &str) -> Result<Option<Value>, DbError> {
     let v = sqlx::query_scalar!("SELECT value FROM instance_settings WHERE key = $1", key)

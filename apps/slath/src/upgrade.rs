@@ -67,6 +67,8 @@ struct Preflight {
     background_migrations: Vec<String>,
     server: Option<slath_git::ipc::ServerStatus>,
     server_running: bool,
+    /// An earlier run stopped before finishing; this one completes it.
+    interrupted: bool,
 }
 
 impl Preflight {
@@ -115,9 +117,27 @@ async fn table_exists(pool: &PgPool, table: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The release the database comes from: the last upgrade's target, the
-/// last version that served it, or the oldest release with its schema.
+/// The unfinished upgrade recorded by an earlier run that stopped, if any.
+async fn unfinished(pool: &PgPool) -> Option<serde_json::Value> {
+    if !table_exists(pool, "instance_settings").await {
+        return None;
+    }
+    slath_db::settings::get(pool, slath_db::settings::UPGRADE_IN_PROGRESS)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// The release the database comes from: the source of an unfinished
+/// upgrade, the last upgrade's target, the last version that served it, or
+/// the oldest release with its schema.
 async fn from_version(pool: &PgPool, all: &[Notes], schema: i32) -> Option<Version> {
+    if let Some(v) = unfinished(pool)
+        .await
+        .and_then(|u| u["from_version"].as_str().and_then(|v| v.parse().ok()))
+    {
+        return Some(v);
+    }
     if table_exists(pool, "upgrade_history").await
         && let Ok(Some(v)) = sqlx::query_scalar::<_, String>(
             "SELECT to_version FROM upgrade_history WHERE outcome = 'success'
@@ -243,10 +263,19 @@ async fn preflight(
 ) -> Result<(Preflight, Option<Lock>), String> {
     let all = notes::all()?;
     let to = notes::current()?;
-    let from_schema = slath_db::schema_version(pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .unwrap_or(0);
+    let interrupted = unfinished(pool).await;
+    // An interrupted upgrade reports where it started, not where it stopped.
+    let from_schema = match interrupted
+        .as_ref()
+        .and_then(|u| u["from_schema"].as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+    {
+        Some(v) => v,
+        None => slath_db::schema_version(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .unwrap_or(0),
+    };
     let from = if from_schema == 0 {
         None
     } else {
@@ -267,7 +296,15 @@ async fn preflight(
         background_migrations: Vec::new(),
         server: None,
         server_running: false,
+        interrupted: interrupted.is_some(),
     };
+    if p.interrupted {
+        p.push(
+            "previous run",
+            Mark::Warn,
+            "an earlier upgrade stopped before finishing; this run completes it",
+        );
+    }
 
     // Versions.
     match postgres_major(pool).await {
@@ -597,8 +634,9 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
             "--no-backup: there will be no way back except your own backups",
         );
     }
-    let nothing_to_do =
-        p.pending.is_empty() && p.from_version.as_deref() == Some(p.to_version.as_str());
+    let nothing_to_do = !p.interrupted
+        && p.pending.is_empty()
+        && p.from_version.as_deref() == Some(p.to_version.as_str());
     let report = |p: &Preflight| match format {
         OutputFormat::Text => print_preflight(p),
         OutputFormat::Json => {
@@ -655,6 +693,12 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
         result.as_ref().err(),
     )
     .await;
+    if result.is_ok()
+        && let Err(e) =
+            slath_db::settings::delete(&pool, slath_db::settings::UPGRADE_IN_PROGRESS).await
+    {
+        eprintln!("slath: cannot clear the upgrade marker: {e}");
+    }
     lock.release().await;
     match result {
         Ok(()) => {
@@ -753,6 +797,19 @@ async fn execute(
         *backup_out = Some(dir);
     }
     fault_point("after-backup");
+    // Until the upgrade succeeds, a later run knows it has to finish it, even
+    // once the schema is current. Recorded after the backup, so restoring
+    // the backup doesn't bring it back.
+    if !p.interrupted && table_exists(pool, "instance_settings").await {
+        let marker = json!({
+            "from_version": p.from_version,
+            "from_schema": p.from_schema,
+            "to_version": p.to_version,
+        });
+        slath_db::settings::set(pool, slath_db::settings::UPGRADE_IN_PROGRESS, &marker)
+            .await
+            .map_err(|e| format!("cannot record the upgrade's start: {e}"))?;
+    }
     // 3. Schema migrations, one at a time.
     for (i, (version, desc)) in p.pending.iter().enumerate() {
         let t = std::time::Instant::now();
