@@ -136,6 +136,143 @@
   </div>
 </section>
 
+<section aria-labelledby="longform-heading">
+  <h2 id="longform-heading">Long forms and settings</h2>
+  <p class="text-secondary">Required fields say so in the label; optional ones are marked "(optional)". After a failed submit the summary comes first, links to each field, and every value the person entered is still there.</p>
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h2>There is a problem</h2>
+    <ul>
+      <li><a href="#demo-repo-name">Use letters, digits, ".", "_" and "-".</a></li>
+    </ul>
+  </div>
+  <form class="form" novalidate>
+    <fieldset class="field">
+      <legend>Repository</legend>
+      <div class="field">
+        <label for="demo-repo-name">Name</label>
+        <input id="demo-repo-name" type="text" value="my repo!" required aria-invalid="true" aria-describedby="demo-repo-name-hint demo-repo-name-error">
+        <p id="demo-repo-name-hint" class="hint">Up to 39 characters.</p>
+        <p id="demo-repo-name-error" class="field-error">Use letters, digits, ".", "_" and "-".</p>
+      </div>
+      <div class="field">
+        <label for="demo-repo-description">Description <span class="text-secondary">(optional)</span></label>
+        <input id="demo-repo-description" type="text" value="Kept after the error">
+      </div>
+    </fieldset>
+    <div class="button-row">
+      <button type="button" class="button button-primary">Create repository</button>
+      <a class="button button-quiet" href="#longform-heading">Cancel</a>
+    </div>
+  </form>
+</section>
+
+<section aria-labelledby="editor-heading">
+  <h2 id="editor-heading">Markdown editor</h2>
+  <p class="text-secondary">One field, two modes (rich text and Markdown source), a Write/Preview switch, and a toolbar. Without JavaScript it is the plain text box with a Preview button.</p>
+  <form class="form form-wide" novalidate>
+    <div class="field">
+      <label for="demo-editor">Comment</label>
+      <slath-editor data-mode="wysiwyg" data-icons="{{ ctx.icons_url }}" data-external-images="false">
+        <textarea id="demo-editor" name="body" rows="6" autocomplete="off">A **short** comment with a list:
+
+- one
+- two</textarea>
+      </slath-editor>
+    </div>
+  </form>
+</section>
+
+<section aria-labelledby="markdown-heading">
+  <h2 id="markdown-heading">Rendered Markdown</h2>
+  <p class="text-secondary">Long-form text: 16 px with a relaxed line height; references keep their state quietly.</p>
+  <div class="markdown">
+    <h2>Release notes</h2>
+    <p>The importer now pins the checked address. See <a class="ref ref-open" href="#markdown-heading" title="Import from URL (open)">#16</a> and <a class="ref ref-closed" href="#markdown-heading" title="Blame view (closed)">#15</a>; thanks <a class="ref" href="#markdown-heading">@alice</a>.</p>
+    <ul>
+      <li>Branches and tags only</li>
+      <li><input type="checkbox" checked disabled aria-label="Task"> Redirects are not followed</li>
+    </ul>
+    <blockquote><p>Text the person didn't change is saved exactly as it was.</p></blockquote>
+    <pre><code>git push origin main</code></pre>
+    <table><thead><tr><th>Mode</th><th>Size</th></tr></thead><tbody><tr><td>Rich text</td><td>141 KiB</td></tr><tr><td>Source</td><td>107 KiB</td></tr></tbody></table>
+  </div>
+</section>
+
+<section aria-labelledby="issues-heading">
+  <h2 id="issues-heading">Issue lists and timelines</h2>
+  <p class="text-secondary">Rows follow the density setting (Appearance menu): compact reduces padding, never text size.</p>
+  <ul class="item-list">
+    <li class="item-row">
+      <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#issues-heading"><bdi>Login fails with a passkey on Safari</bdi></a>
+        <span class="item-labels"><a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#d73a4a"/></svg><bdi>bug</bdi></a></span>
+        <p class="item-meta text-secondary">#12 opened <time datetime="2026-11-01T10:00:00Z">yesterday</time> by alice · assigned to bob</p>
+      </div>
+      <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}3<span class="visually-hidden"> comments</span></span>
+    </li>
+    <li class="item-row">
+      <span class="item-state item-state-closed">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">closed</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#issues-heading"><bdi>Settings page saves twice</bdi></a>
+        <p class="item-meta text-secondary">#9 opened <time datetime="2026-10-20T10:00:00Z">Oct 20</time> by carol</p>
+      </div>
+    </li>
+  </ul>
+  <ol class="timeline">
+    <li class="timeline-comment">
+      <article aria-label="Comment by bob">
+        <header class="comment-header"><strong>bob</strong> <span class="text-secondary"><time datetime="2026-11-01T11:00:00Z">yesterday</time> · edited</span></header>
+        <div class="markdown"><p>I can reproduce it with <code>Safari 19</code>.</p></div>
+      </article>
+    </li>
+    <li class="timeline-event">{% call m::icon(ctx, "tag") %}{% endcall %}<span><strong>alice</strong> added the label bug <time datetime="2026-11-01T12:00:00Z">yesterday</time></span></li>
+    <li class="timeline-event">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span><strong>alice</strong> closed this as completed <time datetime="2026-11-01T13:00:00Z">yesterday</time></span></li>
+  </ol>
+</section>
+
+<section aria-labelledby="labels-heading">
+  <h2 id="labels-heading">Labels and milestones</h2>
+  <p class="text-secondary">A small color dot and the name; no filled badges competing with titles.</p>
+  <p class="item-labels">
+    <a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#d73a4a"/></svg><bdi>bug</bdi></a>
+    <a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#0e8a16"/></svg><bdi>needs review</bdi></a>
+  </p>
+  <p>{% call m::icon(ctx, "flag") %}{% endcall %} <a href="#labels-heading">v0.2</a> <span class="text-secondary">· due Dec 1 · 4 open, 21 closed</span></p>
+</section>
+
+<section aria-labelledby="inbox-heading">
+  <h2 id="inbox-heading">Notification inbox</h2>
+  <p class="text-secondary">Unread rows keep the semibold title and an "Unread" badge; read rows are regular weight.</p>
+  <ul class="item-list notification-list">
+    <li class="item-row item-unread">
+      <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#inbox-heading"><bdi>Login fails with a passkey on Safari</bdi></a> <span class="badge">Unread</span>
+        <p class="item-meta text-secondary">alice/demo#12 · You were mentioned · <time datetime="2026-11-01T11:00:00Z">yesterday</time></p>
+      </div>
+      <button type="button" class="button button-quiet">Mark as read<span class="visually-hidden">: Login fails with a passkey on Safari</span></button>
+    </li>
+    <li class="item-row">
+      <span class="item-state item-state-closed">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">closed</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#inbox-heading"><bdi>Settings page saves twice</bdi></a>
+        <p class="item-meta text-secondary">alice/demo#9 · You're watching · <time datetime="2026-10-20T10:00:00Z">Oct 20</time></p>
+      </div>
+      <button type="button" class="button button-quiet">Mark as unread<span class="visually-hidden">: Settings page saves twice</span></button>
+    </li>
+  </ul>
+</section>
+
+<section aria-labelledby="states-heading">
+  <h2 id="states-heading">Empty, error, and not-found states</h2>
+  <p class="text-secondary empty-state">No open issues.</p>
+  <p class="text-secondary empty-state">You're all caught up.</p>
+  <div class="error-summary" role="alert"><p>The preview couldn't be loaded. Check your connection and try again.</p></div>
+  <div class="notice" role="note"><p>{% call m::icon(ctx, "info") %}{% endcall %} This repository is being imported. Reload the page to see when it's done.</p></div>
+  <p class="text-secondary">Not found: things a person may not see look exactly like things that don't exist ("Page not found"), so no "permission denied" page reveals them.</p>
+</section>
+
 <section aria-labelledby="icons-heading">
   <h2 id="icons-heading">Icons</h2>
   <ul class="icon-grid">

@@ -91,6 +91,8 @@ test("conf_a11y_03_user_setting_follows_the_account", async ({ page, browser }) 
 });
 
 test("conf_a11y_03_catalog_accessible_in_every_token_set_and_density", async ({ page, context, baseURL }) => {
+  // Four axe runs over the whole catalog.
+  test.slow();
   for (const density of ["comfortable", "compact"]) {
     await context.addCookies([{ name: "slath_density", value: density, url: baseURL! }]);
     for (const contrast of ["no-preference", "more"] as const) {
