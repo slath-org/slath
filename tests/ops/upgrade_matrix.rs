@@ -167,7 +167,20 @@ fn conf_ops_03_upgrade_from_every_release() {
         );
         assert!(ok, "{tag}: upgrade failed: {out}{err}");
         let v: serde_json::Value = serde_json::from_str(out.lines().last().unwrap()).unwrap();
-        let backup = v["backup"].as_str().unwrap().to_owned();
+        // A release with this binary's version and schema (the newest tag
+        // before anything changed) has nothing to upgrade: no backup, no
+        // history entry, and its binary still serves the database.
+        let up_to_date = v["up_to_date"].as_bool() == Some(true);
+        let backup = if up_to_date {
+            None
+        } else {
+            Some(
+                v["backup"]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{tag}: no backup in {v}"))
+                    .to_owned(),
+            )
+        };
 
         // Smoke and conformance subset on the upgraded instance.
         s.start_again(&slath_bin(), false)
@@ -181,8 +194,10 @@ fn conf_ops_03_upgrade_from_every_release() {
             "{tag}: collaborator access"
         );
         assert_eq!(bob.get("/acme/tools").status, 200);
-        let mut admin = s.login("root-admin", PASSWORD);
-        assert!(admin.get("/-/admin/upgrades").body.contains("success"));
+        if !up_to_date {
+            let mut admin = s.login("root-admin", PASSWORD);
+            assert!(admin.get("/-/admin/upgrades").body.contains("success"));
+        }
         git.ok(
             work.path(),
             &[
@@ -194,6 +209,10 @@ fn conf_ops_03_upgrade_from_every_release() {
         );
         let (ok, out, _) = s.slath(&["fsck", "--output", "json"], None);
         assert!(ok, "{tag}: fsck after upgrade: {out}");
+        let Some(backup) = backup else {
+            eprintln!("   {tag} is already current; skipping the downgrade checks");
+            continue;
+        };
 
         // The old binary refuses the upgraded database and says how to go back.
         let refused = s.start_again(&old_bin, false);
