@@ -171,7 +171,9 @@ async fn ignoring_and_unsubscribing_silence_a_thread(pool: PgPool) {
         svc.issue_subscription(&bob, &two).await,
         Subscription::Ignoring
     );
-    let forged = format!("{}x", &token[..token.len() - 1]);
+    // A different last character (a fixed one would sometimes be the same).
+    let (head, last) = token.split_at(token.len() - 1);
+    let forged = format!("{head}{}", if last == "x" { "y" } else { "x" });
     assert!(svc.unsubscribe(&forged).await.is_err());
     svc.add_issue_comment(&alice, "alice", "secret", 2, "c")
         .await

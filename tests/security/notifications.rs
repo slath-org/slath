@@ -130,7 +130,10 @@ fn conf_issue_02_inbox_email_and_unsubscribe() {
         )),
     );
     assert_eq!(r.status, 200, "{}", r.body);
-    let forged = format!("{}A", &path[..path.len() - 1]);
+    // Change the MAC's last character to a different one (a fixed `A` would
+    // leave about one token in 64 unchanged).
+    let (head, last) = path.split_at(path.len() - 1);
+    let forged = format!("{head}{}", if last == "A" { "B" } else { "A" });
     assert_eq!(mail_client.request("POST", &forged, &[], None).status, 404);
 
     // carol now ignores the thread; bob loses access. Neither hears more.
