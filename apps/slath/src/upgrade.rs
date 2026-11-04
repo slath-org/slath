@@ -742,6 +742,31 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
     }
 }
 
+/// Where the pre-upgrade backup goes: `pre-upgrade-<from>-<to>-<time>` in
+/// `base`, with `-2`, `-3`, … added when an earlier run (such as an
+/// interrupted one in the same second) already used that name. The upgrade
+/// lock keeps two runs from picking the same name at once.
+fn backup_target(base: &Path, p: &Preflight, started: time::OffsetDateTime) -> PathBuf {
+    let name = format!(
+        "pre-upgrade-{}-{}-{}",
+        p.from_version.as_deref().unwrap_or("unknown"),
+        p.to_version,
+        started.unix_timestamp()
+    );
+    unused_name(base, &name)
+}
+
+/// `base/name`, or `base/name-2`, `base/name-3`, … if that exists.
+fn unused_name(base: &Path, name: &str) -> PathBuf {
+    let mut dir = base.join(name);
+    let mut n = 2;
+    while dir.exists() {
+        dir = base.join(format!("{name}-{n}"));
+        n += 1;
+    }
+    dir
+}
+
 /// The changing part of the upgrade. Stores the backup's path in
 /// `backup_out` as soon as it is complete.
 async fn execute(
@@ -783,13 +808,11 @@ async fn execute(
     fault_point("after-maintenance");
     // 2. Backup.
     if !opts.no_backup {
-        let stamp = started.unix_timestamp();
-        let from = p.from_version.as_deref().unwrap_or("unknown");
-        let dir = opts
+        let base = opts
             .backup_dir
             .clone()
-            .unwrap_or_else(|| cfg.storage.data_dir.join("backups"))
-            .join(format!("pre-upgrade-{from}-{}-{stamp}", p.to_version));
+            .unwrap_or_else(|| cfg.storage.data_dir.join("backups"));
+        let dir = backup_target(&base, p, started);
         if text {
             println!("backing up to {} …", dir.display());
         }
@@ -955,12 +978,7 @@ pub async fn serve_migrate(config_path: &Path, cfg: &Loaded, pool: &PgPool) -> R
     let started = time::OffsetDateTime::now_utc();
     let mut backup_path = None;
     if backup {
-        let dir = cfg.storage.data_dir.join("backups").join(format!(
-            "pre-upgrade-{}-{}-{}",
-            p.from_version.as_deref().unwrap_or("unknown"),
-            p.to_version,
-            started.unix_timestamp()
-        ));
+        let dir = backup_target(&cfg.storage.data_dir.join("backups"), &p, started);
         crate::backup::create_with(config_path, &dir, false, true).await?;
         tracing::info!(path = %dir.display(), "pre-upgrade backup written");
         backup_path = Some(dir);
@@ -984,4 +1002,25 @@ pub async fn serve_migrate(config_path: &Path, cfg: &Loaded, pool: &PgPool) -> R
     .await;
     lock.release().await;
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unused_name;
+
+    #[test]
+    fn backup_names_never_reuse_an_existing_directory() {
+        let base = tempfile::tempdir().unwrap();
+        let name = "pre-upgrade-0.1.0-0.2.0-1793793762";
+        let first = unused_name(base.path(), name);
+        assert_eq!(first, base.path().join(name));
+        std::fs::create_dir(&first).unwrap();
+        let second = unused_name(base.path(), name);
+        assert_eq!(second, base.path().join(format!("{name}-2")));
+        std::fs::create_dir(&second).unwrap();
+        assert_eq!(
+            unused_name(base.path(), name),
+            base.path().join(format!("{name}-3"))
+        );
+    }
 }

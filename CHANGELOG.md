@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.
+
 ## [0.2.0] - 2026-11-02
 
 Team alpha: issues, notifications, single sign-on, and one-command upgrades. Administrators need two-factor authentication; see `docs/admin/upgrading.md` before upgrading.
