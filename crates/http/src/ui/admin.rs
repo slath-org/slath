@@ -443,10 +443,34 @@ async fn org_audit(
     .await
 }
 
+/// The update check's result for the Health and Upgrades pages.
+struct UpdateView {
+    /// Version and release notes link of a newer release.
+    available: Option<(String, String)>,
+    error: Option<String>,
+    checked: Time,
+}
+
+async fn update_view(
+    state: &AppState,
+    subject: &slath_core::authz::Subject,
+) -> Result<Option<UpdateView>, AppError> {
+    Ok(state
+        .services
+        .update_status(subject)
+        .await?
+        .map(|u| UpdateView {
+            checked: u.checked_at_time().into(),
+            available: u.available.map(|r| (r.version, r.url)),
+            error: u.error,
+        }))
+}
+
 #[derive(Template)]
 #[template(path = "admin/health.html")]
 struct HealthPage {
     ctx: PageCtx,
+    update: Option<UpdateView>,
     section: &'static str,
     git: String,
     git_ok: bool,
@@ -466,9 +490,11 @@ async fn health(
     Query(q): Query<ListQuery>,
 ) -> Result<Response, AppError> {
     let h = state.services.health(&session.subject()).await?;
+    let update = update_view(&state, &session.subject()).await?;
     let smtp = &state.config.smtp;
     Ok(render(&HealthPage {
         ctx,
+        update,
         section: "health",
         git_ok: h.git_version.is_ok(),
         git: h.git_version.unwrap_or_else(|e| e),
@@ -533,6 +559,8 @@ struct UpgradeRow {
 #[template(path = "admin/upgrades.html")]
 struct UpgradesPage<'a> {
     ctx: PageCtx,
+    version: &'static str,
+    update: Option<UpdateView>,
     section: &'static str,
     message: Option<&'a str>,
     migrations: Vec<BgRow>,
@@ -598,8 +626,11 @@ async fn upgrades(
             error: u.error,
         })
         .collect();
+    let update = update_view(&state, &subject).await?;
     Ok(render(&UpgradesPage {
         ctx,
+        version: env!("CARGO_PKG_VERSION"),
+        update,
         section: "upgrades",
         message: status_message(q.status.as_deref()),
         migrations,

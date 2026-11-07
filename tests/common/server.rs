@@ -210,7 +210,7 @@ impl TestServer {
         let cfg_path = dir.path().join("slath.toml");
         let mut attempt = 1;
         loop {
-            match spawn_server(&bin, &cfg_path, &dir.path().join("server.log"), env, true) {
+            match spawn_server(&bin, &cfg_path, &dir.path().join("server.log"), env) {
                 Ok((child, addr)) => {
                     return Self {
                         child,
@@ -249,16 +249,15 @@ impl TestServer {
         let _ = self.child.wait();
     }
 
-    /// Starts the stopped server again with `bin` (`serve`, plus `--migrate`
-    /// if asked). Returns the server's log if it doesn't start.
-    pub fn start_again(&mut self, bin: &Path, migrate: bool) -> Result<(), String> {
+    /// Starts the stopped server again with `bin`, which applies a pending
+    /// update first. Returns the server's log if it doesn't start.
+    pub fn start_again(&mut self, bin: &Path) -> Result<(), String> {
         self.stop();
         let (child, addr) = spawn_server(
             bin,
             &self.config_path(),
             &self.dir.path().join("server.log"),
             &[],
-            migrate,
         )?;
         self.child = child;
         self.addr = addr;
@@ -412,15 +411,10 @@ fn spawn_server(
     cfg_path: &Path,
     log_path: &Path,
     env: &[(&str, &str)],
-    migrate: bool,
 ) -> Result<(Child, SocketAddr), String> {
     let log = std::fs::File::create(log_path).unwrap();
-    let mut cmd = Command::new(bin);
-    cmd.arg("serve");
-    if migrate {
-        cmd.arg("--migrate");
-    }
-    let mut child = cmd
+    let mut child = Command::new(bin)
+        .arg("serve")
         .arg("--config")
         .arg(cfg_path)
         .envs(env.iter().copied())
@@ -627,13 +621,13 @@ impl Instance {
         run_slath(&self.config_path(), args, stdin)
     }
 
-    /// Starts `slath serve --migrate` on this instance.
+    /// Starts `slath serve` on this instance.
     #[must_use]
     pub fn start(self, env: &[(&str, &str)]) -> TestServer {
         TestServer::launch(self.dir, self.db, env)
     }
 
-    /// Starts `serve --migrate` of another binary (an older release).
+    /// Starts `serve` of another binary (an older release).
     #[must_use]
     pub fn start_bin(self, bin: &Path, env: &[(&str, &str)]) -> TestServer {
         TestServer::launch_bin(self.dir, self.db, env, bin.to_path_buf())

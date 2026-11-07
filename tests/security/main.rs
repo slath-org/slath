@@ -34,6 +34,7 @@ mod ssh;
 mod surfaces;
 mod teams;
 mod tokens;
+mod updates;
 mod vuln_git;
 mod vuln_m2;
 mod vuln_rbac;

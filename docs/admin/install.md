@@ -11,73 +11,76 @@ old), and OpenSSH for Git over SSH. There are two supported ways to run it:
 [containers with Docker Compose](#docker-compose) and [systemd on a Linux
 host](#systemd).
 
-Both start from the release's source:
-
-```sh
-git clone --branch v0.2.0 https://github.com/slath-org/slath.git
-cd slath
-```
-
 ## Docker Compose
 
-`deploy/compose/` runs PostgreSQL, Slath, and sshd. The image contains a
-pinned Git and OpenSSH. The `sshd` container mounts only the IPC socket's
+`deploy/compose/` runs PostgreSQL, Slath, and sshd from the published image
+`ghcr.io/slath-org/slath`, which contains a pinned Git and OpenSSH. Nothing
+is built on your host. The `sshd` container mounts only the IPC socket's
 volume, not the data volume; see [Users and permissions](#users-and-permissions).
 
-1. Get the files and set a database password:
+1. Get the three files of the release you install:
 
    ```sh
-   cd deploy/compose
+   mkdir slath && cd slath
+   for f in compose.yml Caddyfile .env.example; do
+       curl -fsSLO "https://raw.githubusercontent.com/slath-org/slath/v0.3.0/deploy/compose/$f"
+   done
    cp .env.example .env
-   # edit .env: SLATH_DB_PASSWORD (required) and SLATH_PUBLIC_URL
    ```
 
-2. Build the image and start everything:
+2. Set the two values in `.env`: `SLATH_DB_PASSWORD` (any long random
+   string, for example from `openssl rand -hex 24`) and `SLATH_PUBLIC_URL`,
+   the address people use. Everything else has a default; the file lists
+   the optional settings.
+
+3. Start everything:
 
    ```sh
-   docker compose build
    docker compose up -d
    ```
 
    On first start, the `init` service creates the master key in the data
-   volume, and `slath` migrates the database.
+   volume, and `slath` sets up the database.
 
-3. Create the first administrator (use your own name; names such as
-   `admin` and `root` are reserved). Without `--password-stdin`, a random
-   password is printed once:
+4. Create the first administrator (use your own name; names such as
+   `admin` and `root` are reserved). A random password is printed once:
 
    ```sh
-   docker compose exec slath slath admin create-user --admin \
+   docker compose run --rm slath admin create-user --admin \
        --username ada --email ada@example.org
    ```
 
-4. Open `SLATH_PUBLIC_URL` (by default <http://localhost:3000>) and sign
+5. Open `SLATH_PUBLIC_URL` (by default <http://localhost:3000>) and sign
    in. Administration needs two-factor authentication: set it up under
    **Settings → Security**, then sign out and in again with a code (see
-   [Accounts and sign-in](accounts.md)). Create a repository. Clone it over HTTPS with a personal access token
-   as the password, or over SSH after adding your key under **Settings → SSH
-   keys**:
+   [Accounts and sign-in](accounts.md)). Create a repository. Clone it over
+   HTTPS with a personal access token as the password, or over SSH after
+   adding your key under **Settings → SSH keys**:
 
    ```sh
    git clone http://localhost:3000/ada/project.git
    git clone ssh://git@localhost:2222/ada/project.git
    ```
 
-5. Back up the master key now and keep it apart from your backups:
+6. Back up the master key now and keep it apart from your backups:
 
    ```sh
    docker compose cp slath:/var/lib/slath/master.key ./master.key
    ```
 
+To update, set `SLATH_VERSION` in `.env` to the new release (or get the
+new release's `compose.yml`) and run `docker compose up -d`; see
+[Upgrading](upgrading.md). Slath backs up before each update into the
+`backups` volume and keeps the newest two.
+
 ### TLS
 
-For a public server, publish HTTP only on `127.0.0.1` (the default) and put a
-TLS proxy in front. The `tls` profile runs Caddy, which gets a certificate for
-`SLATH_DOMAIN` automatically:
+For a public server, keep HTTP published on `127.0.0.1` (the default) and
+let the `tls` profile run Caddy in front, which gets a certificate for the
+host in `SLATH_PUBLIC_URL`:
 
 ```sh
 # in .env
-SLATH_DOMAIN=git.example.org
 SLATH_PUBLIC_URL=https://git.example.org
 ```
 
@@ -85,24 +88,10 @@ SLATH_PUBLIC_URL=https://git.example.org
 docker compose --profile tls up -d
 ```
 
-Let Slath trust the proxy's `X-Forwarded-For` header. List exactly the
-compose network's subnet, not a broad private range such as `172.16.0.0/12`:
-every address in the list may claim any client address. Look the subnet up
-once the stack is running:
-
-```sh
-docker network inspect slath_default --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}'
-# e.g. 172.19.0.0/16
-```
-
-and add it to the `slath` service's environment in `compose.yml`:
-
-```yaml
-SLATH__SERVER__TRUSTED_PROXIES: '["172.19.0.0/16"]'
-```
-
-Docker keeps a network's subnet until the network is removed (`docker compose
-down` removes it). Check the value again after recreating the network.
+Caddy has a fixed address in the Compose network, and Slath trusts exactly
+that address to report the client's address (`X-Forwarded-For`). If the
+network's default subnet `172.29.79.0/24` is taken on your host, set
+`SLATH_SUBNET`, `SLATH_DYNAMIC_RANGE`, and `SLATH_PROXY_IP` in `.env`.
 
 ### Configuration
 
@@ -112,6 +101,13 @@ mount your own file there. `docker compose exec slath slath config check`
 validates the result.
 
 ## systemd
+
+The systemd profile builds from the release's source for now:
+
+```sh
+git clone --branch v0.3.0 https://github.com/slath-org/slath.git
+cd slath
+```
 
 1. **PostgreSQL:** create a database `slath` owned by a role `slath`. The
    contrib modules must be installed (Slath enables `pg_trgm` and `citext`;

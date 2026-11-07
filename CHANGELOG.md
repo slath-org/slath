@@ -8,8 +8,18 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- An opt-in update check (`[upgrade] check_for_updates`) shows administrators when a newer release is available; it makes no request unless turned on.
+
 ### Changed
 
+- Updating means installing the new version and restarting: Slath checks, backs up, and migrates when it starts, and refuses to start, changing nothing, when it can't update safely.
+- Pre-upgrade backups are on by default everywhere, and only the newest two are kept (`[upgrade] backups_kept`).
+- `slath serve` has no `--migrate` flag any more; it always applies a pending update first.
+- Docker Compose runs the published image and needs only the database password and the public URL in `.env`; backups get their own volume.
+- The Compose TLS profile serves the host in `SLATH_PUBLIC_URL` and trusts only its own proxy address, without a subnet to look up.
+- The first administrator is created with one `docker compose run` command.
 - Access tokens have a new format: a prefix that names the kind, and a checksum so mistyped or fake tokens are rejected at once. Tokens from 0.1 and 0.2 no longer work; create new ones.
 - The top bar and favicon show the new Slath logo, in the variant for the light or dark theme in use.
 
@@ -19,6 +29,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- The administration Upgrades page has a proper browser tab title.
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.
 
 ## [0.2.0] - 2026-11-02

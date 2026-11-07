@@ -1,0 +1,13 @@
+{#- The result of the opt-in update check; shown only when it is on. #}
+{%- if let Some(u) = update %}
+<div class="notice" role="status">
+  {%- if let Some((v, url)) = u.available %}
+  <p><strong>Slath {{ v }} is available.</strong> You run {{ version }}.{% if !url.is_empty() %} <a href="{{ url }}" rel="noreferrer">Release notes</a>.{% endif %} Install it and restart Slath to update.</p>
+  {%- else if let Some(e) = u.error %}
+  <p>The update check failed: {{ e }}</p>
+  {%- else %}
+  <p>Slath {{ version }} is the newest release.</p>
+  {%- endif %}
+  <p class="text-secondary">Last checked <time datetime="{{ u.checked.iso }}">{{ u.checked.text }}</time>.</p>
+</div>
+{%- endif %}

@@ -42,6 +42,12 @@ ssh_port = 22
 # password_file = "/etc/slath/smtp-password"
 # from = "Slath <noreply@example.org>"
 
+# Updates: a new version backs up and migrates when it starts.
+# [upgrade]
+# auto_backup = true          # the pre-upgrade backup
+# backups_kept = 2            # newest pre-upgrade backups to keep (0 keeps all)
+# check_for_updates = false   # opt-in: ask for new releases once a day
+
 [log]
 format = "json"
 level = "info"

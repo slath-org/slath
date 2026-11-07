@@ -549,13 +549,39 @@ impl Default for Import {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Upgrade {
-    #[serde(default)]
+    /// Back up before `serve` applies an update at start.
+    #[serde(default = "yes")]
     pub auto_backup: bool,
+    /// Newest pre-upgrade backups kept after a new one succeeds (0: all).
+    #[serde(default = "default_backups_kept")]
+    pub backups_kept: u32,
+    /// Opt-in: ask `feed_url` for new releases once a day.
     #[serde(default)]
     pub check_for_updates: bool,
+    #[serde(default = "default_feed_url")]
+    pub feed_url: String,
+}
+
+impl Default for Upgrade {
+    fn default() -> Self {
+        Self {
+            auto_backup: true,
+            backups_kept: default_backups_kept(),
+            check_for_updates: false,
+            feed_url: default_feed_url(),
+        }
+    }
+}
+
+fn default_backups_kept() -> u32 {
+    2
+}
+
+fn default_feed_url() -> String {
+    "https://api.github.com/repos/slath-org/slath/releases".to_owned()
 }
 
 #[derive(Debug, Deserialize)]

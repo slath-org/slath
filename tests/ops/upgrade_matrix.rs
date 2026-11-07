@@ -176,7 +176,7 @@ fn conf_ops_03_upgrade_from_every_release() {
         };
 
         // Smoke and conformance subset on the upgraded instance.
-        s.start_again(&slath_bin(), false)
+        s.start_again(&slath_bin())
             .unwrap_or_else(|log| panic!("{tag}: {log}"));
         assert_eq!(counts(&s), before_counts, "{tag}: entity counts");
         assert_eq!(refs(&s, &git, work.path()), before_refs, "{tag}: refs");
@@ -208,7 +208,7 @@ fn conf_ops_03_upgrade_from_every_release() {
         };
 
         // The old binary refuses the upgraded database and says how to go back.
-        let refused = s.start_again(&old_bin, false);
+        let refused = s.start_again(&old_bin);
         let log = refused.expect_err("the old binary must not serve the newer schema");
         assert!(log.contains("newer than this binary"), "{tag}: {log}");
         assert!(

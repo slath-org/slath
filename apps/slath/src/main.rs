@@ -30,14 +30,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the HTTP server, the IPC endpoint, and workers.
+    /// Run the HTTP server, the IPC endpoint, and workers. A pending update
+    /// is applied first (preflight, backup, migrations); if it can't be,
+    /// the server refuses to start and changes nothing.
     Serve {
         /// Configuration file (default: $SLATH_CONFIG or /etc/slath/slath.toml).
         #[arg(long)]
         config: Option<PathBuf>,
-        /// Apply pending database migrations before starting.
-        #[arg(long)]
-        migrate: bool,
     },
     /// Upgrade the database and data directory to this version: preflight,
     /// automatic backup, migrations, verification. `--check` only reports.
@@ -303,7 +302,7 @@ fn main() -> ExitCode {
     }
     let cli = Cli::parse();
     match cli.command {
-        Command::Serve { config, migrate } => serve::run(&config::resolve_path(config), migrate),
+        Command::Serve { config } => serve::run(&config::resolve_path(config)),
         Command::Upgrade {
             config,
             check,

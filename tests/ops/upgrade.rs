@@ -81,6 +81,13 @@ fn required_schema(inst: &Instance) -> i32 {
     i32::try_from(v["schema"].as_i64().unwrap()).unwrap()
 }
 
+fn required_schema_of(srv: &slath_tests::server::TestServer) -> i32 {
+    let (ok, out, _) = srv.slath(&["version", "--json"], None);
+    assert!(ok);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    i32::try_from(v["schema"].as_i64().unwrap()).unwrap()
+}
+
 #[test]
 fn conf_ops_07_check_changes_nothing() {
     let inst = baseline_instance();
@@ -295,7 +302,7 @@ fn conf_ops_03_preview_databases_are_refused_with_guidance() {
         &["upgrade", "--yes"][..],
         &["upgrade", "--check"],
         &["migrate"],
-        &["serve", "--migrate"],
+        &["serve"],
     ] {
         let (ok, out, err) = inst.slath(args, None);
         assert!(!ok, "{args:?}: {out}{err}");
@@ -367,4 +374,104 @@ fn conf_ops_07_maintenance_mode_is_read_only() {
     assert!(err.contains("maintenance in progress"), "{err}");
     // Clones still work.
     git.ok(work.path(), &["clone", "-q", &s.url(&DEMO), "clone"]);
+}
+
+/// Updating by restart (OPS-10): starting the new binary on an older
+/// database runs the preflight, takes the pre-upgrade backup, keeps the
+/// newest two, and migrates.
+#[test]
+fn conf_ops_10_restarting_with_a_new_version_backs_up_and_migrates() {
+    let inst = baseline_instance();
+    // Three older backups from earlier updates.
+    let backups = inst.dir.path().join("data/backups");
+    for (i, name) in ["pre-upgrade-a", "pre-upgrade-b", "pre-upgrade-c"]
+        .iter()
+        .enumerate()
+    {
+        let d = backups.join(name);
+        std::fs::create_dir_all(&d).unwrap();
+        let manifest = d.join("manifest.json");
+        std::fs::write(&manifest, "{}").unwrap();
+        let t =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(3600 * (3 - i as u64));
+        std::fs::File::options()
+            .write(true)
+            .open(&manifest)
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+    }
+    std::fs::create_dir_all(backups.join("unrelated")).unwrap();
+    let srv = inst.start(&[]);
+    assert_eq!(schema_version(&srv.db), required_schema_of(&srv));
+    assert_eq!(
+        srv.db.query_one("SELECT outcome FROM upgrade_history"),
+        "success"
+    );
+    let backup = srv.db.query_one("SELECT backup_path FROM upgrade_history");
+    assert!(
+        backup.contains("/backups/pre-upgrade-schema100-"),
+        "{backup}"
+    );
+    let mut left: Vec<String> = std::fs::read_dir(&backups)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    left.sort();
+    let new = std::path::Path::new(&backup)
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(
+        left,
+        vec!["pre-upgrade-c".to_owned(), new, "unrelated".to_owned()]
+    );
+    let mut c = srv.client();
+    assert_eq!(
+        slath_tests::http::login(&mut c, "alice", PASSWORD).status,
+        303
+    );
+    assert!(srv.log().contains("update applied"), "{}", srv.log());
+}
+
+/// A failed preflight refuses to start and changes nothing.
+#[test]
+fn conf_ops_10_a_failed_preflight_refuses_to_start() {
+    use std::os::unix::fs::PermissionsExt;
+    let inst = baseline_instance();
+    let data = inst.dir.path().join("data");
+    // An installation that ran before has its hooks directory.
+    std::fs::create_dir_all(data.join("hooks")).unwrap();
+    let before = db_checksum(&inst.db);
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let (ok, out, err) = inst.slath(&["serve"], None);
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(!ok);
+    let text = format!("{out}{err}");
+    assert!(text.contains("refusing to start"), "{text}");
+    assert!(text.contains("data_dir"), "{text}");
+    assert!(text.contains("Nothing was changed"), "{text}");
+    assert_eq!(db_checksum(&inst.db), before);
+    assert_eq!(schema_version(&inst.db), 100);
+}
+
+/// With `auto_backup = false`, a restart migrates without a backup.
+#[test]
+fn restart_updates_skip_the_backup_when_turned_off() {
+    let inst = fixture_instance(&schema::baseline());
+    let cfg = std::fs::read_to_string(inst.config_path()).unwrap();
+    std::fs::write(
+        inst.config_path(),
+        format!("{cfg}[upgrade]\nauto_backup = false\n"),
+    )
+    .unwrap();
+    let srv = inst.start(&[]);
+    assert_eq!(schema_version(&srv.db), required_schema_of(&srv));
+    assert_eq!(
+        srv.db
+            .query_one("SELECT coalesce(backup_path, 'none') FROM upgrade_history"),
+        "none"
+    );
+    assert!(!srv.data_dir().join("backups").exists());
 }

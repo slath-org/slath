@@ -39,7 +39,7 @@ done
     -e SLATH__SERVER__LISTEN=127.0.0.1:3000 \
     -e SLATH__SERVER__PUBLIC_URL=http://127.0.0.1:3000 \
     --entrypoint /bin/sh "$IMAGE" \
-    -c 'slath admin gen-key --output /var/lib/slath/master.key && exec slath serve --migrate' >/dev/null
+    -c 'slath admin gen-key --output /var/lib/slath/master.key && exec slath serve' >/dev/null
 for _ in $(seq 1 60); do
     "$ENGINE" logs "$NAME-app" 2>&1 | grep -q 'listening on' && break
     sleep 1

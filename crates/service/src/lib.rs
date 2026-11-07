@@ -41,6 +41,7 @@ pub mod sessions;
 pub mod settings;
 pub mod teams;
 pub mod tokens;
+pub mod updates;
 
 use std::sync::Arc;
 

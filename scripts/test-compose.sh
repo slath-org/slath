@@ -3,12 +3,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Install conformance for the container profile, following
-# docs/admin/install.md: build the image, start deploy/compose, create the
-# first admin with the CLI, check that the SSH login can reach nothing but
-# the IPC socket, then (tests/ops/compose.rs) sign in, create a repository
-# through the API, and clone it over HTTP and SSH. Afterwards the
-# release image renders every page with outbound networking disabled
-# (scripts/test-offline.sh).
+# docs/admin/install.md with an image built beforehand (`docker build -t
+# slath:test .`, or SLATH_IMAGE): an .env with only the database password
+# and the public URL, an update on start from a database at the upgrade
+# baseline (preflight, backup into the backups volume, migrations), the
+# first admin with one `docker compose run`, a check that the SSH login can
+# reach nothing but the IPC socket, then (tests/ops/compose.rs) sign in,
+# create a repository through the API, and clone it over HTTP and SSH.
+# Afterwards the image renders every page with outbound networking
+# disabled (scripts/test-offline.sh).
 #
 # Usage: scripts/test-compose.sh   (needs docker or podman with compose)
 
@@ -22,32 +25,57 @@ SSH_PORT="${SLATH_TEST_SSH_PORT:-38022}"
 ADMIN_PASSWORD="compose admin password $$"
 
 export SLATH_IMAGE="${SLATH_IMAGE:-slath:test}"
-export SLATH_DB_PASSWORD="test-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
-export SLATH_PUBLIC_URL="http://127.0.0.1:$HTTP_PORT"
+# Only the ports differ from a real installation (several runs may share a host).
 export SLATH_HTTP_BIND="127.0.0.1:$HTTP_PORT"
 export SLATH_SSH_BIND="127.0.0.1:$SSH_PORT"
 export SLATH_SSH_PORT="$SSH_PORT"
+SLATH_PUBLIC_URL="http://127.0.0.1:$HTTP_PORT"
+mkdir -p target
+ENV_FILE="$ROOT/target/compose-$$.env"
+# The whole .env of an installation: two values.
+printf 'SLATH_DB_PASSWORD=%s\nSLATH_PUBLIC_URL=%s\n' \
+    "test-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')" "$SLATH_PUBLIC_URL" >"$ENV_FILE"
 
-compose() { "$ENGINE" compose -p "$PROJECT" -f deploy/compose/compose.yml "$@"; }
+"$ENGINE" image inspect "$SLATH_IMAGE" >/dev/null 2>&1 || {
+    echo "compose: image $SLATH_IMAGE not found; build it first: docker build -t $SLATH_IMAGE ." >&2
+    exit 1
+}
+
+compose() { "$ENGINE" compose -p "$PROJECT" --env-file "$ENV_FILE" -f deploy/compose/compose.yml "$@"; }
 cleanup() {
     if [[ "${KEEP:-0}" != 1 ]]; then
         compose logs --no-color slath sshd >"$ROOT/target/compose.log" 2>&1 || true
         compose down -v --remove-orphans >/dev/null 2>&1 || true
+        rm -f "$ENV_FILE"
     fi
 }
 trap cleanup EXIT
-mkdir -p target
 
-compose build
+# An existing installation at the upgrade baseline: its database and its
+# repositories (empty, as the fixture has no Git data).
+compose up -d --wait postgres
+compose exec -T postgres psql -q -v ON_ERROR_STOP=1 -U slath -d slath \
+    <tests/fixtures/schema/baseline.sql >/dev/null
+repos=$(compose exec -T postgres psql -At -U slath -d slath \
+    -c "SELECT CASE WHEN state = 'deleting' THEN 'trash/' || id || '.git'
+                    ELSE 'repos/' || left(id::text, 2) || '/' || id || '.git' END FROM repositories")
+compose run --rm --no-deps -T --entrypoint /bin/sh slath -c \
+    'for r in "$@"; do /opt/git/bin/git init -q --bare "/var/lib/slath/$r"; done' sh $repos
+
+# Starting this version updates it: preflight, backup, migrations.
 compose up -d
 for _ in $(seq 1 120); do
     curl -fsS "$SLATH_PUBLIC_URL/-/readyz" >/dev/null 2>&1 && break
     sleep 1
 done
 curl -fsS "$SLATH_PUBLIC_URL/-/readyz" >/dev/null || { compose logs slath; exit 1; }
+compose logs --no-color slath | grep -q "update applied" || { compose logs slath; exit 1; }
+backups=$(compose exec -T slath ls /var/lib/slath/backups)
+[[ "$backups" == pre-upgrade-* ]] || { echo "compose: no pre-upgrade backup: $backups" >&2; exit 1; }
 
-printf '%s' "$ADMIN_PASSWORD" | compose exec -T slath \
-    slath admin create-user --admin --username ada --email ada@example.org --password-stdin
+# The first administrator: one `docker compose run`.
+printf '%s' "$ADMIN_PASSWORD" | compose run --rm -T slath \
+    admin create-user --admin --username ada --email ada@example.org --password-stdin
 
 # The SSH login `git` is a user of its own: it may use the IPC socket, and
 # can't read the server's data, secrets, or environment. sshd has no data.

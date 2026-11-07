@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `slath upgrade [--check]` and the preflight of `serve --migrate`.
+//! `slath upgrade [--check]`, and the update `serve` applies at start.
 //!
 //! An upgrade runs: preflight (nothing changes before every check passed)
 //! → read-only maintenance of a running server → backup → schema migrations
@@ -23,7 +23,7 @@ use crate::config::{self, Loaded};
 use crate::output::{OutputFormat, fail, print_json, runtime};
 use crate::upgrade_notes::{self as notes, Notes, Version};
 
-/// Advisory lock held by whoever migrates (`upgrade`, `serve --migrate`).
+/// Advisory lock held by whoever migrates (`upgrade`, or `serve` at start).
 const UPGRADE_LOCK: i64 = 0x736c_6174_6875_7067; // "slathupg"
 /// Oldest supported PostgreSQL major version.
 const MIN_POSTGRES: i64 = 15;
@@ -248,7 +248,7 @@ impl Lock {
     }
 }
 
-/// The checks shared by `upgrade` and `serve --migrate`. Takes the lock
+/// The checks shared by `upgrade` and `serve`'s update at start. Takes the lock
 /// and returns it if available.
 async fn preflight(
     cfg: &Loaded,
@@ -501,7 +501,7 @@ async fn preflight(
         p.push(
             "lock",
             Mark::Fail,
-            "another `slath upgrade` or `serve --migrate` holds the upgrade lock",
+            "another `slath upgrade` or starting server holds the upgrade lock",
         );
     }
 
@@ -704,6 +704,11 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
             slath_db::settings::delete(&pool, slath_db::settings::UPGRADE_IN_PROGRESS).await
     {
         eprintln!("slath: cannot clear the upgrade marker: {e}");
+    }
+    if result.is_ok()
+        && let Some(b) = &backup_path
+    {
+        prune_backups(b, cfg.upgrade.backups_kept);
     }
     lock.release().await;
     match result {
@@ -955,17 +960,29 @@ async fn record_history(
     }
 }
 
-/// `serve --migrate` (the container entrypoint): the same preflight; it
-/// refuses to migrate when a check fails or the jump needs a manual action.
-/// Takes a backup first only with `upgrade.auto_backup`.
-pub async fn serve_migrate(config_path: &Path, cfg: &Loaded, pool: &PgPool) -> Result<(), String> {
+/// Applies a pending update when `serve` starts, in every profile: the
+/// same preflight as `slath upgrade` (any failure, including a required
+/// manual action, refuses to start and changes nothing), the pre-upgrade
+/// backup unless `upgrade.auto_backup` is off, then the upgrade's steps.
+/// A new installation (an empty database) is only migrated.
+pub async fn upgrade_on_start(
+    config_path: &Path,
+    cfg: &Loaded,
+    pool: &PgPool,
+) -> Result<(), String> {
     let pending = slath_db::pending_migrations(pool)
         .await
         .map_err(|e| e.to_string())?;
-    if pending.is_empty() {
+    let interrupted = unfinished(pool).await.is_some();
+    let schema = slath_db::schema_version(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or(0);
+    if pending.is_empty() && !interrupted && !slath_db::is_preview_schema(schema) {
         return Ok(());
     }
-    let backup = cfg.upgrade.auto_backup;
+    let fresh = schema == 0 && !interrupted;
+    let backup = cfg.upgrade.auto_backup && !fresh;
     let (p, lock) = preflight(cfg, pool, &[], None, backup).await?;
     let failed: Vec<String> = p
         .items
@@ -975,29 +992,34 @@ pub async fn serve_migrate(config_path: &Path, cfg: &Loaded, pool: &PgPool) -> R
         .collect();
     let Some(lock) = lock.filter(|_| failed.is_empty()) else {
         return Err(format!(
-            "refusing to migrate the database automatically: {}. Run `slath upgrade` \
-             (https://slath.org/docs/admin/upgrading/)",
+            "refusing to start: the update to v{} can't be applied automatically. {}. \
+             Nothing was changed. See `slath upgrade --check` and \
+             https://slath.org/docs/admin/upgrading/",
+            p.to_version,
             failed.join("; ")
         ));
     };
     for w in p.items.iter().filter(|i| i.mark == Mark::Warn) {
         tracing::warn!(check = w.name, "{}", w.detail);
     }
+    if fresh {
+        let result = slath_db::migrate(pool).await.map_err(|e| e.to_string());
+        lock.release().await;
+        return result;
+    }
+    tracing::info!(from = ?p.from_version, from_schema = p.from_schema, to = %p.to_version, "applying the update");
+    let opts = Opts {
+        check: false,
+        no_backup: !backup,
+        backup_dir: None,
+        yes: true,
+        accept_actions: Vec::new(),
+        // Progress goes to the log, not to stdout.
+        output: OutputFormat::Json,
+    };
     let started = time::OffsetDateTime::now_utc();
     let mut backup_path = None;
-    if backup {
-        let dir = backup_target(&cfg.storage.data_dir.join("backups"), &p, started);
-        crate::backup::create_with(config_path, &dir, false, true).await?;
-        tracing::info!(path = %dir.display(), "pre-upgrade backup written");
-        backup_path = Some(dir);
-    }
-    let result = slath_db::MIGRATOR
-        .run(pool)
-        .await
-        .map_err(|e| format!("migration failed: {e}"));
-    if result.is_ok() {
-        tracing::info!(count = p.pending.len(), "migrations applied");
-    }
+    let result = execute(config_path, cfg, pool, &p, &opts, started, &mut backup_path).await;
     let outcome = if result.is_ok() { "success" } else { "failed" };
     record_history(
         pool,
@@ -1008,8 +1030,66 @@ pub async fn serve_migrate(config_path: &Path, cfg: &Loaded, pool: &PgPool) -> R
         result.as_ref().err(),
     )
     .await;
+    if result.is_ok() {
+        if let Err(e) =
+            slath_db::settings::delete(pool, slath_db::settings::UPGRADE_IN_PROGRESS).await
+        {
+            tracing::warn!(error = %e, "cannot clear the upgrade marker");
+        }
+        if let Some(b) = &backup_path {
+            tracing::info!(path = %b.display(), "pre-upgrade backup written");
+            prune_backups(b, cfg.upgrade.backups_kept);
+        }
+        tracing::info!(to = %p.to_version, "update applied");
+    }
     lock.release().await;
-    result
+    result.map_err(|e| {
+        let back = backup_path.map_or_else(
+            || "No backup was taken.".to_owned(),
+            |b| format!("To go back, restore the backup at {}.", b.display()),
+        );
+        format!("the update failed: {e}. Starting the server again finishes it. {back}")
+    })
+}
+
+/// Deletes older pre-upgrade backups next to `newest`, keeping the newest
+/// `keep` (0 keeps all). Only `pre-upgrade-*` directories holding a backup
+/// manifest are touched.
+fn prune_backups(newest: &Path, keep: u32) {
+    let (Some(base), true) = (newest.parent(), keep > 0) else {
+        return;
+    };
+    let Ok(rd) = std::fs::read_dir(base) else {
+        return;
+    };
+    let mut found: Vec<(std::time::SystemTime, PathBuf)> = rd
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with("pre-upgrade-"))
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .filter(|e| e.path().join("manifest.json").is_file())
+        .filter_map(|e| {
+            let t = e
+                .path()
+                .join("manifest.json")
+                .metadata()
+                .ok()?
+                .modified()
+                .ok()?;
+            Some((t, e.path()))
+        })
+        .collect();
+    found.sort_by_key(|f| std::cmp::Reverse(f.0));
+    for (_, old) in found.into_iter().skip(keep as usize) {
+        if old == newest {
+            continue;
+        }
+        match std::fs::remove_dir_all(&old) {
+            Ok(()) => tracing::info!(path = %old.display(), "deleted an older pre-upgrade backup"),
+            Err(e) => {
+                tracing::warn!(path = %old.display(), error = %e, "cannot delete an older pre-upgrade backup")
+            }
+        }
+    }
 }
 
 #[cfg(test)]

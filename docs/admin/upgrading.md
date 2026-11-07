@@ -5,17 +5,52 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Upgrading Slath
 
-You can upgrade directly from any earlier release from 0.3.0 on to the
-current one; there's no need to install the releases in between.
-`slath upgrade --check` prints the notes of every release you skip.
+To update, **install the new version and restart Slath**. You can update
+directly from any release since 0.3.0; there's no need to install the
+releases in between.
+
+- **Docker Compose:** set `SLATH_VERSION` in `.env` to the new release (or
+  use the new release's `compose.yml`), then `docker compose up -d`.
+- **systemd:** replace `/usr/bin/slath` with the new binary, then
+  `systemctl restart slath`.
+
+When it starts, Slath sees that the database is older and updates it
+before serving:
+
+1. It runs the preflight checks (see below). If one fails, or the release
+   notes list a manual step you must do first, it **refuses to start**,
+   logs what to do, and changes nothing. Fix it, or run the old version
+   again until you can.
+2. It backs up the database and repositories into
+   `<data_dir>/backups/pre-upgrade-<from>-<to>-<time>` (the `backups`
+   volume in Compose) and then deletes older pre-upgrade backups except the
+   newest two (`[upgrade] backups_kept`). Copy backups off the host as
+   well. `[upgrade] auto_backup = false` turns this backup off, which isn't
+   recommended.
+3. It applies the schema migrations, refreshes the Git hooks, registers
+   background migrations, checks the result, and records the update under
+   **Administration → Upgrades**.
+
+If the start is interrupted, starting again finishes the update.
 
 Releases 0.1.x and 0.2.0 were previews and can't be upgraded; see
 [Coming from a preview](#coming-from-a-preview).
 
+### Hearing about new releases
+
+Turn on `[upgrade] check_for_updates = true` to have Slath ask for new
+releases once a day. **Administration → Health** and **Upgrades** then say
+when a newer release is available and link its release notes. Slath never
+installs anything itself. It's off by default, and then Slath makes no
+request at all. The check asks GitHub's release list for this project; set
+`[upgrade] feed_url` to use another source in the same format.
+
 ## With `slath upgrade`
 
-Install the new binary, then see what would happen. This changes nothing
-and is safe to run at any time:
+To see what an update would do before you restart, or to update while the
+server keeps serving read-only, install the new binary and run `slath
+upgrade` yourself. First the preview, which changes nothing and is safe to
+run at any time:
 
 ```sh
 slath upgrade --check
@@ -66,17 +101,11 @@ an upgraded database and says which backup to restore.
 
 ### Containers
 
-The image starts with `slath serve --migrate`. It runs the same preflight
-and refuses to migrate (and to start) when a check fails or the upgrade
-notes list a required manual step; the log says what to do. It takes a
-backup only if you set `SLATH__UPGRADE__AUTO_BACKUP=true` and give the
-backup directory a volume. The recommended way is to upgrade explicitly,
-which always backs up:
+The same commands run in the container:
 
 ```sh
-docker compose pull   # or build
-docker compose run --rm slath slath upgrade
-docker compose up -d
+docker compose run --rm slath upgrade --check
+docker compose run --rm slath upgrade --accept-action <id>   # if the notes require it
 ```
 
 ### Background migrations

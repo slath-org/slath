@@ -25,7 +25,7 @@ fn wait_for(what: &str, secs: u64, mut f: impl FnMut() -> bool) {
 }
 
 fn restart(s: &mut TestServer) {
-    s.start_again(&slath_bin(), false).unwrap();
+    s.start_again(&slath_bin()).unwrap();
 }
 
 /// `refname oid` lines of a bare repository.

@@ -1,18 +1,21 @@
 # SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Slath with PostgreSQL and sshd. See docs/admin/install.md.
+# Slath with PostgreSQL and sshd, from the published image. See
+# docs/admin/install.md.
 #
 #   cp .env.example .env    # set SLATH_DB_PASSWORD and SLATH_PUBLIC_URL
 #   docker compose up -d
+#   docker compose run --rm slath admin create-user --admin --username ada --email ada@example.org
 #
-# With `--profile tls`, Caddy terminates TLS for SLATH_DOMAIN (see Caddyfile).
+# Updating: set SLATH_VERSION in .env (or use a newer compose.yml) and run
+# `docker compose up -d`. Slath backs up, migrates, and starts; if it can't
+# update safely, it refuses to start and changes nothing (docs/admin/upgrading.md).
+#
+# With `--profile tls`, Caddy terminates TLS for the host in SLATH_PUBLIC_URL.
 name: slath
 
-x-slath-env: &slath-env
-  SLATH__DATABASE__URL: postgres://slath:${SLATH_DB_PASSWORD:?set SLATH_DB_PASSWORD in .env}@postgres/slath
-  SLATH__SERVER__PUBLIC_URL: ${SLATH_PUBLIC_URL:-http://localhost:3000}
-  SLATH__GIT__SSH_PORT: ${SLATH_SSH_PORT:-2222}
+x-image: &image ${SLATH_IMAGE:-ghcr.io/slath-org/slath:${SLATH_VERSION:-0.3.0}}
 
 services:
   postgres:
@@ -33,17 +36,21 @@ services:
   # Creates the master key in the data volume on first start. Back it up
   # separately: `docker compose cp slath:/var/lib/slath/master.key ./`.
   init:
-    image: ${SLATH_IMAGE:-slath:latest}
-    build: ../..
+    image: *image
     entrypoint: ["/bin/sh", "-c"]
     command: ["test -f /var/lib/slath/master.key || slath admin gen-key --output /var/lib/slath/master.key"]
     volumes:
       - data:/var/lib/slath
 
   slath:
-    image: ${SLATH_IMAGE:-slath:latest}
+    image: *image
     restart: unless-stopped
-    environment: *slath-env
+    environment:
+      SLATH__DATABASE__URL: postgres://slath:${SLATH_DB_PASSWORD:?set SLATH_DB_PASSWORD in .env}@postgres/slath
+      SLATH__SERVER__PUBLIC_URL: ${SLATH_PUBLIC_URL:?set SLATH_PUBLIC_URL in .env}
+      SLATH__GIT__SSH_PORT: ${SLATH_SSH_PORT:-2222}
+      # Only Caddy (profile tls) may report the client's address.
+      SLATH__SERVER__TRUSTED_PROXIES: '["${SLATH_PROXY_IP:-172.29.79.10}/32"]'
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,13 +60,15 @@ services:
       - "${SLATH_HTTP_BIND:-127.0.0.1:3000}:3000"
     volumes:
       - data:/var/lib/slath
+      # Pre-upgrade backups (the newest two are kept); copy them off the host.
+      - backups:/var/lib/slath/backups
       - run:/run/slath
 
   # Git over SSH: same image, sshd as root; logins as `git` are handed to
   # `slath ssh-serve`, which passes them to `slath` through the socket in
   # `run`. Git runs in `slath`, so sshd gets no access to the data volume.
   sshd:
-    image: ${SLATH_IMAGE:-slath:latest}
+    image: *image
     restart: unless-stopped
     user: root
     entrypoint: ["/usr/local/lib/slath/sshd-entrypoint"]
@@ -81,19 +90,32 @@ services:
     image: docker.io/library/caddy:2
     restart: unless-stopped
     environment:
-      SLATH_DOMAIN: ${SLATH_DOMAIN:-localhost}
+      SLATH_PUBLIC_URL: ${SLATH_PUBLIC_URL}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy:/data
+    networks:
+      default:
+        ipv4_address: ${SLATH_PROXY_IP:-172.29.79.10}
     depends_on:
       - slath
+
+networks:
+  default:
+    ipam:
+      config:
+        # Other containers get addresses from the upper half only, so none
+        # can take the proxy's address.
+        - subnet: ${SLATH_SUBNET:-172.29.79.0/24}
+          ip_range: ${SLATH_DYNAMIC_RANGE:-172.29.79.128/25}
 
 volumes:
   postgres:
   data:
+  backups:
   run:
   sshd-keys:
   caddy:

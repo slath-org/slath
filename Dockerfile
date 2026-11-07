@@ -64,6 +64,8 @@ RUN apt-get update \
     && usermod --password '*' git \
     && usermod --append --groups git slath \
     && install -d -o slath -g slath -m 0750 /var/lib/slath \
+    # A volume mounted here (compose.yml) starts with this owner and mode.
+    && install -d -o slath -g slath -m 0700 /var/lib/slath/backups \
     && install -d -o slath -g git -m 0710 /run/slath \
     && install -d -m 0755 /etc/slath /run/sshd
 COPY --from=git /opt/git /opt/git
@@ -79,4 +81,4 @@ VOLUME ["/var/lib/slath", "/run/slath"]
 EXPOSE 3000 22
 USER slath
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/bin/slath"]
-CMD ["serve", "--migrate"]
+CMD ["serve"]

@@ -1,32 +1,12 @@
 {% extends "admin/layout.html" %}
-{% block title %}Upgrades · Administration<h2>Upgrade history</h2>
-{%- if history.is_empty() %}
-<p class="text-secondary">No upgrades recorded yet. Upgrade with <code>slath upgrade</code>; see the upgrading guide.</p>
-{%- else %}
-<div class="table-wrap" tabindex="0" role="region" aria-labelledby="history-caption">
-<table class="table">
-  <caption id="history-caption" class="visually-hidden">Upgrade history</caption>
-  <thead><tr><th scope="col">Started</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Outcome</th><th scope="col">Backup</th></tr></thead>
-  <tbody>
-  {%- for u in history %}
-    <tr>
-      <td><time datetime="{{ u.started.iso }}">{{ u.started.text }}</time></td>
-      <td>{{ u.from }}</td>
-      <td>{{ u.to }}</td>
-      <td>{{ u.outcome }}{% if let Some(e) = u.error %}<br><span class="field-error">{{ e }}</span>{% endif %}</td>
-      <td>{% if let Some(b) = u.backup %}<code>{{ b }}</code>{% else %}<span class="text-secondary">none</span>{% endif %}</td>
-    </tr>
-  {%- endfor %}
-  </tbody>
-</table>
-</div>
-{%- endif %}
-{% endblock %}
+{% block title %}Upgrades · Administration{% endblock %}
 {% block admin %}
 <h1>Upgrades</h1>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
+<p>This is Slath {{ version }}. To update, install the new version and restart it; it backs up and migrates when it starts. See the upgrading guide.</p>
+{%- include "admin/update_notice.html" %}
 <h2>Background migrations</h2>
 <p class="text-secondary">Long data migrations run in batches while Slath is up. Features that need one show a notice until it has finished.</p>
 {%- if migrations.is_empty() %}

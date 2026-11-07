@@ -5,6 +5,7 @@
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
+{%- include "admin/update_notice.html" %}
 <dl class="facts">
   <dt>Slath</dt><dd>{{ version }}</dd>
   <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<strong>Problem:</strong> {{ git }}{% endif %}</dd>

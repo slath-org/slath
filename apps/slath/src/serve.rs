@@ -14,7 +14,7 @@ use slath_core::config::LogFormat;
 
 use crate::config::Loaded as Config;
 
-pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
+pub fn run(config_path: &Path) -> ExitCode {
     let cfg = match crate::config::load(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -36,7 +36,7 @@ pub fn run(config_path: &Path, migrate: bool) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match rt.block_on(serve(config_path, cfg, migrate)) {
+    match rt.block_on(serve(config_path, cfg)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             tracing::error!(error = %e, "serve failed");
@@ -83,7 +83,7 @@ pub(crate) fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
     Ok(hooks)
 }
 
-async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), String> {
+async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
     let hooks_dir = prepare_dirs(&cfg)?;
     let socket_gid = crate::config::socket_gid(&cfg)?;
     let mut pc = slath_db::PoolConfig::new(crate::config::database_url(&cfg)?);
@@ -94,11 +94,7 @@ async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), Str
     boot_pc.max_connections = 4;
     boot_pc.acquire_timeout = std::time::Duration::from_secs(30);
     let boot = connect_patiently(&boot_pc).await?;
-    if migrate {
-        crate::upgrade::serve_migrate(config_path, &cfg, &boot)
-            .await
-            .map_err(|e| format!("migrating: {e}"))?;
-    }
+    crate::upgrade::upgrade_on_start(config_path, &cfg, &boot).await?;
     slath_db::check_schema(&boot)
         .await
         .map_err(|e| e.to_string())?;
@@ -198,6 +194,36 @@ async fn serve(config_path: &Path, cfg: Config, migrate: bool) -> Result<(), Str
                             }
                             Ok(_) => {}
                             Err(e) => tracing::warn!(error = %e, "deleting unused files failed"),
+                        }
+                    }
+                    _ = stop.changed() => return,
+                }
+            }
+        });
+    }
+    if state.config.upgrade.check_for_updates {
+        // The opt-in update check: at start, then once a day. Off by
+        // default; then no request leaves the server.
+        let svc = state.services.clone();
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => {
+                        match svc.check_for_updates().await {
+                            Ok(Some(c)) if c.available.is_some() => {
+                                if let Some(r) = &c.available {
+                                    tracing::info!(version = %r.version, "a newer Slath release is available");
+                                }
+                            }
+                            Ok(Some(c)) => {
+                                if let Some(e) = &c.error {
+                                    tracing::warn!(error = %e, "the update check failed");
+                                }
+                            }
+                            Ok(None) => {}
+                            Err(e) => tracing::warn!(error = %e, "the update check failed"),
                         }
                     }
                     _ = stop.changed() => return,
