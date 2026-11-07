@@ -3533,6 +3533,7 @@ dependencies = [
  "clap",
  "figment",
  "nix",
+ "percent-encoding",
  "rust-embed",
  "serde",
  "serde_json",
@@ -3551,6 +3552,7 @@ dependencies = [
  "toml_edit 0.25.17+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
 ]
 

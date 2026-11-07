@@ -102,83 +102,62 @@ validates the result.
 
 ## systemd
 
-The systemd profile builds from the release's source for now:
+On a Linux host with systemd, `slath setup` does the installation.
 
-```sh
-git clone --branch v0.3.0 https://github.com/slath-org/slath.git
-cd slath
-```
+1. Install PostgreSQL (15 or newer, with the contrib modules; on
+   RHEL-based systems `postgresql-contrib`), Git, and OpenSSH from your
+   distribution, and start PostgreSQL.
 
-1. **PostgreSQL:** create a database `slath` owned by a role `slath`. The
-   contrib modules must be installed (Slath enables `pg_trgm` and `citext`;
-   on RHEL-based systems install `postgresql-contrib`).
-
-2. **Users:** a service account `slath`, which owns the data, and the SSH
-   login `git`, a separate user (see [Users and
-   permissions](#users-and-permissions)). sysusers creates both and adds
-   `slath` to group `git`; `usermod` unlocks `git` for key logins (it never
-   gets a password):
+2. Install the `slath` binary root-owned (sshd only runs a key lookup
+   that nobody else can write):
 
    ```sh
-   cp deploy/systemd/sysusers-slath.conf /usr/lib/sysusers.d/slath.conf
-   systemd-sysusers
-   usermod --password '*' git
+   install -m 0755 slath /usr/local/bin/slath
    ```
 
-   If a `git` user already exists for something else, use another name
-   (e.g. `slath-git`) here, in `storage.socket_group`, in the service's
-   `SupplementaryGroups=`, and in the sshd drop-in.
+   Until release binaries are published, build it (`(cd web && npm ci &&
+   npm run build) && cargo build --release --locked -p slath`, see
+   [docs/dev/setup.md](../dev/setup.md)) or copy it out of the container
+   image (`/usr/bin/slath`).
 
-3. **Binary and configuration.** Build the binary with Rust and Node.js
-   (versions in [docs/dev/setup.md](../dev/setup.md)), or copy it out of the
-   container image (`/usr/bin/slath`):
+3. See what setup would do, then do it:
 
    ```sh
-   (cd web && npm ci && npm run build)
-   cargo build --release --locked -p slath
-   install -m 0755 target/release/slath /usr/bin/slath
-   install -d -m 0750 -o root -g slath /etc/slath
-   install -m 0640 -o root -g slath deploy/slath.example.toml /etc/slath/slath.toml
-   # edit /etc/slath/slath.toml: public_url, git.binary, ... (keep
-   # storage.socket_group = "git")
-   printf 'postgres://slath:PASSWORD@localhost/slath' > /etc/slath/db-url
-   chown root:slath /etc/slath/db-url && chmod 0640 /etc/slath/db-url
-   slath admin gen-key --output /etc/slath/master.key
-   chown slath:slath /etc/slath/master.key
+   slath setup --check --public-url https://git.example.org
+   slath setup --public-url https://git.example.org \
+       --admin-username ada --admin-email ada@example.org
    ```
 
-   Keep a copy of `/etc/slath/master.key` somewhere safe and separate from
-   your backups.
+   It creates the service account `slath` and the SSH login `git` (see
+   [Users and permissions](#users-and-permissions)), `/etc/slath` with the
+   master key, the database URL file with a random password, and the
+   configuration, the database role and database (as the local
+   `postgres` user, or through `--pg-admin-url`; otherwise it prints the
+   two SQL statements to run), the systemd unit and the sshd drop-in. Then
+   it checks the result, sets up the schema, creates the administrator
+   (the password is printed once), starts `slath.service`, and reloads
+   sshd. Without the flags, it asks.
 
-4. **Check, migrate, create an administrator.** `config check` also
-   confirms that group `git` can't read the data directory, the master key,
-   or the database URL file:
+   Running it again changes nothing unless something drifted: it repairs
+   missing files and wrong owners or modes, and never rewrites your
+   configuration, master key, or database URL.
 
-   ```sh
-   sudo -u slath slath config check
-   sudo -u slath slath migrate
-   sudo -u slath slath admin create-user --admin --username ada --email ada@example.org
-   ```
+4. Back up `/etc/slath/master.key` somewhere safe, apart from your
+   backups.
 
-5. **Start the service:**
-
-   ```sh
-   cp deploy/systemd/slath.service /etc/systemd/system/
-   systemctl daemon-reload
-   systemctl enable --now slath
-   ```
-
-6. **sshd:** copy `deploy/sshd/slath.conf` to
-   `/etc/ssh/sshd_config.d/slath.conf` and reload sshd. Logins as `git` get
-   their keys from `slath ssh-keys` and are limited to Git commands.
-
-7. **Reverse proxy:** forward HTTPS for your `public_url` to
+5. **Reverse proxy:** forward HTTPS for your public URL to
    `127.0.0.1:3000` and list the proxy's own address in
    `server.trusted_proxies` (the default trusts only `127.0.0.1` and `::1`).
 
-8. Sign in, set up two-factor authentication under **Settings → Security**
+6. Sign in, set up two-factor authentication under **Settings → Security**
    (administration needs it), sign in again with a code, create a
    repository, and clone it over HTTPS and SSH.
+
+If a `git` user already exists for something else, set up by hand with
+another name: the files setup writes are `deploy/systemd/` and
+`deploy/sshd/slath.conf` in the source; use your name in
+`storage.socket_group`, the service's `SupplementaryGroups=`, and the
+sshd drop-in.
 
 ## Users and permissions
 

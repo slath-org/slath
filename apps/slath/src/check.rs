@@ -126,35 +126,22 @@ async fn database(cfg: &Config) -> Result<String, String> {
     })
 }
 
-pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
-    let cfg = match config::load(path) {
-        Ok(c) => c,
-        Err(e) => return fail(format, &e),
-    };
-    let rt = match runtime() {
-        Ok(rt) => rt,
-        Err(e) => return fail(format, &e),
-    };
-    let mut items = vec![Item {
-        name: "config",
-        ok: true,
-        detail: format!("{} is valid", path.display()),
-    }];
-    let mut push = |name, r: Result<String, String>| {
-        let (ok, detail) = match r {
-            Ok(d) => (true, d),
-            Err(d) => (false, d),
-        };
-        items.push(Item { name, ok, detail });
+/// The checks of `slath config check` after loading: `(name, ok, detail)`.
+pub fn run_checks(cfg: &config::Loaded) -> Result<Vec<(&'static str, bool, String)>, String> {
+    let rt = runtime()?;
+    let mut out = Vec::new();
+    let mut push = |name, r: Result<String, String>| match r {
+        Ok(d) => out.push((name, true, d)),
+        Err(d) => out.push((name, false, d)),
     };
     push(
         "git",
-        rt.block_on(git_version(&cfg.git.binary, &check_home(&cfg)))
+        rt.block_on(git_version(&cfg.git.binary, &check_home(cfg)))
             .map(|v| format!("git {v} at {}", cfg.git.binary.display())),
     );
     push("data_dir", data_dir_writable(&cfg.storage.data_dir));
-    push("socket", socket_group(&cfg));
-    push("database", rt.block_on(database(&cfg)));
+    push("socket", socket_group(cfg));
+    push("database", rt.block_on(database(cfg)));
     if let Some(key) = &cfg.secrets.master_key_file {
         push(
             "master_key",
@@ -171,6 +158,28 @@ pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
                 .map_err(|e| e.to_string()),
         );
     }
+    Ok(out)
+}
+
+pub fn config_check(path: &Path, format: OutputFormat) -> ExitCode {
+    let cfg = match config::load(path) {
+        Ok(c) => c,
+        Err(e) => return fail(format, &e),
+    };
+    let checks = match run_checks(&cfg) {
+        Ok(c) => c,
+        Err(e) => return fail(format, &e),
+    };
+    let mut items = vec![Item {
+        name: "config",
+        ok: true,
+        detail: format!("{} is valid", path.display()),
+    }];
+    items.extend(
+        checks
+            .into_iter()
+            .map(|(name, ok, detail)| Item { name, ok, detail }),
+    );
     let all_ok = items.iter().all(|i| i.ok);
     match format {
         OutputFormat::Text => {

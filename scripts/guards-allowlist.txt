@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Exceptions to scripts/guards.sh: `<guard> <path>  # reason`, one per line.
+git-spawn apps/slath/src/setup/system.rs  # slath setup runs fixed system tools (systemd-sysusers, usermod, systemctl) and its own database helper as root, with fixed arguments and no shell

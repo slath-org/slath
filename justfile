@@ -60,6 +60,10 @@ schema-fixture:
 test-compose:
     scripts/test-compose.sh
 
+# `slath setup` on a clean Debian host container (`docker build -t slath:test .` first).
+test-setup:
+    scripts/test-setup.sh
+
 # Weave restraint rules: no raw colors, font sizes, or spacing in CSS.
 css-lint:
     cd web && {{ "{" }} [ -d node_modules ] || npm ci; {{ "}" }} && npm run --silent lint:css

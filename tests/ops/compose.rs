@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Install conformance against a running deploy/compose stack, started by
-//! `scripts/test-compose.sh` (which also creates the admin with the CLI).
+//! Install conformance (OPS-01) against a running installation: the
+//! deploy/compose stack started by `scripts/test-compose.sh`, or a host set
+//! up by `slath setup` (tests/ops/setup.rs). The administrator is created
+//! with the CLI first.
 
 use slath_tests::http::{Client, create_token, login};
 use slath_tests::server::GitClient;
@@ -13,11 +15,18 @@ fn env(name: &str) -> String {
 #[test]
 #[ignore = "needs a compose deployment; run scripts/test-compose.sh"]
 fn conf_ops_01_compose_install_create_repo_and_clone() {
-    let base = env("SLATH_COMPOSE_URL");
-    let ssh_port = env("SLATH_COMPOSE_SSH_PORT");
-    let password = env("SLATH_COMPOSE_ADMIN_PASSWORD");
-    let mut c = Client::new(&base);
-    assert_eq!(login(&mut c, "ada", &password).status, 303);
+    install_flow(
+        &env("SLATH_COMPOSE_URL"),
+        &env("SLATH_COMPOSE_SSH_PORT"),
+        &env("SLATH_COMPOSE_ADMIN_PASSWORD"),
+    );
+}
+
+/// Sign in as `ada`, create a repository through the API, add an SSH key,
+/// push over HTTP, and clone over HTTP and SSH.
+pub fn install_flow(base: &str, ssh_port: &str, password: &str) {
+    let mut c = Client::new(base);
+    assert_eq!(login(&mut c, "ada", password).status, 303);
     let token = create_token(&mut c, "install", &["repo:write", "user:read"]);
 
     // Create the repository through the API.
@@ -82,5 +91,5 @@ fn conf_ops_01_compose_install_create_repo_and_clone() {
     );
 
     // The private repository stays private.
-    assert_eq!(Client::new(&base).get("/ada/project").status, 404);
+    assert_eq!(Client::new(base).get("/ada/project").status, 404);
 }

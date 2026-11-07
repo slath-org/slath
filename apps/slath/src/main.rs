@@ -10,6 +10,7 @@ mod config;
 mod hook;
 mod output;
 mod serve;
+mod setup;
 mod ssh;
 mod upgrade;
 mod upgrade_notes;
@@ -28,6 +29,15 @@ struct Cli {
     command: Command,
 }
 
+/// Internal parts of `slath setup`.
+#[derive(Subcommand)]
+enum SetupHelper {
+    /// Creates the database role and database as the `postgres` OS user
+    /// (started by `slath setup`; reads its request on stdin).
+    #[command(hide = true)]
+    DbHelper,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Run the HTTP server, the IPC endpoint, and workers. A pending update
@@ -40,6 +50,38 @@ enum Command {
     },
     /// Upgrade the database and data directory to this version: preflight,
     /// automatic backup, migrations, verification. `--check` only reports.
+    /// Set up this host (systemd): users, files, database, unit, sshd,
+    /// schema, first administrator. Idempotent; `--check` changes nothing.
+    Setup {
+        #[command(subcommand)]
+        helper: Option<SetupHelper>,
+        /// List the changes without making them.
+        #[arg(long)]
+        check: bool,
+        /// The URL people use to reach Slath (asked for if missing).
+        #[arg(long)]
+        public_url: Option<String>,
+        /// Address the HTTP server listens on.
+        #[arg(long, default_value = "127.0.0.1:3000")]
+        listen: String,
+        /// SSH port shown in clone URLs.
+        #[arg(long, default_value_t = 22)]
+        ssh_port: u16,
+        /// The first site administrator's user name (asked for if missing).
+        #[arg(long)]
+        admin_username: Option<String>,
+        #[arg(long)]
+        admin_email: Option<String>,
+        /// A PostgreSQL superuser connection for creating the role and
+        /// database (default: the local socket as the `postgres` user).
+        #[arg(long)]
+        pg_admin_url: Option<String>,
+        /// The installed binary to run (default: this one).
+        #[arg(long)]
+        binary: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     Upgrade {
         #[arg(long)]
         config: Option<PathBuf>,
@@ -303,6 +345,32 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Serve { config } => serve::run(&config::resolve_path(config)),
+        Command::Setup {
+            helper: Some(SetupHelper::DbHelper),
+            ..
+        } => setup::db_helper(),
+        Command::Setup {
+            helper: None,
+            check,
+            public_url,
+            listen,
+            ssh_port,
+            admin_username,
+            admin_email,
+            pg_admin_url,
+            binary,
+            output,
+        } => setup::run(setup::Opts {
+            check,
+            public_url,
+            listen,
+            ssh_port,
+            admin_username,
+            admin_email,
+            pg_admin_url,
+            binary,
+            output,
+        }),
         Command::Upgrade {
             config,
             check,

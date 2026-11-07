@@ -9,5 +9,6 @@ mod compose;
 mod crash;
 mod fixture;
 mod maintenance;
+mod setup;
 mod upgrade;
 mod upgrade_matrix;

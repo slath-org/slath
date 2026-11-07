@@ -10,6 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- `slath setup` installs Slath on a systemd host in one command: users, files, database, service, sshd, and the first administrator. `--check` shows what it would do.
 - An opt-in update check (`[upgrade] check_for_updates`) shows administrators when a newer release is available; it makes no request unless turned on.
 
 ### Changed
