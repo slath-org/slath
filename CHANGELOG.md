@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- The top bar and favicon show the new Slath logo, in the variant for the light or dark theme in use.
+
 ### Fixed
 
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.
