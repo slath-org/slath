@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id, a.fingerprint, a.rule, n.name::text AS \"created_by?\", a.reason, a.created_at, a.expires_at\n             FROM secret_allowances a\n             LEFT JOIN users u ON u.id = a.created_by\n             LEFT JOIN namespaces n ON n.id = u.namespace_id\n            WHERE a.repo_id = $1 AND a.expires_at > now()\n            ORDER BY a.created_at DESC\n            LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "fingerprint",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "fingerprint"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "rule",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "rule"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_by?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d41f72eb719c7da58c47005157ccca996150409cb715c1d30cdea57db58b8f95"
+}

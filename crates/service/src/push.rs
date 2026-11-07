@@ -378,9 +378,39 @@ impl Services {
             .object_directory
             .as_deref()
             .map(std::path::Path::new);
-        let report = self.scan_push(grant.repo_id, &tips, q).await;
+        let mut report = self.scan_push(grant.repo_id, &tips, q).await;
+        let repo = match slath_db::repos::get(&self.pool, grant.repo_id).await {
+            Ok(Some(r)) => r,
+            other => {
+                tracing::error!(result = ?other.err(), "pre-receive: loading the repository failed");
+                v.denied.push(DenyReason::Secret);
+                v.messages
+                    .push("slath: push rejected: internal error, try again".to_owned());
+                return;
+            }
+        };
+        let links = async {
+            self.apply_allowances(repo.id, &repo.default_branch, &mut report)
+                .await?;
+            if mode == ScanMode::Block && report.blocking().next().is_some() {
+                self.rejection_links(&repo, &report).await
+            } else {
+                Ok(crate::push_protection::Links::default())
+            }
+        }
+        .await;
+        let links = match links {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::error!(error = %e, "pre-receive: checking allowances failed");
+                v.denied.push(DenyReason::Secret);
+                v.messages
+                    .push("slath: push rejected: internal error, try again".to_owned());
+                return;
+            }
+        };
         v.messages
-            .extend(crate::push_protection::messages(&report, mode));
+            .extend(crate::push_protection::messages(&report, mode, &links));
         if mode == ScanMode::Block
             && (report.incomplete.is_some() || report.blocking().next().is_some())
         {

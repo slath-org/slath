@@ -257,3 +257,215 @@ fn conf_sec_08_repository_admins_choose_the_mode() {
         "1"
     );
 }
+
+/// The allowance link from a rejection, as a path and query.
+fn allow_link(err: &str) -> String {
+    let line = err
+        .lines()
+        .find(|l| l.contains("/-/secret-scan/allow?fingerprint="))
+        .unwrap_or_else(|| panic!("no allowance link in {err}"));
+    let url = line.split_whitespace().last().unwrap();
+    url[url.find("/alice/").unwrap()..].to_owned()
+}
+
+fn query_value<'a>(link: &'a str, key: &str) -> &'a str {
+    link.split(['?', '&'])
+        .find_map(|p| p.strip_prefix(&format!("{key}=")))
+        .unwrap()
+}
+
+#[test]
+fn conf_sec_08_an_allowance_lets_exactly_its_finding_through_until_it_expires() {
+    use slath_tests::http::submit;
+    use slath_tests::server::PASSWORD;
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    work(&git, &w);
+    let url = s.url(&DEMO);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    let (_, fixture) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "private-key")
+        .unwrap();
+    commit_file(&git, &w, "tests/data/key.pem", &fixture);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    let link = allow_link(&err);
+    let (fp, rule) = (
+        query_value(&link, "fingerprint").to_owned(),
+        query_value(&link, "rule").to_owned(),
+    );
+    assert_eq!(rule, "private-key");
+
+    // Someone who can't push sees nothing.
+    let mut bob = s.login("bob", PASSWORD);
+    assert_eq!(bob.get(&link).status, 404);
+    assert_eq!(
+        submit(
+            &mut bob,
+            "/-/settings/profile",
+            "/alice/demo/-/secret-scan/allow",
+            &[("fingerprint", &fp), ("rule", &rule), ("days", "7")]
+        )
+        .status,
+        404
+    );
+
+    // The writer allows it; the same push now passes.
+    let mut alice = s.login("alice", PASSWORD);
+    let page = alice.get(&link);
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains(&fp), "{}", page.body);
+    let r = submit(
+        &mut alice,
+        &link,
+        "/alice/demo/-/secret-scan/allow",
+        &[
+            ("fingerprint", &fp),
+            ("rule", &rule),
+            ("days", "7"),
+            ("reason", "test fixture"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let out = git.cmd(&w).args(["push", &url, "main"]).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{text}");
+    assert!(text.contains("allowed (allowance)"), "{text}");
+    assert_eq!(
+        s.db.query_one(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'secret_scan.allow'"
+        ),
+        "1"
+    );
+
+    // A different secret isn't covered.
+    let (_, other) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "npm-token")
+        .unwrap();
+    commit_file(&git, &w, "npmrc", &other);
+    assert!(
+        git.fails(&w, &["push", &url, "main"])
+            .contains("(npm-token)")
+    );
+    git.ok(&w, &["reset", "-q", "--hard", "HEAD~1"]);
+
+    // Expired, it allows nothing.
+    s.db.execute("UPDATE secret_allowances SET created_at = now() - interval '9 days', expires_at = now() - interval '1 day'");
+    // Same secret, new file content (content the repository has isn't rescanned).
+    commit_file(&git, &w, "tests/data/key2.pem", &format!("copy\n{fixture}"));
+    assert!(
+        git.fails(&w, &["push", &url, "main"])
+            .contains("(private-key)")
+    );
+}
+
+#[test]
+fn conf_sec_08_the_allowlist_counts_only_on_the_default_branch() {
+    let s = TestServer::start();
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    work(&git, &w);
+    let url = s.url(&DEMO);
+    let (_, fixture) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "private-key")
+        .unwrap();
+    // Added together with the secret: no effect.
+    commit_file(
+        &git,
+        &w,
+        ".slath/secret-scan.toml",
+        "[[allow]]\npath = \"fixtures/**\"\n",
+    );
+    commit_file(&git, &w, "fixtures/ssh/id_test", &fixture);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    assert!(err.contains("fixtures/ssh/id_test"), "{err}");
+    // Once it's on the default branch, it counts.
+    git.ok(&w, &["reset", "-q", "--hard", "HEAD~1"]);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    commit_file(&git, &w, "fixtures/ssh/id_test", &fixture);
+    let out = git.cmd(&w).args(["push", &url, "main"]).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{text}");
+    assert!(text.contains("allowlist on the default branch"), "{text}");
+    // Outside the allowed paths, it still blocks.
+    let (_, token) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "github-token")
+        .unwrap();
+    commit_file(&git, &w, "src/deploy.env", &token);
+    assert!(
+        git.fails(&w, &["push", &url, "main"])
+            .contains("src/deploy.env")
+    );
+}
+
+#[test]
+fn conf_sec_08_admins_accept_the_findings_of_a_first_push() {
+    use slath_tests::http::submit;
+    use slath_tests::server::PASSWORD;
+    let s = TestServer::start();
+    s.create_user("carol", PASSWORD, false);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    work(&git, &w);
+    let (_, a) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "github-token")
+        .unwrap();
+    let (_, b) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "url-credentials")
+        .unwrap();
+    commit_file(&git, &w, "old/config", &format!("{a}{b}"));
+    let url = s.url(&DEMO);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    let line = err
+        .lines()
+        .find(|l| l.contains("/-/secret-scan/accept/"))
+        .unwrap_or_else(|| panic!("{err}"));
+    let full = line.split_whitespace().last().unwrap();
+    let link = &full[full.find("/alice/").unwrap()..];
+
+    // A writer who isn't an administrator can't accept them.
+    let mut alice_admin = s.login("alice", PASSWORD);
+    assert_eq!(
+        submit(
+            &mut alice_admin,
+            "/alice/demo/settings/access",
+            "/alice/demo/settings/access",
+            &[("username", "carol"), ("role", "write")]
+        )
+        .status,
+        303
+    );
+    let mut carol = s.login("carol", PASSWORD);
+    assert_eq!(carol.get(link).status, 404);
+
+    let page = alice_admin.get(link);
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("2 possible secret(s)"), "{}", page.body);
+    let r = submit(&mut alice_admin, link, link, &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    assert_eq!(
+        s.db.query_one(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'secret_scan.accept_first_push'"
+        ),
+        "1"
+    );
+    // A later push of a new secret isn't covered.
+    let (_, c) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "slack-token")
+        .unwrap();
+    commit_file(&git, &w, "chat.env", &c);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    assert!(!err.contains("/-/secret-scan/accept/"), "{err}");
+}

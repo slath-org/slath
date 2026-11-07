@@ -13,6 +13,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Push protection rejects pushes that contain secrets, such as provider tokens, private keys, passwords in URLs, and Slath tokens, before anything of them is stored. It works the same for Git and jj.
 - Rejections name the commit, file, line, and rule, show a shortened excerpt, and explain how to remove the secret with Git or jj.
 - Repository administrators choose block, warn, or off for push protection; the site configuration can enforce a minimum and add or disable rules.
+- A rejected push links to a page where repository writers allow a false positive for a limited time; the same push then passes.
+- `.slath/secret-scan.toml` on the default branch lists paths and fingerprints that push protection lets through, such as test fixtures.
+- Repository administrators can accept all findings of the first push into an empty repository in one step, for history that exists elsewhere.
 - Imported repositories are scanned for secrets afterwards; findings are reported to the repository's administrators but don't stop the import.
 - Each release publishes a prebuilt `slath` binary for x86-64 and aarch64 Linux and a container image, with SHA-256 digests and a report of the tests run on exactly those files.
 - `slath setup` installs Slath on a systemd host in one command: users, files, database, service, sshd, and the first administrator. `--check` shows what it would do.

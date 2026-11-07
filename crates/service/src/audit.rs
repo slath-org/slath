@@ -47,6 +47,13 @@ impl Target {
         }
     }
 
+    /// Also records the repository the target belongs to.
+    #[must_use]
+    pub const fn in_repo(mut self, repo: uuid::Uuid) -> Self {
+        self.repo_id = Some(repo);
+        self
+    }
+
     #[must_use]
     pub const fn org(id: uuid::Uuid) -> Self {
         Self {

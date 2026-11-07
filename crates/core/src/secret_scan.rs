@@ -478,3 +478,85 @@ mod tests {
         assert!(!is_binary(b"plain text"));
     }
 }
+
+/// The reviewed allowlist `.slath/secret-scan.toml`, as it stands on the
+/// default branch: findings in matching paths, or with listed
+/// fingerprints, don't block.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Allowlist {
+    pub paths: Vec<String>,
+    pub fingerprints: Vec<String>,
+}
+
+impl Allowlist {
+    #[must_use]
+    pub fn allows(&self, path: Option<&str>, fingerprint: &str) -> bool {
+        self.fingerprints.iter().any(|f| f == fingerprint)
+            || path.is_some_and(|p| {
+                self.paths
+                    .iter()
+                    .any(|g| glob_match(g.as_bytes(), p.as_bytes()))
+            })
+    }
+}
+
+/// Path globs: `**` matches anything (including `/`), `*` anything within
+/// one path segment, `?` one character other than `/`.
+#[must_use]
+pub fn glob_match(pattern: &[u8], path: &[u8]) -> bool {
+    // Iterative matching with backtracking points for `*` and `**`, linear
+    // in practice and without recursion.
+    let (mut p, mut s) = (0, 0);
+    let mut star: Option<(usize, usize, bool)> = None;
+    while s < path.len() {
+        if p + 1 < pattern.len() && pattern[p] == b'*' && pattern[p + 1] == b'*' {
+            let mut next = p + 2;
+            if pattern.get(next) == Some(&b'/') {
+                next += 1;
+            }
+            star = Some((next, s, true));
+            p = next;
+        } else if p < pattern.len() && pattern[p] == b'*' {
+            star = Some((p + 1, s, false));
+            p += 1;
+        } else if p < pattern.len()
+            && (pattern[p] == path[s] || (pattern[p] == b'?' && path[s] != b'/'))
+        {
+            p += 1;
+            s += 1;
+        } else if let Some((sp, ss, deep)) = star {
+            if !deep && path[ss] == b'/' {
+                return false;
+            }
+            p = sp;
+            s = ss + 1;
+            star = Some((sp, ss + 1, deep));
+        } else {
+            return false;
+        }
+    }
+    while p < pattern.len() && pattern[p] == b'*' {
+        p += 1;
+    }
+    p == pattern.len()
+}
+
+#[cfg(test)]
+mod glob_tests {
+    use super::glob_match;
+
+    #[test]
+    fn globs() {
+        let m = |g: &str, p: &str| glob_match(g.as_bytes(), p.as_bytes());
+        assert!(m("tests/fixtures/**", "tests/fixtures/keys/id_rsa"));
+        assert!(m("**/testdata/*.pem", "a/b/testdata/x.pem"));
+        assert!(m("**/testdata/*.pem", "testdata/x.pem"));
+        assert!(!m("**/testdata/*.pem", "testdata/sub/x.pem"));
+        assert!(m("docs/*.md", "docs/a.md"));
+        assert!(!m("docs/*.md", "docs/sub/a.md"));
+        assert!(m("key?.txt", "key1.txt"));
+        assert!(!m("key?.txt", "key/.txt"));
+        assert!(m("exact.txt", "exact.txt"));
+        assert!(!m("exact.txt", "exact.txt2"));
+    }
+}

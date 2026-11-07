@@ -38,6 +38,19 @@ pub struct ScanReport {
     /// The scan couldn't finish (limit, timeout, error); the push must be
     /// rejected in `block` mode.
     pub incomplete: Option<String>,
+    /// Findings let through by an allowance or the allowlist, with why.
+    pub allowed: Vec<(PushFinding, &'static str)>,
+}
+
+/// Links printed with a rejection.
+#[derive(Debug, Clone, Default)]
+pub struct Links {
+    /// The allowance page of the repository; a finding's fingerprint and
+    /// rule are appended.
+    pub allow: String,
+    /// For a first push into an empty repository: the page where an
+    /// administrator accepts all its findings at once.
+    pub accept: Option<String>,
 }
 
 impl ScanReport {
@@ -101,12 +114,13 @@ impl Services {
             Ok(Err(e)) => {
                 tracing::warn!(error = %e, repo = %repo, "secret scan failed");
                 ScanReport {
-                    findings: Vec::new(),
                     incomplete: Some("the secret scan failed; try again".into()),
+                    ..ScanReport::default()
                 }
             }
             Err(_) => ScanReport {
                 findings: Vec::new(),
+                allowed: Vec::new(),
                 incomplete: Some(format!(
                     "the secret scan took longer than limits.secret_scan_timeout ({} s)",
                     timeout.as_secs()
@@ -257,10 +271,314 @@ impl Services {
     }
 }
 
-/// The `remote:` lines for a scan: rejections with fix hints for Git and
-/// jj (in `block` mode), warnings otherwise.
+/// How long an allowance may last, in days.
+pub const ALLOWANCE_DAYS: [i64; 3] = [1, 7, 30];
+/// How long a rejected first push can be accepted.
+const ACCEPT_HOURS: i64 = 24;
+/// The allowlist file, read from the default branch only.
+pub const ALLOWLIST_PATH: &str = ".slath/secret-scan.toml";
+
+#[derive(serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct AllowlistFile {
+    #[serde(default)]
+    allow: Vec<AllowEntry>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AllowEntry {
+    path: Option<String>,
+    fingerprint: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    reason: Option<String>,
+}
+
+/// Parses `.slath/secret-scan.toml`; a broken file allows nothing.
 #[must_use]
-pub fn messages(report: &ScanReport, mode: ScanMode) -> Vec<String> {
+pub fn parse_allowlist(text: &str) -> slath_core::secret_scan::Allowlist {
+    let file: AllowlistFile = toml::from_str(text).unwrap_or_default();
+    let mut list = slath_core::secret_scan::Allowlist::default();
+    for e in file.allow {
+        if let Some(p) = e.path {
+            list.paths.push(p);
+        }
+        if let Some(f) = e.fingerprint {
+            list.fingerprints.push(f.to_ascii_lowercase());
+        }
+    }
+    list
+}
+
+impl Services {
+    /// The allowlist as it stands on the default branch (never from the
+    /// pushed commits, so a push can't allow itself).
+    async fn allowlist(
+        &self,
+        repo: RepoId,
+        default_branch: &str,
+    ) -> slath_core::secret_scan::Allowlist {
+        let spec = format!("refs/heads/{default_branch}:{ALLOWLIST_PATH}");
+        let out = self
+            .runner
+            .repo(&self.repo_path(repo))
+            .args(["cat-file", "blob"])
+            .arg(&spec)
+            .output()
+            .await;
+        match out {
+            Ok(o) if o.status.success() && o.stdout.len() <= 64 * 1024 => {
+                parse_allowlist(&String::from_utf8_lossy(&o.stdout))
+            }
+            _ => slath_core::secret_scan::Allowlist::default(),
+        }
+    }
+
+    /// Moves findings that an allowance or the allowlist lets through out
+    /// of the report's findings.
+    pub(crate) async fn apply_allowances(
+        &self,
+        repo: RepoId,
+        default_branch: &str,
+        report: &mut ScanReport,
+    ) -> Result<()> {
+        if report.findings.is_empty() {
+            return Ok(());
+        }
+        let allowed = slath_db::secret_allowances::active(&self.pool, repo).await?;
+        let list = self.allowlist(repo, default_branch).await;
+        let (keep, pass): (Vec<_>, Vec<_>) = std::mem::take(&mut report.findings)
+            .into_iter()
+            .partition(|f| {
+                let path = match &f.place {
+                    Place::File { path, .. } => Some(path.as_str()),
+                    _ => None,
+                };
+                !(allowed.contains(&f.finding.fingerprint)
+                    || list.allows(path, &f.finding.fingerprint))
+            });
+        report.findings = keep;
+        for f in pass {
+            let why = if allowed.contains(&f.finding.fingerprint) {
+                "allowance"
+            } else {
+                "allowlist on the default branch"
+            };
+            report.allowed.push((f, why));
+        }
+        Ok(())
+    }
+
+    /// The links for a rejection; for a first push into an empty
+    /// repository, remembers its findings so an administrator can accept
+    /// them.
+    pub(crate) async fn rejection_links(
+        &self,
+        repo: &slath_db::repos::Repo,
+        report: &ScanReport,
+    ) -> Result<Links> {
+        let base = self
+            .config
+            .server
+            .public_url
+            .join(&format!("/{}/{}/-/secret-scan", repo.namespace, repo.name));
+        let mut links = Links {
+            allow: format!("{base}/allow"),
+            accept: None,
+        };
+        let empty = slath_db::refs::snapshot(&self.pool, repo.id)
+            .await?
+            .is_empty();
+        let blocking: Vec<serde_json::Value> = report
+            .blocking()
+            .map(|f| serde_json::json!({"fingerprint": f.finding.fingerprint, "rule": f.finding.rule}))
+            .collect();
+        if empty && !blocking.is_empty() {
+            let id = slath_db::secret_allowances::insert_rejection(
+                &self.pool,
+                repo.id,
+                &serde_json::Value::Array(blocking),
+                time::OffsetDateTime::now_utc() + time::Duration::hours(ACCEPT_HOURS),
+            )
+            .await?;
+            links.accept = Some(format!("{base}/accept/{id}"));
+        }
+        Ok(links)
+    }
+
+    /// Allows one finding in a repository for `days` (writers only, never
+    /// bots); audited.
+    pub async fn allow_secret(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        fingerprint: &str,
+        rule: &str,
+        days: i64,
+        reason: &str,
+    ) -> Result<()> {
+        use slath_core::authz::{Subject, UserKind};
+        self.authorize(subject, a, slath_core::authz::Action::RepoPush)?;
+        let Subject::User {
+            id,
+            kind: UserKind::Human,
+            ..
+        } = subject
+        else {
+            return Err(ServiceError::Forbidden);
+        };
+        let mut errors = Vec::new();
+        if fingerprint.len() != 32
+            || !fingerprint
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            errors.push(crate::FieldError::new(
+                "fingerprint",
+                "invalid",
+                "This link is incomplete; copy it from the push output again.",
+            ));
+        }
+        if rule.is_empty()
+            || rule.len() > 100
+            || !rule
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        {
+            errors.push(crate::FieldError::new(
+                "rule",
+                "invalid",
+                "This link is incomplete; copy it from the push output again.",
+            ));
+        }
+        if !ALLOWANCE_DAYS.contains(&days) {
+            errors.push(crate::FieldError::new(
+                "days",
+                "invalid",
+                "Choose one of the offered periods.",
+            ));
+        }
+        let reason = reason.trim();
+        if reason.len() > 500 {
+            errors.push(crate::FieldError::new(
+                "reason",
+                "too_long",
+                "Keep the reason under 500 characters.",
+            ));
+        }
+        if !errors.is_empty() {
+            return Err(ServiceError::Invalid(errors));
+        }
+        let expires = time::OffsetDateTime::now_utc() + time::Duration::days(days);
+        let allowance = slath_db::secret_allowances::insert(
+            &self.pool,
+            a.repo.id,
+            fingerprint,
+            rule,
+            *id,
+            (!reason.is_empty()).then_some(reason),
+            expires,
+        )
+        .await?;
+        self.audit(
+            subject,
+            "secret_scan.allow",
+            crate::audit::Target::new("secret_allowance", Some(allowance)).in_repo(*a.repo.id.as_uuid()),
+            serde_json::json!({"fingerprint": fingerprint, "rule": rule, "days": days, "reason": reason}),
+        )
+        .await;
+        Ok(())
+    }
+
+    /// The remembered findings of a rejected first push, for the accept
+    /// page (repository administrators).
+    pub async fn first_push_findings(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        id: uuid::Uuid,
+    ) -> Result<Vec<(String, String)>> {
+        self.authorize(subject, a, slath_core::authz::Action::RepoSettings)?;
+        let Some(v) = slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await?
+        else {
+            return Err(ServiceError::NotFound);
+        };
+        Ok(v.as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|f| {
+                Some((
+                    f["fingerprint"].as_str()?.to_owned(),
+                    f["rule"].as_str()?.to_owned(),
+                ))
+            })
+            .collect())
+    }
+
+    /// Accepts every finding of a rejected first push in one step (the
+    /// history already exists elsewhere): an allowance per finding for a
+    /// day. Repository administrators only, never bots; audited.
+    pub async fn accept_first_push(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        id: uuid::Uuid,
+    ) -> Result<usize> {
+        use slath_core::authz::{Subject, UserKind};
+        let findings = self.first_push_findings(subject, a, id).await?;
+        let Subject::User {
+            id: user,
+            kind: UserKind::Human,
+            ..
+        } = subject
+        else {
+            return Err(ServiceError::Forbidden);
+        };
+        let expires = time::OffsetDateTime::now_utc() + time::Duration::days(1);
+        for (fp, rule) in &findings {
+            slath_db::secret_allowances::insert(
+                &self.pool,
+                a.repo.id,
+                fp,
+                rule,
+                *user,
+                Some("accepted with the repository's first push"),
+                expires,
+            )
+            .await?;
+        }
+        self.audit(
+            subject,
+            "secret_scan.accept_first_push",
+            crate::audit::Target::repo(*a.repo.id.as_uuid()),
+            serde_json::json!({"findings": findings.len()}),
+        )
+        .await;
+        Ok(findings.len())
+    }
+
+    /// Deletes expired first-push rejections, and allowances expired for
+    /// more than 30 days. Run periodically.
+    pub async fn purge_secret_scan(&self) -> Result<u64> {
+        Ok(slath_db::secret_allowances::purge(&self.pool).await?)
+    }
+
+    /// Allowances in force (repository writers).
+    pub async fn secret_allowances(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+    ) -> Result<Vec<slath_db::secret_allowances::Allowance>> {
+        self.authorize(subject, a, slath_core::authz::Action::RepoPush)?;
+        Ok(slath_db::secret_allowances::list(&self.pool, a.repo.id).await?)
+    }
+}
+
+/// The `remote:` lines for a scan: rejections with fix hints for Git and
+/// jj and the allowance links (in `block` mode), warnings otherwise.
+#[must_use]
+pub fn messages(report: &ScanReport, mode: ScanMode, links: &Links) -> Vec<String> {
     let mut out = Vec::new();
     let block = mode == ScanMode::Block;
     let blocking: Vec<&PushFinding> = report.blocking().collect();
@@ -295,6 +613,26 @@ pub fn messages(report: &ScanReport, mode: ScanMode) -> Vec<String> {
                 "slath:     jj:  jj edit {c} (fix the file; descendants are rebased), then jj git push"
             ));
         }
+        if !links.allow.is_empty() {
+            out.push("slath:   Not a secret? A repository writer can allow it, then push again unchanged:".into());
+            let mut seen = std::collections::HashSet::new();
+            for f in &blocking {
+                if seen.insert(&f.finding.fingerprint) {
+                    out.push(format!(
+                        "slath:     {}?fingerprint={}&rule={}",
+                        links.allow, f.finding.fingerprint, f.finding.rule
+                    ));
+                }
+            }
+        }
+        if let Some(accept) = &links.accept {
+            out.push("slath:   This is the repository's first push. If its history already exists elsewhere, an administrator can accept all its findings at once:".into());
+            out.push(format!("slath:     {accept}"));
+        }
+    }
+    for (f, why) in &report.allowed {
+        out.push(format!("slath: allowed ({why}):"));
+        out.extend(describe(f, "  "));
     }
     let warn: Vec<&PushFinding> = report
         .findings
@@ -359,9 +697,9 @@ mod tests {
     fn block_mode_rejects_with_place_rule_excerpt_and_hints() {
         let report = ScanReport {
             findings: vec![finding(Tier::Block)],
-            incomplete: None,
+            ..ScanReport::default()
         };
-        let text = messages(&report, ScanMode::Block).join("\n");
+        let text = messages(&report, ScanMode::Block, &Links::default()).join("\n");
         assert!(text.contains("push rejected: 1 secret(s) found"), "{text}");
         assert!(
             text.contains("commit 0123456789ab config/app.env line 3: GitHub token (github-token)"),
@@ -371,7 +709,7 @@ mod tests {
         assert!(text.contains("git rebase -i 0123456789ab^"));
         assert!(text.contains("jj edit 0123456789ab"));
         // Warn mode only warns.
-        let text = messages(&report, ScanMode::Warn).join("\n");
+        let text = messages(&report, ScanMode::Warn, &Links::default()).join("\n");
         assert!(
             !text.contains("rejected") && text.contains("warning"),
             "{text}"
@@ -381,14 +719,14 @@ mod tests {
     #[test]
     fn incomplete_scans_reject_in_block_mode() {
         let report = ScanReport {
-            findings: vec![],
             incomplete: Some("too big".into()),
+            ..ScanReport::default()
         };
         assert!(
-            messages(&report, ScanMode::Block)[0]
+            messages(&report, ScanMode::Block, &Links::default())[0]
                 .contains("push rejected by push protection: too big")
         );
-        assert!(messages(&report, ScanMode::Warn)[0].contains("warning"));
+        assert!(messages(&report, ScanMode::Warn, &Links::default())[0].contains("warning"));
     }
 
     #[test]

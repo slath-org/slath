@@ -30,10 +30,43 @@ remote: slath:     GITHUB_TOKEN=ghp_…
 remote: slath:   Remove the secret from every commit that has it, revoke it, then push again:
 remote: slath:     Git: git rebase -i 3f2a9c81d0e4^ (mark the commit "edit", fix it, git commit --amend, git rebase --continue)
 remote: slath:     jj:  jj edit 3f2a9c81d0e4 (fix the file; descendants are rebased), then jj git push
+remote: slath:   Not a secret? A repository writer can allow it, then push again unchanged:
+remote: slath:     https://git.example.org/team/app/-/secret-scan/allow?fingerprint=9b1f…&rule=github-token
 ```
 
 The secret itself is never printed in full. Revoke it even after removing
 it: it left the machine it was on.
+
+## False positives and fixtures
+
+- **One finding:** a writer of the repository opens the link from the
+  rejection and allows that finding for 1, 7, or 30 days, with an optional
+  reason. The allowance covers that one value (by its fingerprint) in this
+  repository only. Then push again; no push options are needed, so it
+  works the same with jj. The page lists the allowances in force, and each
+  one is recorded in the audit log (`secret_scan.allow`). Bots can't allow
+  findings.
+- **Lasting exceptions:** add `.slath/secret-scan.toml` to the default
+  branch:
+
+  ```toml
+  [[allow]]
+  path = "tests/fixtures/**"          # `**` any path, `*` within a segment, `?` one character
+  reason = "test keys, never used anywhere"
+
+  [[allow]]
+  fingerprint = "9b1f0c3e5a7d2b4f6e8a0c2d4f6b8a0e"   # from a rejection link
+  ```
+
+  It counts only as it stands on the default branch, so a push can't
+  allow itself: an entry added together with the secret has no effect.
+  Merge it first, for example in a merge request of its own.
+- **Moving an existing repository here:** the first push into an empty
+  repository may contain secrets that are exposed elsewhere already. Its
+  rejection then also prints a link for repository administrators, who can
+  accept all of that push's findings in one audited step
+  (`secret_scan.accept_first_push`); they're allowed for a day. Revoke
+  those secrets anyway.
 
 ## Modes
 

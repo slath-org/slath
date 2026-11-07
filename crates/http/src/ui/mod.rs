@@ -20,6 +20,7 @@ pub mod recovery;
 pub mod registration;
 pub mod repos;
 pub mod search;
+pub mod secret_scan;
 pub mod settings;
 pub mod teams;
 
@@ -392,6 +393,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(teams::router())
         .merge(issues::router())
         .merge(labels::router())
+        .merge(secret_scan::router())
         .merge(notifications::router())
         .merge(search::router())
         .merge(import::router())

@@ -27,6 +27,7 @@ slath-markup.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 time.workspace = true
+toml.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 url.workspace = true

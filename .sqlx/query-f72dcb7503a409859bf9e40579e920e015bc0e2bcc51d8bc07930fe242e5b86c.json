@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM secret_rejections WHERE expires_at < now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "f72dcb7503a409859bf9e40579e920e015bc0e2bcc51d8bc07930fe242e5b86c"
+}

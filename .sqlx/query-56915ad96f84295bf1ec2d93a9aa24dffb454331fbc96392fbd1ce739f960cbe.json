@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM secret_allowances WHERE expires_at < now() - interval '30 days'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "56915ad96f84295bf1ec2d93a9aa24dffb454331fbc96392fbd1ce739f960cbe"
+}
