@@ -16,6 +16,7 @@ pub mod error;
 pub mod import;
 pub mod ipc;
 pub mod object;
+pub mod refs;
 pub mod runner;
 pub mod ssh;
 pub mod storage;

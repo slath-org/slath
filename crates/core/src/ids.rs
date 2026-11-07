@@ -90,6 +90,10 @@ id_type!(
     TokenId,
     /// An SSH public key.
     SshKeyId,
+    /// A merge request.
+    MergeRequestId,
+    /// A revision of a merge request (one push of its source).
+    RevisionId,
 );
 
 #[cfg(test)]

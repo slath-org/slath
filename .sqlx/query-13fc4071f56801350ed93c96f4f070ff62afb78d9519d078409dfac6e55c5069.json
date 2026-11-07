@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_revisions SET missing_objects = $3 WHERE mr_id = $1 AND seq = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "13fc4071f56801350ed93c96f4f070ff62afb78d9519d078409dfac6e55c5069"
+}

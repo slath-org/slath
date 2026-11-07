@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT v.mr_id, v.seq, v.head_oid, v.missing_objects\n           FROM mr_revisions v JOIN merge_requests m ON m.id = v.mr_id\n          WHERE m.repo_id = $1\n          ORDER BY v.mr_id, v.seq",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mr_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "mr_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "seq",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "seq"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "head_oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "head_oid"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "missing_objects",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "missing_objects"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3ff502be7726bd1387801b17ea3950189055af2dbb4e077d77ae7ba492e56105"
+}

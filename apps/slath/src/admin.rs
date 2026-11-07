@@ -156,7 +156,9 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
         Ok(c) => c,
         Err(e) => return fail(format, &e),
     };
-    let clean = checks.iter().all(|c| c.is_clean() || c.repaired);
+    let clean = checks
+        .iter()
+        .all(|c| c.is_clean() || (c.repaired && c.missing_revisions.is_empty()));
     match format {
         OutputFormat::Text => {
             for c in &checks {
@@ -176,6 +178,19 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
                         );
                     }
                 }
+                if c.unpinned_revisions > 0 {
+                    let verb = if c.repaired { "repinned" } else { "unpinned" };
+                    println!(
+                        "{verb} {} ({} merge request revisions)",
+                        c.name, c.unpinned_revisions
+                    );
+                }
+                for (mr, seq) in &c.missing_revisions {
+                    println!(
+                        "lost     {} (merge request {mr}, revision {seq}: commits are gone)",
+                        c.name
+                    );
+                }
             }
             println!(
                 "{} repositories checked, {}",
@@ -191,6 +206,11 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
                 "orphan": c.orphan,
                 "missing_on_disk": c.missing_on_disk,
                 "repaired": c.repaired,
+                "unpinned_revisions": c.unpinned_revisions,
+                "missing_revisions": c.missing_revisions.iter().map(|(mr, seq)| json!({
+                    "merge_request": mr.to_string(),
+                    "revision": seq,
+                })).collect::<Vec<_>>(),
                 "ref_differences": c.ref_differences.iter().map(|u| json!({
                     "ref": String::from_utf8_lossy(&u.name),
                     "old": u.old,
