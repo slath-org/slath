@@ -285,7 +285,7 @@ fn credentials_and_dumb_http() {
         "{existing}"
     );
     assert_eq!(existing, get(&format!("/alice/nope.git{refs}"), None));
-    let unknown_token = format!("git:slath_pat_{}", "A".repeat(43));
+    let unknown_token = format!("git:{}", slath_auth::token::new_pat().unwrap().expose());
     assert_eq!(
         existing,
         get(&format!("/alice/demo.git{refs}"), Some(&unknown_token))

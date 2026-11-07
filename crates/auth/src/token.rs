@@ -55,42 +55,55 @@ mod tests {
     }
 }
 
+pub use slath_core::credential::CredentialKind;
+use slath_core::credential::{self, BASE62, RANDOM_LEN};
+
 /// Prefix of personal access tokens (also used by log redaction tests).
-pub const PAT_PREFIX: &str = "slath_pat_";
-/// Length of the random part of a token (base62; 43 × log2(62) ≥ 256 bits).
-pub const PAT_RANDOM_LEN: usize = 43;
+pub const PAT_PREFIX: &str = CredentialKind::PersonalAccessToken.prefix();
 
-const BASE62: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-/// A new personal access token, `slath_pat_` + 43 base62 characters.
-pub fn new_pat() -> Result<Secret<String>, RandomError> {
-    let mut out = String::with_capacity(PAT_PREFIX.len() + PAT_RANDOM_LEN);
-    out.push_str(PAT_PREFIX);
-    while out.len() < PAT_PREFIX.len() + PAT_RANDOM_LEN {
+/// A new credential of `kind`: its prefix, 43 random base62 characters, and
+/// a checksum (see [`slath_core::credential`]).
+pub fn new_credential(kind: CredentialKind) -> Result<Secret<String>, RandomError> {
+    let mut random = String::with_capacity(RANDOM_LEN);
+    while random.len() < RANDOM_LEN {
         for b in random_bytes::<64>()? {
             // Rejection sampling keeps every character uniform: 248 = 4 × 62.
-            if b < 248 && out.len() < PAT_PREFIX.len() + PAT_RANDOM_LEN {
-                out.push(BASE62[usize::from(b % 62)] as char);
+            if b < 248 && random.len() < RANDOM_LEN {
+                random.push(char::from(BASE62[usize::from(b % 62)]));
             }
         }
     }
-    Ok(Secret::new(out))
+    credential::assemble(kind, &random)
+        .map(Secret::new)
+        .ok_or(RandomError)
 }
 
-/// True if `s` has the shape of a personal access token.
+/// A new personal access token.
+pub fn new_pat() -> Result<Secret<String>, RandomError> {
+    new_credential(CredentialKind::PersonalAccessToken)
+}
+
+/// The kind of a well-formed token with a correct checksum. Callers check
+/// this before any database lookup.
+#[must_use]
+pub fn token_kind(s: &str) -> Option<CredentialKind> {
+    credential::parse(s)
+}
+
+/// True if `s` is a well-formed personal access token (of a person or a
+/// bot) with a correct checksum.
 #[must_use]
 pub fn is_pat(s: &str) -> bool {
-    s.strip_prefix(PAT_PREFIX)
-        .is_some_and(|r| r.len() == PAT_RANDOM_LEN && r.bytes().all(|b| b.is_ascii_alphanumeric()))
+    matches!(
+        token_kind(s),
+        Some(CredentialKind::PersonalAccessToken | CredentialKind::BotToken)
+    )
 }
 
 /// The display prefix stored with a token: the first 8 random characters.
 #[must_use]
 pub fn pat_display_prefix(token: &str) -> String {
-    token
-        .get(PAT_PREFIX.len()..PAT_PREFIX.len() + 8)
-        .unwrap_or_default()
-        .to_owned()
+    credential::display_prefix(token).to_owned()
 }
 
 #[cfg(test)]
@@ -101,11 +114,18 @@ mod pat_tests {
     fn pats() {
         let t = new_pat().unwrap();
         assert!(is_pat(t.expose()), "{}", t.expose());
-        assert_eq!(t.expose().len(), 53);
+        assert!(t.expose().starts_with("slath_pat_"));
+        assert_eq!(t.expose().len(), 59);
         assert_eq!(pat_display_prefix(t.expose()).len(), 8);
         assert_ne!(new_pat().unwrap().expose(), t.expose());
         assert!(!is_pat("slath_pat_short"));
-        assert!(!is_pat(&format!("slath_pat_{}", "-".repeat(43))));
-        assert!(!is_pat(&"a".repeat(53)));
+        assert!(!is_pat(&format!("slath_pat_{}", "-".repeat(49))));
+        assert!(!is_pat(&"a".repeat(59)));
+        let runner = new_credential(CredentialKind::RunnerToken).unwrap();
+        assert!(!is_pat(runner.expose()));
+        assert_eq!(
+            token_kind(runner.expose()),
+            Some(CredentialKind::RunnerToken)
+        );
     }
 }

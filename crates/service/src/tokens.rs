@@ -171,7 +171,8 @@ impl Services {
     }
 
     /// Authenticates a bearer token. Unknown, malformed, revoked, and expired
-    /// tokens and tokens of inactive users all give `None`.
+    /// tokens and tokens of inactive users all give `None`. A token whose
+    /// prefix or checksum is wrong is rejected before any database lookup.
     pub async fn authenticate_token(&self, raw: &str) -> Result<Option<TokenAuth>> {
         if !token::is_pat(raw) {
             return Ok(None);

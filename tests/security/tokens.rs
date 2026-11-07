@@ -17,7 +17,7 @@ pub fn create_token(c: &mut Client, name: &str, scopes: &[&str], expires: &str) 
     assert_eq!(r.status, 200, "{}", r.body);
     assert_eq!(r.header("cache-control"), Some("no-store"));
     let start = r.body.find("value=\"slath_pat_").expect("token shown") + "value=\"".len();
-    r.body[start..start + 53].to_owned()
+    r.body[start..start + slath_core::credential::TOKEN_LEN].to_owned()
 }
 
 #[test]
@@ -71,11 +71,18 @@ fn conf_auth_05_revoked_expired_and_malformed_tokens_get_401() {
     );
     assert_eq!(r.status, 303);
     let mut api = s.client();
-    let bogus = format!("slath_pat_{}", "A".repeat(43));
+    // Well-formed with a valid checksum, but never issued.
+    let bogus = slath_auth::token::new_pat().unwrap().expose().clone();
+    let mut bad_sum = bogus.clone().into_bytes();
+    bad_sum[58] = if bad_sum[58] == b'0' { b'1' } else { b'0' };
+    let bad_sum = String::from_utf8(bad_sum).unwrap();
+    let old_format = format!("slath_pat_{}", "A".repeat(43));
     for (what, t) in [
         ("revoked", revoked.as_str()),
         ("expired", expired.as_str()),
         ("unknown", bogus.as_str()),
+        ("bad checksum", bad_sum.as_str()),
+        ("preview format", old_format.as_str()),
         ("malformed", "x"),
     ] {
         let r = api.api("GET", "/api/v1/user", Some(t), None);
@@ -195,4 +202,56 @@ fn conf_rbac_02_other_users_tokens_are_not_found() {
             .status,
         200
     );
+}
+
+/// Every token kind is found exactly, and the project's own files (code,
+/// docs, fixtures, test keys) contain nothing the rule would flag.
+#[test]
+fn conf_sec_08_slath_tokens_are_found_exactly() {
+    use slath_core::credential::{CredentialKind, find_all};
+    for kind in CredentialKind::ALL {
+        let t = slath_auth::token::new_credential(kind).unwrap();
+        for text in [
+            t.expose().clone(),
+            format!("export TOKEN={}\n", t.expose()),
+            format!("https://git:{}@example.org/r.git", t.expose()),
+            format!("{{\"token\":\"{}\"}}", t.expose()),
+        ] {
+            let found = find_all(text.as_bytes());
+            assert_eq!(found.len(), 1, "{kind:?} in {text}");
+            assert_eq!(found[0].kind, kind);
+        }
+        // A changed character or truncation is no longer a token.
+        let mut altered = t.expose().clone().into_bytes();
+        altered[30] = if altered[30] == b'q' { b'r' } else { b'q' };
+        assert!(find_all(&altered).is_empty());
+        assert!(find_all(&t.expose().as_bytes()[..58]).is_empty());
+    }
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut stack = vec![root];
+    let mut files = 0;
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let entry = entry.unwrap();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if [".git", "target", "node_modules", "dist", ".jj"].contains(&name.as_ref()) {
+                continue;
+            }
+            let ty = entry.file_type().unwrap();
+            if ty.is_dir() {
+                stack.push(entry.path());
+            } else if ty.is_file() {
+                let data = std::fs::read(entry.path()).unwrap();
+                files += 1;
+                assert!(
+                    find_all(&data).is_empty(),
+                    "false positive in {}",
+                    entry.path().display()
+                );
+            }
+        }
+    }
+    assert!(files > 500, "corpus too small: {files}");
 }

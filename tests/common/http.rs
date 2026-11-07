@@ -312,7 +312,7 @@ pub fn create_token(c: &mut Client, name: &str, scopes: &[&str]) -> String {
     let r = submit(c, "/-/settings/tokens", "/-/settings/tokens", &fields);
     assert_eq!(r.status, 200, "{}", r.body);
     let start = r.body.find("value=\"slath_pat_").expect("token shown") + "value=\"".len();
-    r.body[start..start + 53].to_owned()
+    r.body[start..start + slath_core::credential::TOKEN_LEN].to_owned()
 }
 
 /// One part of a multipart form: name, file name (for file parts), content.

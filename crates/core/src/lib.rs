@@ -8,6 +8,7 @@
 
 pub mod authz;
 pub mod config;
+pub mod credential;
 pub mod ids;
 pub mod names;
 pub mod net;

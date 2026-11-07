@@ -10,6 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Changed
 
+- Access tokens have a new format: a prefix that names the kind, and a checksum so mistyped or fake tokens are rejected at once. Tokens from 0.1 and 0.2 no longer work; create new ones.
 - The top bar and favicon show the new Slath logo, in the variant for the light or dark theme in use.
 
 ### Fixed
