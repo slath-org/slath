@@ -13,6 +13,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Access tokens have a new format: a prefix that names the kind, and a checksum so mistyped or fake tokens are rejected at once. Tokens from 0.1 and 0.2 no longer work; create new ones.
 - The top bar and favicon show the new Slath logo, in the variant for the light or dark theme in use.
 
+### Removed
+
+- Databases and backups from the 0.1 and 0.2 previews can no longer be upgraded or restored. Install 0.3 with an empty database and import the repositories; see the upgrading guide.
+
 ### Fixed
 
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.

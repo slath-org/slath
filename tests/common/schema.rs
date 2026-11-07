@@ -2,14 +2,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Release schema+data fixtures (`tests/fixtures/schema/v<version>.sql`):
 //! loading them into a test database, and giving their repositories a
-//! (empty) home on disk.
+//! (empty) home on disk. `baseline.sql` holds data at the upgrade baseline
+//! (schema 100), and `preview/` the 0.1/0.2 previews, which can't be
+//! upgraded.
 
 use std::path::{Path, PathBuf};
+
+fn dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/schema")
+}
+
+/// Data at the upgrade baseline, the oldest supported schema.
+#[must_use]
+pub fn baseline() -> PathBuf {
+    dir().join("baseline.sql")
+}
+
+/// A database made by a preview release.
+#[must_use]
+pub fn preview(version: &str) -> PathBuf {
+    dir().join("preview").join(format!("v{version}.sql"))
+}
 
 /// Every release fixture as `(version, path)`, oldest first.
 #[must_use]
 pub fn releases() -> Vec<(String, PathBuf)> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/schema");
+    let dir = dir();
     let mut out: Vec<(Vec<u64>, String, PathBuf)> = std::fs::read_dir(&dir)
         .unwrap()
         .filter_map(Result::ok)

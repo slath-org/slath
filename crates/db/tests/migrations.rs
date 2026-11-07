@@ -3,13 +3,38 @@
 //! Migration and schema tests.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use slath_db::{DbError, MIGRATOR, REQUIRED_SCHEMA};
+use slath_db::{BASELINE_SCHEMA, DbError, MIGRATOR, REQUIRED_SCHEMA};
 use sqlx::PgPool;
 
 #[test]
 fn required_schema_is_the_newest_migration() {
     let newest = MIGRATOR.iter().map(|m| m.version).max().unwrap();
     assert_eq!(newest, i64::from(REQUIRED_SCHEMA));
+}
+
+#[test]
+fn the_first_migration_is_the_baseline() {
+    let oldest = MIGRATOR.iter().map(|m| m.version).min().unwrap();
+    assert_eq!(oldest, i64::from(BASELINE_SCHEMA));
+}
+
+#[sqlx::test(migrations = false)]
+async fn preview_databases_are_refused(pool: PgPool) {
+    sqlx::query("CREATE TABLE schema_info (version int NOT NULL)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO schema_info VALUES (24)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let e = slath_db::check_schema(&pool).await.unwrap_err();
+    assert!(matches!(e, DbError::PreviewSchema { found: 24 }), "{e}");
+    assert!(e.to_string().contains("Import a repository"), "{e}");
+    assert!(matches!(
+        slath_db::migrate(&pool).await,
+        Err(DbError::PreviewSchema { found: 24 })
+    ));
 }
 
 #[test]

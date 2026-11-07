@@ -43,7 +43,22 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 25;
+pub const REQUIRED_SCHEMA: i32 = 101;
+
+/// Schema version of the baseline migration, where every supported
+/// installation starts. Lower versions come from the 0.1/0.2 previews.
+pub const BASELINE_SCHEMA: i32 = 100;
+
+/// What to do with a database or backup from a preview release.
+pub const PREVIEW_GUIDANCE: &str = "Releases before 0.3.0 were previews and can't be upgraded. \
+     Keep running the preview, or install this version with an empty database and data \
+     directory and bring the repositories over with \"Import a repository\" or `git push --mirror`.";
+
+/// True if a database at `schema` was made by a preview release.
+#[must_use]
+pub const fn is_preview_schema(schema: i32) -> bool {
+    schema > 0 && schema < BASELINE_SCHEMA
+}
 
 /// The migrations in `migrations/`, embedded at compile time.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
@@ -64,6 +79,11 @@ pub enum DbError {
          run `slath migrate` (or `slath upgrade`) first"
     )]
     SchemaBehind { found: i32, required: i32 },
+    #[error(
+        "database schema is version {found}, from a preview release of Slath. {}",
+        PREVIEW_GUIDANCE
+    )]
+    PreviewSchema { found: i32 },
     #[error("database schema is version {found}, newer than this binary ({required}). {guidance}")]
     SchemaAhead {
         found: i32,
@@ -132,6 +152,13 @@ pub async fn connect(cfg: &PoolConfig) -> Result<PgPool, DbError> {
 
 /// Applies all pending migrations.
 pub async fn migrate(pool: &PgPool) -> Result<(), DbError> {
+    // A preview's migrations are gone from this binary; say so instead of
+    // letting the migrator report a missing migration.
+    if let Some(found) = schema_version(pool).await?
+        && is_preview_schema(found)
+    {
+        return Err(DbError::PreviewSchema { found });
+    }
     MIGRATOR.run(pool).await?;
     Ok(())
 }
@@ -199,6 +226,9 @@ async fn downgrade_guidance(pool: &PgPool, schema: i32) -> String {
 /// Fails unless the database schema is exactly [`REQUIRED_SCHEMA`].
 pub async fn check_schema(pool: &PgPool) -> Result<(), DbError> {
     let found = schema_version(pool).await?.unwrap_or(0);
+    if is_preview_schema(found) {
+        return Err(DbError::PreviewSchema { found });
+    }
     match found.cmp(&REQUIRED_SCHEMA) {
         std::cmp::Ordering::Equal => Ok(()),
         std::cmp::Ordering::Less => Err(DbError::SchemaBehind {

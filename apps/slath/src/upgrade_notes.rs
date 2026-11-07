@@ -284,7 +284,14 @@ mod tests {
     #[test]
     fn embedded_notes_are_valid() {
         let notes = all().unwrap();
-        assert!(notes.iter().any(|n| n.version == v("0.1.0")));
+        assert!(notes.iter().any(|n| n.version == v("0.3.0")));
+        // The 0.1/0.2 previews have no notes: nothing upgrades from them.
+        assert!(notes.iter().all(|n| n.version >= v("0.3.0")));
+        assert!(
+            notes
+                .iter()
+                .all(|n| n.schema_version > slath_db::BASELINE_SCHEMA)
+        );
         // Schemas never go backwards between releases.
         for w in notes.windows(2) {
             assert!(w[0].schema_version <= w[1].schema_version);

@@ -6,7 +6,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 # Keeping upgrades safe
 
 Every release must upgrade directly from every earlier release of the same
-major version (and every 0.x from 0.1.0 on). These rules keep that true.
+major version, back to the upgrade baseline 0.3.0. These rules keep that
+true. The 0.1/0.2 previews are no upgrade source: their databases (schema
+below 100) are refused with guidance, and nothing in the code exists only
+for them.
 
 ## Upgrade notes
 
@@ -18,7 +21,7 @@ file; the release workflow also checks the file of the tag being released.
 ```toml
 version = "0.5.0"
 schema_version = 58          # REQUIRED_SCHEMA of the release
-min_upgrade_from = "0.1.0"
+min_upgrade_from = "0.3.0"
 
 [requires]                   # optional: raised minimum versions
 git = "2.47.0"
@@ -51,8 +54,9 @@ go; the release task completes it.
    test fails otherwise).
 
 Loading maps the old key with a warning, and `slath config migrate`
-rewrites files. Configurations of every release are kept in
-`tests/fixtures/config/` and must keep loading.
+rewrites files. The shipped configurations of every release since 0.3.0
+are kept in `tests/fixtures/config/` (the release task adds them) and must
+keep loading.
 
 ## Schema changes
 
@@ -60,10 +64,21 @@ See the migration rules in the data model specification: fast DDL only,
 expand and contract over two releases, and backfills as background
 migrations.
 
+`migrations/0100_baseline.sql` is the schema of the previews collapsed into
+one file, and every supported installation starts there. New migrations
+take the next number after the newest file (0101, 0102, …) and set
+`schema_info.version` to it; `REQUIRED_SCHEMA` in `crates/db/src/lib.rs` is
+that number.
+
 ## Testing upgrades
 
-- `tests/ops/upgrade.rs` loads release fixtures (`tests/fixtures/schema/`)
-  and upgrades them. `SLATH_UPGRADE_FAULT=<step>` makes `slath upgrade`
+- `tests/ops/upgrade.rs` loads fixtures from `tests/fixtures/schema/` and
+  upgrades them: `baseline.sql` (data at the baseline schema, until a
+  release since 0.3.0 has its own `v<version>.sql`) and every release
+  fixture. `preview/v0.2.0.sql` checks that previews are refused.
+- `just upgrade-matrix` builds every release since 0.3.0 from its tag and
+  upgrades an instance each of them populated. Without such a release, it
+  reports the case as N/A. `SLATH_UPGRADE_FAULT=<step>` makes `slath upgrade`
   abort at a step (`after-maintenance`, `after-backup`,
   `after-first-migration`, `after-migrations`, `after-hooks`), as a kill
   would; the tests then run it again and check the result.

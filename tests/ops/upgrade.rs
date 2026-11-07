@@ -53,18 +53,19 @@ fn tree_checksum(dir: &Path) -> Vec<(String, String)> {
     out
 }
 
-/// An instance holding a release's fixture data, not running.
-fn release_instance(version: &str) -> Instance {
+/// An instance holding a fixture's data, not running.
+fn fixture_instance(path: &Path) -> Instance {
     let inst = Instance::new("");
-    let (_, path) = schema::releases()
-        .into_iter()
-        .find(|(v, _)| v == version)
-        .unwrap();
-    schema::load(&inst.db.url, &path);
+    schema::load(&inst.db.url, path);
     let data = inst.dir.path().join("data");
     std::fs::create_dir_all(data.join("git-home")).unwrap();
     schema::create_repo_dirs(&inst.db, &data);
     inst
+}
+
+/// The oldest supported database: data at the upgrade baseline.
+fn baseline_instance() -> Instance {
+    fixture_instance(&schema::baseline())
 }
 
 fn schema_version(db: &TestDb) -> i32 {
@@ -82,14 +83,14 @@ fn required_schema(inst: &Instance) -> i32 {
 
 #[test]
 fn conf_ops_07_check_changes_nothing() {
-    let inst = release_instance("0.1.1");
+    let inst = baseline_instance();
     let before = (db_checksum(&inst.db), tree_checksum(inst.dir.path()));
     let (ok, out, err) = inst.slath(&["upgrade", "--check", "--output", "json"], None);
     assert!(ok, "{out}{err}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["ok"], true);
-    assert_eq!(v["preflight"]["from_version"], "0.1.0");
-    assert_eq!(v["preflight"]["from_schema"], 9);
+    assert_eq!(v["preflight"]["from_version"], serde_json::Value::Null);
+    assert_eq!(v["preflight"]["from_schema"], 100);
     assert!(!v["preflight"]["pending"].as_array().unwrap().is_empty());
     let (ok, text, _) = inst.slath(&["upgrade", "--check"], None);
     assert!(ok);
@@ -106,7 +107,7 @@ fn conf_ops_07_check_changes_nothing() {
 #[test]
 fn conf_ops_07_failing_preflight_changes_nothing() {
     use std::os::unix::fs::PermissionsExt;
-    let inst = release_instance("0.1.1");
+    let inst = baseline_instance();
     let data = inst.dir.path().join("data");
     std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o500)).unwrap();
     let before = (db_checksum(&inst.db), tree_checksum(inst.dir.path()));
@@ -136,7 +137,7 @@ fn conf_ops_07_crash_at_every_step_is_finished_by_rerunning() {
         "after-migrations",
         "after-hooks",
     ] {
-        let inst = release_instance("0.1.1");
+        let inst = baseline_instance();
         let users = inst.db.query_one("SELECT count(*)::text FROM users");
         let mut cmd = std::process::Command::new(slath_tests::server::slath_bin());
         let out = cmd
@@ -181,7 +182,7 @@ fn conf_ops_07_crash_at_every_step_is_finished_by_rerunning() {
 
 #[test]
 fn conf_ops_07_upgrade_then_restore_the_pre_upgrade_backup() {
-    let inst = release_instance("0.1.1");
+    let inst = baseline_instance();
     let before = db_checksum(&inst.db);
     let backups = inst.dir.path().join("backups");
     let (ok, out, err) = inst.slath(
@@ -198,7 +199,7 @@ fn conf_ops_07_upgrade_then_restore_the_pre_upgrade_backup() {
     assert!(ok, "{out}{err}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     let backup = v["backup"].as_str().unwrap().to_owned();
-    assert!(backup.contains("pre-upgrade-0.1.0-"), "{backup}");
+    assert!(backup.contains("pre-upgrade-schema100-"), "{backup}");
     assert_eq!(
         inst.db.query_one("SELECT backup_path FROM upgrade_history"),
         backup
@@ -218,7 +219,7 @@ fn conf_ops_07_upgrade_then_restore_the_pre_upgrade_backup() {
     let mut admin = srv.login("root-admin", PASSWORD);
     let page = admin.get("/-/admin/upgrades");
     assert!(
-        page.body.contains("v0.1.0 (schema 9)") && page.body.contains("success"),
+        page.body.contains("schema 100") && page.body.contains("success"),
         "{}",
         page.body
     );
@@ -266,19 +267,50 @@ fn conf_ops_07_upgrade_then_restore_the_pre_upgrade_backup() {
     );
 }
 
-/// Every published release's data migrates to the current schema.
+/// The baseline data and every published release's data migrate to the
+/// current schema.
 #[test]
 fn migrations_apply_to_every_release_fixture() {
-    for (version, _) in schema::releases() {
-        let inst = release_instance(&version);
+    let fixtures =
+        std::iter::once(("baseline".to_owned(), schema::baseline())).chain(schema::releases());
+    for (version, path) in fixtures {
+        let inst = fixture_instance(&path);
         let (ok, out, err) = inst.slath(&["migrate"], None);
-        assert!(ok, "v{version}: {out}{err}");
+        assert!(ok, "{version}: {out}{err}");
         assert_eq!(
             schema_version(&inst.db),
             required_schema(&inst),
-            "v{version}"
+            "{version}"
         );
     }
+}
+
+/// A preview's database is refused everywhere with guidance, and nothing
+/// changes.
+#[test]
+fn conf_ops_03_preview_databases_are_refused_with_guidance() {
+    let inst = fixture_instance(&schema::preview("0.2.0"));
+    let before = db_checksum(&inst.db);
+    for args in [
+        &["upgrade", "--yes"][..],
+        &["upgrade", "--check"],
+        &["migrate"],
+        &["serve", "--migrate"],
+    ] {
+        let (ok, out, err) = inst.slath(args, None);
+        assert!(!ok, "{args:?}: {out}{err}");
+        let text = format!("{out}{err}");
+        assert!(text.contains("preview"), "{args:?}: {text}");
+        assert!(text.contains("Import a repository"), "{args:?}: {text}");
+    }
+    let (ok, out, err) = inst.slath(&["serve"], None);
+    assert!(!ok);
+    assert!(
+        format!("{out}{err}").contains("preview release"),
+        "{out}{err}"
+    );
+    assert_eq!(db_checksum(&inst.db), before);
+    assert_eq!(schema_version(&inst.db), 24);
 }
 
 /// Read-only maintenance during an upgrade: the server notices the flag,

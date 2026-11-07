@@ -7,11 +7,13 @@ The cases file is Markdown with table rows of the form
 `| **<AREA>-<nn>** | <gate M<n> or —> | <criticality> | <scenario> |`.
 Tests named `conf_<area>_<nn>_<description>` provide evidence for case
 `<AREA>-<nn>`. A case is PASS if at least one test maps to it and all mapped
-tests pass, FAIL if any mapped test fails, SKIP if all mapped tests were
-skipped, and UNKNOWN if no test maps to it.
+tests pass, FAIL if any mapped test fails, N/A if every mapped test was
+skipped with a message starting "N/A:" (the case doesn't apply yet, with
+the reason), SKIP if all mapped tests were skipped, and UNKNOWN if no test
+maps to it.
 
 Writes <out>/report.json and <out>/report.md. With `--gate M<n>`, exits 1
-unless every case gated at or before M<n> (and not FUTURE) is PASS.
+unless every case gated at or before M<n> (and not FUTURE) is PASS or N/A.
 
 Usage:
   conformance_report.py --cases FILE [--junit FILE]...
@@ -46,12 +48,18 @@ class Case:
     tests: list[dict] = field(default_factory=list)
 
     @property
+    def reasons(self) -> list[str]:
+        return sorted({t["reason"] for t in self.tests if t.get("reason")})
+
+    @property
     def status(self) -> str:
         if not self.tests:
             return "UNKNOWN"
         outcomes = {t["outcome"] for t in self.tests}
         if "fail" in outcomes:
             return "FAIL"
+        if outcomes == {"na"}:
+            return "N/A"
         if outcomes == {"skip"}:
             return "SKIP"
         if "pass" in outcomes:
@@ -87,16 +95,22 @@ def parse_junit(path: Path) -> list[dict]:
     results = []
     for tc in ET.parse(path).getroot().iter("testcase"):
         tags = {child.tag for child in tc}
+        skipped = tc.find("skipped")
+        message = (skipped.get("message") or "") if skipped is not None else ""
+        reason = None
         # nextest marks tests that passed on retry with <flakyFailure>; they pass.
         if tags & {"failure", "error"}:
             outcome = "fail"
+        elif message.startswith("N/A:"):
+            outcome, reason = "na", message[len("N/A:"):].strip()
         elif "skipped" in tags:
             outcome = "skip"
         else:
             outcome = "pass"
-        results.append(
-            {"name": tc.get("name", ""), "classname": tc.get("classname", ""), "outcome": outcome}
-        )
+        r = {"name": tc.get("name", ""), "classname": tc.get("classname", ""), "outcome": outcome}
+        if reason:
+            r["reason"] = reason
+        results.append(r)
     return results
 
 
@@ -128,6 +142,7 @@ def build_report(cases: dict[str, Case], results: list[dict], env: dict) -> tupl
                 "criticality": c.criticality,
                 "status": c.status,
                 "tests": sorted(t["name"] for t in c.tests),
+                **({"reasons": c.reasons} if c.reasons else {}),
             }
             for c in cases.values()
         ],
@@ -150,6 +165,8 @@ def render_markdown(report: dict, gate: str | None, gate_failures: list[str]) ->
     lines += ["| Case | Gate | Criticality | Status | Tests |", "|---|---|---|---|---|"]
     for c in report["cases"]:
         tests = ", ".join(f"`{t}`" for t in c["tests"]) or "—"
+        if c.get("reasons"):
+            tests += " (" + "; ".join(c["reasons"]) + ")"
         lines.append(
             f"| {c['test_id']} | {c['gate'] or '—'} | {c['criticality']} | {c['status']} | {tests} |"
         )
@@ -185,7 +202,7 @@ def main(argv: list[str]) -> int:
     gate_failures = []
     if args.gate:
         gate_failures = [
-            f"{c.id} is {c.status}" for c in cases.values() if c.gated_by(args.gate) and c.status != "PASS"
+            f"{c.id} is {c.status}" for c in cases.values() if c.gated_by(args.gate) and c.status not in ("PASS", "N/A")
         ]
         report["gate"] = {"milestone": args.gate, "met": not gate_failures, "failures": gate_failures}
 

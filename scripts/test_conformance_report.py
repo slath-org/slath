@@ -32,6 +32,7 @@ def junit(cases: list[tuple[str, str]]) -> str:
     body = []
     for name, outcome in cases:
         inner = {"pass": "", "fail": "<failure message='x'/>", "skip": "<skipped/>",
+                 "na": "<skipped message='N/A: no release yet'/>",
                  "flaky": "<flakyFailure message='x'/>", "error": "<error/>"}[outcome]
         body.append(f'<testcase name="{name}" classname="slath-tests::compat">{inner}</testcase>')
     return f'<testsuites><testsuite name="s">{"".join(body)}</testsuite></testsuites>'
@@ -97,6 +98,20 @@ class RunTest(unittest.TestCase):
         self.assertEqual(s["BAR-01"], "SKIP")
         self.assertEqual(s["FOO-03"], "UNKNOWN")
         self.assertIn("| FOO-01 | M0 | MUST-v1 | PASS |", md)
+
+    def test_not_applicable_counts_for_the_gate_with_its_reason(self) -> None:
+        code, report, md = self.run_script(
+            [("conf_foo_01_a", "pass"), ("conf_foo_02_a", "na"), ("conf_bar_01_a", "pass")],
+            "--gate", "M0",
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(self.statuses(report)["FOO-02"], "N/A")
+        foo2 = next(c for c in report["cases"] if c["test_id"] == "FOO-02")
+        self.assertEqual(foo2["reasons"], ["no release yet"])
+        self.assertIn("(no release yet)", md)
+        # A failing test next to an N/A one still fails the case.
+        _, report, _ = self.run_script([("conf_foo_02_a", "na"), ("conf_foo_02_b", "fail")])
+        self.assertEqual(self.statuses(report)["FOO-02"], "FAIL")
 
     def test_error_counts_as_failure(self) -> None:
         _, report, _ = self.run_script([("conf_foo_01_a", "error")])

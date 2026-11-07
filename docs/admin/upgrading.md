@@ -5,11 +5,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Upgrading Slath
 
-You can upgrade directly from any earlier release (from 0.1.0 on) to the
-current one; there's no need to install the releases in between. Read the
-section for each release you skip below, then run `slath upgrade`.
+You can upgrade directly from any earlier release from 0.3.0 on to the
+current one; there's no need to install the releases in between.
+`slath upgrade --check` prints the notes of every release you skip.
 
-## With `slath upgrade` (from 0.2.0 on)
+Releases 0.1.x and 0.2.0 were previews and can't be upgraded; see
+[Coming from a preview](#coming-from-a-preview).
+
+## With `slath upgrade`
 
 Install the new binary, then see what would happen. This changes nothing
 and is safe to run at any time:
@@ -31,10 +34,9 @@ slath upgrade
 ```
 
 1. If any preflight check fails, it stops before changing anything.
-2. A running 0.2.0-or-newer server switches to read-only maintenance: pages
-   show a banner, saving and pushing are refused with a message, and
-   browsing and cloning keep working. A server older than 0.2.0 must be
-   stopped first.
+2. A running server switches to read-only maintenance: pages show a
+   banner, saving and pushing are refused with a message, and browsing and
+   cloning keep working.
 3. It backs up the database and repositories into
    `<data_dir>/backups/pre-upgrade-<from>-<to>-<time>` (`--backup-dir` puts
    it elsewhere; `--no-backup` skips it, which isn't recommended).
@@ -85,29 +87,6 @@ is up, so the upgrade itself stays short. **Administration → Upgrades** and
 time left; you can pause, resume, or retry them there. Features that need
 one show a notice until it has finished.
 
-## From 0.1.x to 0.2.0
-
-- **Administrators need two-factor authentication.** `[auth]
-  require_mfa_for_admins` (on by default) is enforced from 0.2.0 on: an
-  administrator who signed in without a second factor is treated like a
-  regular user, and their tokens and SSH keys lose administrator powers
-  until the account has one. Set it up under **Settings → Security** before
-  or right after upgrading, then sign in again with a code. The `slath
-  admin` commands keep working. To keep the old behaviour, set
-  `require_mfa_for_admins = false` (not recommended).
-- **PostgreSQL's `pg_trgm` extension.** Search needs it, and the upgrade
-  enables it in the Slath database (`CREATE EXTENSION pg_trgm`). It is a
-  trusted extension, so the database owner may create it, but it must be
-  installed: it ships with PostgreSQL's contrib modules (the official
-  container images and Debian/Ubuntu packages include them; on RHEL-based
-  systems install `postgresql-contrib`).
-
-## Before 0.2.0
-
-Releases before 0.2.0 have no `slath upgrade`. Back up first
-([Backup and restore](backup.md)), then follow the section for the release
-you're upgrading from.
-
 ## Configuration across releases
 
 A configuration file written for an earlier release keeps working. When a
@@ -124,105 +103,19 @@ saves the previous file as `slath.toml.bak`. Running it again changes
 nothing. Keys set through `SLATH__…` environment variables are mapped the
 same way, but you have to rename those yourself.
 
-## From 0.1.0 to 0.1.1
+## Coming from a preview
 
-Slath 0.1.1 separates the SSH login `git` from the service account `slath`
-(see [Users and permissions](install.md#users-and-permissions)). In 0.1.0,
-`git` shared `slath`'s UID, so anything running as `git` could read the
-database credentials, the master key, and every repository. Git for SSH now
-runs inside `slath serve`, and `git` only needs to reach the IPC socket.
+The 0.1 and 0.2 releases were previews. Their databases can't be upgraded:
+`slath upgrade`, `slath migrate`, `slath serve`, and `slath backup restore`
+refuse them and say so. To move to this version:
 
-### Docker Compose
+1. Install it as a new instance, with an empty database and data
+   directory ([Installing Slath](install.md)), next to the preview.
+2. Create the users and organizations again, and bring each repository over
+   with **Import a repository** (`/-/import`, from the preview's HTTPS
+   URL, with a token for private repositories) or with
+   `git push --mirror`.
+3. Create new access tokens: tokens from the previews don't work any more.
+   Users add their SSH keys again.
 
-The new image and `compose.yml` do this for you:
-
-```sh
-git fetch --tags && git checkout v0.1.1
-cd deploy/compose
-docker compose build
-docker compose up -d
-docker compose exec slath slath config check
-```
-
-`git` becomes UID 10002 with its own group. `slath` (UID 10001, unchanged)
-hands the IPC socket to that group on start, and the `sshd` container is
-recreated without the data volume. Your volumes and data stay as they are.
-The image sets `SLATH__STORAGE__SOCKET_GROUP=git` in its environment, so a
-`slath.toml` you mount yourself needs no change.
-
-If you keep your own copy of `compose.yml`, remove the `data` volume from
-the `sshd` service and add the `tmpfs` entry for `/var/lib/slath` from the
-shipped file. Without it, Docker carries the data volume over to the
-recreated container, because the image declares `/var/lib/slath` a volume.
-Check with `docker compose exec sshd ls /var/lib/slath`, which must list
-nothing.
-
-### systemd
-
-Replacing the binary is enough to keep everything working. Without
-`storage.socket_group`, the socket stays private to `slath`'s UID, which the
-0.1.0 `git` user shares. To separate the two users, which we recommend:
-
-1. Stop Slath:
-
-   ```sh
-   systemctl stop slath
-   ```
-
-2. Remove the old `git` account. Use plain `userdel`, never `userdel -r`:
-   the old account's home directory is the data directory.
-
-   ```sh
-   userdel git
-   ```
-
-   If `userdel` reports running processes, wait for open SSH sessions to end
-   and run it again.
-
-3. Create the new `git` user and group, and add `slath` to the group:
-
-   ```sh
-   cp deploy/systemd/sysusers-slath.conf /usr/lib/sysusers.d/slath.conf
-   systemd-sysusers
-   usermod --password '*' git
-   id git     # its own UID, groups: git
-   id slath   # groups include git
-   ```
-
-4. In `/etc/slath/slath.toml`, under `[storage]`, add:
-
-   ```toml
-   socket_group = "git"
-   ```
-
-5. Install the new unit (it adds `SupplementaryGroups=git` and allows the
-   server to hand the socket to that group) and the new sshd drop-in (it runs
-   `slath ssh-keys` as `git`):
-
-   ```sh
-   cp deploy/systemd/slath.service /etc/systemd/system/
-   cp deploy/sshd/slath.conf /etc/ssh/sshd_config.d/slath.conf
-   systemctl daemon-reload
-   ```
-
-6. Check that group `git` can't read Slath's files. If the `socket` line
-   reports a path, remove the group and world permissions it names (for
-   example `chmod o-rwx /var/lib/slath`).
-
-   ```sh
-   sudo -u slath slath config check
-   ```
-
-7. Start Slath, reload sshd, and clone a repository over SSH:
-
-   ```sh
-   systemctl start slath
-   systemctl reload sshd
-   ```
-
-The steps must happen in this order: the new unit doesn't start until group
-`git` exists.
-
-To go back to 0.1.0 afterwards, restore the shared UID as described in the
-0.1.0 install guide: the 0.1.0 `ssh-serve` runs Git itself and needs access
-to the repositories.
+Issues, settings, and other data of the preview aren't carried over.

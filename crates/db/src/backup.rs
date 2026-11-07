@@ -215,7 +215,15 @@ where
         return Err(DbError::Backup("the target database is not empty".into()));
     }
     let version = i64::from(info.schema_version);
-    if version < 1 || info.schema_version > crate::REQUIRED_SCHEMA {
+    if crate::is_preview_schema(info.schema_version) {
+        return Err(DbError::Backup(format!(
+            "the backup has schema version {}, from a preview release of Slath. {}",
+            info.schema_version,
+            crate::PREVIEW_GUIDANCE
+        )));
+    }
+    if info.schema_version < crate::BASELINE_SCHEMA || info.schema_version > crate::REQUIRED_SCHEMA
+    {
         return Err(DbError::Backup(format!(
             "the backup has schema version {}, this binary supports up to {}",
             info.schema_version,

@@ -208,11 +208,10 @@ fn server_status(socket: &Path) -> Result<Option<slath_git::ipc::ServerStatus>, 
         &slath_git::ipc::Request::Status,
         Duration::from_secs(3),
     ) {
-        Ok(r) => Ok(r.status.map(|b| *b).or(Some(slath_git::ipc::ServerStatus {
-            version: "older than 0.2.0".to_owned(),
-            schema: 0,
-            maintenance: false,
-        }))),
+        Ok(r) => r
+            .status
+            .map(|b| Some(*b))
+            .ok_or_else(|| "the running server didn't report its status; stop it first".to_owned()),
         Err(slath_git::ipc::IpcError::Io(e))
             if matches!(
                 e.kind(),
@@ -221,12 +220,9 @@ fn server_status(socket: &Path) -> Result<Option<slath_git::ipc::ServerStatus>, 
         {
             Ok(None)
         }
-        // Something answers but can't speak the status request: an older server.
-        Err(_) => Ok(Some(slath_git::ipc::ServerStatus {
-            version: "older than 0.2.0".to_owned(),
-            schema: 0,
-            maintenance: false,
-        })),
+        Err(e) => Err(format!(
+            "the running server didn't answer: {e}; stop it first"
+        )),
     }
 }
 
@@ -276,7 +272,7 @@ async fn preflight(
             .map_err(|e| e.to_string())?
             .unwrap_or(0),
     };
-    let from = if from_schema == 0 {
+    let from = if from_schema == 0 || slath_db::is_preview_schema(from_schema) {
         None
     } else {
         from_version(pool, &all, from_schema).await
@@ -350,7 +346,16 @@ async fn preflight(
     }
 
     // The jump itself.
-    if from_schema > slath_db::REQUIRED_SCHEMA {
+    if slath_db::is_preview_schema(from_schema) {
+        p.push(
+            "source",
+            Mark::Fail,
+            format!(
+                "the database (schema {from_schema}) comes from a preview release. {}",
+                slath_db::PREVIEW_GUIDANCE
+            ),
+        );
+    } else if from_schema > slath_db::REQUIRED_SCHEMA {
         p.push(
             "source",
             Mark::Fail,
@@ -382,6 +387,15 @@ async fn preflight(
         }
     } else if from_schema == 0 {
         p.push("source", Mark::Ok, "empty database: a new installation");
+    } else if from_schema == slath_db::BASELINE_SCHEMA {
+        p.push(
+            "source",
+            Mark::Ok,
+            format!(
+                "the upgrade baseline (schema {from_schema}) → v{to} (schema {})",
+                p.to_schema
+            ),
+        );
     } else {
         p.push(
             "source",
@@ -600,21 +614,9 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
     )
     .await?;
     let socket = cfg.storage.run_dir.join("slath.sock");
-    match server_status(&socket)? {
-        None => p.push("server", Mark::Ok, "no server is running"),
-        Some(s) if s.version.starts_with("older") => {
-            p.server_running = true;
-            p.push(
-                "server",
-                Mark::Fail,
-                format!(
-                    "a server {} is running; stop it before upgrading",
-                    s.version
-                ),
-            );
-            p.server = Some(s);
-        }
-        Some(s) => {
+    match server_status(&socket) {
+        Ok(None) => p.push("server", Mark::Ok, "no server is running"),
+        Ok(Some(s)) => {
             p.server_running = true;
             p.push(
                 "server",
@@ -625,6 +627,10 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
                 ),
             );
             p.server = Some(s);
+        }
+        Err(e) => {
+            p.server_running = true;
+            p.push("server", Mark::Fail, e);
         }
     }
     if opts.no_backup && !opts.check {
@@ -749,7 +755,9 @@ async fn upgrade(config_path: &Path, cfg: &Loaded, opts: &Opts) -> Result<ExitCo
 fn backup_target(base: &Path, p: &Preflight, started: time::OffsetDateTime) -> PathBuf {
     let name = format!(
         "pre-upgrade-{}-{}-{}",
-        p.from_version.as_deref().unwrap_or("unknown"),
+        p.from_version
+            .clone()
+            .unwrap_or_else(|| format!("schema{}", p.from_schema)),
         p.to_version,
         started.unix_timestamp()
     );

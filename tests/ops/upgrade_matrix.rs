@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The upgrade matrix (OPS-03): for every published release, populate an
+//! The upgrade matrix (OPS-03): for every published release since the
+//! upgrade baseline 0.3.0 (the 0.1/0.2 previews aren't sources), populate an
 //! instance with that release's binary, upgrade it with this one, and check
 //! that nothing was lost and everything still works. Also: the old binary
 //! refuses the upgraded database with restore guidance, and the
 //! pre-upgrade backup restores with the old binary.
 //!
 //! Needs the old binaries: `just upgrade-matrix` builds one per release tag
-//! and passes them as `SLATH_UPGRADE_MATRIX="v0.1.0=/path/slath …"`.
+//! and passes them as `SLATH_UPGRADE_MATRIX="v0.3.0=/path/slath …"`.
 
 use std::path::{Path, PathBuf};
 
@@ -108,18 +109,10 @@ fn populate(s: &mut TestServer, git: &GitClient, work: &Path) {
     create_token(&mut b, "ci", &["repo:read"]);
 }
 
-/// An instance whose configuration every release understands (no keys
-/// added after 0.1.0).
+/// An instance for an older release; every release since 0.3.0
+/// understands the test configuration.
 fn old_instance() -> Instance {
-    let inst = Instance::new("");
-    let cfg = std::fs::read_to_string(inst.config_path()).unwrap();
-    let cfg: String = cfg
-        .lines()
-        .filter(|l| !l.starts_with("socket_group"))
-        .map(|l| format!("{l}\n"))
-        .collect();
-    std::fs::write(inst.config_path(), cfg).unwrap();
-    inst
+    Instance::new("")
 }
 
 fn matrix() -> Vec<(String, PathBuf)> {

@@ -7,7 +7,7 @@
 -- is pinned by the ref refs/slath/mr/<id>/r<seq>, so the commits stay
 -- readable after force pushes and garbage collection.
 
-UPDATE schema_info SET version = 25;
+UPDATE schema_info SET version = 101;
 
 CREATE TABLE merge_requests (
     id uuid PRIMARY KEY,
