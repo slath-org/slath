@@ -109,7 +109,8 @@ On a Linux host with systemd, `slath setup` does the installation.
    distribution, and start PostgreSQL.
 
 2. Install the `slath` binary root-owned (sshd only runs a key lookup
-   that nobody else can write):
+   that nobody else can write). The release binary needs glibc 2.41 or
+   newer (Debian 13, Ubuntu 25.04, Fedora 42, or later):
 
    ```sh
    install -m 0755 slath /usr/local/bin/slath

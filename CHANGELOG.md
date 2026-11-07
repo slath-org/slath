@@ -10,6 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Each release publishes a prebuilt `slath` binary for x86-64 and aarch64 Linux and a container image, with SHA-256 digests and a report of the tests run on exactly those files.
 - `slath setup` installs Slath on a systemd host in one command: users, files, database, service, sshd, and the first administrator. `--check` shows what it would do.
 - An opt-in update check (`[upgrade] check_for_updates`) shows administrators when a newer release is available; it makes no request unless turned on.
 

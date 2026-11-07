@@ -9,6 +9,11 @@
 # itself. The 0.1/0.2 previews aren't upgrade sources. Until a release since
 # the baseline exists, the report marks the case N/A with that reason.
 #
+# With SLATH_MATRIX_FROM=releases (the release workflow), each release's
+# published x86-64 binary is downloaded with `gh` and checked against the
+# release's SHA256SUMS instead of being built from its tag. SLATH_BIN names
+# the binary to upgrade to (default: this checkout's build).
+#
 # Usage: scripts/upgrade-matrix.sh [TAG...]   (default: every vX.Y.Z tag ≥ v0.3.0)
 
 set -euo pipefail
@@ -38,6 +43,14 @@ fi
 MATRIX=""
 for tag in "${TAGS[@]}"; do
     bin="$OUT/$tag/slath"
+    if [[ ! -x "$bin" && "${SLATH_MATRIX_FROM:-source}" == releases ]]; then
+        echo "== downloading $tag"
+        asset="slath-${tag#v}-x86_64-linux"
+        mkdir -p "$OUT/$tag"
+        gh release download "$tag" --pattern "$asset" --pattern SHA256SUMS --dir "$OUT/$tag" --clobber
+        (cd "$OUT/$tag" && grep " $asset\$" SHA256SUMS | sha256sum -c -)
+        mv "$OUT/$tag/$asset" "$bin" && chmod 0755 "$bin"
+    fi
     if [[ ! -x "$bin" ]]; then
         echo "== building $tag"
         tree="$OUT/src-$tag"
@@ -57,7 +70,11 @@ for tag in "${TAGS[@]}"; do
 done
 git worktree prune
 
-cargo build --locked -p slath -p slath-tests --bins
+if [[ -n "${SLATH_BIN:-}" ]]; then
+    cargo build --locked -p slath-tests --bins
+else
+    cargo build --locked -p slath -p slath-tests --bins
+fi
 SLATH_UPGRADE_MATRIX="$MATRIX" cargo nextest run --locked --profile ci -p slath-tests --test ops \
     --run-ignored only -E 'test(conf_ops_03_upgrade_from_every_release)'
 mkdir -p target/upgrade-matrix-report && cp target/nextest/ci/junit.xml target/upgrade-matrix-report/junit.xml

@@ -1,22 +1,39 @@
 # SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Checks run when a release tag is pushed. A release without its
-# upgrade notes (upgrade-notes/<version>.toml) fails here.
+# A release: build once from the tag, qualify exactly those artifacts, and
+# publish them only if every required job succeeded.
+#
+#   preconditions  upgrade notes; the required nightly workflows are green
+#   build          image per architecture (pushed by digest only) and the
+#                  binary copied out of it, with SHA-256
+#   tests, e2e, compose, setup, upgrade-matrix
+#                  run on the downloaded artifacts; nothing builds slath again
+#   gate           fails unless every job above succeeded; writes the report
+#   publish        GitHub release (binaries, SHA256SUMS, compose bundle,
+#                  report) and the image tags
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  IMAGE: ghcr.io/slath-org/slath
+
 jobs:
-  upgrade-notes:
-    name: upgrade notes
+  preconditions:
+    name: preconditions
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -26,3 +43,376 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: python3 scripts/check_upgrade_notes.py --tag "$TAG"
+      - name: The required nightly workflows are green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for wf in upgrade-matrix.yml oidc-providers.yml; do
+            result=$(gh run list --workflow "$wf" --event schedule --limit 1 --json conclusion --jq '.[0].conclusion')
+            echo "$wf: ${result:-no scheduled run}"
+            [ "$result" = success ] || { echo "::error::nightly $wf is not green; diagnose it before releasing"; exit 1; }
+          done
+
+  build:
+    name: build (${{ matrix.arch }})
+    needs: preconditions
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and push the image by digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker buildx create --use
+          docker buildx build --platform "$PLATFORM" \
+            --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file meta.json .
+          jq -r '."containerimage.digest"' meta.json > digest
+          echo "digest: $(cat digest)"
+      - name: Copy the binary out of the image
+        env:
+          ARCH: ${{ matrix.arch }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir out
+          ref="$IMAGE@$(cat digest)"
+          docker pull "$ref"
+          id=$(docker create "$ref")
+          docker cp "$id:/usr/bin/slath" "out/slath-${TAG#v}-$ARCH-linux"
+          docker rm "$id"
+          cp digest "out/image-$ARCH.digest"
+          (cd out && sha256sum "slath-${TAG#v}-$ARCH-linux" > "slath-$ARCH.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-${{ matrix.arch }}
+          path: out/
+          retention-days: 30
+
+  tests:
+    name: test suite on the built binary
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-x86_64
+          path: artifacts
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: just,cargo-nextest
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - name: Run every test against the built binary
+        run: |
+          (cd artifacts && sha256sum -c slath-x86_64.sha256)
+          chmod 0755 artifacts/slath-*-x86_64-linux
+          export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
+          just web
+          cargo nextest run --workspace --locked --profile ci
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-tests
+          path: target/nextest/ci/junit.xml
+
+  e2e:
+    name: browser tests on the built binary
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-x86_64
+          path: artifacts
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - name: Run the browser matrix against the built binary
+        run: |
+          (cd artifacts && sha256sum -c slath-x86_64.sha256)
+          chmod 0755 artifacts/slath-*-x86_64-linux
+          export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
+          cargo build --locked -p slath-tests --bins
+          scripts/e2e.sh --workers 4
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-e2e
+          path: target/e2e/junit.xml
+
+  compose:
+    name: compose install and update on the built image
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-x86_64
+          path: artifacts
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-nextest
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - name: Run scripts/test-compose.sh with the built image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export SLATH_IMAGE="$IMAGE@$(cat artifacts/image-x86_64.digest)"
+          docker pull "$SLATH_IMAGE"
+          scripts/test-compose.sh
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-compose
+          path: target/compose/junit.xml
+
+  setup:
+    name: slath setup on a clean host with the built binary
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-x86_64
+          path: artifacts
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-nextest
+      - name: Run scripts/test-setup.sh with the built image
+        run: |
+          export SLATH_IMAGE="$IMAGE@$(cat artifacts/image-x86_64.digest)"
+          docker pull "$SLATH_IMAGE"
+          scripts/test-setup.sh
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-setup
+          path: target/setup/junit.xml
+
+  upgrade-matrix:
+    name: upgrade from every published release to the built binary
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-x86_64
+          path: artifacts
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-nextest
+      - name: Upgrade from the published binaries of earlier releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLATH_MATRIX_FROM: releases
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd artifacts && sha256sum -c slath-x86_64.sha256)
+          chmod 0755 artifacts/slath-*-x86_64-linux
+          export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
+          # Every earlier release since the baseline; not the one being built.
+          mapfile -t tags < <(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V |
+            awk -F'[v.]' '$2 > 0 || $3 >= 3' | grep -vx "$TAG")
+          scripts/upgrade-matrix.sh "${tags[@]}"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: junit-upgrade-matrix
+          path: target/upgrade-matrix-report/junit.xml
+
+  gate:
+    name: gate and report
+    needs: [preconditions, build, tests, e2e, compose, setup, upgrade-matrix]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Every required job succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' >/dev/null \
+            || { echo "::error::a required job failed, was skipped, or was cancelled"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts
+      - name: Write the qualification report
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          v="${TAG#v}"
+          args=()
+          for f in artifacts/build-*/slath-*-linux; do args+=(--artifact "$f"); done
+          for a in x86_64 aarch64; do args+=(--image "$IMAGE@$(cat artifacts/build-$a/image-$a.digest) ($a)"); done
+          for j in tests e2e compose setup upgrade-matrix; do
+            args+=(--junit "$j=artifacts/junit-$j/junit.xml")
+          done
+          python3 scripts/release_report.py --version "$v" --commit "$SHA" --out report "${args[@]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: report
+          path: report/
+
+  publish:
+    name: publish
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts
+      - name: Tag the qualified image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          v="${TAG#v}"
+          tags=(-t "$IMAGE:$v" -t "$IMAGE:${v%.*}")
+          [[ "$v" == *-* ]] || tags+=(-t "$IMAGE:latest")
+          docker buildx imagetools create "${tags[@]}" \
+            "$IMAGE@$(cat artifacts/build-x86_64/image-x86_64.digest)" \
+            "$IMAGE@$(cat artifacts/build-aarch64/image-aarch64.digest)"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          v="${TAG#v}"
+          mkdir dist
+          cp artifacts/build-*/slath-*-linux dist/
+          tar -czf "dist/slath-compose-$v.tar.gz" -C deploy compose/compose.yml compose/Caddyfile compose/.env.example
+          # The files to publish are the ones the build job hashed.
+          (cd dist && sha256sum -c ../artifacts/build-x86_64/slath-x86_64.sha256 \
+                                   ../artifacts/build-aarch64/slath-aarch64.sha256 \
+             && sha256sum * > SHA256SUMS)
+          cp artifacts/report/report.md artifacts/report/report.json dist/
+          flags=()
+          [[ "$v" == *-* ]] && flags+=(--prerelease)
+          gh release create "$TAG" --verify-tag --title "Slath $v" --notes-file artifacts/report/report.md "${flags[@]}" dist/*
