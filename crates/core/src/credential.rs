@@ -171,11 +171,11 @@ fn is_word(b: u8) -> bool {
 }
 
 fn find_from(text: &[u8], from: usize) -> Option<usize> {
-    const NEEDLE: &[u8] = b"slath_";
-    text.get(from..)?
-        .windows(NEEDLE.len())
-        .position(|w| w == NEEDLE)
-        .map(|p| p + from)
+    static NEEDLE: std::sync::OnceLock<regex::bytes::Regex> = std::sync::OnceLock::new();
+    let re = NEEDLE.get_or_init(|| {
+        regex::bytes::Regex::new("slath_").unwrap_or_else(|_| unreachable!("a literal compiles"))
+    });
+    re.find_at(text, from).map(|m| m.start())
 }
 
 #[cfg(test)]

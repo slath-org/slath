@@ -139,13 +139,23 @@ pub struct ObjectReader {
 
 impl ObjectReader {
     pub async fn open(runner: &Runner, git_dir: &Path) -> Result<Self, GitError> {
+        Self::open_in(runner, git_dir, None).await
+    }
+
+    /// Like [`ObjectReader::open`], also seeing the objects of a push in
+    /// quarantine (`quarantine` as for [`crate::runner::Invocation::quarantine`]).
+    pub async fn open_in(
+        runner: &Runner,
+        git_dir: &Path,
+        quarantine: Option<&Path>,
+    ) -> Result<Self, GitError> {
         let timeout = runner.config().read_timeout;
         let max_object = runner.config().max_output_bytes;
-        let mut child = runner
-            .repo(git_dir)
-            .args(["cat-file", "--batch-command"])
-            .spawn()
-            .await?;
+        let mut inv = runner.repo(git_dir);
+        if let Some(q) = quarantine {
+            inv = inv.quarantine(git_dir, q)?;
+        }
+        let mut child = inv.args(["cat-file", "--batch-command"]).spawn().await?;
         let (stdin, stdout, stderr) = child.take_stdio()?;
         // Drain stderr so the process never blocks on it.
         tokio::spawn(crate::runner::read_stderr(stderr));

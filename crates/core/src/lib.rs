@@ -13,5 +13,6 @@ pub mod ids;
 pub mod names;
 pub mod net;
 pub mod secret;
+pub mod secret_scan;
 
 pub use secret::Secret;

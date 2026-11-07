@@ -45,6 +45,8 @@ pub struct Config {
     #[serde(default)]
     pub upgrade: Upgrade,
     #[serde(default)]
+    pub push_protection: PushProtection,
+    #[serde(default)]
     pub log: Log,
 }
 
@@ -384,6 +386,12 @@ pub struct Limits {
     pub background_migration_batch: u32,
     /// Pause between batches of a background migration (rate limit).
     pub background_migration_interval: Dur,
+    /// Largest text file push protection scans; a bigger one rejects the push.
+    pub secret_scan_file_max_bytes: Bytes,
+    /// Most new content one push may have for the scan; more rejects it.
+    pub secret_scan_push_max_bytes: Bytes,
+    /// The longest the scan of one push may take; longer rejects it.
+    pub secret_scan_timeout: Dur,
 }
 
 impl Default for Limits {
@@ -416,6 +424,9 @@ impl Default for Limits {
             job_workers: 4,
             background_migration_batch: 500,
             background_migration_interval: Dur::millis(100),
+            secret_scan_file_max_bytes: Bytes(8 * MIB),
+            secret_scan_push_max_bytes: Bytes(512 * MIB),
+            secret_scan_timeout: Dur::secs(60),
         }
     }
 }
@@ -514,6 +525,97 @@ impl Default for Ui {
         Self {
             external_images: true,
         }
+    }
+}
+
+/// How strictly push protection treats a repository's findings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScanMode {
+    /// No scanning.
+    #[default]
+    Off,
+    /// Findings are reported but don't block.
+    Warn,
+    /// Findings of block rules reject the push.
+    Block,
+}
+
+impl ScanMode {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Warn => "warn",
+            Self::Block => "block",
+        }
+    }
+
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "off" => Some(Self::Off),
+            "warn" => Some(Self::Warn),
+            "block" => Some(Self::Block),
+            _ => None,
+        }
+    }
+}
+
+/// Push protection: secrets are rejected before they enter a repository.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PushProtection {
+    /// The mode every repository has at least (repositories choose a
+    /// stricter one; new ones start with `block`).
+    #[serde(default)]
+    pub minimum: ScanMode,
+    /// Built-in rule IDs to turn off.
+    #[serde(default)]
+    pub disable: Vec<String>,
+    /// Additional rules.
+    #[serde(default, rename = "rule")]
+    pub rules: Vec<ScanRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScanRule {
+    pub id: String,
+    pub description: String,
+    /// A regular expression (Rust `regex` syntax); a `secret` group, if
+    /// present, is the secret.
+    pub regex: String,
+    /// `block` or `warn`.
+    pub tier: ScanMode,
+}
+
+impl PushProtection {
+    /// The rule set this configuration describes.
+    pub fn rule_set(&self) -> Result<crate::secret_scan::RuleSet, String> {
+        let custom = self
+            .rules
+            .iter()
+            .map(|r| {
+                let tier = match r.tier {
+                    ScanMode::Block => crate::secret_scan::Tier::Block,
+                    ScanMode::Warn => crate::secret_scan::Tier::Warn,
+                    ScanMode::Off => {
+                        return Err(format!(
+                            "push_protection rule {}: tier must be block or warn",
+                            r.id
+                        ));
+                    }
+                };
+                Ok(crate::secret_scan::CustomRule {
+                    id: r.id.clone(),
+                    description: r.description.clone(),
+                    regex: r.regex.clone(),
+                    tier,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        crate::secret_scan::RuleSet::new(&self.disable, &custom).map_err(|e| e.to_string())
     }
 }
 

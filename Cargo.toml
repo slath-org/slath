@@ -42,6 +42,7 @@ image = { version = "0.25", default-features = false, features = ["gif", "jpeg",
 nix = { version = "0.31", default-features = false, features = ["signal", "process", "user"] }
 percent-encoding = "2.3"
 proptest = "1.12"
+regex = { version = "1.13", default-features = false, features = ["std", "perf", "unicode-perl"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 ring = "0.17"
 rustix = { version = "1.1", default-features = false, features = ["std", "net"] }
@@ -78,6 +79,15 @@ expect_used = "deny"
 
 # Password hashing is far too slow unoptimized; tests sign in a lot.
 [profile.dev.package.argon2]
+opt-level = 3
+# The secret scanner reads every pushed text file; tests push a lot.
+[profile.dev.package.regex-automata]
+opt-level = 3
+[profile.dev.package.regex]
+opt-level = 3
+[profile.dev.package.memchr]
+opt-level = 3
+[profile.dev.package.aho-corasick]
 opt-level = 3
 [profile.dev.package.blake2]
 opt-level = 3

@@ -4547,6 +4547,14 @@
             "type": "string",
             "description": "`owner/name` of the new repository."
           },
+          "secret_findings": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Possible secrets push protection found in the imported history; the\nimport isn't rejected for them."
+          },
           "size_bytes": {
             "type": [
               "integer",

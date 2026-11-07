@@ -60,6 +60,8 @@ pub enum DenyReason {
     Archived,
     TagMove,
     Protected,
+    /// Push protection found a secret, or couldn't finish its scan.
+    Secret,
 }
 
 impl DenyReason {
@@ -73,6 +75,7 @@ impl DenyReason {
             Self::Archived => "archived",
             Self::TagMove => "tag_move",
             Self::Protected => "protected",
+            Self::Secret => "secret",
         }
     }
 }
@@ -319,6 +322,10 @@ impl Services {
                 }
             }
         }
+        if v.denied.is_empty() {
+            self.push_protection(grant, updates, quarantine, &mut v)
+                .await;
+        }
         if v.denied.is_empty() && !bypassed.is_empty() {
             for b in &bypassed {
                 v.messages.push(format!(
@@ -337,6 +344,48 @@ impl Services {
             v.messages.push("slath: push rejected".to_owned());
         }
         v
+    }
+
+    /// Scans what the push adds; in `block` mode, a block-rule finding or a
+    /// scan that couldn't finish rejects the whole push.
+    async fn push_protection(
+        &self,
+        grant: &PushGrant,
+        updates: &[RefUpdate],
+        quarantine: &Quarantine,
+        v: &mut Verdict,
+    ) {
+        use slath_core::config::ScanMode;
+        let mode = match self.push_protection_mode(grant.repo_id).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::error!(error = %e, "pre-receive: loading the push protection mode failed");
+                v.denied.push(DenyReason::Secret);
+                v.messages
+                    .push("slath: push rejected: internal error, try again".to_owned());
+                return;
+            }
+        };
+        if mode == ScanMode::Off {
+            return;
+        }
+        let tips: Vec<slath_git::ObjectId> = updates
+            .iter()
+            .filter(|u| !is_zero(&u.new))
+            .filter_map(|u| slath_git::ObjectId::parse(&u.new).ok())
+            .collect();
+        let q = quarantine
+            .object_directory
+            .as_deref()
+            .map(std::path::Path::new);
+        let report = self.scan_push(grant.repo_id, &tips, q).await;
+        v.messages
+            .extend(crate::push_protection::messages(&report, mode));
+        if mode == ScanMode::Block
+            && (report.incomplete.is_some() || report.blocking().next().is_some())
+        {
+            v.denied.push(DenyReason::Secret);
+        }
     }
 
     /// True if `new` contains `old` (a fast-forward), looking at the push's

@@ -171,6 +171,9 @@ pub struct ImportReport {
     pub branches: Option<i32>,
     pub tags: Option<i32>,
     pub size_bytes: Option<i64>,
+    /// Possible secrets push protection found in the imported history; the
+    /// import isn't rejected for them.
+    pub secret_findings: Option<i32>,
     pub created_at: String,
     pub finished_at: Option<String>,
 }
@@ -184,6 +187,7 @@ fn report(full: String, i: slath_db::imports::Import) -> ImportReport {
         branches: i.branches,
         tags: i.tags,
         size_bytes: i.size_bytes,
+        secret_findings: i.secret_findings,
         created_at: Time::from(i.created_at).iso,
         finished_at: i.finished_at.map(|t| Time::from(t).iso),
     }

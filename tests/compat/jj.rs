@@ -359,3 +359,47 @@ fn jj_conflicted_commits_are_marked_and_not_pushed() {
         );
     }
 }
+
+/// Push protection (SEC-08) works for jj, which runs no client hooks: the
+/// push is rejected with the finding and nothing reaches the server.
+#[test]
+fn conf_sec_08_jj_pushes_with_secrets_are_rejected() {
+    let jjs = jj_binaries();
+    if jjs.is_empty() {
+        return;
+    }
+    let server = seeded_server("");
+    let url = server.url(&DEMO);
+    let git = GitClient::new();
+    let (_, secret) = slath_core::secret_scan::samples()
+        .into_iter()
+        .find(|(r, _)| *r == "aws-access-key-id")
+        .unwrap();
+    for (version, bin) in jjs {
+        let work = tempfile::tempdir().unwrap();
+        let alice = Jj::new(&version, &bin);
+        alice.ok(work.path(), &["git", "clone", &url, "a"]);
+        let a = work.path().join("a");
+        std::fs::write(a.join("credentials"), &secret).unwrap();
+        alice.ok(&a, &["describe", "-m", "add credentials"]);
+        alice.ok(&a, &["bookmark", "set", "main", "-r", "@"]);
+        let commit_id = alice.show(&a, "main", "commit_id");
+        let out = alice.run(&a, &["git", "push", "--bookmark", "main"]);
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success(), "{version}: {err}");
+        assert!(
+            err.contains("(aws-access-key-id)") && err.contains("jj edit"),
+            "{version}: {err}"
+        );
+        let repo = server.repo_path(&DEMO);
+        let present = git
+            .cmd(&repo)
+            .args(["cat-file", "-e", &commit_id])
+            .output()
+            .unwrap();
+        assert!(
+            !present.status.success(),
+            "{version}: the commit reached the server"
+        );
+    }
+}

@@ -30,6 +30,7 @@ pub mod orgs;
 pub mod passkeys;
 pub mod protections;
 pub mod push;
+pub mod push_protection;
 pub mod reconcile;
 pub mod recovery;
 pub mod references;
@@ -75,6 +76,8 @@ pub struct Services {
     pub oidc_cache: Arc<oidc::OidcCache>,
     /// Requests for reference suggestions per user.
     pub reference_limiter: Arc<references::Limiter>,
+    /// Push protection's rules (built-in plus the configuration's).
+    pub scan_rules: Arc<slath_core::secret_scan::RuleSet>,
 }
 
 impl Services {
@@ -90,7 +93,15 @@ impl Services {
             bgmigrations::RepoConfigRefresh::new(config.storage.data_dir.clone(), runner.clone()),
         );
         let blobs = blobs::LocalBlobStore::new(&config.storage.data_dir);
+        // Loading the configuration already checked the operator's rules.
+        let scan_rules = Arc::new(
+            config
+                .push_protection
+                .rule_set()
+                .unwrap_or_else(|_| slath_core::secret_scan::RuleSet::built_in()),
+        );
         Self {
+            scan_rules,
             pool,
             config,
             csrf: Arc::new(Csrf::new(master.derive("csrf"))),

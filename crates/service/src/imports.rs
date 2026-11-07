@@ -167,6 +167,11 @@ impl Services {
         let retry = |e: slath_db::DbError| JobError::Retry(e.to_string());
         match result {
             Ok(Some((branches, tags, size))) => {
+                // Report-only: imported history isn't rejected. Scanned
+                // before the import counts as done, so the report is whole.
+                if let Err(e) = self.scan_import(id).await {
+                    tracing::warn!(error = %e, repo = %id, "scanning the imported history failed");
+                }
                 slath_db::imports::finish(&self.pool, id, branches, tags, size)
                     .await
                     .map_err(retry)?;

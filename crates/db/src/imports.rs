@@ -17,6 +17,8 @@ pub struct Import {
     pub branches: Option<i32>,
     pub tags: Option<i32>,
     pub size_bytes: Option<i64>,
+    /// Possible secrets in the imported history (report-only).
+    pub secret_findings: Option<i32>,
     pub created_at: OffsetDateTime,
     pub finished_at: Option<OffsetDateTime>,
 }
@@ -40,7 +42,7 @@ pub async fn insert(
 
 pub async fn get(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Option<Import>, DbError> {
     let r = sqlx::query!(
-        "SELECT repo_id, url, state, error, branches, tags, size_bytes, created_at, finished_at
+        "SELECT repo_id, url, state, error, branches, tags, size_bytes, secret_findings, created_at, finished_at
            FROM repo_imports WHERE repo_id = $1",
         repo.as_uuid()
     )
@@ -54,6 +56,7 @@ pub async fn get(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Option<Impor
         branches: r.branches,
         tags: r.tags,
         size_bytes: r.size_bytes,
+        secret_findings: r.secret_findings,
         created_at: r.created_at,
         finished_at: r.finished_at,
     }))
@@ -105,6 +108,22 @@ pub async fn forget_job_credentials(exec: impl PgExecutor<'_>, job: i64) -> Resu
     sqlx::query!(
         "UPDATE jobs SET payload = payload - 'credentials' - 'key_id' WHERE id = $1",
         job
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Records what the report-only secret scan of an import found.
+pub async fn set_secret_findings(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    n: i32,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repo_imports SET secret_findings = $2 WHERE repo_id = $1",
+        repo.as_uuid(),
+        n
     )
     .execute(exec)
     .await?;

@@ -262,3 +262,42 @@ fn conf_git_06_redirects_are_not_followed() {
     let page = a.get("/alice/redir");
     assert!(page.body.contains("failed"), "{}", page.body);
 }
+
+/// Imported history is scanned for secrets but not rejected: it exists
+/// elsewhere already (SEC-08, report-only).
+#[test]
+fn conf_sec_08_imports_report_secrets_without_rejecting() {
+    let (src, d) = source("basic");
+    // The source accepted the secret (push protection off there).
+    src.db
+        .execute("UPDATE repositories SET push_protection = 'off'");
+    let git = GitClient::new();
+    let w = d.path().join("src");
+    let (_, secret) = slath_core::secret_scan::samples()
+        .into_iter()
+        .find(|(r, _)| *r == "stripe-secret-key")
+        .unwrap();
+    std::fs::write(w.join("payments.env"), secret).unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "payments"]);
+    git.ok(&w, &["push", "-q", &src.url(&DEMO), "HEAD"]);
+    let mut src_alice = src.login("alice", PASSWORD);
+    let src_token = create_token(&mut src_alice, "export", &["repo:read"]);
+
+    let s = TestServer::start_full(&[], ALLOW_LOCAL);
+    s.create_user("alice", PASSWORD, false);
+    let mut a = s.login("alice", PASSWORD);
+    let token = create_token(&mut a, "t", &["repo:write"]);
+    let url = format!("{}/alice/demo.git", src.base());
+    let r = import_with(&mut a, &token, "copy", &url, "alice", &src_token);
+    assert_eq!(r.status, 202, "{}", r.body);
+    let report = wait_done(&mut a, &token, "copy");
+    assert_eq!(report["state"], "done", "{report}");
+    assert_eq!(report["secret_findings"], 1, "{report}");
+    let page = a.get("/alice/copy");
+    assert!(
+        page.body.contains("found 1 possible secret(s)"),
+        "{}",
+        page.body
+    );
+}

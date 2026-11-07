@@ -110,6 +110,8 @@ pub struct ImportView {
     pub error: Option<String>,
     pub branches: i32,
     pub tags: i32,
+    /// Possible secrets in the imported history (administrators only).
+    pub secrets: i32,
 }
 
 impl RepoHeader {
@@ -166,6 +168,11 @@ impl RepoHeader {
                 error: if admin { i.error } else { None },
                 branches: i.branches.unwrap_or(0),
                 tags: i.tags.unwrap_or(0),
+                secrets: if admin {
+                    i.secret_findings.unwrap_or(0)
+                } else {
+                    0
+                },
             });
         }
         self
@@ -361,6 +368,9 @@ struct GeneralSettings<'a> {
     name: String,
     visibility: &'static str,
     archived: bool,
+    /// This repository's push protection mode, and the site's minimum.
+    push_protection: &'static str,
+    push_protection_minimum: &'static str,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -381,6 +391,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "saved" => "Settings saved.",
         "visibility" => "Visibility changed.",
         "renamed" => "Repository renamed. The old name redirects here.",
+        "push-protection" => "Push protection changed.",
         "archived" => "Repository archived. It's read-only now.",
         "unarchived" => "Repository unarchived.",
         "collaborator-saved" => "Collaborator saved.",
@@ -416,10 +427,13 @@ fn general_page<'a>(
     header: RepoHeader,
     a: &RepoAccess,
     ctx: PageCtx,
+    (mode, minimum): (slath_core::config::ScanMode, slath_core::config::ScanMode),
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 ) -> GeneralSettings<'a> {
     GeneralSettings {
+        push_protection: mode.as_str(),
+        push_protection_minimum: minimum.as_str(),
         header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
@@ -441,13 +455,65 @@ async fn settings_general(
 ) -> Result<Response, AppError> {
     let subject = session.subject();
     let a = settings_access(&state, &subject, &ns, &repo).await?;
+    let modes = push_protection_modes(&state, &a).await?;
     Ok(render(&general_page(
         RepoHeader::load(&state, &a, &subject, "settings").await,
         &a,
         ctx,
+        modes,
         status_message(q.status.as_deref()),
         Vec::new(),
     )))
+}
+
+/// The repository's own push protection mode and the site's minimum.
+async fn push_protection_modes(
+    state: &AppState,
+    a: &RepoAccess,
+) -> Result<(slath_core::config::ScanMode, slath_core::config::ScanMode), AppError> {
+    let own = slath_db::repos::push_protection(&state.services.pool, a.repo.id)
+        .await
+        .map_err(ServiceError::from)?;
+    Ok((
+        slath_core::config::ScanMode::parse(&own).unwrap_or_default(),
+        state.config.push_protection.minimum,
+    ))
+}
+
+#[derive(Deserialize)]
+struct PushProtectionForm {
+    #[serde(default)]
+    mode: String,
+}
+
+async fn save_push_protection(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(s): Sudo,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<PushProtectionForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let Some(mode) = slath_core::config::ScanMode::parse(&f.mode) else {
+        return invalid_page(
+            &state,
+            &a,
+            &s.subject,
+            ctx,
+            ServiceError::invalid("push_protection", "invalid", "Choose block, warn, or off."),
+        )
+        .await;
+    };
+    match state
+        .services
+        .set_push_protection(&s.subject, &a, mode)
+        .await
+    {
+        Ok(()) => Ok(
+            Redirect::to(&repo_url(&a, "/settings/general?status=push-protection")).into_response(),
+        ),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
+    }
 }
 
 fn repo_url(a: &RepoAccess, rest: &str) -> String {
@@ -464,7 +530,8 @@ async fn invalid_page(
     match e {
         ServiceError::Invalid(errors) => {
             let header = RepoHeader::load(state, a, subject, "settings").await;
-            let mut res = render(&general_page(header, a, ctx, None, errors));
+            let modes = push_protection_modes(state, a).await?;
+            let mut res = render(&general_page(header, a, ctx, modes, None, errors));
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
             Ok(res)
         }
@@ -996,6 +1063,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/visibility",
             Access::Resource,
             post(save_visibility),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/push-protection",
+            Access::Resource,
+            post(save_push_protection),
         )
         .route_as(
             "/{ns}/{repo}/settings/rename",

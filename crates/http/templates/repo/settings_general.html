@@ -31,6 +31,30 @@
   <div><button type="submit" class="button">Change visibility</button></div>
 </form>
 
+<h2>Push protection</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/push-protection" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <fieldset class="field" id="push_protection">
+    <legend>When a push contains a secret</legend>
+    <div class="checkbox">
+      <input id="pp-block" type="radio" name="mode" value="block"{% if push_protection == "block" %} checked{% endif %}>
+      <label for="pp-block"><strong>Block</strong>. The push is rejected and says how to remove the secret. Recommended.</label>
+    </div>
+    <div class="checkbox">
+      <input id="pp-warn" type="radio" name="mode" value="warn"{% if push_protection == "warn" %} checked{% endif %}>
+      <label for="pp-warn"><strong>Warn</strong>. The push is accepted with a warning.</label>
+    </div>
+    <div class="checkbox">
+      <input id="pp-off" type="radio" name="mode" value="off"{% if push_protection == "off" %} checked{% endif %}>
+      <label for="pp-off"><strong>Off</strong>. Pushes aren't scanned.</label>
+    </div>
+    {%- if push_protection_minimum != "off" %}
+    <p class="hint">This server applies at least <strong>{{ push_protection_minimum }}</strong> to every repository.</p>
+    {%- endif %}
+  </fieldset>
+  <div><button type="submit" class="button">Save push protection</button></div>
+</form>
+
 <h2>Rename</h2>
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/rename" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

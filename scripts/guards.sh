@@ -12,6 +12,8 @@
 #   external-url  no third-party URLs in resource positions
 #   htmx          hx-* elements carry the nonce macro; no eval-based htmx features
 #   e2e-hover     browser tests never hover (no hover-only affordances)
+#   commit-scan   server code that writes Git objects also runs push
+#                 protection's scanner (`scan_rules`)
 #
 # Usage: scripts/guards.sh [ROOT]   (ROOT defaults to the repository root)
 # Exceptions: scripts/guards-allowlist.txt, one `<guard> <path>  # reason` per line.
@@ -138,6 +140,17 @@ GUARD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! python3 "$GUARD_DIR/check_templates.py" "$ROOT"; then
     fail htmx "template or script rules violated (see above)"
 fi
+
+# --- commit-scan ---------------------------------------------------------------
+# Every server-side commit writer (web edits, suggestions, API and MCP
+# commits) must scan what it writes, like pushes are scanned.
+while IFS= read -r f; do
+    allowed commit-scan "$f" && continue
+    if grep -nE '"(commit-tree|hash-object|mktree|write-tree|fast-import|update-index)"' "$f" >/dev/null &&
+        ! grep -q 'scan_rules' "$f"; then
+        fail commit-scan "$f writes Git objects without push protection's scanner (scan_rules)"
+    fi
+done < <(server_sources)
 
 # --- e2e-hover -----------------------------------------------------------------
 while IFS= read -r f; do

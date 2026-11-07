@@ -676,3 +676,28 @@ pub async fn issues_enabled(exec: impl PgExecutor<'_>, id: RepoId) -> Result<boo
     .await?;
     Ok(r.unwrap_or(false))
 }
+
+/// A repository's push protection mode (`block`, `warn`, or `off`).
+pub async fn push_protection(exec: impl PgExecutor<'_>, id: RepoId) -> Result<String, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT push_protection FROM repositories WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}
+
+pub async fn set_push_protection(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    mode: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET push_protection = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        mode
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

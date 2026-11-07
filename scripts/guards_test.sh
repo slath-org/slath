@@ -54,6 +54,10 @@ expect() {
 }
 
 expect clean pass "" ":"
+expect commit-writer-without-scan fail commit-scan \
+    "printf '%s\\nfn f() { run([\"commit-tree\"]); }\\n' \"\$HDR\" > crates/http/src/edit.rs"
+expect commit-writer-with-scan pass "" \
+    "printf '%s\\nfn f() { run([\"commit-tree\"]); svc.scan_rules.scan(b); }\\n' \"\$HDR\" > crates/http/src/edit.rs"
 expect spdx-missing fail spdx \
     "printf 'fn x() {}\n' > crates/http/src/extra.rs"
 expect spdx-wrong-license fail spdx \

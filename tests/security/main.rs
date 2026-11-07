@@ -21,6 +21,7 @@ mod oidc;
 mod orgs;
 mod passkeys;
 mod protection;
+mod push_protection;
 mod reconcile;
 mod recovery;
 mod redaction;

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Text that looks like secrets but isn't: documentation examples,
+# placeholders, redacted values, and ordinary code. Push protection's block
+# rules must find nothing here.
+
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+token = "ghp_<your token here>"
+glpat-xxxxxxxxxxxxxxxxxxxx
+SLACK_WEBHOOK=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+stripe.api_key = "sk_test_4eC39HqLyjWDarjtT1zdp7dc"
+DATABASE_URL=postgres://slath:slath@localhost:5432/slath
+DATABASE_URL=postgres://user:password@localhost/db
+url = "postgres://slath:${SLATH_DB_PASSWORD}@postgres/slath"
+git clone https://git:<token>@git.example.org/team/project.git
+git clone http://git:$TOKEN@localhost:3000/alice/demo.git
+curl -u admin:changeme https://localhost/api
+https://user:pass@example.com/
+mysql://root:root@127.0.0.1:3306/test
+redis://:secret@localhost:6379
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+Paste your key between -----BEGIN OPENSSH PRIVATE KEY----- and -----END OPENSSH PRIVATE KEY-----.
+The token starts with slath_pat_ and is 59 characters long: slath_pat_AbCdEfGh…
+let token = format!("slath_pat_{}", random);
+assert!(t.starts_with("ghp_"));
+const PREFIX: &str = "AKIA";
+key = "AIza" + rest
+password = "correct horse battery staple"
+let password_hash = argon2.hash_password(password.as_bytes(), &salt)?;
+if secret.len() < 16 { return Err("too short"); }
+Authorization: Bearer slath_pat_…

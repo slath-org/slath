@@ -249,6 +249,7 @@ fn describe(e: &figment::Error) -> String {
 }
 
 fn validate(cfg: &Config) -> Result<(), String> {
+    cfg.push_protection.rule_set()?;
     for (what, p) in [
         ("storage.data_dir", &cfg.storage.data_dir),
         ("storage.run_dir", &cfg.storage.run_dir),

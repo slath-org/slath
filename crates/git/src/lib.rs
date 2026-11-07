@@ -18,6 +18,7 @@ pub mod ipc;
 pub mod object;
 pub mod refs;
 pub mod runner;
+pub mod scan;
 pub mod ssh;
 pub mod storage;
 pub mod transport;
