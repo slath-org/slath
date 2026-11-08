@@ -662,6 +662,53 @@ pub async fn merge(
     Ok(Json(render(&state, &s, &ns, &repo, m).await?))
 }
 
+/// An entry of the review continuity ledger.
+#[derive(Serialize, ToSchema)]
+pub struct LedgerEntry {
+    /// `binding`, `approval_carried`, `approval_stale`, `status_stale`,
+    /// `target_moved`, or `signature_removed`.
+    pub kind: String,
+    pub revision: Option<i32>,
+    /// The change's ID in jj's format, where it's about one change.
+    pub change_id: Option<String>,
+    /// For bindings: `new`, `confirmed`, `inferred`, or `unresolved`.
+    pub state: Option<String>,
+    pub reason: Option<String>,
+    /// Kind-specific facts (commit, the alias or patch that decided,
+    /// candidates, reviewer, status context, old and new heads).
+    #[schema(value_type = Object)]
+    pub detail: serde_json::Value,
+    pub actor: Option<String>,
+    pub created_at: String,
+}
+
+/// Every identity decision and effect on review state, oldest first.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, body = Vec<LedgerEntry>), (status = 404, body = super::Problem)))]
+pub async fn get_ledger(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Json<Vec<LedgerEntry>>, AppError> {
+    let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let entries = state.services.mr_ledger(&m).await?;
+    Ok(Json(
+        entries
+            .into_iter()
+            .map(|e| LedgerEntry {
+                kind: e.kind,
+                revision: e.revision_seq,
+                change_id: e.change_id,
+                state: e.state,
+                reason: e.reason,
+                detail: e.detail,
+                actor: e.actor,
+                created_at: ts(e.created_at),
+            })
+            .collect(),
+    ))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -689,6 +736,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviewers",
             Access::Resource,
             axum::routing::put(put_reviewers),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger",
+            Access::Resource,
+            get(get_ledger),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",

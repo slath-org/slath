@@ -117,12 +117,14 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   const rows = page.locator(".change-list > li");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).locator(".change-id")).toHaveText(/^[k-z]{8}$/);
-  await expect(rows.nth(1).locator(".badge")).toHaveText("New");
+  // How a commit was matched shows in the change's history, not here.
+  await expect(rows.locator(".badge")).toHaveCount(0);
   await expectAccessible(page);
   // Each change has its own page with its versions.
   await tapOrClick(page, rows.nth(0).locator("a.change-id"));
   await expect(page.getByRole("heading", { name: /^Change [k-z]{8}$/ })).toBeVisible();
   await expect(page.getByRole("region", { name: "Versions" }).getByRole("row")).toHaveCount(3);
+  await expect(page.getByRole("region", { name: "Versions" })).toContainText("first version");
   await expectAccessible(page);
 
   // Issue URLs of a merge request lead to it.

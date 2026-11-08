@@ -23,8 +23,17 @@ use crate::repos::RepoAccess;
 const MAX_PATCH_BYTES: usize = 32 * 1024 * 1024;
 
 /// The bindings of a new revision, computed before its transaction.
+/// One commit of a planned revision.
+struct Planned {
+    commit: StackCommit,
+    aliases: Vec<Alias>,
+    binding: Binding<uuid::Uuid>,
+    /// What decided the binding: the alias as `kind:value`, or the patch.
+    by: Option<String>,
+}
+
 pub(crate) struct Plan {
-    commits: Vec<(StackCommit, Vec<Alias>, Binding<uuid::Uuid>)>,
+    commits: Vec<Planned>,
     /// Changes with a version in the previous per-change revision.
     previous: Vec<uuid::Uuid>,
     /// Display IDs already used in the merge request.
@@ -186,7 +195,23 @@ impl Services {
                 .into_iter()
                 .zip(input)
                 .zip(bindings)
-                .map(|((c, i), b)| (c, i.aliases, b))
+                .map(|((c, i), b)| {
+                    let by = match &b {
+                        Binding::Alias(k) => i
+                            .aliases
+                            .iter()
+                            .find(|a| bound.get(*a) == Some(k))
+                            .map(|a| format!("{}:{}", a.kind.as_str(), a.value)),
+                        Binding::Patch(_) => i.patch_id.clone().map(|p| format!("patch:{p}")),
+                        _ => None,
+                    };
+                    Planned {
+                        commit: c,
+                        aliases: i.aliases,
+                        binding: b,
+                        by,
+                    }
+                })
                 .collect(),
             previous: previous.iter().map(|p| p.change).collect(),
             taken,
@@ -205,7 +230,14 @@ impl Services {
         mut plan: Plan,
     ) -> Result<()> {
         let mut matched: HashSet<uuid::Uuid> = HashSet::new();
-        for (pos, (c, aliases, binding)) in plan.commits.iter().enumerate() {
+        let mut display: HashMap<uuid::Uuid, String> = db::changes(&mut *tx, mr)
+            .await?
+            .into_iter()
+            .map(|c| (c.id, c.display_id))
+            .collect();
+        for (pos, p) in plan.commits.iter().enumerate() {
+            let (c, aliases, binding, by) = (&p.commit, &p.aliases, &p.binding, &p.by);
+            let mut display_new: Vec<(uuid::Uuid, String)> = Vec::new();
             let (state, reason, candidates) = binding_row(binding);
             let change = match binding {
                 Binding::Unresolved { candidates, .. } => {
@@ -222,7 +254,9 @@ impl Services {
                         wanted
                     };
                     plan.taken.insert(display.clone());
-                    Some(db::insert_change(&mut *tx, mr, &display).await?)
+                    let id = db::insert_change(&mut *tx, mr, &display).await?;
+                    display_new.push((id, display));
+                    Some(id)
                 }
                 b => b.change().copied(),
             };
@@ -247,6 +281,22 @@ impl Services {
                     reason,
                     candidates: &candidates,
                     conflicted: c.conflicted,
+                },
+            )
+            .await?;
+            display.extend(display_new);
+            let names: Vec<&String> = candidates.iter().filter_map(|k| display.get(k)).collect();
+            slath_db::mr_ledger::append(
+                &mut *tx,
+                mr,
+                &slath_db::mr_ledger::NewEntry {
+                    revision_seq: Some(seq),
+                    kind: "binding",
+                    change_id: change.and_then(|k| display.get(&k)).map(String::as_str),
+                    state: Some(state),
+                    reason,
+                    detail: serde_json::json!({"commit": c.oid.as_str(), "by": by, "candidates": names}),
+                    actor: pusher,
                 },
             )
             .await?;
@@ -669,6 +719,26 @@ impl Services {
                 ("change_joined", target.display_id.clone())
             }
         };
+        let (state, reason) = match kind {
+            "change_split" => ("new", "split"),
+            "change_joined" => ("confirmed", "join"),
+            _ if matches!(to, Rebind::New) => ("new", "resolved"),
+            _ => ("confirmed", "resolved"),
+        };
+        slath_db::mr_ledger::append(
+            &mut *tx,
+            m.id,
+            &slath_db::mr_ledger::NewEntry {
+                revision_seq: Some(m.revisions),
+                kind: "binding",
+                change_id: Some(&target_display),
+                state: Some(state),
+                reason: Some(reason),
+                detail: serde_json::json!({"commit": v.commit_oid, "by": "hand"}),
+                actor: user,
+            },
+        )
+        .await?;
         slath_db::issues::insert_event(
             &mut *tx,
             a.repo.id,
@@ -901,5 +971,12 @@ impl Services {
         .await
         .map(Some)
         .map_err(ServiceError::internal)
+    }
+}
+
+impl Services {
+    /// The merge request's ledger, oldest first.
+    pub async fn mr_ledger(&self, m: &MergeRequest) -> Result<Vec<slath_db::mr_ledger::Entry>> {
+        Ok(slath_db::mr_ledger::list(&self.pool, m.id).await?)
     }
 }

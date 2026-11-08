@@ -21,6 +21,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- A review ledger records how each commit was matched to a change, which approvals were kept or went stale and why, stale statuses, target moves, and removed signatures.
+- Each change's page shows how its versions were matched and its history; `GET …/merge-requests/{n}/ledger` returns the ledger.
 - Merge requests merge on the server with fast-forward, rebase, merge commit, or squash, using the head you reviewed and retrying when the target moves.
 - Rebase merges keep authors, messages, and change IDs, drop signatures, and write each change's ID into commits made with Git, so jj shows the same IDs.
 - Conflicts with the target are listed in the merge box with commands for Git and jj; the source branch can be deleted after merging.

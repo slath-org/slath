@@ -1,0 +1,119 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT l.id, l.revision_seq, l.kind, l.change_id, l.state, l.reason, l.detail,\n                  n.name::text AS actor, l.created_at\n           FROM mr_ledger l\n           LEFT JOIN users u ON u.id = l.actor_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE l.mr_id = $1 ORDER BY l.created_at, l.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "revision_seq",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "revision_seq"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "change_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "change_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "detail",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "detail"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "actor",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "mr_ledger",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "b799b410e83dc0ece1f7289f7cca09c397784a87e66d0204e00875634e34203a"
+}

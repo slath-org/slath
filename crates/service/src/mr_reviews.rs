@@ -582,12 +582,77 @@ impl Services {
             return Ok(());
         };
         let eff = self.effective_for(&m).await?;
-        let earlier = db::list(&self.pool, id)
+        // The approvals that counted on the previous revision, and what this
+        // one does to them.
+        let reviews = db::list(&self.pool, id).await?;
+        let same_map: HashMap<i32, bool> = db::same_patches(&self.pool, id)
             .await?
             .into_iter()
-            .filter(|r| r.verdict == "approve" && r.revision_seq < seq)
-            .count();
-        if earlier == 0 || !eff.dismiss_stale_approvals {
+            .filter(|(s, _)| *s < seq)
+            .map(|(s, v)| (s, v.unwrap_or(false)))
+            .collect();
+        let before = counting(&reviews, seq - 1, &same_map, eff.dismiss_stale_approvals);
+        let stale_reason = if here.is_empty() {
+            "whole-only"
+        } else if here.iter().any(|v| v.change_id.is_none()) {
+            "unresolved"
+        } else if here.iter().any(|v| v.state == "inferred") {
+            "inferred"
+        } else {
+            "patch-changed"
+        };
+        let mut carried_any = false;
+        for v in before
+            .iter()
+            .filter(|v| v.counts && v.review.verdict == "approve")
+        {
+            let (kind, reason) = match (eff.dismiss_stale_approvals, same) {
+                (false, _) => ("approval_carried", "not-dismissed"),
+                (true, true) => ("approval_carried", "same-patches"),
+                (true, false) => ("approval_stale", stale_reason),
+            };
+            carried_any = true;
+            slath_db::mr_ledger::append(
+                &self.pool,
+                id,
+                &slath_db::mr_ledger::NewEntry {
+                    revision_seq: Some(seq),
+                    kind,
+                    reason: Some(reason),
+                    detail: serde_json::json!({
+                        "reviewer": v.review.reviewer,
+                        "approved_revision": v.review.revision_seq,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
+        // Statuses on the previous head no longer count.
+        let revisions = slath_db::merge_requests::revisions(&self.pool, id).await?;
+        if let Some(old) = revisions.iter().find(|r| r.seq == seq - 1) {
+            let all = slath_db::statuses::for_commit(&self.pool, m.repo_id, &old.head_oid).await?;
+            for st in crate::statuses::latest_per_context(&all) {
+                slath_db::mr_ledger::append(
+                    &self.pool,
+                    id,
+                    &slath_db::mr_ledger::NewEntry {
+                        revision_seq: Some(seq),
+                        kind: "status_stale",
+                        state: Some(&st.state),
+                        reason: Some("head-moved"),
+                        detail: serde_json::json!({
+                            "context": st.context,
+                            "commit": old.head_oid,
+                            "reporter": st.reporter,
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            }
+        }
+        if !carried_any || !eff.dismiss_stale_approvals {
             return Ok(());
         }
         slath_db::issues::insert_event(

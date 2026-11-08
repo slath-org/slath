@@ -606,3 +606,19 @@ pub async fn lock_target(
     .await?;
     Ok(())
 }
+
+/// Open merge requests that target `branch` of `repo`.
+pub async fn open_by_target(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    branch: &str,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        "SELECT id FROM merge_requests WHERE repo_id = $1 AND target_branch = $2 AND state = 'open'",
+        repo.as_uuid(),
+        branch
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}

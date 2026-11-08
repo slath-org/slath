@@ -101,8 +101,10 @@ name different changes, or two commits with the same ID. The author, or
 anyone who can push the source branch, picks a change for each of them on
 the Commits tab. The choice is kept for the next pushes.
 
-Each change ID links to the change's page, which lists its versions and
-compares any two of them:
+Each change ID links to the change's page. It lists the change's versions
+and how each was matched (by its ID, by an identical patch, by similar
+content, or by hand), with the change's history, and compares any two
+versions:
 
 - **Exact**, when both versions have the same parent: the diff is
   exactly what changed between them.
@@ -134,6 +136,12 @@ notifications) until they review it.
 
 When you review again later, the merge request offers the changes since
 your last review.
+
+Slath keeps a **ledger** of every such decision: how each commit was
+matched to a change, which approvals were kept or went stale and why,
+which statuses stopped counting because the head moved, when the target
+moved, and which signatures a rebase merge removed. It's append-only;
+`GET …/merge-requests/{n}/ledger` returns it.
 
 What a new revision does to approvals depends on the branch protection of
 the target: by default, an approval stays only if the new revision kept

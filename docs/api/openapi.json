@@ -3490,6 +3490,73 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Every identity decision and effect on review state, oldest first.",
+        "operationId": "get_ledger",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LedgerEntry"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge": {
       "post": {
         "tags": [
@@ -6249,6 +6316,61 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "LedgerEntry": {
+        "type": "object",
+        "description": "An entry of the review continuity ledger.",
+        "required": [
+          "kind",
+          "detail",
+          "created_at"
+        ],
+        "properties": {
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "change_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change's ID in jj's format, where it's about one change."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object",
+            "description": "Kind-specific facts (commit, the alias or patch that decided,\ncandidates, reviewer, status context, old and new heads)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`binding`, `approval_carried`, `approval_stale`, `status_stale`,\n`target_moved`, or `signature_removed`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For bindings: `new`, `confirmed`, `inferred`, or `unresolved`."
           }
         }
       },

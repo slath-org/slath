@@ -26,7 +26,7 @@
     {%- if let Some(id) = e.display_id %}
     <a class="change-id" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ id }}" title="Change {{ id }}"><code>{{ id[..8] }}</code></a>
     {%- endif %}
-    {%- if e.binding == "unresolved" %}<span class="badge badge-danger">Unresolved</span>{% else if e.binding == "inferred" %}<span class="badge" title="Matched by content: approvals don't carry over">Inferred</span>{% else if e.binding == "new" %}<span class="badge">New</span>{% endif %}
+    {%- if e.binding == "unresolved" %}<span class="badge badge-danger">Unresolved</span>{% endif %}
     {%- if e.conflicted %} <span class="badge badge-danger">Conflict</span>{% endif %}
     {%- endif %}
     <a class="commit-subject" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}">{{ r.commit.subject }}</a>

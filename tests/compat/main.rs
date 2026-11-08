@@ -9,6 +9,7 @@ mod git_http;
 mod git_ssh;
 mod import;
 mod jj;
+mod ledger;
 mod merge;
 mod merge_requests;
 mod oidc_providers;

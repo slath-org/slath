@@ -201,6 +201,8 @@ impl Services {
         let mut tx = self.pool.begin().await.map_err(internal)?;
         slath_db::merge_requests::lock_target(&mut *tx, a.repo.id, &m.target_branch).await?;
         let mut landed = None;
+        // Signed commits a rebase rewrote: (original, new).
+        let mut signatures: Vec<(String, String)> = Vec::new();
         for _ in 0..ATTEMPTS {
             let t = slath_git::refs::read(&self.runner, &dir, &target)
                 .await
@@ -208,6 +210,7 @@ impl Services {
                 .ok_or(ServiceError::Conflict(
                     "The target branch doesn't exist.".into(),
                 ))?;
+            signatures.clear();
             let result = self
                 .build(
                     &a,
@@ -216,6 +219,7 @@ impl Services {
                     &committer,
                     &ids,
                     input.commit_message.as_deref(),
+                    &mut signatures,
                 )
                 .await?;
             match slath_git::refs::update_cas(&self.runner, &dir, &target, Some(&result), Some(&t))
@@ -243,6 +247,22 @@ impl Services {
         )
         .await?;
         slath_db::mr_changes::set_merged(&mut *tx, m.id, m.revisions).await?;
+        for (old_c, new_c) in &signatures {
+            slath_db::mr_ledger::append(
+                &mut *tx,
+                m.id,
+                &slath_db::mr_ledger::NewEntry {
+                    revision_seq: Some(m.revisions),
+                    kind: "signature_removed",
+                    change_id: ids.get(old_c).map(String::as_str),
+                    reason: Some("rebase"),
+                    detail: serde_json::json!({"commit": old_c, "new_commit": new_c}),
+                    actor: Some(user),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
         slath_db::issues::insert_event(
             &mut *tx,
             a.repo.id,
@@ -325,6 +345,7 @@ impl Services {
     }
 
     /// The commit the target moves to.
+    #[allow(clippy::too_many_arguments)]
     async fn build(
         &self,
         a: &RepoAccess,
@@ -333,6 +354,7 @@ impl Services {
         committer: &str,
         ids: &HashMap<String, String>,
         message: Option<&str>,
+        signatures: &mut Vec<(String, String)>,
     ) -> Result<ObjectId> {
         let dir = self.repo_path(a.repo.id);
         let r = &self.runner;
@@ -404,6 +426,9 @@ impl Services {
                         ids.get(c.oid.as_str()).map(String::as_str),
                     );
                     onto = merge::write_commit(r, &dir, &new).await.map_err(internal)?;
+                    if raw.header(b"gpgsig").is_some() || raw.header(b"gpgsig-sha256").is_some() {
+                        signatures.push((c.oid.as_str().to_owned(), onto.as_str().to_owned()));
+                    }
                 }
                 Ok(onto)
             }

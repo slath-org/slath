@@ -16,13 +16,23 @@
       <td>{% if v.revision == shown.revision && from.is_none() %}<strong>{{ v.number }}</strong>{% else %}<a href="{{ self.version_href(v) }}">{{ v.number }}</a>{% endif %}</td>
       <td>{{ v.revision }}</td>
       <td><a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ v.commit_oid }}"><code>{{ v.commit_oid[..12] }}</code></a></td>
-      <td>{% if v.binding == "new" %}first version{% else if v.binding == "inferred" %}by similar content{% else if v.reason.as_deref() == Some("patch") %}by identical patch{% else if v.reason.as_deref() == Some("join") %}attached by hand{% else if v.reason.as_deref() == Some("resolved") %}chosen by hand{% else %}by its ID{% endif %}</td>
+      <td>{{ matched[loop.index0] }}</td>
       <td>{% if v.revision != shown.revision %}<a href="{{ self.compare_href(v) }}">Compare with version {{ shown.number }}</a>{% endif %}</td>
     </tr>
   {%- endfor %}
   </tbody>
 </table>
 </div>
+{%- if !history.is_empty() %}
+<details class="change-history">
+  <summary>History of this change</summary>
+  <ol class="plain-list">
+  {%- for (t, text) in history %}
+    <li><time datetime="{{ t.iso }}">{{ t.text }}</time>: {{ text }}</li>
+  {%- endfor %}
+  </ol>
+</details>
+{%- endif %}
 {%- if let Some(f) = from %}
 {%- if kind == "exact" %}
 <div class="notice" role="note"><p><strong>Exact:</strong> versions {{ f.number }} and {{ shown.number }} have the same parent, so this is exactly what changed.</p></div>

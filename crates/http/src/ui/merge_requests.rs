@@ -1289,6 +1289,10 @@ struct ChangePage {
     header: RepoHeader,
     h: MrHeading,
     change: ChangeInfo,
+    /// Per version (same order): how it was bound, from the ledger.
+    matched: Vec<String>,
+    /// The change's history from the ledger, oldest first.
+    history: Vec<(Time, String)>,
     /// The version shown (or compared to).
     shown: VersionInfo,
     /// The version compared from, for an interdiff.
@@ -1315,6 +1319,33 @@ impl ChangePage {
             "{}?from={}&rev={}",
             self.base, v.revision, self.shown.revision
         )
+    }
+}
+
+/// How a binding entry reads ("by its jj ID", "by similar content").
+fn binding_text(e: &slath_db::mr_ledger::Entry) -> String {
+    let who = e.actor.clone().unwrap_or_else(|| "someone".to_owned());
+    let by = e
+        .detail
+        .get("by")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    match (e.state.as_deref(), e.reason.as_deref()) {
+        (Some("new"), Some("split")) => format!("split off into a new change by {who}"),
+        (Some("new"), Some("resolved")) => format!("made a new change by {who}"),
+        (Some("new"), _) => "first version".to_owned(),
+        (Some("confirmed"), Some("join")) => format!("attached to this change by {who}"),
+        (Some("confirmed"), Some("resolved")) => format!("chosen for this change by {who}"),
+        (Some("confirmed"), Some("patch")) => "matched by an identical patch".to_owned(),
+        (Some("confirmed"), _) if by.starts_with("gerrit:") => {
+            "matched by its Change-Id trailer".to_owned()
+        }
+        (Some("confirmed"), _) => "matched by its change ID".to_owned(),
+        (Some("inferred"), _) => {
+            "matched by similar content (inferred: earlier approvals don't carry over)".to_owned()
+        }
+        (Some("unresolved"), _) => "unresolved: its IDs name more than one change".to_owned(),
+        _ => "recorded".to_owned(),
     }
 }
 
@@ -1399,9 +1430,48 @@ async fn change(
         }
         None => None,
     };
+    let ledger = state.services.mr_ledger(&m).await?;
+    let mine: Vec<&slath_db::mr_ledger::Entry> = ledger
+        .iter()
+        .filter(|e| e.change_id.as_deref() == Some(change.display_id.as_str()))
+        .collect();
+    let matched = change
+        .versions
+        .iter()
+        .map(|v| {
+            mine.iter()
+                .rev()
+                .find(|e| {
+                    e.kind == "binding"
+                        && e.revision_seq == Some(v.revision)
+                        && e.detail.get("commit").and_then(serde_json::Value::as_str)
+                            == Some(v.commit_oid.as_str())
+                })
+                .map_or_else(|| "recorded".to_owned(), |e| binding_text(e))
+        })
+        .collect();
+    let history = mine
+        .iter()
+        .map(|e| {
+            let rev = e
+                .revision_seq
+                .map(|r| format!("Revision {r}: "))
+                .unwrap_or_default();
+            let text = match e.kind.as_str() {
+                "binding" => binding_text(e),
+                "signature_removed" => {
+                    "its signature was removed when the merge rewrote it".to_owned()
+                }
+                k => k.replace('_', " "),
+            };
+            (e.created_at.into(), format!("{rev}{text}"))
+        })
+        .collect();
     let page = ChangePage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
+        matched,
+        history,
         change,
         shown,
         from,

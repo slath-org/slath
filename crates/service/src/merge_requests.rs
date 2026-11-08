@@ -989,6 +989,28 @@ impl Services {
                 continue;
             }
             let deleted = u.new.bytes().all(|b| b == b'0');
+            // Open merge requests into this branch: the ledger notes it moved.
+            if !deleted
+                && let Some(branch) = u
+                    .name
+                    .strip_prefix(b"refs/heads/")
+                    .and_then(|b| std::str::from_utf8(b).ok())
+            {
+                for mr in slath_db::merge_requests::open_by_target(&self.pool, repo, branch).await?
+                {
+                    slath_db::mr_ledger::append(
+                        &self.pool,
+                        mr,
+                        &slath_db::mr_ledger::NewEntry {
+                            kind: "target_moved",
+                            detail: serde_json::json!({"old": u.old, "new": u.new}),
+                            actor: pusher,
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                }
+            }
             for (id, target_repo, _) in
                 slath_db::merge_requests::open_by_source(&self.pool, repo, &u.name).await?
             {

@@ -18,6 +18,7 @@ pub mod labels;
 pub mod merge_requests;
 pub mod mfa;
 pub mod mr_changes;
+pub mod mr_ledger;
 pub mod mr_reviews;
 pub mod notifications;
 pub mod oidc;
@@ -47,7 +48,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 109;
+pub const REQUIRED_SCHEMA: i32 = 110;
 
 /// Schema version of the baseline migration, where every supported
 /// installation starts. Lower versions come from the 0.1/0.2 previews.
