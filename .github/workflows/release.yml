@@ -10,8 +10,10 @@
 #   tests, e2e, compose, setup, upgrade-matrix
 #                  run on the downloaded artifacts; nothing builds slath again
 #   gate           fails unless every job above succeeded; writes the report
-#   publish        GitHub release (binaries, SHA256SUMS, compose bundle,
-#                  report) and the image tags
+#   publish        Sigstore signatures and provenance for the files and the
+#                  image index, verified (also offline) before the image tags
+#                  and the GitHub release (binaries, SHA256SUMS, compose
+#                  bundle, signature bundle, report)
 name: Release
 
 on:
@@ -372,13 +374,18 @@ jobs:
           path: report/
 
   publish:
-    name: publish
+    name: sign, verify, publish
     needs: gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
       packages: write
+      id-token: write
+      attestations: write
+    env:
+      REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -386,33 +393,83 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
-      - name: Tag the qualified image
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ACTOR: ${{ github.actor }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
-          v="${TAG#v}"
-          tags=(-t "$IMAGE:$v" -t "$IMAGE:${v%.*}")
-          [[ "$v" == *-* ]] || tags+=(-t "$IMAGE:latest")
-          docker buildx imagetools create "${tags[@]}" \
-            "$IMAGE@$(cat artifacts/build-x86_64/image-x86_64.digest)" \
-            "$IMAGE@$(cat artifacts/build-aarch64/image-aarch64.digest)"
-      - name: Create the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+      - name: Collect the files to publish
         run: |
           v="${TAG#v}"
           mkdir dist
           cp artifacts/build-*/slath-*-linux dist/
           tar -czf "dist/slath-compose-$v.tar.gz" -C deploy compose/compose.yml compose/Caddyfile compose/.env.example
-          # The files to publish are the ones the build job hashed.
+          # The binaries to publish are the ones the build job hashed.
           (cd dist && sha256sum -c ../artifacts/build-x86_64/slath-x86_64.sha256 \
                                    ../artifacts/build-aarch64/slath-aarch64.sha256 \
-             && sha256sum * > SHA256SUMS)
+             && sha256sum slath-* > SHA256SUMS)
+      - name: Sign the files (Sigstore, build provenance)
+        id: attest-files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/slath-*
+            dist/SHA256SUMS
+      - name: Assemble the image index (not yet under its release tags)
+        id: index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          RUN: ${{ github.run_id }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker buildx imagetools create -t "$IMAGE:qualify-$RUN" \
+            "$IMAGE@$(cat artifacts/build-x86_64/image-x86_64.digest)" \
+            "$IMAGE@$(cat artifacts/build-aarch64/image-aarch64.digest)"
+          digest=$(docker buildx imagetools inspect "$IMAGE:qualify-$RUN" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Sign the image index
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: true
+      - name: Verify every signature before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest-files.outputs.bundle-path }}
+          INDEX: ${{ steps.index.outputs.digest }}
+        run: |
+          identity=(--repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-ref "refs/tags/$TAG")
+          for f in dist/slath-* dist/SHA256SUMS; do
+            gh attestation verify "$f" "${identity[@]}"
+          done
+          gh attestation verify "oci://$IMAGE@$INDEX" "${identity[@]}"
+          # The documented offline check: the bundle and a trusted root, no API.
+          gh attestation trusted-root > trusted_root.jsonl
+          for f in dist/slath-* dist/SHA256SUMS; do
+            gh attestation verify "$f" --bundle "$BUNDLE" --custom-trusted-root trusted_root.jsonl "${identity[@]}"
+          done
+          # A modified file must fail.
+          cp dist/SHA256SUMS tampered && echo x >> tampered
+          if gh attestation verify tampered --bundle "$BUNDLE" --custom-trusted-root trusted_root.jsonl "${identity[@]}"; then
+            echo "::error::a modified file passed verification"; exit 1
+          fi
+          cp "$BUNDLE" "dist/slath-${TAG#v}.sigstore.json"
+      - name: Tag the verified image
+        env:
+          INDEX: ${{ steps.index.outputs.digest }}
+        run: |
+          v="${TAG#v}"
+          tags=(-t "$IMAGE:$v" -t "$IMAGE:${v%.*}")
+          [[ "$v" == *-* ]] || tags+=(-t "$IMAGE:latest")
+          docker buildx imagetools create "${tags[@]}" "$IMAGE@$INDEX"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INDEX: ${{ steps.index.outputs.digest }}
+        run: |
+          v="${TAG#v}"
           cp artifacts/report/report.md artifacts/report/report.json dist/
+          {
+            cat artifacts/report/report.md
+            printf '\n## Verifying\n\nImage index: `%s@%s`. See docs/admin/verify.md.\n' "$IMAGE" "$INDEX"
+          } > notes.md
           flags=()
           [[ "$v" == *-* ]] && flags+=(--prerelease)
-          gh release create "$TAG" --verify-tag --title "Slath $v" --notes-file artifacts/report/report.md "${flags[@]}" dist/*
+          gh release create "$TAG" --verify-tag --title "Slath $v" --notes-file notes.md "${flags[@]}" dist/*

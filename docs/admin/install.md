@@ -18,7 +18,9 @@ host](#systemd).
 is built on your host. The `sshd` container mounts only the IPC socket's
 volume, not the data volume; see [Users and permissions](#users-and-permissions).
 
-1. Get the three files of the release you install:
+1. Get the three files of the release you install (or the signed
+   `slath-compose-<version>.tar.gz` from the release; see
+   [Verifying a release](verify.md)):
 
    ```sh
    mkdir slath && cd slath
@@ -116,7 +118,9 @@ On a Linux host with systemd, `slath setup` does the installation.
    install -m 0755 slath /usr/local/bin/slath
    ```
 
-   Until release binaries are published, build it (`(cd web && npm ci &&
+   Download it from the release and verify its signature first
+   ([Verifying a release](verify.md)). Until release binaries are
+   published, build it (`(cd web && npm ci &&
    npm run build) && cargo build --release --locked -p slath`, see
    [docs/dev/setup.md](../dev/setup.md)) or copy it out of the container
    image (`/usr/bin/slath`).

@@ -25,8 +25,13 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    cancelled job counts as a failure. It writes `report.md`
    (`scripts/release_report.py`): every artifact with its SHA-256, the
    image digests, and each job's test totals.
-5. **Publish:** the GitHub release (binaries, `SHA256SUMS`, the Compose
-   bundle, the report) and the image tags `X.Y.Z`, `X.Y`, and `latest`.
+5. **Sign and publish:** Sigstore signatures with build provenance for the
+   binaries, `SHA256SUMS`, the Compose bundle, and the image index, made
+   with the workflow's own GitHub identity. They're verified online and
+   offline (and a modified file must fail) before the image gets its tags
+   `X.Y.Z`, `X.Y`, and `latest` and the GitHub release is created with
+   the files, the signature bundle, and the report. Users verify as in
+   `docs/admin/verify.md`.
 
 Before the tag:
 

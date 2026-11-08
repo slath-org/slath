@@ -62,6 +62,32 @@ class ReleaseWorkflow(unittest.TestCase):
         # Published files are checked against the build job's hashes.
         self.assertRegex(publish, r"sha256sum -c \.\./artifacts/build-x86_64/slath-x86_64\.sha256")
 
+    def test_conf_supply_03_signing_is_verified_before_anything_is_published(self):
+        publish = load()["publish"]
+        self.assertEqual(publish["permissions"].get("id-token"), "write")
+        self.assertEqual(publish["permissions"].get("attestations"), "write")
+        steps = publish["steps"]
+        names = [st.get("name", st.get("uses", "")) for st in steps]
+        def index(pred):
+            return next(i for i, st in enumerate(steps) if pred(st))
+        attest = [i for i, st in enumerate(steps) if st.get("uses", "").startswith("actions/attest-build-provenance@")]
+        self.assertEqual(len(attest), 2, names)
+        files = steps[attest[0]]["with"]["subject-path"]
+        self.assertIn("dist/slath-*", files)
+        self.assertIn("dist/SHA256SUMS", files)
+        self.assertEqual(steps[attest[1]]["with"]["push-to-registry"], True)
+        verify = index(lambda st: "gh attestation verify" in st.get("run", ""))
+        tags = index(lambda st: "-t \"$IMAGE:$v\"" in st.get("run", ""))
+        release = index(lambda st: "gh release create" in st.get("run", ""))
+        self.assertLess(max(attest), verify)
+        self.assertLess(verify, tags)
+        self.assertLess(verify, release)
+        run = steps[verify]["run"]
+        self.assertIn("--signer-workflow", run)
+        self.assertIn("--source-ref", run)
+        self.assertIn("--custom-trusted-root", run)
+        self.assertIn("tampered", run)
+
     def test_red_nightlies_block_the_release(self):
         pre = scripts(load()["preconditions"])
         for wf in ["upgrade-matrix.yml", "oidc-providers.yml"]:
