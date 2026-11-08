@@ -188,6 +188,8 @@ test("conf_editor_01_without_javascript", async ({ browser, baseURL }) => {
   await page.getByLabel("Username").fill(USERS.alice.name);
   await page.getByLabel("Password").fill(USERS.alice.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  // Wait for the sign-in to finish; navigating earlier cancels it.
+  await expect(page).not.toHaveURL(/\/-\/login/);
   await page.goto("/alice/demo/issues/new");
   await page.getByLabel("Title").fill("No script");
   await page.getByLabel("Description").fill("**plain** textarea");
