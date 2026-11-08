@@ -6,5 +6,5 @@
 # databases are refused with guidance (docs/admin/upgrading.md).
 
 version = "0.3.0"
-schema_version = 103
+schema_version = 104
 min_upgrade_from = "0.3.0"

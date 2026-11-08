@@ -10,6 +10,17 @@ visible: no branch moves, no objects stay in the repository, and nothing
 triggers notifications, merge request updates, or webhooks. It works the
 same for Git and jj over HTTPS and SSH, and needs no client setup.
 
+What it promises: every supported way into a repository enforces the
+repository's configured policy before new content becomes visible. It
+doesn't promise that no secret can ever enter: the `warn` and `off` modes,
+allowances, the allowlist, and report-only imports are deliberate
+exceptions, and the rules find known formats, not every secret.
+
+A matched secret never appears in full anywhere: not in the push output,
+API errors, logs, the audit log, notifications, or webhooks. Each rejected
+push is recorded in the audit log as `push.secret_rejected`, with the rule
+IDs and fingerprints but no secret, file name, or excerpt.
+
 ## What is scanned
 
 Only what a push adds to the repository: the files of the new commits
@@ -45,7 +56,9 @@ it: it left the machine it was on.
   repository only. Then push again; no push options are needed, so it
   works the same with jj. The page lists the allowances in force, and each
   one is recorded in the audit log (`secret_scan.allow`). Bots can't allow
-  findings.
+  findings. Where policy wants a second person to decide, check **Only
+  administrators may allow findings** next to the mode: then writers get
+  the link but can't use it.
 - **Lasting exceptions:** add `.slath/secret-scan.toml` to the default
   branch:
 

@@ -52,6 +52,10 @@
     <p class="hint">This server applies at least <strong>{{ push_protection_minimum }}</strong> to every repository.</p>
     {%- endif %}
   </fieldset>
+  <div class="checkbox">
+    <input id="pp-admins" type="checkbox" name="admins_allow" value="1"{% if admins_allow %} checked{% endif %}>
+    <label for="pp-admins">Only administrators may allow findings <span class="text-secondary">(otherwise any writer can, from the link in a rejected push)</span></label>
+  </div>
   <div><button type="submit" class="button">Save push protection</button></div>
 </form>
 

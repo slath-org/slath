@@ -469,3 +469,104 @@ fn conf_sec_08_admins_accept_the_findings_of_a_first_push() {
     let err = git.fails(&w, &["push", &url, "main"]);
     assert!(!err.contains("/-/secret-scan/accept/"), "{err}");
 }
+
+#[test]
+fn conf_sec_08_rejections_are_audited_and_no_surface_shows_the_secret() {
+    let s = TestServer::start();
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    work(&git, &w);
+    let url = s.url(&DEMO);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    let (_, text) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "github-token")
+        .unwrap();
+    let secret = text.trim().trim_start_matches("token: ").to_owned();
+    commit_file(&git, &w, "ci.env", &text);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    assert!(err.contains("(github-token)"), "{err}");
+    assert!(
+        !err.contains(&secret),
+        "the full secret is in the push output"
+    );
+    assert_eq!(
+        s.db.query_one(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'push.secret_rejected'"
+        ),
+        "1"
+    );
+    let data =
+        s.db.query_one("SELECT data::text FROM audit_events WHERE action = 'push.secret_rejected'");
+    assert!(
+        data.contains("\"rules\": [\"github-token\"]") && data.contains("\"count\": 1"),
+        "{data}"
+    );
+    assert!(data.contains("\"transport\": \"http\""), "{data}");
+    let all =
+        s.db.query_one("SELECT coalesce(string_agg(data::text, ' '), '') FROM audit_events");
+    assert!(!all.contains(&secret) && !all.contains("ci.env"), "{all}");
+    assert!(
+        !s.log().contains(&secret),
+        "the full secret is in the server log"
+    );
+}
+
+#[test]
+fn conf_sec_08_repositories_can_require_admins_to_allow_findings() {
+    use slath_tests::http::submit;
+    use slath_tests::server::PASSWORD;
+    let s = TestServer::start();
+    s.create_user("carol", PASSWORD, false);
+    let mut alice = s.login("alice", PASSWORD);
+    assert_eq!(
+        submit(
+            &mut alice,
+            "/alice/demo/settings/access",
+            "/alice/demo/settings/access",
+            &[("username", "carol"), ("role", "write")]
+        )
+        .status,
+        303
+    );
+    let r = submit(
+        &mut alice,
+        "/alice/demo/settings/general",
+        "/alice/demo/settings/push-protection",
+        &[("mode", "block"), ("admins_allow", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(
+        alice
+            .get("/alice/demo/settings/general")
+            .body
+            .contains("name=\"admins_allow\" value=\"1\" checked")
+    );
+    let fp = "0123456789abcdef0123456789abcdef";
+    let link = format!("/alice/demo/-/secret-scan/allow?fingerprint={fp}&rule=github-token");
+    let mut carol = s.login("carol", PASSWORD);
+    let r = submit(
+        &mut carol,
+        &link,
+        "/alice/demo/-/secret-scan/allow",
+        &[("fingerprint", fp), ("rule", "github-token"), ("days", "1")],
+    );
+    assert!(
+        r.status == 403 || r.status == 404,
+        "{}: {}",
+        r.status,
+        r.body
+    );
+    let r = submit(
+        &mut alice,
+        &link,
+        "/alice/demo/-/secret-scan/allow",
+        &[("fingerprint", fp), ("rule", "github-token"), ("days", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(
+        s.db.query_one("SELECT count(*)::text FROM secret_allowances"),
+        "1"
+    );
+}

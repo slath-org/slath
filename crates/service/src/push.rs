@@ -416,6 +416,31 @@ impl Services {
         {
             v.denied.push(DenyReason::Secret);
         }
+        if mode == ScanMode::Block && report.blocking().next().is_some() {
+            // The push leaves nothing behind but this sanitized record:
+            // rule IDs and fingerprints, never the secrets or excerpts.
+            let mut rules: Vec<&str> = report.blocking().map(|f| f.finding.rule.as_str()).collect();
+            rules.sort_unstable();
+            rules.dedup();
+            let mut fingerprints: Vec<&str> = report
+                .blocking()
+                .map(|f| f.finding.fingerprint.as_str())
+                .collect();
+            fingerprints.sort_unstable();
+            fingerprints.dedup();
+            self.audit(
+                &grant.subject,
+                "push.secret_rejected",
+                crate::audit::Target::repo(*grant.repo_id.as_uuid()),
+                serde_json::json!({
+                    "transport": grant.transport.as_str(),
+                    "rules": rules,
+                    "fingerprints": fingerprints,
+                    "count": report.blocking().count(),
+                }),
+            )
+            .await;
+        }
     }
 
     /// True if `new` contains `old` (a fast-forward), looking at the push's

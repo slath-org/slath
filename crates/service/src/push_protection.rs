@@ -88,17 +88,25 @@ impl Services {
         subject: &slath_core::authz::Subject,
         a: &crate::repos::RepoAccess,
         mode: ScanMode,
+        admins_allow: bool,
     ) -> Result<()> {
         self.authorize(subject, a, slath_core::authz::Action::RepoSettings)?;
+        let role = if admins_allow { "admin" } else { "write" };
         slath_db::repos::set_push_protection(&self.pool, a.repo.id, mode.as_str()).await?;
+        slath_db::repos::set_secret_allowance_role(&self.pool, a.repo.id, role).await?;
         self.audit(
             subject,
             "repo.push_protection",
             crate::audit::Target::repo(*a.repo.id.as_uuid()),
-            serde_json::json!({"mode": mode.as_str()}),
+            serde_json::json!({"mode": mode.as_str(), "allowance_role": role}),
         )
         .await;
         Ok(())
+    }
+
+    /// True if only repository administrators may allow findings.
+    pub async fn allowances_need_admin(&self, repo: RepoId) -> Result<bool> {
+        Ok(slath_db::repos::secret_allowance_role(&self.pool, repo).await? == "admin")
     }
 
     /// Scans what the push with new values `tips` adds to `repo`.
@@ -418,8 +426,11 @@ impl Services {
         days: i64,
         reason: &str,
     ) -> Result<()> {
-        use slath_core::authz::{Subject, UserKind};
-        self.authorize(subject, a, slath_core::authz::Action::RepoPush)?;
+        use slath_core::authz::{Action, Subject, UserKind};
+        self.authorize(subject, a, Action::RepoPush)?;
+        if self.allowances_need_admin(a.repo.id).await? && !a.can(subject, Action::RepoSettings) {
+            return Err(ServiceError::Forbidden);
+        }
         let Subject::User {
             id,
             kind: UserKind::Human,

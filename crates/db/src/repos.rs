@@ -701,3 +701,31 @@ pub async fn set_push_protection(
     .await?;
     Ok(())
 }
+
+/// Who may allow push protection findings: `write` or `admin`.
+pub async fn secret_allowance_role(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+) -> Result<String, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT secret_allowance_role FROM repositories WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}
+
+pub async fn set_secret_allowance_role(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    role: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET secret_allowance_role = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        role
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

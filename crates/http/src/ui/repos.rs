@@ -371,6 +371,8 @@ struct GeneralSettings<'a> {
     /// This repository's push protection mode, and the site's minimum.
     push_protection: &'static str,
     push_protection_minimum: &'static str,
+    /// Only administrators may allow findings.
+    admins_allow: bool,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -427,13 +429,18 @@ fn general_page<'a>(
     header: RepoHeader,
     a: &RepoAccess,
     ctx: PageCtx,
-    (mode, minimum): (slath_core::config::ScanMode, slath_core::config::ScanMode),
+    (mode, minimum, admins_allow): (
+        slath_core::config::ScanMode,
+        slath_core::config::ScanMode,
+        bool,
+    ),
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 ) -> GeneralSettings<'a> {
     GeneralSettings {
         push_protection: mode.as_str(),
         push_protection_minimum: minimum.as_str(),
+        admins_allow,
         header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
@@ -470,13 +477,21 @@ async fn settings_general(
 async fn push_protection_modes(
     state: &AppState,
     a: &RepoAccess,
-) -> Result<(slath_core::config::ScanMode, slath_core::config::ScanMode), AppError> {
+) -> Result<
+    (
+        slath_core::config::ScanMode,
+        slath_core::config::ScanMode,
+        bool,
+    ),
+    AppError,
+> {
     let own = slath_db::repos::push_protection(&state.services.pool, a.repo.id)
         .await
         .map_err(ServiceError::from)?;
     Ok((
         slath_core::config::ScanMode::parse(&own).unwrap_or_default(),
         state.config.push_protection.minimum,
+        state.services.allowances_need_admin(a.repo.id).await?,
     ))
 }
 
@@ -484,6 +499,9 @@ async fn push_protection_modes(
 struct PushProtectionForm {
     #[serde(default)]
     mode: String,
+    /// Checkbox: only administrators may allow findings.
+    #[serde(default)]
+    admins_allow: Option<String>,
 }
 
 async fn save_push_protection(
@@ -506,7 +524,7 @@ async fn save_push_protection(
     };
     match state
         .services
-        .set_push_protection(&s.subject, &a, mode)
+        .set_push_protection(&s.subject, &a, mode, f.admins_allow.is_some())
         .await
     {
         Ok(()) => Ok(

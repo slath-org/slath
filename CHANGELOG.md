@@ -15,6 +15,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repository administrators choose block, warn, or off for push protection; the site configuration can enforce a minimum and add or disable rules.
 - A rejected push links to a page where repository writers allow a false positive for a limited time; the same push then passes.
 - `.slath/secret-scan.toml` on the default branch lists paths and fingerprints that push protection lets through, such as test fixtures.
+- Rejected pushes are recorded in the audit log with the rule and fingerprint, never the secret; repositories can require an administrator to allow findings.
 - Repository administrators can accept all findings of the first push into an empty repository in one step, for history that exists elsewhere.
 - Imported repositories are scanned for secrets afterwards; findings are reported to the repository's administrators but don't stop the import.
 - Each release publishes a prebuilt `slath` binary for x86-64 and aarch64 Linux and a container image, with SHA-256 digests and a report of the tests run on exactly those files.
