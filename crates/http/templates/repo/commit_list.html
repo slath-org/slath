@@ -1,0 +1,5 @@
+<ol class="commit-list">
+{%- for c in commits %}
+  <li><a class="commit-subject" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ c.oid }}">{{ c.subject }}</a> <span class="text-secondary">{{ c.author }} · <time datetime="{{ c.time.iso }}">{{ c.time.text }}</time></span> <code>{{ c.short }}</code></li>
+{%- endfor %}
+</ol>

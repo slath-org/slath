@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Merge requests · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="page-heading">
+  <h1>Merge requests</h1>
+  {%- if can_create %}
+  <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/compare">New merge request</a>
+  {%- endif %}
+</div>
+<details class="issue-filters"{% if filtered %} open{% endif %}>
+  <summary>Filter{% if filtered %} (active){% endif %}</summary>
+  <form method="get" action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form filter-form">
+    <input type="hidden" name="state" value="{{ state }}">
+    <div class="field">
+      <label for="f-labels">Labels</label>
+      <input id="f-labels" name="labels" type="text" value="{{ q.labels }}" aria-describedby="f-labels-hint" autocapitalize="none" spellcheck="false">
+      <p id="f-labels-hint" class="hint">Separate labels with commas; merge requests must have all of them.</p>
+    </div>
+    <div class="field">
+      <label for="f-assignee">Assignee</label>
+      <input id="f-assignee" name="assignee" type="text" value="{{ q.assignee }}" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="f-author">Author</label>
+      <input id="f-author" name="author" type="text" value="{{ q.author }}" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="f-milestone">Milestone</label>
+      <select id="f-milestone" name="milestone">
+        <option value="">Any</option>
+        {%- for m in milestones %}
+        <option value="{{ m }}"{% if m.as_str() == q.milestone.as_str() %} selected{% endif %}>{{ m }}</option>
+        {%- endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-sort">Sort by</label>
+      <select id="f-sort" name="sort">
+        <option value="created">Newest</option>
+        <option value="updated"{% if q.sort == "updated" %} selected{% endif %}>Recently updated</option>
+      </select>
+    </div>
+    <div class="button-row">
+      <button type="submit" class="button">Apply filters</button>
+      {%- if filtered %}
+      <a class="button button-quiet" href="?state={{ state }}">Clear filters</a>
+      {%- endif %}
+    </div>
+  </form>
+</details>
+<nav class="tabs" aria-label="Merge request state">
+  <ul>
+    <li><a href="?state=open{{ query }}"{% if state == "open" %} aria-current="page"{% endif %}>Open <span class="count">{{ open }}</span></a></li>
+    <li><a href="?state=merged{{ query }}"{% if state == "merged" %} aria-current="page"{% endif %}>Merged <span class="count">{{ merged }}</span></a></li>
+    <li><a href="?state=closed{{ query }}"{% if state == "closed" %} aria-current="page"{% endif %}>Closed <span class="count">{{ closed }}</span></a></li>
+    <li><a href="?state=all{{ query }}"{% if state == "all" %} aria-current="page"{% endif %}>All</a></li>
+  </ul>
+</nav>
+{%- if items.is_empty() %}
+<p class="text-secondary empty-state">{% if filtered %}No merge requests match these filters.{% else if state == "merged" %}No merged merge requests.{% else if state == "closed" %}No closed merge requests.{% else if state == "all" %}No merge requests yet.{% else %}No open merge requests.{% endif %}</p>
+{%- else %}
+<ul class="item-list">
+{%- for i in items %}
+  <li class="item-row">
+    <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state_text }}</span></span>
+    <div class="item-main">
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ i.number }}"><bdi>{{ i.title }}</bdi></a>
+      {%- if i.state == "draft" %} <span class="badge">Draft</span>{% endif %}
+      {%- if !i.labels.is_empty() %}
+      <span class="item-labels">
+        {%- for l in i.labels %}
+        <a class="label-chip" href="{{ self.label_href(l.name) }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></a>
+        {%- endfor %}
+      </span>
+      {%- endif %}
+      <p class="item-meta text-secondary">!{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% else %}a deleted user{% endif %} · <code class="branch-name"><bdi>{{ i.source }}</bdi></code> into <code class="branch-name"><bdi>{{ i.target }}</bdi></code></p>
+    </div>
+    {%- if i.comments > 0 %}
+    <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if let Some(n) = next %}
+<p><a class="button" href="{{ n }}">Next page</a></p>
+{%- endif %}
+{% endblock %}

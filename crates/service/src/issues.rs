@@ -382,7 +382,16 @@ impl Services {
             .ok_or(ServiceError::NotFound)
     }
 
-    /// A comment of an issue in the repository, with the access.
+    /// The issue or merge request a comment belongs to.
+    pub async fn comment_subject(&self, id: uuid::Uuid) -> Result<uuid::Uuid> {
+        slath_db::issues::comment(&self.pool, id)
+            .await?
+            .map(|c| c.subject_id)
+            .ok_or(ServiceError::NotFound)
+    }
+
+    /// A comment of an issue or a merge request in the repository, with
+    /// the access.
     async fn issue_comment(
         &self,
         subject: &Subject,
@@ -391,12 +400,27 @@ impl Services {
         id: uuid::Uuid,
     ) -> Result<(RepoAccess, Comment)> {
         let a = self
-            .issues_access(subject, ns, repo, Action::RepoRead)
+            .repo_access(subject, ns, repo, Action::RepoRead)
             .await?;
         let c = slath_db::issues::comment(&self.pool, id)
             .await?
             .filter(|c| c.repo_id == a.repo.id && c.deleted_at.is_none())
             .ok_or(ServiceError::NotFound)?;
+        // A comment on an issue or a merge request: that feature must be on.
+        let on_mr = slath_db::merge_requests::get_by_id(
+            &self.pool,
+            slath_core::ids::MergeRequestId::from_uuid(c.subject_id),
+        )
+        .await?
+        .is_some();
+        let enabled = if on_mr {
+            slath_db::repos::mr_settings(&self.pool, a.repo.id).await?.0
+        } else {
+            slath_db::repos::issues_enabled(&self.pool, a.repo.id).await?
+        };
+        if !enabled {
+            return Err(ServiceError::NotFound);
+        }
         Ok((a, c))
     }
 

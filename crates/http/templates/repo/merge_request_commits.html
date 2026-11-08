@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Commits · {{ h.mr.title }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="issue">
+{% let mr_tab = "commits" %}
+{% include "repo/mr_heading.html" %}
+{%- if commits.is_empty() %}
+<p class="text-secondary empty-state">No commits to show.</p>
+{%- else %}
+<h2>{{ commits.len() }} commit{% if commits.len() != 1 %}s{% endif %}</h2>
+{% include "repo/commit_list.html" %}
+{%- endif %}
+</div>
+{% endblock %}

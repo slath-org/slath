@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Changes · {{ h.mr.title }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+{% let mr_tab = "changes" %}
+{% include "repo/mr_heading.html" %}
+{%- if let Some(s) = since %}
+<div class="notice" role="note"><p>Changes from revision {{ s }} to revision {{ current }}. If the branch was rebased, this includes changes from the target. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes">Show all changes</a></p></div>
+{%- endif %}
+{% include "repo/diff_files.html" %}
+{% endblock %}

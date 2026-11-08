@@ -91,6 +91,8 @@ pub struct RepoHeader {
     pub can_admin: bool,
     /// The repository has issues.
     pub issues: bool,
+    /// The repository has merge requests.
+    pub merge_requests: bool,
     /// Which tab is active: `code`, `issues`, `settings`, ….
     pub tab: &'static str,
     /// The viewer's subscription (`watching`, `ignoring`, `default`), shown
@@ -98,6 +100,9 @@ pub struct RepoHeader {
     pub watch: Option<&'static str>,
     /// The import status, shown on the front page.
     pub import: Option<ImportView>,
+    /// Branches the viewer pushed recently without a merge request (front
+    /// page and branches).
+    pub recent_pushes: Vec<String>,
 }
 
 /// An import as the front page shows it.
@@ -124,9 +129,11 @@ impl RepoHeader {
             archived: a.repo.state == RepoState::Archived,
             can_admin: a.can(subject, Action::RepoSettings),
             issues: a.repo.issues_enabled,
+            merge_requests: false,
             tab,
             watch: None,
             import: None,
+            recent_pushes: Vec::new(),
         }
     }
 
@@ -138,6 +145,7 @@ impl RepoHeader {
         tab: &'static str,
     ) -> Self {
         let mut header = Self::new(a, subject, tab);
+        header.merge_requests = state.services.mrs_enabled(a).await;
         if !matches!(subject, Subject::Anonymous) {
             use slath_service::notifications::Subscription;
             header.watch = Some(match state.services.repo_subscription(subject, a).await {
@@ -147,6 +155,20 @@ impl RepoHeader {
             });
         }
         header
+    }
+
+    /// Adds the "Recently pushed" banner.
+    pub async fn with_recent_pushes(
+        mut self,
+        state: &AppState,
+        a: &RepoAccess,
+        subject: &Subject,
+    ) -> Self {
+        match state.services.recently_pushed(subject, a).await {
+            Ok(b) => self.recent_pushes = b,
+            Err(e) => tracing::warn!(error = %e, "looking up recent pushes failed"),
+        }
+        self
     }
 
     /// Adds the import status (front page only).
@@ -347,6 +369,8 @@ pub async fn repo_home(
         header: RepoHeader::load(&state, &a, &subject, "code")
             .await
             .with_import(&state, &a, &subject)
+            .await
+            .with_recent_pushes(&state, &a, &subject)
             .await,
         description: a.repo.description.clone(),
         can_push: a.can(&subject, Action::RepoPush),

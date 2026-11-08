@@ -20,6 +20,9 @@
       {%- if header.issues %}
       <li><a href="/{{ header.namespace }}/{{ header.name }}/issues"{% if header.tab == "issues" %} aria-current="page"{% endif %}>Issues</a></li>
       {%- endif %}
+      {%- if header.merge_requests %}
+      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests"{% if header.tab == "merge-requests" %} aria-current="page"{% endif %}>Merge requests</a></li>
+      {%- endif %}
       <li><a href="/{{ header.namespace }}/{{ header.name }}/commits"{% if header.tab == "commits" %} aria-current="page"{% endif %}>Commits</a></li>
       <li><a href="/{{ header.namespace }}/{{ header.name }}/branches"{% if header.tab == "branches" %} aria-current="page"{% endif %}>Branches</a></li>
       <li><a href="/{{ header.namespace }}/{{ header.name }}/tags"{% if header.tab == "tags" %} aria-current="page"{% endif %}>Tags</a></li>
@@ -41,3 +44,9 @@
 <div class="notice" role="note"><p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p>{% if i.secrets > 0 %}<p><strong>Push protection found {{ i.secrets }} possible secret(s) in the imported history.</strong> They were imported anyway, since that history exists elsewhere: revoke them. New pushes are scanned.</p>{% endif %}</div>
   {%- endif %}
 {%- endif %}
+{%- for b in header.recent_pushes %}
+<div class="notice recent-push" role="note">
+  <p>You pushed to <a href="/{{ header.namespace }}/{{ header.name }}/tree/{{ b|urlencode }}"><code><bdi>{{ b }}</bdi></code></a> recently.</p>
+  <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/compare?source={{ b|urlencode }}">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</a>
+</div>
+{%- endfor %}

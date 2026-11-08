@@ -25,6 +25,10 @@ folder
 git-branch
 git-commit-horizontal
 git-fork
+git-merge
+git-pull-request
+git-pull-request-closed
+git-pull-request-draft
 globe
 heading
 history

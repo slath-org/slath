@@ -15,6 +15,7 @@ import { installDialogs } from "./dialog";
 import { installPasskeys } from "./passkeys";
 import { installEditors } from "./editor";
 import { installSuggestions } from "./suggest";
+import { installCopyButtons } from "./copy";
 
 installCsrf();
 installA11ySwaps();
@@ -26,3 +27,4 @@ installDialogs();
 installPasskeys();
 installEditors();
 installSuggestions();
+installCopyButtons();

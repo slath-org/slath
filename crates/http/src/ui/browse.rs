@@ -42,11 +42,11 @@ pub fn pct(bytes: &[u8]) -> String {
     out
 }
 
-fn lossy(b: &[u8]) -> String {
+pub(super) fn lossy(b: &[u8]) -> String {
     slath_markup::reveal_bidi(&String::from_utf8_lossy(b)).into_owned()
 }
 
-fn time(unix: i64) -> Time {
+pub(super) fn time(unix: i64) -> Time {
     time::OffsetDateTime::from_unix_timestamp(unix)
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
         .into()
@@ -312,6 +312,8 @@ async fn tree_page(
         RepoHeader::load(state, a, subject, "code")
             .await
             .with_import(state, a, subject)
+            .await
+            .with_recent_pushes(state, a, subject)
             .await
     } else {
         RepoHeader::load(state, a, subject, "code").await
@@ -909,22 +911,86 @@ async fn commits(
     }))
 }
 
-struct DiffLineView {
-    kind: &'static str,
-    old_no: String,
-    new_no: String,
-    text: String,
+pub(super) struct DiffLineView {
+    pub(super) kind: &'static str,
+    pub(super) old_no: String,
+    pub(super) new_no: String,
+    pub(super) text: String,
 }
 
-struct DiffFileView {
-    anchor: String,
-    path: String,
-    old_path: Option<String>,
-    status: &'static str,
-    binary: bool,
-    additions: u32,
-    deletions: u32,
-    hunks: Vec<(String, Vec<DiffLineView>)>,
+pub(super) struct DiffFileView {
+    pub(super) anchor: String,
+    pub(super) path: String,
+    pub(super) old_path: Option<String>,
+    pub(super) status: &'static str,
+    pub(super) binary: bool,
+    pub(super) additions: u32,
+    pub(super) deletions: u32,
+    pub(super) hunks: Vec<(String, Vec<DiffLineView>)>,
+}
+
+/// The files of a raw unified diff as the diff partial shows them, and
+/// whether the limits cut it.
+pub(super) fn diff_files(
+    raw: &[u8],
+    limits: &slath_core::config::Limits,
+) -> (Vec<DiffFileView>, bool) {
+    let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
+    let files = diff
+        .files
+        .iter()
+        .enumerate()
+        .map(|(i, f)| DiffFileView {
+            anchor: format!("diff-{i}"),
+            path: lossy(f.path()),
+            old_path: (f.status == slath_git::diff::Status::Renamed
+                || f.status == slath_git::diff::Status::Copied)
+                .then(|| lossy(&f.old_path)),
+            status: match f.status {
+                slath_git::diff::Status::Added => "Added",
+                slath_git::diff::Status::Deleted => "Deleted",
+                slath_git::diff::Status::Modified => "Modified",
+                slath_git::diff::Status::Renamed => "Renamed",
+                slath_git::diff::Status::Copied => "Copied",
+            },
+            binary: f.binary,
+            additions: f.additions,
+            deletions: f.deletions,
+            hunks: f
+                .hunks
+                .iter()
+                .map(|h| {
+                    let head = format!(
+                        "@@ -{} +{} @@ {}",
+                        h.old_start,
+                        h.new_start,
+                        lossy(&h.section)
+                    );
+                    let lines = h
+                        .lines
+                        .iter()
+                        .map(|l| {
+                            use slath_git::diff::LineKind as K;
+                            let kind = match l.kind {
+                                K::Added => "add",
+                                K::Removed => "del",
+                                K::Context => "ctx",
+                                K::NoNewline => "meta",
+                            };
+                            DiffLineView {
+                                kind,
+                                old_no: l.old_no.map(|n| n.to_string()).unwrap_or_default(),
+                                new_no: l.new_no.map(|n| n.to_string()).unwrap_or_default(),
+                                text: lossy(&l.text),
+                            }
+                        })
+                        .collect();
+                    (head, lines)
+                })
+                .collect(),
+        })
+        .collect();
+    (files, diff.truncated)
 }
 
 #[derive(Template)]
@@ -994,67 +1060,13 @@ async fn commit(
     )
     .await
     .map_err(|e| git_err(&e))?;
-    let diff = slath_git::diff::parse(&out, limits.diff_max_files, limits.diff_max_lines);
+    let (files, cut) = diff_files(&out, limits);
     let message = String::from_utf8_lossy(&c.message).into_owned();
     let (subject_line, body) = message
         .split_once('\n')
         .map_or((message.as_str(), ""), |(s, b)| (s, b));
     let (author, author_t) = ident(c.header(b"author").unwrap_or_default());
     let (committer, _) = ident(c.header(b"committer").unwrap_or_default());
-    let files = diff
-        .files
-        .iter()
-        .enumerate()
-        .map(|(i, f)| DiffFileView {
-            anchor: format!("diff-{i}"),
-            path: lossy(f.path()),
-            old_path: (f.status == slath_git::diff::Status::Renamed
-                || f.status == slath_git::diff::Status::Copied)
-                .then(|| lossy(&f.old_path)),
-            status: match f.status {
-                slath_git::diff::Status::Added => "Added",
-                slath_git::diff::Status::Deleted => "Deleted",
-                slath_git::diff::Status::Modified => "Modified",
-                slath_git::diff::Status::Renamed => "Renamed",
-                slath_git::diff::Status::Copied => "Copied",
-            },
-            binary: f.binary,
-            additions: f.additions,
-            deletions: f.deletions,
-            hunks: f
-                .hunks
-                .iter()
-                .map(|h| {
-                    let head = format!(
-                        "@@ -{} +{} @@ {}",
-                        h.old_start,
-                        h.new_start,
-                        lossy(&h.section)
-                    );
-                    let lines = h
-                        .lines
-                        .iter()
-                        .map(|l| {
-                            use slath_git::diff::LineKind as K;
-                            let kind = match l.kind {
-                                K::Added => "add",
-                                K::Removed => "del",
-                                K::Context => "ctx",
-                                K::NoNewline => "meta",
-                            };
-                            DiffLineView {
-                                kind,
-                                old_no: l.old_no.map(|n| n.to_string()).unwrap_or_default(),
-                                new_no: l.new_no.map(|n| n.to_string()).unwrap_or_default(),
-                                text: lossy(&l.text),
-                            }
-                        })
-                        .collect();
-                    (head, lines)
-                })
-                .collect(),
-        })
-        .collect();
     Ok(render(&CommitPage {
         header: RepoHeader::load(&state, &a, &subject, "commits").await,
         short: oid.as_str()[..12].to_owned(),
@@ -1068,7 +1080,7 @@ async fn commit(
             .map(|p| (p.as_str().to_owned(), p.as_str()[..12].to_owned()))
             .collect(),
         files,
-        truncated: diff.truncated || too_big,
+        truncated: cut || too_big,
         tree_href: format!(
             "/{}/{}/tree/{}",
             a.repo.namespace,
@@ -1122,8 +1134,12 @@ async fn refs(
     } else {
         ("tags", "Tags")
     };
+    let mut header = RepoHeader::load(&state, &a, &subject, tab).await;
+    if kind == RefKind::Branch {
+        header = header.with_recent_pushes(&state, &a, &subject).await;
+    }
     Ok(render(&RefsPage {
-        header: RepoHeader::load(&state, &a, &subject, tab).await,
+        header,
         heading,
         refs: list
             .into_iter()

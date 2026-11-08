@@ -1,0 +1,117 @@
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// Merge requests: from a push to a merge request, the compare page, the
+// checkout commands, and revisions in the timeline. The e2e server seeds a
+// branch `e2e/<project>` per Playwright project and the merge request
+// "Review fixture" with two revisions.
+import { USERS, expect, expectAccessible, signIn, tapOrClick, test, write } from "../../fixtures";
+
+test("ux_mr_01_recently_pushed_banner_on_home_and_branches", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  const banner = page.locator(".recent-push").filter({ hasText: "You pushed to pushed recently." });
+  for (const path of ["/alice/demo/branches", "/alice/demo"]) {
+    await page.goto(path);
+    await expect(banner).toBeVisible();
+    await expectAccessible(page);
+  }
+  await tapOrClick(page, banner.getByRole("link", { name: "Create merge request" }));
+  await expect(page).toHaveURL(/\/alice\/demo\/compare\?source=pushed$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("New merge request");
+  await expect(page.getByLabel("Title")).toHaveValue("Add a pushed note");
+});
+
+test("ux_mr_02_compare_page_creates_a_merge_request", async ({ page }, testInfo) => {
+  test.slow();
+  const p = testInfo.project.name;
+  const branch = `e2e/${p}`;
+  await signIn(page, USERS.alice);
+  // The page the push hint links to.
+  await page.goto(`/alice/demo/compare?source=${encodeURIComponent(branch)}`);
+
+  // 2. The compare page: commits, the diff, a prefilled title, the pickers.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("New merge request");
+  await expect(page.getByLabel("Merge", { exact: true })).toHaveValue(branch);
+  await expect(page.getByLabel("into")).toHaveValue("main");
+  await expect(page.getByRole("heading", { name: "1 commit" })).toBeVisible();
+  await expect(page.locator(".commit-list")).toContainText(`Add notes for ${p}`);
+  await expect(page.getByRole("heading", { name: "1 changed file" })).toBeVisible();
+  await expect(page.locator(".diff-file")).toContainText(`# Notes for ${p}`);
+  await expect(page.getByLabel("Title")).toHaveValue(`Add notes for ${p}`);
+  await expect(page.getByLabel("Reviewers")).toBeVisible();
+  await expect(page.getByLabel("Labels")).toBeVisible();
+  await expect(page.getByLabel("Create as draft")).not.toBeChecked();
+  await expectAccessible(page);
+
+  // An unknown reviewer is reported next to the field; the input is kept.
+  await page.getByLabel("Reviewers").fill("nobody-here");
+  await write(page, "Description", "Notes for this browser.");
+  await tapOrClick(page, page.getByRole("button", { name: "Create merge request" }));
+  await expect(page.getByRole("alert")).toContainText("nobody-here isn't a user who can read this repository.");
+  await expect(page.getByLabel("Title")).toHaveValue(`Add notes for ${p}`);
+  await expectAccessible(page);
+  await page.getByLabel("Reviewers").fill("");
+  await page.getByLabel("Create as draft").check();
+  await tapOrClick(page, page.getByRole("button", { name: "Create merge request" }));
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(`Add notes for ${p}`);
+  await expect(page.locator(".state-label")).toHaveText("Draft");
+  await expect(page.getByText("Notes for this browser.")).toBeVisible();
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Mark as ready" }));
+  await expect(page.locator(".state-label")).toHaveText("Open");
+  await expect(page.getByText("marked this as ready for review")).toBeVisible();
+
+  // With a merge request open, the compare page links to it.
+  await page.goto(`/alice/demo/compare?source=${encodeURIComponent(branch)}`);
+  await expect(page.getByRole("note")).toContainText("is already open");
+
+  // Closing it from the list's merge request page.
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: `Add notes for ${p}` }));
+  await tapOrClick(page, page.getByRole("button", { name: "Close merge request" }));
+  await expect(page.locator(".state-label")).toHaveText("Closed");
+  await expect(page.getByText("closed this")).toBeVisible();
+});
+
+test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ page }) => {
+  test.slow();
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Merge requests");
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Review fixture");
+  const n = new URL(page.url()).pathname.split("/").pop();
+
+  // 5. Checkout commands for Git (the merge request ref) and jj, with copy buttons.
+  await expect(page.locator("#checkout-git")).toHaveText(
+    `git fetch origin refs/merge-requests/${n}/head && git switch --detach FETCH_HEAD`,
+  );
+  await expect(page.locator("#checkout-jj")).toHaveText(
+    "jj git fetch --remote origin --branch review && jj new review@origin",
+  );
+  await expect(page.getByRole("button", { name: "Copy Git commands" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy jj commands" })).toBeVisible();
+
+  // 8. Both revisions in the timeline, the second with "Compare with previous".
+  await expect(page.locator("#revision-1")).toContainText("opened revision 1 with 1 commit");
+  await expect(page.locator("#revision-2")).toContainText("pushed revision 2 with 2 commits");
+  await expectAccessible(page);
+  await tapOrClick(page, page.locator("#revision-2").getByRole("link", { name: "Compare with previous" }));
+  await expect(page.getByRole("note")).toContainText("Changes from revision 1 to revision 2.");
+  await expect(page.locator(".diff-file")).toContainText("Second draft.");
+  await expectAccessible(page);
+
+  await tapOrClick(
+    page,
+    page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Commits" }),
+  );
+  await expect(page.getByRole("heading", { name: "2 commits" })).toBeVisible();
+  await expect(page.locator(".commit-list")).toContainText("Revise review notes");
+  await expectAccessible(page);
+
+  // Issue URLs of a merge request lead to it.
+  await page.goto(`/alice/demo/issues/${n}`);
+  await expect(page).toHaveURL(new RegExp(`/alice/demo/merge-requests/${n}$`));
+});

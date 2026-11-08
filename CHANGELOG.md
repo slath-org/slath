@@ -11,6 +11,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 ### Added
 
 - Merge requests (first part): open them through the API from a branch, and each push to the branch records a new revision, fetchable at `refs/merge-requests/<n>/head`. Numbers are shared with issues.
+- Merge request pages: a list with state tabs and filters, a compare page that creates them (template, draft, reviewers, assignees, labels, milestone), and the conversation.
+- Merge requests show their commits and changes, each revision with a link to what changed since the previous one, and copy-paste checkout commands for Git and jj.
+- A "Recently pushed" banner on the repository front page, branch list, and merge request list links to creating a merge request for the branch.
+- Merge requests can be marked as draft or ready, closed, reopened, and their deleted source branch restored, all from the page.
 - After a push, Git prints a link to create a merge request for the branch, or the link of its open merge request.
 - Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.
 - The Compose TLS profile also works on private networks, with Caddy's internal CA or your own certificate (`SLATH_TLS`).

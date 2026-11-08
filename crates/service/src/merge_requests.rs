@@ -34,6 +34,8 @@ pub struct MrPerms {
     pub close: bool,
     pub comment: bool,
     pub triage: bool,
+    /// Hide and delete other people's comments.
+    pub moderate: bool,
 }
 
 /// One entry of the conversation.
@@ -464,11 +466,11 @@ impl Services {
         Ok((a, m))
     }
 
-    /// Whether `number` is a merge request (issue pages redirect there).
-    pub async fn is_mr(&self, a: &RepoAccess, number: i32) -> Result<bool> {
-        Ok(slath_db::merge_requests::get(&self.pool, a.repo.id, number)
-            .await?
-            .is_some())
+    /// Whether merge requests are on in this repository.
+    pub async fn mrs_enabled(&self, a: &RepoAccess) -> bool {
+        slath_db::repos::mr_settings(&self.pool, a.repo.id)
+            .await
+            .is_ok_and(|s| s.0)
     }
 
     #[must_use]
@@ -480,6 +482,7 @@ impl Services {
             close: triage || (own && a.can(subject, Action::MrEditOwn)),
             comment: a.can(subject, Action::MrComment),
             triage,
+            moderate: a.can(subject, Action::CommentModerate),
         }
     }
 
@@ -537,8 +540,14 @@ impl Services {
         .map_err(ServiceError::internal)
     }
 
-    /// The full diff of the current revision from its merge base.
-    pub async fn mr_diff(&self, m: &MergeRequest) -> Result<Option<(Vec<u8>, bool)>> {
+    /// The diff of the current revision: from its merge base, or with
+    /// `since`, from that earlier revision's head (what changed since).
+    /// `None` without revisions or for an unknown `since`.
+    pub async fn mr_diff(
+        &self,
+        m: &MergeRequest,
+        since: Option<i32>,
+    ) -> Result<Option<(Vec<u8>, bool)>> {
         let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
         let Some(r) = revs.last() else {
             return Ok(None);
@@ -546,10 +555,18 @@ impl Services {
         let Ok(head) = ObjectId::parse(&r.head_oid) else {
             return Ok(None);
         };
-        let base = r
-            .merge_base_oid
-            .as_deref()
-            .and_then(|b| ObjectId::parse(b).ok());
+        let base = match since {
+            Some(seq) => {
+                let Some(old) = revs.iter().find(|v| v.seq == seq && v.seq < r.seq) else {
+                    return Ok(None);
+                };
+                ObjectId::parse(&old.head_oid).ok()
+            }
+            None => r
+                .merge_base_oid
+                .as_deref()
+                .and_then(|b| ObjectId::parse(b).ok()),
+        };
         slath_git::browse::commit_diff(
             &self.runner,
             &self.repo_path(m.repo_id),
@@ -1085,8 +1102,9 @@ impl Services {
         out
     }
 
-    /// Branches the viewer pushed in the last hour without an open merge
-    /// request (the "Recently pushed" banner).
+    /// The (at most three) branches the viewer pushed most recently in the
+    /// last hour that have no open merge request (the "Recently pushed"
+    /// banner).
     pub async fn recently_pushed(&self, subject: &Subject, a: &RepoAccess) -> Result<Vec<String>> {
         let Some(me) = subject_user(subject) else {
             return Ok(Vec::new());
@@ -1116,6 +1134,9 @@ impl Services {
                 .is_empty()
             {
                 out.push(branch.to_owned());
+                if out.len() == 3 {
+                    break;
+                }
             }
         }
         Ok(out)

@@ -10,6 +10,8 @@ const strings = {
   requestFailedStatus: "The request failed (HTTP {0}). Try again.",
   passkeyFailed: "The passkey request failed. Reload the page and try again.",
   passkeyCancelled: "No passkey was used. Try again, or use another way.",
+  copied: "Copied to the clipboard.",
+  copyFailed: "Copying failed. Select the text and copy it yourself.",
 } as const;
 
 export type Key = keyof typeof strings;

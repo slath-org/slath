@@ -91,7 +91,8 @@ struct ListQuery {
     sort: String,
 }
 
-fn enc(v: &str) -> String {
+/// Percent-encodes a query parameter value.
+pub(super) fn enc(v: &str) -> String {
     let mut out = String::new();
     for b in v.bytes() {
         if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
@@ -563,22 +564,32 @@ async fn view(
         Some("saved") => Some("Issue saved."),
         _ => None,
     };
-    issue_page(
-        &state,
-        ctx,
-        &session.subject(),
-        (&ns, &repo, number(&n)?),
-        message,
-        Vec::new(),
-    )
-    .await
+    let subject = session.subject();
+    let n = number(&n)?;
+    match issue_page(&state, ctx, &subject, (&ns, &repo, n), message, Vec::new()).await {
+        // Issues and merge requests share numbers.
+        Err(e) if e.0.status == StatusCode::NOT_FOUND => {
+            match super::merge_requests::issue_redirect(&state, &subject, &ns, &repo, n).await {
+                Some(r) => Ok(r),
+                None => Err(e),
+            }
+        }
+        r => r,
+    }
 }
 
-/// `/{ns}/{repo}/{n}`: a number leads to the issue.
+/// `/{ns}/{repo}/{n}`: a number leads to the issue or merge request.
 async fn by_number(
+    State(state): State<AppState>,
+    session: MaybeSession,
     Path((ns, repo, n)): Path<(String, String, String)>,
 ) -> Result<Response, AppError> {
     let n = number(&n)?;
+    if let Some(r) =
+        super::merge_requests::issue_redirect(&state, &session.subject(), &ns, &repo, n).await
+    {
+        return Ok(r);
+    }
     Ok(Redirect::to(&format!("/{ns}/{repo}/issues/{n}")).into_response())
 }
 

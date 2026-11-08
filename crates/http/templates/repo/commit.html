@@ -10,38 +10,5 @@
 <p class="text-secondary">Commit <code>{{ oid }}</code>
 {%- for (p, ps) in parents %} · parent <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ p }}"><code>{{ ps }}</code></a>{% endfor %}
 · <a href="{{ tree_href }}">Browse files</a></p>
-{%- if truncated %}
-<div class="notice" role="note"><p>This diff is too large to show completely. Some files or lines are omitted.</p></div>
-{%- endif %}
-<h2>{{ files.len() }} changed file{% if files.len() != 1 %}s{% endif %}</h2>
-<ul class="diff-index">
-{%- for f in files %}
-  <li><a href="#{{ f.anchor }}">{{ f.path }}</a> <span class="text-secondary">{{ f.status }}, <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></li>
-{%- endfor %}
-</ul>
-{%- for f in files %}
-<section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
-  <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }}</span></h3>
-  {%- if !loop.last %}<a class="skip-file" href="#diff-{{ loop.index }}">Skip to the next file</a>{% endif %}
-  {%- if f.binary %}
-  <p class="text-secondary">Binary file not shown.</p>
-  {%- endif %}
-  {%- for (head, lines) in f.hunks %}
-  <div class="code-wrap" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ head }}">
-  <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head">{{ head }}</th></tr></thead>
-    <tbody>
-    {%- for l in lines %}
-      <tr class="diff-{{ l.kind }}">
-        <td class="line-no">{{ l.old_no }}</td><td class="line-no">{{ l.new_no }}</td>
-        <td class="diff-marker">{% if l.kind == "add" %}<span aria-hidden="true">+</span><span class="visually-hidden">added</span>{% else if l.kind == "del" %}<span aria-hidden="true">−</span><span class="visually-hidden">removed</span>{% endif %}</td>
-        <td><code>{{ l.text }}</code></td>
-      </tr>
-    {%- endfor %}
-    </tbody>
-  </table>
-  </div>
-  {%- endfor %}
-</section>
-{%- endfor %}
+{% include "repo/diff_files.html" %}
 {% endblock %}

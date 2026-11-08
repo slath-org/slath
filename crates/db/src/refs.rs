@@ -147,7 +147,7 @@ pub async fn recent_branch_pushes(
            FROM push_events p JOIN ref_updates u ON u.push_id = p.id
            WHERE p.repo_id = $1 AND p.pusher_id = $2 AND p.created_at > $3
              AND u.new_oid IS NOT NULL AND u.name LIKE 'refs/heads/%'
-           GROUP BY u.name ORDER BY 2 DESC LIMIT 5"#,
+           GROUP BY u.name ORDER BY 2 DESC LIMIT 20"#,
         repo.as_uuid(),
         pusher.as_uuid(),
         since

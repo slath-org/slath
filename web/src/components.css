@@ -897,8 +897,12 @@ fieldset.field {
 .item-state-open {
   color: var(--success);
 }
-.item-state-closed {
+.item-state-closed,
+.item-state-draft {
   color: var(--text-secondary);
+}
+.item-state-merged {
+  color: var(--info);
 }
 .item-main {
   flex: 1;
@@ -955,10 +959,16 @@ fieldset.field {
   background: var(--success-bg);
   color: var(--success-fg);
 }
-.state-closed {
+.state-closed,
+.state-draft {
   border-color: var(--border);
   background: var(--surface-subtle);
   color: var(--text);
+}
+.state-merged {
+  border-color: var(--info);
+  background: var(--info-bg);
+  color: var(--info-fg);
 }
 .timeline {
   list-style: none;
@@ -1003,6 +1013,49 @@ fieldset.field {
 }
 .issue-state-form {
   margin-block-start: var(--space-4);
+}
+
+/* Merge requests */
+.recent-push {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.recent-push p {
+  margin: 0;
+}
+.branch-name {
+  overflow-wrap: anywhere;
+}
+.mr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+}
+.checkout pre {
+  margin: var(--space-2) 0 var(--space-3);
+}
+.commit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+  border-block-start: var(--border-width) solid var(--border);
+}
+.commit-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block-end: var(--border-width) solid var(--border);
+}
+.commit-list .commit-subject {
+  flex: 1;
+  min-width: 12rem;
+  overflow-wrap: anywhere;
 }
 .markdown a.ref-closed {
   color: var(--text-secondary);

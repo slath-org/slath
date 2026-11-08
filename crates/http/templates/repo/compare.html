@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{% if source.is_empty() %}New merge request{% else %}Compare {{ source }} into {{ target }}{% endif %} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<h1>{% if cmp.is_some() && can_create %}New merge request{% else %}Compare branches{% endif %}</h1>
+{% include "settings/errors.html" %}
+<form method="get" action="/{{ header.namespace }}/{{ header.name }}/compare" class="form filter-form" aria-label="Branches to compare">
+  <div class="field">
+    <label for="source_branch">Merge</label>
+    <select id="source_branch" name="source"{% if self.error("source_branch").is_some() %} aria-invalid="true" aria-describedby="source_branch-error"{% endif %}>
+      {%- if source.is_empty() %}
+      <option value="" selected>Choose a branch</option>
+      {%- endif %}
+      {%- for b in branches %}
+      <option value="{{ b }}"{% if b.as_str() == source.as_str() %} selected{% endif %}>{{ b }}</option>
+      {%- endfor %}
+    </select>
+    {%- if let Some(e) = self.error("source_branch") %}
+    <p id="source_branch-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="target_branch">into</label>
+    <select id="target_branch" name="target"{% if self.error("target_branch").is_some() %} aria-invalid="true" aria-describedby="target_branch-error"{% endif %}>
+      {%- for b in branches %}
+      <option value="{{ b }}"{% if b.as_str() == target.as_str() %} selected{% endif %}>{{ b }}</option>
+      {%- endfor %}
+    </select>
+    {%- if let Some(e) = self.error("target_branch") %}
+    <p id="target_branch-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="button-row"><button type="submit" class="button">Compare</button></div>
+</form>
+{%- if let Some(c) = cmp %}
+{%- if let Some(n) = c.existing %}
+<div class="notice" role="note"><p>A merge request from <code class="branch-name"><bdi>{{ source }}</bdi></code> into <code class="branch-name"><bdi>{{ target }}</bdi></code> is already open: <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ n }}">!{{ n }}</a>.</p></div>
+{%- else if c.nothing %}
+<div class="notice" role="note"><p>There's nothing to merge: <code class="branch-name"><bdi>{{ source }}</bdi></code> has no commits that <code class="branch-name"><bdi>{{ target }}</bdi></code> doesn't have.</p></div>
+{%- else %}
+{%- if c.unrelated %}
+<div class="notice" role="note"><p>These branches have no common history. The changes show every file of <code class="branch-name"><bdi>{{ source }}</bdi></code>.</p></div>
+{%- endif %}
+{%- if can_create %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form form-wide" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="source_branch" value="{{ source }}">
+  <input type="hidden" name="target_branch" value="{{ target }}">
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ form.title }}" maxlength="256" required
+      {%- if self.error("title").is_some() %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
+    {%- if let Some(e) = self.error("title") %}
+    <p id="title-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="description">Description</label>
+    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
+    <textarea id="description" name="description" rows="12" autocomplete="off" aria-describedby="description-hint{% if self.error("description").is_some() %} description-error{% endif %}"
+      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>{{ form.description }}</textarea>
+    </slath-editor>
+    <p id="description-hint" class="hint">Markdown. Refer to issues with #12, people with @name.</p>
+    {%- if let Some(e) = self.error("description") %}
+    <p id="description-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field suggest-field">
+    <label for="reviewers">Reviewers</label>
+    <input id="reviewers" name="reviewers" type="text" value="{{ form.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="reviewers-hint{% if self.error("reviewers").is_some() %} reviewers-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("reviewers").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="reviewers-hint" class="hint">Usernames, separated by commas. Reviews are requested once the merge request is ready.</p>
+    {%- if let Some(e) = self.error("reviewers") %}
+    <p id="reviewers-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field suggest-field">
+    <label for="assignees">Assignees</label>
+    <input id="assignees" name="assignees" type="text" value="{{ form.assignees }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="assignees-hint{% if self.error("assignees").is_some() %} assignees-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("assignees").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="assignees-hint" class="hint">Usernames, separated by commas.</p>
+    {%- if let Some(e) = self.error("assignees") %}
+    <p id="assignees-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="labels">Labels</label>
+    <input id="labels" name="labels" type="text" value="{{ form.labels }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="labels-hint{% if self.error("labels").is_some() %} labels-error{% endif %}"{% if self.error("labels").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="labels-hint" class="hint">Label names, separated by commas.</p>
+    {%- if let Some(e) = self.error("labels") %}
+    <p id="labels-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  {%- if !milestones.is_empty() %}
+  <div class="field">
+    <label for="milestone">Milestone</label>
+    <select id="milestone" name="milestone">
+      <option value="">None</option>
+      {%- for m in milestones %}
+      <option value="{{ m }}"{% if m.as_str() == form.milestone.as_str() %} selected{% endif %}>{{ m }}</option>
+      {%- endfor %}
+    </select>
+  </div>
+  {%- endif %}
+  <div class="checkbox"><input id="draft" type="checkbox" name="draft" value="1"{% if form.draft.is_some() %} checked{% endif %} aria-describedby="draft-hint"><label for="draft">Create as draft</label></div>
+  <p id="draft-hint" class="hint">A draft can't be merged, and no reviews are requested until you mark it as ready.</p>
+  <div class="button-row"><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</button></div>
+</form>
+{%- else if ctx.user.is_none() %}
+<p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to create a merge request.</p>
+{%- endif %}
+{%- endif %}
+{%- if !c.commits.is_empty() %}
+<h2>{{ c.commits.len() }}{% if c.more_commits %}+{% endif %} commit{% if c.commits.len() != 1 %}s{% endif %}</h2>
+{%- if c.more_commits %}
+<p class="text-secondary">Only the newest {{ c.commits.len() }} commits are shown.</p>
+{%- endif %}
+{% let commits = c.commits %}
+{% include "repo/commit_list.html" %}
+{%- endif %}
+{% let files = c.files %}
+{% let truncated = c.truncated %}
+{%- if !c.nothing %}
+{% include "repo/diff_files.html" %}
+{%- endif %}
+{%- endif %}
+{% endblock %}
