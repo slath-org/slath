@@ -100,6 +100,9 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(page.locator("#revision-2")).toContainText(": 1 change added");
   await expectAccessible(page);
   await tapOrClick(page, page.locator("#revision-2").getByRole("link", { name: "Compare with previous" }));
+  await expect(page.getByRole("note")).toContainText("Heuristic:");
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("link", { name: "Show the tree diff between both revisions" }));
   await expect(page.getByRole("note")).toContainText("Changes from revision 1 to revision 2.");
   await expect(page.locator(".diff-file")).toContainText("Second draft.");
   await expectAccessible(page);
@@ -115,6 +118,11 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).locator(".change-id")).toHaveText(/^[k-z]{8}$/);
   await expect(rows.nth(1).locator(".badge")).toHaveText("New");
+  await expectAccessible(page);
+  // Each change has its own page with its versions.
+  await tapOrClick(page, rows.nth(0).locator("a.change-id"));
+  await expect(page.getByRole("heading", { name: /^Change [k-z]{8}$/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Versions" }).getByRole("row")).toHaveCount(3);
   await expectAccessible(page);
 
   // Issue URLs of a merge request lead to it.

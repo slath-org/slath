@@ -15,7 +15,7 @@ use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
 use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{Compare, MrPerms, MrTimelineItem, NewMr};
-use slath_service::mr_changes::{Rebind, StackEntry};
+use slath_service::mr_changes::{ChangeInfo, Interdiff, Rebind, StackEntry, VersionInfo};
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -810,9 +810,14 @@ async fn mr_page(
                 pusher: r.pushed_by.unwrap_or_else(|| "Someone".to_owned()),
                 commits: r.commit_count,
                 short: r.head_oid.chars().take(12).collect(),
-                since_href: previous_head
-                    .is_some()
-                    .then(|| mr_url(ns, repo, m.number, &format!("/changes?since={}", r.seq - 1))),
+                since_href: previous_head.is_some().then(|| {
+                    mr_url(
+                        ns,
+                        repo,
+                        m.number,
+                        &format!("/interdiff?from={}&to={}", r.seq - 1, r.seq),
+                    )
+                }),
                 summary: summaries
                     .get(&r.seq)
                     .and_then(|x| summary_text(x, &m.target_branch)),
@@ -1095,6 +1100,187 @@ async fn changes(
         ctx,
     };
     Ok(super::diff::respond(hx, &page.ctx, &page.diff, &page))
+}
+
+#[derive(Template)]
+#[template(path = "repo/merge_request_change.html")]
+struct ChangePage {
+    ctx: PageCtx,
+    header: RepoHeader,
+    h: MrHeading,
+    change: ChangeInfo,
+    /// The version shown (or compared to).
+    shown: VersionInfo,
+    /// The version compared from, for an interdiff.
+    from: Option<VersionInfo>,
+    /// `exact`, `patches`, `tree`, or empty for a plain version diff.
+    kind: &'static str,
+    /// The diff, unless the comparison is a range-diff.
+    diff: Option<DiffView>,
+    /// `git range-diff` output.
+    text: Option<String>,
+    too_big: bool,
+    /// The same comparison the other way (patches or tree).
+    other_href: Option<String>,
+    base: String,
+}
+
+impl ChangePage {
+    fn version_href(&self, v: &VersionInfo) -> String {
+        format!("{}?rev={}", self.base, v.revision)
+    }
+
+    fn compare_href(&self, v: &VersionInfo) -> String {
+        format!(
+            "{}?from={}&rev={}",
+            self.base, v.revision, self.shown.revision
+        )
+    }
+}
+
+#[derive(Deserialize, Default)]
+struct ChangeQuery {
+    /// The revision whose version is shown.
+    rev: Option<i32>,
+    /// Compare with the version in this revision.
+    from: Option<i32>,
+    /// `1`: a tree diff instead of the diff of patches.
+    tree: Option<String>,
+}
+
+async fn change(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    hx: super::HxRequest,
+    Path((ns, repo, n, id)): Path<(String, String, String, String)>,
+    Query(q): Query<ChangeQuery>,
+    Query(dq): Query<DiffQuery>,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let (a, m) = state.services.mr(&subject, &ns, &repo, number(&n)?).await?;
+    let change = state.services.mr_change(&m, &id).await?;
+    let pick = |rev: Option<i32>| match rev {
+        Some(r) => change.versions.iter().find(|v| v.revision == r).cloned(),
+        None => change.versions.last().cloned(),
+    };
+    let shown = pick(q.rev).ok_or_else(AppError::not_found)?;
+    let from = match q.from {
+        Some(_) => Some(pick(q.from).ok_or_else(AppError::not_found)?),
+        None => None,
+    };
+    let base = mr_url(
+        &ns,
+        &repo,
+        m.number,
+        &format!("/changes/{}", change.display_id),
+    );
+    let limits = &state.config.limits;
+    let dir = state.services.repo_path(m.repo_id);
+    let tree = q.tree.as_deref() == Some("1");
+    let mut href = format!("{base}?rev={}", shown.revision);
+    let (kind, raw, text, too_big, other_href) = match &from {
+        None => {
+            let (raw, cut) = state
+                .services
+                .mr_version_diff(&m, &shown, dq.git_options(&ctx))
+                .await?;
+            ("", Some(raw), None, cut, None)
+        }
+        Some(f) => {
+            href.push_str(&format!("&from={}", f.revision));
+            let pair = format!("{base}?from={}&rev={}", f.revision, shown.revision);
+            match state
+                .services
+                .mr_version_interdiff(&m, f, &shown, tree, dq.git_options(&ctx))
+                .await?
+            {
+                Interdiff::Exact(raw, cut) => ("exact", Some(raw), None, cut, None),
+                Interdiff::Tree(raw, cut) => {
+                    href.push_str("&tree=1");
+                    ("tree", Some(raw), None, cut, Some(pair))
+                }
+                Interdiff::Patches(out, cut) => (
+                    "patches",
+                    None,
+                    Some(slath_markup::reveal_bidi(&String::from_utf8_lossy(&out)).into_owned()),
+                    cut,
+                    Some(format!("{pair}&tree=1")),
+                ),
+            }
+        }
+    };
+    let diff = match raw {
+        Some(raw) => {
+            let head = slath_git::ObjectId::parse(&shown.commit_oid)
+                .map_err(|e| AppError::internal(&e))?;
+            let generated = super::diff::generated(&state.runner, &dir, &head, &raw, limits).await;
+            Some(super::diff::view(&raw, limits, &generated, &dq, &ctx, href))
+        }
+        None => None,
+    };
+    let page = ChangePage {
+        header: RepoHeader::load(&state, &a, &subject, TAB).await,
+        h: heading(&state, &subject, &a, m).await?,
+        change,
+        shown,
+        from,
+        kind,
+        diff,
+        text,
+        too_big,
+        other_href,
+        base,
+        ctx,
+    };
+    match &page.diff {
+        Some(d) => Ok(super::diff::respond(hx, &page.ctx, d, &page)),
+        None => Ok(render(&page)),
+    }
+}
+
+#[derive(Template)]
+#[template(path = "repo/merge_request_interdiff.html")]
+struct InterdiffPage {
+    ctx: PageCtx,
+    header: RepoHeader,
+    h: MrHeading,
+    from: i32,
+    to: i32,
+    text: String,
+    too_big: bool,
+}
+
+#[derive(Deserialize)]
+struct InterdiffQuery {
+    from: i32,
+    to: Option<i32>,
+}
+
+async fn interdiff(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Query(q): Query<InterdiffQuery>,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let (a, m) = state.services.mr(&subject, &ns, &repo, number(&n)?).await?;
+    let to = q.to.unwrap_or(m.revisions);
+    let (out, too_big) = state
+        .services
+        .mr_revision_interdiff(&m, q.from, to)
+        .await?
+        .ok_or_else(AppError::not_found)?;
+    Ok(render(&InterdiffPage {
+        header: RepoHeader::load(&state, &a, &subject, TAB).await,
+        h: heading(&state, &subject, &a, m).await?,
+        from: q.from,
+        to,
+        text: slath_markup::reveal_bidi(&String::from_utf8_lossy(&out)).into_owned(),
+        too_big,
+        ctx,
+    }))
 }
 
 /// `/{ns}/{repo}/issues/{n}` of a merge request leads here.
@@ -1461,6 +1647,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/stack/{pos}/bind",
             Access::Resource,
             post(bind),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/changes/{id}",
+            Access::Resource,
+            get(change),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/interdiff",
+            Access::Resource,
+            get(interdiff),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/changes",

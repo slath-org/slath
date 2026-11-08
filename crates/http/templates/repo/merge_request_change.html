@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Change {{ change.display_id[..8] }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="issue">
+{% let mr_tab = "commits" %}
+{% include "repo/mr_heading.html" %}
+<h2>Change <code title="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Versions">
+<table class="table change-versions">
+  <caption class="visually-hidden">Versions of this change</caption>
+  <thead><tr><th scope="col">Version</th><th scope="col">Revision</th><th scope="col">Commit</th><th scope="col">Matched</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+  {%- for v in change.versions %}
+    <tr{% if v.revision == shown.revision %} aria-current="true"{% endif %}>
+      <td>{% if v.revision == shown.revision && from.is_none() %}<strong>{{ v.number }}</strong>{% else %}<a href="{{ self.version_href(v) }}">{{ v.number }}</a>{% endif %}</td>
+      <td>{{ v.revision }}</td>
+      <td><a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ v.commit_oid }}"><code>{{ v.commit_oid[..12] }}</code></a></td>
+      <td>{% if v.binding == "new" %}first version{% else if v.binding == "inferred" %}by similar content{% else if v.reason.as_deref() == Some("patch") %}by identical patch{% else if v.reason.as_deref() == Some("join") %}attached by hand{% else if v.reason.as_deref() == Some("resolved") %}chosen by hand{% else %}by its ID{% endif %}</td>
+      <td>{% if v.revision != shown.revision %}<a href="{{ self.compare_href(v) }}">Compare with version {{ shown.number }}</a>{% endif %}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- if let Some(f) = from %}
+{%- if kind == "exact" %}
+<div class="notice" role="note"><p><strong>Exact:</strong> versions {{ f.number }} and {{ shown.number }} have the same parent, so this is exactly what changed.</p></div>
+{%- else if kind == "patches" %}
+<div class="notice" role="note"><p><strong>Diff of patches:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so their patches are compared with <code>git range-diff</code>.{% if let Some(o) = other_href %} <a href="{{ o }}">Show the tree diff, including the rebase</a>{% endif %}</p></div>
+{%- else if kind == "tree" %}
+<div class="notice" role="note"><p><strong>Tree diff, including the rebase:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so this includes what the rebase brought in.{% if let Some(o) = other_href %} <a href="{{ o }}">Show the diff of patches</a>{% endif %}</p></div>
+{%- endif %}
+{%- else %}
+<p class="text-secondary">Version {{ shown.number }}, in revision {{ shown.revision }}: the commit's own changes.</p>
+{%- endif %}
+{%- if too_big %}
+<div class="notice" role="note"><p>This diff is too large to show.</p></div>
+{%- endif %}
+{%- if let Some(t) = text %}
+{%- if t.is_empty() %}
+<p class="text-secondary empty-state">The patches are the same.</p>
+{%- else %}
+<div class="code-wrap" tabindex="0" role="region" aria-label="Diff of patches"><pre class="range-diff"><code>{{ t }}</code></pre></div>
+{%- endif %}
+{%- endif %}
+{%- if let Some(diff) = diff %}
+{% include "repo/diff_files.html" %}
+{%- endif %}
+</div>
+{% endblock %}

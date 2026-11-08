@@ -1121,6 +1121,11 @@ fieldset.field {
   padding-block: var(--space-2);
   border-block-end: var(--border-width) solid var(--border);
 }
+.range-diff {
+  margin: 0;
+  padding: var(--space-2);
+  white-space: pre;
+}
 .badge-danger {
   border-color: var(--error);
   background: var(--error-bg);

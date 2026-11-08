@@ -729,3 +729,177 @@ impl Services {
         Ok((db::insert_change(&mut *tx, m.id, &display).await?, display))
     }
 }
+
+/// One version of a change, for the change page.
+#[derive(Debug, Clone)]
+pub struct VersionInfo {
+    /// 1 for the first version.
+    pub number: usize,
+    pub revision: i32,
+    pub commit_oid: String,
+    pub parent_oid: Option<String>,
+    /// `new`, `confirmed`, `inferred`, or `unresolved`.
+    pub binding: String,
+    pub reason: Option<String>,
+}
+
+/// A change with all its versions, oldest first.
+#[derive(Debug, Clone)]
+pub struct ChangeInfo {
+    pub display_id: String,
+    pub state: String,
+    pub versions: Vec<VersionInfo>,
+}
+
+/// How two versions of a change are compared.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Interdiff {
+    /// Same parent: the tree diff is exactly what changed.
+    Exact(Vec<u8>, bool),
+    /// Different parents, compared as patches (`git range-diff`).
+    Patches(Vec<u8>, bool),
+    /// Different parents, as a tree diff that includes what the rebase
+    /// brought in.
+    Tree(Vec<u8>, bool),
+}
+
+const MAX_DIFF_BYTES: usize = 64 * 1024 * 1024;
+
+fn oid(s: &str) -> Result<ObjectId> {
+    ObjectId::parse(s).map_err(ServiceError::internal)
+}
+
+impl Services {
+    /// A change of the merge request, by its display ID (in full or its
+    /// first 8 characters) or the commit ID of one of its versions.
+    pub async fn mr_change(&self, m: &MergeRequest, id: &str) -> Result<ChangeInfo> {
+        let changes = db::changes(&self.pool, m.id).await?;
+        let versions = db::versions(&self.pool, m.id).await?;
+        let by_display: Vec<&db::Change> = changes
+            .iter()
+            .filter(|c| c.display_id == id || (id.len() >= 8 && c.display_id.starts_with(id)))
+            .collect();
+        let change = match by_display.as_slice() {
+            [one] => Some(*one),
+            _ => versions
+                .iter()
+                .find(|v| v.commit_oid == id)
+                .and_then(|v| v.change_id)
+                .and_then(|k| changes.iter().find(|c| c.id == k)),
+        }
+        .ok_or(ServiceError::NotFound)?;
+        Ok(ChangeInfo {
+            display_id: change.display_id.clone(),
+            state: change.state.clone(),
+            versions: versions
+                .iter()
+                .filter(|v| v.change_id == Some(change.id))
+                .enumerate()
+                .map(|(i, v)| VersionInfo {
+                    number: i + 1,
+                    revision: v.revision_seq,
+                    commit_oid: v.commit_oid.clone(),
+                    parent_oid: v.parent_oid.clone(),
+                    binding: v.state.clone(),
+                    reason: v.reason.clone(),
+                })
+                .collect(),
+        })
+    }
+
+    /// The patch of one version: its commit against its parent.
+    pub async fn mr_version_diff(
+        &self,
+        m: &MergeRequest,
+        v: &VersionInfo,
+        opts: slath_git::browse::DiffOptions,
+    ) -> Result<(Vec<u8>, bool)> {
+        let parent = v.parent_oid.as_deref().map(oid).transpose()?;
+        slath_git::browse::diff(
+            &self.runner,
+            &self.repo_path(m.repo_id),
+            parent.as_ref(),
+            &oid(&v.commit_oid)?,
+            opts,
+            MAX_DIFF_BYTES,
+        )
+        .await
+        .map_err(ServiceError::internal)
+    }
+
+    /// Two versions of a change compared (spec: change interdiff). With
+    /// the same parent, exact; otherwise as patches, or with `tree` as a
+    /// tree diff including the rebase.
+    pub async fn mr_version_interdiff(
+        &self,
+        m: &MergeRequest,
+        a: &VersionInfo,
+        b: &VersionInfo,
+        tree: bool,
+        opts: slath_git::browse::DiffOptions,
+    ) -> Result<Interdiff> {
+        let dir = self.repo_path(m.repo_id);
+        let (ca, cb) = (oid(&a.commit_oid)?, oid(&b.commit_oid)?);
+        if a.parent_oid == b.parent_oid || tree {
+            let (raw, cut) =
+                slath_git::browse::diff(&self.runner, &dir, Some(&ca), &cb, opts, MAX_DIFF_BYTES)
+                    .await
+                    .map_err(ServiceError::internal)?;
+            return Ok(if a.parent_oid == b.parent_oid {
+                Interdiff::Exact(raw, cut)
+            } else {
+                Interdiff::Tree(raw, cut)
+            });
+        }
+        let (Some(pa), Some(pb)) = (a.parent_oid.as_deref(), b.parent_oid.as_deref()) else {
+            // A root commit has no patch to compare with range-diff.
+            let (raw, cut) =
+                slath_git::browse::diff(&self.runner, &dir, Some(&ca), &cb, opts, MAX_DIFF_BYTES)
+                    .await
+                    .map_err(ServiceError::internal)?;
+            return Ok(Interdiff::Tree(raw, cut));
+        };
+        let (out, cut) = slath_git::browse::range_diff(
+            &self.runner,
+            &dir,
+            (&oid(pa)?, &ca),
+            (&oid(pb)?, &cb),
+            100,
+            MAX_DIFF_BYTES,
+        )
+        .await
+        .map_err(ServiceError::internal)?;
+        Ok(Interdiff::Patches(out, cut))
+    }
+
+    /// Two revisions compared with `git range-diff` (spec: revision
+    /// interdiff): heuristic, since it pairs commits by similarity.
+    /// `None` if either revision is unknown or has no merge base.
+    pub async fn mr_revision_interdiff(
+        &self,
+        m: &MergeRequest,
+        from: i32,
+        to: i32,
+    ) -> Result<Option<(Vec<u8>, bool)>> {
+        let revisions = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        let find = |seq: i32| revisions.iter().find(|r| r.seq == seq);
+        let (Some(a), Some(b)) = (find(from), find(to)) else {
+            return Ok(None);
+        };
+        let (Some(ma), Some(mb)) = (a.merge_base_oid.as_deref(), b.merge_base_oid.as_deref())
+        else {
+            return Ok(None);
+        };
+        slath_git::browse::range_diff(
+            &self.runner,
+            &self.repo_path(m.repo_id),
+            (&oid(ma)?, &oid(&a.head_oid)?),
+            (&oid(mb)?, &oid(&b.head_oid)?),
+            100,
+            MAX_DIFF_BYTES,
+        )
+        .await
+        .map(Some)
+        .map_err(ServiceError::internal)
+    }
+}

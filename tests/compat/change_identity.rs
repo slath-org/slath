@@ -757,3 +757,63 @@ fn push_feedback_past_its_budget_prints_only_the_link() {
     // The job still records the revision.
     assert_eq!(entries(&c.stack(n, 2)).len(), 2);
 }
+
+#[test]
+fn conf_review_03_interdiffs_are_labeled_exact_or_heuristic() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    c.git.ok(&w, &["switch", "-q", "-c", "inter", "main"]);
+    commit_file(&c.git, &w, "a.txt", &lines("a", None), "Add a");
+    c.push(&w, "inter");
+    let n = c.open_mr("inter");
+    let id = ids(&c.stack(n, 1))[0].clone();
+    // Version 2: amended, same parent.
+    std::fs::write(w.join("a.txt"), lines("a", Some(3))).unwrap();
+    c.git.ok(&w, &["commit", "-qa", "--amend", "--no-edit"]);
+    c.push(&w, "inter");
+    c.stack(n, 2);
+    // Version 3: rebased onto a newer main and edited again.
+    c.git.ok(&w, &["switch", "-q", "main"]);
+    commit_file(&c.git, &w, "m.txt", "m\n", "Main moves");
+    c.push(&w, "main");
+    c.git.ok(&w, &["switch", "-q", "inter"]);
+    c.git.ok(&w, &["rebase", "-q", "main"]);
+    std::fs::write(w.join("a.txt"), lines("a", Some(9))).unwrap();
+    c.git.ok(&w, &["commit", "-qa", "--amend", "--no-edit"]);
+    c.push(&w, "inter");
+    assert_eq!(ids(&c.stack(n, 3)), vec![id.clone()]);
+
+    let mut ui = c.s.login("alice", PASSWORD);
+    let page = |ui: &mut slath_tests::http::Client, path: &str| {
+        let r = ui.get(&format!("/alice/demo/merge-requests/{n}{path}"));
+        assert_eq!(r.status, 200, "{path}: {}", r.body);
+        r.body
+    };
+    let base = format!("/changes/{id}");
+    let exact = page(&mut ui, &format!("{base}?from=1&rev=2"));
+    assert!(exact.contains("<strong>Exact:</strong>"), "{exact}");
+    assert!(exact.contains("a line 3, edited"));
+    let patches = page(&mut ui, &format!("{base}?from=2&rev=3"));
+    assert!(
+        patches.contains("<strong>Diff of patches:</strong>"),
+        "{patches}"
+    );
+    assert!(patches.contains("class=\"range-diff\""));
+    let tree = page(&mut ui, &format!("{base}?from=2&rev=3&tree=1"));
+    assert!(
+        tree.contains("<strong>Tree diff, including the rebase:</strong>"),
+        "{tree}"
+    );
+    // The tree diff includes the rebase; the patches don't.
+    assert!(tree.contains("m.txt") && !patches.contains("m.txt"));
+    // The short form of the ID and a commit ID lead to the change too.
+    page(&mut ui, &format!("/changes/{}", &id[..8]));
+    let revs = page(&mut ui, "/interdiff?from=1&to=3");
+    assert!(revs.contains("<strong>Heuristic:</strong>"), "{revs}");
+    assert_eq!(
+        ui.get(&format!("/alice/demo/merge-requests/{n}/changes/zzzzzzzz"))
+            .status,
+        404
+    );
+}

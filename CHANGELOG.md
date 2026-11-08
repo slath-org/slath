@@ -22,6 +22,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
 - Files marked generated in `.gitattributes` (`linguist-generated`, `slath-generated`) are collapsed in diffs, and large diffs load file by file as you scroll.
+- Each change of a merge request has a page with its versions; two versions compare exactly (same parent) or as a diff of patches or a tree diff (after a rebase).
+- "Compare with previous" in the timeline compares two revisions with `git range-diff`, marked heuristic, with a link to the tree diff.
 - `GET /api/v1/repos/{ns}/{repo}/merge-requests/{n}/stack` lists the current revision's changes; `POST …/stack/{position}/bind` resolves, splits, or joins them.
 - After a push, Git prints a link to create a merge request for the branch, or the link of its open merge request.
 - Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.

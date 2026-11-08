@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Revisions {{ from }} to {{ to }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="issue">
+{% let mr_tab = "changes" %}
+{% include "repo/mr_heading.html" %}
+<h2>Revision {{ from }} to revision {{ to }}</h2>
+<div class="notice" role="note"><p><strong>Heuristic:</strong> <code>git range-diff</code> pairs the commits of both revisions by similarity, and may pair them differently than the changes on the Commits tab. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ from }}">Show the tree diff between both revisions</a></p></div>
+{%- if too_big %}
+<div class="notice" role="note"><p>This comparison is too large to show.</p></div>
+{%- else if text.is_empty() %}
+<p class="text-secondary empty-state">Both revisions have the same commits.</p>
+{%- else %}
+<div class="code-wrap" tabindex="0" role="region" aria-label="Range diff"><pre class="range-diff"><code>{{ text }}</code></pre></div>
+{%- endif %}
+</div>
+{% endblock %}

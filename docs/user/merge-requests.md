@@ -103,6 +103,20 @@ name different changes, or two commits with the same ID. The author, or
 anyone who can push the source branch, picks a change for each of them on
 the Commits tab. The choice is kept for the next pushes.
 
+Each change ID links to the change's page, which lists its versions and
+compares any two of them:
+
+- **Exact**, when both versions have the same parent: the diff is
+  exactly what changed between them.
+- **Diff of patches**, when the parents differ (after a rebase): the two
+  patches are compared, so the rebase itself doesn't show. **Tree diff,
+  including the rebase** shows everything that's different.
+
+**Compare with previous** on a revision in the timeline compares two
+revisions with `git range-diff`. That's marked **heuristic**: it pairs
+commits by similarity and may pair them differently than the change IDs.
+The tree diff between both revisions is one link away.
+
 On the same tab you can also **split** a commit off into a new change,
 when it was matched wrongly, or attach a new change to one that was
 removed. Both are recorded in the timeline and the audit log, and can be
