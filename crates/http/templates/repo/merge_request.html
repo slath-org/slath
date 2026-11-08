@@ -9,6 +9,9 @@
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
 {% include "settings/errors.html" %}
+{%- if let Some(k) = since_review %}
+<div class="notice" role="note"><p>You last reviewed revision {{ k }}. Changes since your last review: <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/interdiff?from={{ k }}">compare the revisions</a> or <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ k }}">see the tree diff</a>.</p></div>
+{%- endif %}
 {%- if h.mr.state == "closed" && !h.source_exists %}
 <div class="notice" role="note">
   <p>The source branch <code class="branch-name"><bdi>{{ h.source }}</bdi></code> was deleted.</p>
@@ -63,11 +66,51 @@
   </li>
   {%- when TimelineView::Event with (e) %}
   <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  {%- when TimelineView::Review with (r) %}
+  <li class="timeline-comment timeline-review" id="review-{{ r.id }}">
+    <article aria-label="Review by {{ r.reviewer }}">
+      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}<strong>{{ r.reviewer }}</strong> {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}"><time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
+      {%- if !r.body_empty %}
+      <div class="markdown" hx-ignore>{{ r.body_html }}</div>
+      {%- endif %}
+    </article>
+  </li>
   {%- when TimelineView::Revision with (r) %}
   <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong> {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
   {%- endmatch %}
   {%- endfor %}
 </ol>
+<section class="merge-box" aria-labelledby="merge-box-title">
+  <h2 id="merge-box-title">{% if merge_box.mergeable %}Ready to merge{% else %}Not ready to merge{% endif %}</h2>
+  <ul class="requirements">
+  {%- for r in merge_box.requirements %}
+    <li class="requirement requirement-{{ r.state }}">{% if r.state == "met" %}{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">Met: </span>{% else if r.state == "pending" %}{% call m::icon(ctx, "clock") %}{% endcall %}<span class="visually-hidden">Pending: </span>{% else %}{% call m::icon(ctx, "circle-x") %}{% endcall %}<span class="visually-hidden">Not met: </span>{% endif %}<span>{{ r.reason }}{% if let Some(f) = r.fix %} <span class="text-secondary">{{ f }}.</span>{% endif %}</span></li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- if can_review %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviews" class="form form-wide review-form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <fieldset class="field">
+    <legend>Review revision {{ h.mr.revisions }}</legend>
+    <div class="radio"><input id="verdict-comment" type="radio" name="verdict" value="comment" checked><label for="verdict-comment">Comment</label></div>
+    {%- if can_approve %}
+    <div class="radio"><input id="verdict-approve" type="radio" name="verdict" value="approve"><label for="verdict-approve">Approve</label></div>
+    <div class="radio"><input id="verdict-request_changes" type="radio" name="verdict" value="request_changes"><label for="verdict-request_changes">Request changes</label></div>
+    {%- endif %}
+  </fieldset>
+  <div class="field">
+    <label for="review-body">Review comment</label>
+    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
+    <textarea id="review-body" name="body" rows="4" autocomplete="off"{% if self.error("body").is_some() %} aria-invalid="true" aria-describedby="review-body-error"{% endif %}></textarea>
+    </slath-editor>
+    {%- if let Some(e) = self.error("body") %}
+    <p id="review-body-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="button-row"><button type="submit" class="button">Submit review</button></div>
+</form>
+{%- endif %}
 {%- if h.perms.comment %}
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/comments" class="form form-wide comment-form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -137,9 +180,23 @@
     {%- else %}
     <ul class="plain-list">
       {%- for (u, st) in reviewers %}
-      <li><a href="/{{ u }}">{{ u }}</a>{% if st != "requested" %} <span class="text-secondary">({{ st }})</span>{% endif %}</li>
+      <li><a href="/{{ u }}">{{ u }}</a>{% if !st.is_empty() %} <span class="text-secondary">({{ st }})</span>{% endif %}</li>
       {%- endfor %}
     </ul>
+    {%- endif %}
+    {%- if can_request %}
+    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviewers" class="form sidebar-form" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <div class="field suggest-field">
+        <label for="reviewers">Ask for reviews</label>
+        <input id="reviewers" name="reviewers" type="text" value="{% for (u, st) in reviewers %}{% if st == "requested" %}{{ u }}, {% endif %}{% endfor %}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="reviewers-hint{% if self.error("reviewers").is_some() %} reviewers-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("reviewers").is_some() %} aria-invalid="true"{% endif %}>
+        <p id="reviewers-hint" class="hint">Usernames, or organization/team, separated by commas.</p>
+        {%- if let Some(e) = self.error("reviewers") %}
+        <p id="reviewers-error" class="field-error">{{ e }}</p>
+        {%- endif %}
+      </div>
+      <button type="submit" class="button">Save reviewers</button>
+    </form>
     {%- endif %}
   </section>
   <section aria-labelledby="side-assignees">

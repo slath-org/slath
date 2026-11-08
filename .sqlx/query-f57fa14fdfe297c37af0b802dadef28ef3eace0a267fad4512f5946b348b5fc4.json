@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_revisions SET same_patches = $3 WHERE mr_id = $1 AND seq = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f57fa14fdfe297c37af0b802dadef28ef3eace0a267fad4512f5946b348b5fc4"
+}

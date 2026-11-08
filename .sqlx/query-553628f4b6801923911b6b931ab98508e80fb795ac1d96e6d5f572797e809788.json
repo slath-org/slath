@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT seq, same_patches FROM mr_revisions WHERE mr_id = $1 ORDER BY seq",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "seq"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "same_patches",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "mr_revisions",
+            "name": "same_patches"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "553628f4b6801923911b6b931ab98508e80fb795ac1d96e6d5f572797e809788"
+}

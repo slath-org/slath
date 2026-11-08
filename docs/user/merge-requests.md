@@ -10,8 +10,8 @@ repository, usually the default branch. It works the same whether you use
 Git or jj, and it needs no hooks or client configuration.
 
 Merging and line comments come in a later release. For now, merge requests
-hold the conversation, the revisions, the commits with their changes, and
-the diff.
+hold the conversation, reviews, the revisions, the commits with their
+changes, and the diff.
 
 ## Opening a merge request
 
@@ -121,6 +121,33 @@ On the same tab you can also **split** a commit off into a new change,
 when it was matched wrongly, or attach a new change to one that was
 removed. Both are recorded in the timeline and the audit log, and can be
 undone the same way.
+
+## Reviews
+
+Below the conversation, **Review revision N** submits a review of the
+current revision: a comment, an approval, or a request for changes. The
+author can only comment. Each reviewer's latest approval or request for
+changes is the one that counts.
+
+The author and people who can triage ask for reviews under **Ask for
+reviews**, by username or as `organization/team`. Requested reviewers find
+the merge request under **Review requests** (the icon next to
+notifications) until they review it.
+
+When you review again later, the merge request offers the changes since
+your last review.
+
+What a new revision does to approvals depends on the branch protection of
+the target: by default, an approval stays only if the new revision kept
+every change's patch, as after a plain rebase. Otherwise it's marked stale
+and no longer counts. The timeline notes either case.
+
+The **merge box** below the timeline lists what the target branch
+requires, each with a reason and what fixes it: not a draft, enough
+approvals from people with write access (not the author), no open request
+for changes, and every commit belonging to one change. Protection can also
+require the branch to be up to date and threads to be resolved. The API
+returns the same list at `GET …/merge-requests/{n}/mergeability`.
 
 ## Reading diffs
 

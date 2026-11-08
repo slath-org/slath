@@ -512,22 +512,6 @@ pub async fn add_assignee(
     Ok(())
 }
 
-/// Requested reviewers (users), by name, with their state.
-pub async fn reviewers(
-    exec: impl PgExecutor<'_>,
-    mr: MergeRequestId,
-) -> Result<Vec<(String, String)>, DbError> {
-    let rows = sqlx::query!(
-        r#"SELECT n.name::text AS "name!", r.state FROM mr_reviewers r JOIN users u ON u.id = r.user_id
-           JOIN namespaces n ON n.id = u.namespace_id
-           WHERE r.mr_id = $1 AND r.state <> 'removed' ORDER BY 1"#,
-        mr.as_uuid()
-    )
-    .fetch_all(exec)
-    .await?;
-    Ok(rows.into_iter().map(|r| (r.name, r.state)).collect())
-}
-
 pub async fn add_reviewer(
     exec: impl PgExecutor<'_>,
     mr: MergeRequestId,

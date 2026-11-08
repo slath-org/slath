@@ -460,6 +460,163 @@ pub async fn bind_change(
     get_stack(State(state), ApiSubject(s), Path((ns, repo, number))).await
 }
 
+/// A review of a merge request.
+#[derive(Serialize, ToSchema)]
+pub struct MrReview {
+    pub id: String,
+    /// The revision it was submitted on.
+    pub revision: i32,
+    pub reviewer: Option<String>,
+    /// `approve`, `request_changes`, or `comment`.
+    pub verdict: String,
+    pub body: String,
+    pub created_at: String,
+    /// The reviewer's current verdict (on this revision, or carried over a
+    /// rebase that kept every patch).
+    pub counts: bool,
+    /// An approval or request for changes made stale by later changes.
+    pub stale: bool,
+}
+
+impl From<slath_service::mr_reviews::ReviewView> for MrReview {
+    fn from(v: slath_service::mr_reviews::ReviewView) -> Self {
+        Self {
+            id: v.review.id.to_string(),
+            revision: v.review.revision_seq,
+            reviewer: v.review.reviewer,
+            verdict: v.review.verdict,
+            body: v.review.body,
+            created_at: ts(v.review.created_at),
+            counts: v.counts,
+            stale: v.stale,
+        }
+    }
+}
+
+/// The reviews of a merge request, oldest first.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, body = Vec<MrReview>), (status = 404, body = super::Problem)))]
+pub async fn list_reviews(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Json<Vec<MrReview>>, AppError> {
+    let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let reviews = state.services.mr_reviews(&m).await?;
+    Ok(Json(reviews.into_iter().map(Into::into).collect()))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct NewReview {
+    /// `approve`, `request_changes`, or `comment` (default).
+    #[serde(default = "comment")]
+    pub verdict: String,
+    #[serde(default)]
+    pub body: String,
+}
+
+fn comment() -> String {
+    "comment".to_owned()
+}
+
+/// Reviews the current revision. The author may only comment; a comment
+/// needs a body.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = NewReview,
+    responses((status = 201, body = MrReview), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn create_review(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<NewReview>,
+) -> Result<(StatusCode, Json<MrReview>), AppError> {
+    let r = state
+        .services
+        .submit_review(&s, (&ns, &repo, number), &b.verdict, &b.body)
+        .await?;
+    let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let v = state
+        .services
+        .mr_reviews(&m)
+        .await?
+        .into_iter()
+        .find(|v| v.review.id == r.id)
+        .ok_or_else(AppError::not_found)?;
+    Ok((StatusCode::CREATED, Json(v.into())))
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct Reviewers {
+    /// User names, and `org/team` for teams of the repository's
+    /// organization.
+    #[serde(default)]
+    pub reviewers: Vec<String>,
+}
+
+/// Sets who is asked to review (the author or triagers).
+#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviewers", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = Reviewers,
+    responses((status = 200, body = Reviewers), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn put_reviewers(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<Reviewers>,
+) -> Result<Json<Reviewers>, AppError> {
+    state
+        .services
+        .set_mr_reviewers(&s, (&ns, &repo, number), &b.reviewers)
+        .await?;
+    let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let (_, reviewers, _, _) = state.services.mr_details(&m).await?;
+    Ok(Json(Reviewers {
+        reviewers: reviewers.into_iter().map(|(n, _)| n).collect(),
+    }))
+}
+
+/// One requirement of the merge box.
+#[derive(Serialize, ToSchema)]
+pub struct Requirement {
+    /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
+    /// `threads`, or `identity`.
+    pub key: String,
+    /// `met`, `unmet`, or `pending`.
+    pub state: String,
+    pub reason: String,
+    /// What fixes it.
+    pub fix_action: Option<String>,
+}
+
+/// The merge box as data.
+#[derive(Serialize, ToSchema)]
+pub struct MergeabilityBody {
+    pub mergeable: bool,
+    pub requirements: Vec<Requirement>,
+}
+
+/// Whether the merge request can be merged, with each requirement.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, body = MergeabilityBody), (status = 404, body = super::Problem)))]
+pub async fn get_mergeability(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Json<MergeabilityBody>, AppError> {
+    let (a, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let mb = state.services.mr_mergeability(&a, &m).await?;
+    Ok(Json(MergeabilityBody {
+        mergeable: mb.mergeable,
+        requirements: mb
+            .requirements
+            .into_iter()
+            .map(|r| Requirement {
+                key: r.key.to_owned(),
+                state: r.state.to_owned(),
+                reason: r.reason,
+                fix_action: r.fix,
+            })
+            .collect(),
+    }))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -477,6 +634,21 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments",
             Access::Resource,
             get(list_mr_comments).post(create_mr_comment),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews",
+            Access::Resource,
+            get(list_reviews).post(create_review),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviewers",
+            Access::Resource,
+            axum::routing::put(put_reviewers),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability",
+            Access::Resource,
+            get(get_mergeability),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack",

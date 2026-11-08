@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.user_id, r.team_id, r.state,\n                  COALESCE(un.name::text, tn.name::text || '/' || t.name::text) AS \"name!\"\n           FROM mr_reviewers r\n           LEFT JOIN users u ON u.id = r.user_id\n           LEFT JOIN namespaces un ON un.id = u.namespace_id\n           LEFT JOIN teams t ON t.id = r.team_id\n           LEFT JOIN organizations o ON o.id = t.org_id\n           LEFT JOIN namespaces tn ON tn.id = o.namespace_id\n           WHERE r.mr_id = $1 AND r.state <> 'removed'\n             AND (un.name IS NOT NULL OR tn.name IS NOT NULL)\n           ORDER BY 4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_reviewers",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "team_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_reviewers",
+            "name": "team_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_reviewers",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "7f56ed2368e756d794727c5ceb54b899b208bb6a2d0978e4442f48b1f5f10fb0"
+}

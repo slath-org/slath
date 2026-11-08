@@ -12,3 +12,4 @@ mod jj;
 mod merge_requests;
 mod oidc_providers;
 mod reserved_refs;
+mod reviews;

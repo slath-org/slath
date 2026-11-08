@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_reviewers SET state = 'removed'\n         WHERE mr_id = $1 AND (user_id = $2 OR team_id = $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "40d91fcf9691dee6be399c904bd1a83d2519f80083fdbd20c66b253066e9c665"
+}

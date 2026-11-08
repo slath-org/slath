@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_reviewers (id, mr_id, team_id, requested_by) VALUES ($1, $2, $3, $4)\n         ON CONFLICT (mr_id, team_id) WHERE team_id IS NOT NULL DO UPDATE SET state = 'requested'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "54a58d9dc2dfafef2f54c8f57258380603b28b65bf4b4b47eef9d344ec35932f"
+}

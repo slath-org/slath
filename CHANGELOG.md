@@ -21,6 +21,11 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Merge requests can be reviewed: comment, approve, or request changes on the current revision; the author can only comment.
+- Reviews can be requested from users and teams; requested reviewers find them under Review requests until they review.
+- Approvals stay current after a rebase that keeps every patch and go stale after content changes; the timeline notes both.
+- A merge box lists each requirement of the target branch with its reason and fix; `GET …/merge-requests/{n}/mergeability` returns it as data.
+- Returning reviewers get links to the changes since their last review.
 - Branch protection rules set merge request requirements: approvals needed, dismissing stale approvals, resolved threads, being up to date, and whether bots' approvals count.
 - Diffs mark the changed characters within changed lines, also in combining marks, emoji, CJK, and right-to-left text; `[limits]` bound the lines and pairs this applies to.
 - Files marked generated in `.gitattributes` (`linguist-generated`, `slath-generated`) are collapsed in diffs, and large diffs load file by file as you scroll.

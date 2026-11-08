@@ -159,6 +159,8 @@ impl utoipa::Modify for SecurityAddon {
         merge_requests::list_mrs, merge_requests::create_mr, merge_requests::get_mr, merge_requests::update_mr,
         merge_requests::list_mr_comments, merge_requests::create_mr_comment,
         merge_requests::get_stack, merge_requests::bind_change,
+        merge_requests::list_reviews, merge_requests::create_review, merge_requests::put_reviewers,
+        merge_requests::get_mergeability,
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,
         labels::list_milestones, labels::create_milestone, labels::update_milestone, labels::delete_milestone,
         crate::attachments::api_upload, crate::references::api_references,

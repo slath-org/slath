@@ -48,6 +48,7 @@ pub enum MrTimelineItem {
         /// The previous revision's head, for "compare with previous".
         previous_head: Option<String>,
     },
+    Review(crate::mr_reviews::ReviewView),
 }
 
 /// A compare of a source branch against a target branch.
@@ -245,7 +246,12 @@ impl Services {
     }
 
     /// Resolves user names to accounts that can read the repository.
-    async fn readers(&self, a: &RepoAccess, field: &str, names: &[String]) -> Result<Vec<UserId>> {
+    pub(crate) async fn readers(
+        &self,
+        a: &RepoAccess,
+        field: &str,
+        names: &[String],
+    ) -> Result<Vec<UserId>> {
         let mut out = Vec::new();
         for name in names
             .iter()
@@ -499,7 +505,11 @@ impl Services {
         Option<String>,
     )> {
         let assignees = slath_db::merge_requests::assignees(&self.pool, m.id).await?;
-        let reviewers = slath_db::merge_requests::reviewers(&self.pool, m.id).await?;
+        let reviewers = slath_db::mr_reviews::requested(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .map(|r| (r.name, r.state))
+            .collect();
         let labels = slath_db::merge_requests::labels(&self.pool, m.id).await?;
         let milestone = match m.milestone_id {
             Some(id) => slath_db::labels::milestones(&self.pool, m.repo_id)
@@ -633,6 +643,9 @@ impl Services {
                 },
             ));
             previous = Some(head);
+        }
+        for v in self.mr_reviews(m).await? {
+            items.push((v.review.created_at, MrTimelineItem::Review(v)));
         }
         items.sort_by_key(|(t, _)| *t);
         Ok(items.into_iter().map(|(_, i)| i).collect())
@@ -957,6 +970,9 @@ impl Services {
         slath_git::refs::set(&self.runner, &dir, &slath_git::refs::mr_head(number), &head)
             .await
             .map_err(ServiceError::internal)?;
+        if let Err(e) = self.note_revision(id, seq).await {
+            tracing::warn!(error = %e, mr = %id, "noting the approvals of a revision failed");
+        }
         Ok(Some(seq))
     }
 

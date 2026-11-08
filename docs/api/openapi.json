@@ -3424,6 +3424,344 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Whether the merge request can be merged, with each requirement.",
+        "operationId": "get_mergeability",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeabilityBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviewers": {
+      "put": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Sets who is asked to review (the author or triagers).",
+        "operationId": "put_reviewers",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reviewers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reviewers"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The reviews of a merge request, oldest first.",
+        "operationId": "list_reviews",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MrReview"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Reviews the current revision. The author may only comment; a comment\nneeds a body.",
+        "operationId": "create_review",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MrReview"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack": {
       "get": {
         "tags": [
@@ -5711,6 +6049,25 @@
           }
         }
       },
+      "MergeabilityBody": {
+        "type": "object",
+        "description": "The merge box as data.",
+        "required": [
+          "mergeable",
+          "requirements"
+        ],
+        "properties": {
+          "mergeable": {
+            "type": "boolean"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            }
+          }
+        }
+      },
       "Milestone": {
         "type": "object",
         "required": [
@@ -5845,6 +6202,53 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "MrReview": {
+        "type": "object",
+        "description": "A review of a merge request.",
+        "required": [
+          "id",
+          "revision",
+          "verdict",
+          "body",
+          "created_at",
+          "counts",
+          "stale"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "counts": {
+            "type": "boolean",
+            "description": "The reviewer's current verdict (on this revision, or carried over a\nrebase that kept every patch)."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reviewer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The revision it was submitted on."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "An approval or request for changes made stale by later changes."
+          },
+          "verdict": {
+            "type": "string",
+            "description": "`approve`, `request_changes`, or `comment`."
           }
         }
       },
@@ -6046,6 +6450,18 @@
           "visibility": {
             "type": "string",
             "description": "`public`, `internal` (signed-in users), or `private`."
+          }
+        }
+      },
+      "NewReview": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "description": "`approve`, `request_changes`, or `comment` (default)."
           }
         }
       },
@@ -6553,6 +6969,47 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Requirement": {
+        "type": "object",
+        "description": "One requirement of the merge box.",
+        "required": [
+          "key",
+          "state",
+          "reason"
+        ],
+        "properties": {
+          "fix_action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What fixes it."
+          },
+          "key": {
+            "type": "string",
+            "description": "`open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,\n`threads`, or `identity`."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`met`, `unmet`, or `pending`."
+          }
+        }
+      },
+      "Reviewers": {
+        "type": "object",
+        "properties": {
+          "reviewers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "User names, and `org/team` for teams of the repository's\norganization."
           }
         }
       },

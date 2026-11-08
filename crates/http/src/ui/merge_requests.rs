@@ -16,6 +16,7 @@ use slath_service::issues::TimelineItem;
 use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{Compare, MrPerms, MrTimelineItem, NewMr};
 use slath_service::mr_changes::{ChangeInfo, Interdiff, Rebind, StackEntry, VersionInfo};
+use slath_service::mr_reviews::Mergeability;
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -577,10 +578,25 @@ fn summary_text(s: &slath_service::mr_changes::RevisionSummary, target: &str) ->
     (!parts.is_empty()).then(|| parts.join(", "))
 }
 
+struct ReviewItem {
+    id: String,
+    reviewer: String,
+    /// "approved", "requested changes", or "reviewed".
+    verdict: &'static str,
+    icon: &'static str,
+    revision: i32,
+    body_html: MarkupHtml,
+    body_empty: bool,
+    created: Time,
+    /// Made stale by later changes.
+    stale: bool,
+}
+
 enum TimelineView {
     Comment(CommentView),
     Event(EventView),
     Revision(RevisionView),
+    Review(ReviewItem),
 }
 
 fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
@@ -609,6 +625,30 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
         "review_requested" => ("eye", format!("requested a review from {}", str_of("user"))),
+        "review_request_removed" => (
+            "user",
+            format!("removed the review request for {}", str_of("user")),
+        ),
+        "approvals_carried" => (
+            "circle-check",
+            format!(
+                "kept earlier approvals: revision {} has the same patches",
+                e.data
+                    .get("revision")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(0)
+            ),
+        ),
+        "approvals_stale" => (
+            "history",
+            format!(
+                "made earlier approvals stale: revision {} changed the patches",
+                e.data
+                    .get("revision")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(0)
+            ),
+        ),
         "change_split" => (
             "git-commit-horizontal",
             format!(
@@ -652,9 +692,12 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         ),
         _ => return None,
     };
+    let system = matches!(e.kind.as_str(), "approvals_carried" | "approvals_stale");
     Some(EventView {
         icon,
-        actor: e.actor.unwrap_or_else(|| "A deleted user".to_owned()),
+        actor: e
+            .actor
+            .unwrap_or_else(|| if system { "Slath" } else { "A deleted user" }.to_owned()),
         text,
         created: e.created_at.into(),
     })
@@ -730,9 +773,21 @@ struct MrPage {
     milestone: Option<String>,
     git_checkout: String,
     jj_checkout: String,
+    merge_box: Mergeability,
+    /// The viewer may review, and approve (not the author).
+    can_review: bool,
+    can_approve: bool,
+    /// The viewer may change who's asked to review.
+    can_request: bool,
+    /// The viewer last reviewed this earlier revision.
+    since_review: Option<i32>,
 }
 
 impl MrPage {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+
     fn label_href(&self, name: &str) -> String {
         format!(
             "/{}/{}/merge-requests?state=open&labels={}",
@@ -797,6 +852,31 @@ async fn mr_page(
                 html: MarkupHtml::from_markup(html),
             })),
             MrTimelineItem::Comment(TimelineItem::Event(..)) => {}
+            MrTimelineItem::Review(v) => {
+                let body_html = state
+                    .services
+                    .render_markdown(subject, Some(&rc), &v.review.body)
+                    .await?;
+                let (verdict, icon) = match v.review.verdict.as_str() {
+                    "approve" => ("approved", "circle-check"),
+                    "request_changes" => ("requested changes", "circle-x"),
+                    _ => ("reviewed", "message-square"),
+                };
+                timeline.push(TimelineView::Review(ReviewItem {
+                    id: v.review.id.to_string(),
+                    reviewer: v
+                        .review
+                        .reviewer
+                        .unwrap_or_else(|| "A deleted user".to_owned()),
+                    verdict,
+                    icon,
+                    revision: v.review.revision_seq,
+                    body_empty: body_html.trim().is_empty(),
+                    body_html: MarkupHtml::from_markup(body_html),
+                    created: v.review.created_at.into(),
+                    stale: v.stale,
+                }));
+            }
             MrTimelineItem::Event(e) => {
                 if let Some(v) = event_view(e) {
                     timeline.push(TimelineView::Event(v));
@@ -831,7 +911,45 @@ async fn mr_page(
             })),
         }
     }
-    let (assignees, reviewers, labels, milestone) = state.services.mr_details(&m).await?;
+    let (assignees, requested, labels, milestone) = state.services.mr_details(&m).await?;
+    // Each reviewer's state: their current verdict, else the request.
+    let mut reviewers: Vec<(String, String)> = requested
+        .into_iter()
+        .map(|(n, st)| {
+            (
+                n,
+                if st == "requested" {
+                    "requested".to_owned()
+                } else {
+                    String::new()
+                },
+            )
+        })
+        .collect();
+    for t in &timeline {
+        if let TimelineView::Review(r) = t {
+            let st = match (r.verdict, r.stale) {
+                ("reviewed", _) => None,
+                (_, true) => Some(format!("{}, stale", r.verdict)),
+                (v, false) => Some(v.to_owned()),
+            };
+            match (reviewers.iter_mut().find(|(n, _)| *n == r.reviewer), st) {
+                (Some(e), Some(st)) => e.1 = st,
+                (None, Some(st)) => reviewers.push((r.reviewer.clone(), st)),
+                (None, None) => reviewers.push((r.reviewer.clone(), "commented".to_owned())),
+                (Some(_), None) => {}
+            }
+        }
+    }
+    let merge_box = state.services.mr_mergeability(&a, &m).await?;
+    let me = match subject {
+        Subject::User { id, .. } => Some(*id),
+        _ => None,
+    };
+    let open = m.state == "open";
+    let can_review = open && a.can(subject, Action::MrReview) && me.is_some();
+    let can_approve = can_review && m.author_id != me;
+    let since_review = state.services.last_reviewed_revision(subject, &m).await?;
     let status = if errors.is_empty() {
         StatusCode::OK
     } else {
@@ -849,10 +967,15 @@ async fn mr_page(
             b = sh(&source),
             r = sh(&format!("{source}@origin"))
         ),
+        can_request: open && state.services.mr_perms(subject, &a, &m).edit,
         h: heading(state, subject, &a, m).await?,
         body_empty: body_html.trim().is_empty(),
         body_html: MarkupHtml::from_markup(body_html),
         timeline,
+        merge_box,
+        can_review,
+        can_approve,
+        since_review,
         message,
         errors,
         assignees,
@@ -880,6 +1003,7 @@ async fn view(
     let message = match q.status.as_deref() {
         Some("saved") => Some("Merge request saved."),
         Some("restored") => Some("Branch restored."),
+        Some("reviewers") => Some("Reviewers saved."),
         _ => None,
     };
     mr_page(
@@ -1517,6 +1641,103 @@ async fn comment(
     }
 }
 
+#[derive(Deserialize)]
+struct ReviewForm {
+    #[serde(default)]
+    verdict: String,
+    #[serde(default)]
+    body: String,
+}
+
+async fn review(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<ReviewForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    match state
+        .services
+        .submit_review(&s.subject, (&ns, &repo, n), &f.verdict, &f.body)
+        .await
+    {
+        Ok(r) => {
+            Ok(Redirect::to(&mr_url(&ns, &repo, n, &format!("#review-{}", r.id))).into_response())
+        }
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
+struct ReviewersForm {
+    #[serde(default)]
+    reviewers: String,
+}
+
+async fn set_reviewers(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<ReviewersForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    match state
+        .services
+        .set_mr_reviewers(&s.subject, (&ns, &repo, n), &names(&f.reviewers))
+        .await
+    {
+        Ok(()) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=reviewers")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+struct WaitingRow {
+    href: String,
+    title: String,
+    repo: String,
+    number: i32,
+    author: Option<String>,
+    updated: Time,
+}
+
+#[derive(Template)]
+#[template(path = "review_requests.html")]
+struct ReviewRequestsPage {
+    ctx: PageCtx,
+    rows: Vec<WaitingRow>,
+}
+
+/// `GET /-/review-requests`: merge requests waiting for the viewer's review.
+async fn review_requests(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+) -> Result<Response, AppError> {
+    let rows = state
+        .services
+        .review_requests(&s.subject)
+        .await?
+        .into_iter()
+        .map(|w| WaitingRow {
+            href: mr_url(&w.namespace, &w.repo_name, w.number, ""),
+            repo: format!("{}/{}", w.namespace, w.repo_name),
+            title: w.title,
+            number: w.number,
+            author: w.author,
+            updated: w.updated_at.into(),
+        })
+        .collect();
+    Ok(render(&ReviewRequestsPage { ctx, rows }))
+}
+
 fn comment_id(s: &str) -> Result<uuid::Uuid, AppError> {
     s.parse().map_err(|_| AppError::not_found())
 }
@@ -1688,6 +1909,17 @@ pub fn router() -> Router<AppState> {
             Access::Resource,
             post(comment),
         )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/reviews",
+            Access::Resource,
+            post(review),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/reviewers",
+            Access::Resource,
+            post(set_reviewers),
+        )
+        .route_as("/-/review-requests", Access::Account, get(review_requests))
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/comments/{id}/edit",
             Access::Resource,

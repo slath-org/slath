@@ -129,3 +129,25 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await page.goto(`/alice/demo/issues/${n}`);
   await expect(page).toHaveURL(new RegExp(`/alice/demo/merge-requests/${n}$`));
 });
+
+test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, testInfo) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  // No protection on main: nothing but the basics is required.
+  const box = page.getByRole("region", { name: "Ready to merge" });
+  await expect(box).toContainText("No approvals are required.");
+  await expect(box).toContainText("Every commit belongs to one change.");
+  // The author can comment, not approve.
+  await expect(page.getByLabel("Comment", { exact: true })).toBeChecked();
+  await expect(page.getByLabel("Approve")).toHaveCount(0);
+  await expectAccessible(page);
+  const note = `Reviewed in ${testInfo.project.name}.`;
+  await write(page, "Review comment", note);
+  await tapOrClick(page, page.getByRole("button", { name: "Submit review" }));
+  await expect(page.getByRole("article", { name: "Review by alice" }).filter({ hasText: note })).toBeVisible();
+
+  await page.goto("/-/review-requests");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Review requests");
+  await expectAccessible(page);
+});

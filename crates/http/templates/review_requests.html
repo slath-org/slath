@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Review requests{% endblock %}
+{% block content %}
+<h1>Review requests</h1>
+<p class="text-secondary">Open merge requests that ask for your review, directly or through one of your teams.</p>
+{%- if rows.is_empty() %}
+<p class="text-secondary empty-state">Nothing waits for your review.</p>
+{%- else %}
+<ul class="item-list">
+{%- for r in rows %}
+  <li class="item-row">
+    <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}</span>
+    <div class="item-main">
+      <a class="item-title" href="{{ r.href }}"><bdi>{{ r.title }}</bdi></a>
+      <p class="item-meta text-secondary">{{ r.repo }} !{{ r.number }}{% if let Some(a) = r.author %} by {{ a }}{% endif %} · updated <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
+    </div>
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{% endblock %}

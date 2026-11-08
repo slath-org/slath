@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_reviewers SET state = 'reviewed'\n         WHERE mr_id = $1 AND state = 'requested'\n           AND (user_id = $2 OR team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d08994666de96ef14955c2b0994a01cb257404009306371a989a2f3569a2951b"
+}
