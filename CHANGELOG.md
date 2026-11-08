@@ -21,6 +21,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Branch protection rules set merge request requirements: approvals needed, dismissing stale approvals, resolved threads, being up to date, and whether bots' approvals count.
 - Diffs mark the changed characters within changed lines, also in combining marks, emoji, CJK, and right-to-left text; `[limits]` bound the lines and pairs this applies to.
 - Files marked generated in `.gitattributes` (`linguist-generated`, `slath-generated`) are collapsed in diffs, and large diffs load file by file as you scroll.
 - Each change of a merge request has a page with its versions; two versions compare exactly (same parent) or as a diff of patches or a tree diff (after a rebase).

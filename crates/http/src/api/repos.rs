@@ -743,6 +743,14 @@ pub struct ProtectionRule {
     pub require_mr: bool,
     /// `write`, `maintain`, `admin`, or `nobody`.
     pub push_role: String,
+    /// Approvals by people with write access, other than the author.
+    pub required_approvals: i32,
+    /// New changes dismiss approvals (a rebase with identical patches doesn't).
+    pub dismiss_stale_approvals: bool,
+    pub require_resolved_threads: bool,
+    /// The target must be an ancestor of the source.
+    pub require_up_to_date: bool,
+    pub bots_count_as_approvers: bool,
 }
 
 impl From<slath_db::protections::Protection> for ProtectionRule {
@@ -754,6 +762,11 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
             block_deletion: p.block_deletion,
             require_mr: p.require_mr,
             push_role: p.push_role,
+            required_approvals: p.required_approvals,
+            dismiss_stale_approvals: p.dismiss_stale_approvals,
+            require_resolved_threads: p.require_resolved_threads,
+            require_up_to_date: p.require_up_to_date,
+            bots_count_as_approvers: p.bots_count_as_approvers,
         }
     }
 }
@@ -785,6 +798,21 @@ pub struct PostProtection {
     /// `write` (default), `maintain`, `admin`, or `nobody`.
     #[serde(default = "write")]
     pub push_role: String,
+    /// Default 1.
+    #[serde(default = "one")]
+    pub required_approvals: i32,
+    #[serde(default = "yes")]
+    pub dismiss_stale_approvals: bool,
+    #[serde(default)]
+    pub require_resolved_threads: bool,
+    #[serde(default)]
+    pub require_up_to_date: bool,
+    #[serde(default)]
+    pub bots_count_as_approvers: bool,
+}
+
+const fn one() -> i32 {
+    1
 }
 
 const fn yes() -> bool {
@@ -817,6 +845,11 @@ pub async fn post_protection(
                 block_deletion: p.block_deletion,
                 require_mr: p.require_mr,
                 push_role: p.push_role,
+                required_approvals: p.required_approvals,
+                dismiss_stale_approvals: p.dismiss_stale_approvals,
+                require_resolved_threads: p.require_resolved_threads,
+                require_up_to_date: p.require_up_to_date,
+                bots_count_as_approvers: p.bots_count_as_approvers,
             },
         )
         .await?;

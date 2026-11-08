@@ -23,6 +23,13 @@ pub struct Effective {
     /// Minimum role for direct pushes; `None` with `protected` means nobody.
     pub push_role: Option<Role>,
     pub nobody: bool,
+    /// Merge request requirements (the highest count, any rule's flags).
+    pub required_approvals: i32,
+    pub dismiss_stale_approvals: bool,
+    pub require_resolved_threads: bool,
+    pub require_up_to_date: bool,
+    /// Only if every matching rule lets bots approve.
+    pub bots_count_as_approvers: bool,
 }
 
 /// Glob match of `pattern` on a short branch name.
@@ -64,12 +71,20 @@ fn push_role(s: &str) -> Option<Role> {
 /// Combines the rules that match `branch`.
 #[must_use]
 pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
-    let mut e = Effective::default();
+    let mut e = Effective {
+        bots_count_as_approvers: true,
+        ..Effective::default()
+    };
     for r in rules
         .iter()
         .filter(|r| glob_match(r.pattern.as_bytes(), branch))
     {
         e.protected = true;
+        e.required_approvals = e.required_approvals.max(r.required_approvals);
+        e.dismiss_stale_approvals |= r.dismiss_stale_approvals;
+        e.require_resolved_threads |= r.require_resolved_threads;
+        e.require_up_to_date |= r.require_up_to_date;
+        e.bots_count_as_approvers &= r.bots_count_as_approvers;
         e.block_force_push |= r.block_force_push;
         e.block_deletion |= r.block_deletion;
         e.require_mr |= r.require_mr;
@@ -77,6 +92,9 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
             Some(role) => e.push_role = Some(e.push_role.map_or(role, |p| p.max(role))),
             None => e.nobody = true,
         }
+    }
+    if !e.protected {
+        e.bots_count_as_approvers = false;
     }
     e
 }
@@ -108,6 +126,11 @@ pub struct RuleInput {
     pub block_deletion: bool,
     pub require_mr: bool,
     pub push_role: String,
+    pub required_approvals: i32,
+    pub dismiss_stale_approvals: bool,
+    pub require_resolved_threads: bool,
+    pub require_up_to_date: bool,
+    pub bots_count_as_approvers: bool,
 }
 
 impl Services {
@@ -147,6 +170,13 @@ impl Services {
                 "Choose who may push.",
             ));
         }
+        if !(0..=20).contains(&r.required_approvals) {
+            return Err(ServiceError::invalid(
+                "required_approvals",
+                "invalid",
+                "Use a number from 0 to 20.",
+            ));
+        }
         slath_db::protections::upsert(
             &self.pool,
             a.repo.id,
@@ -156,6 +186,11 @@ impl Services {
                 block_deletion: r.block_deletion,
                 require_mr: r.require_mr,
                 push_role: &r.push_role,
+                required_approvals: r.required_approvals,
+                dismiss_stale_approvals: r.dismiss_stale_approvals,
+                require_resolved_threads: r.require_resolved_threads,
+                require_up_to_date: r.require_up_to_date,
+                bots_count_as_approvers: r.bots_count_as_approvers,
             },
         )
         .await?;
@@ -169,6 +204,11 @@ impl Services {
                 "block_deletion": r.block_deletion,
                 "require_mr": r.require_mr,
                 "push_role": r.push_role,
+                "required_approvals": r.required_approvals,
+                "dismiss_stale_approvals": r.dismiss_stale_approvals,
+                "require_resolved_threads": r.require_resolved_threads,
+                "require_up_to_date": r.require_up_to_date,
+                "bots_count_as_approvers": r.bots_count_as_approvers,
             }),
         )
         .await;
@@ -232,6 +272,11 @@ mod tests {
             block_deletion: del,
             require_mr: mr,
             push_role: role.to_owned(),
+            required_approvals: 1,
+            dismiss_stale_approvals: true,
+            require_resolved_threads: false,
+            require_up_to_date: false,
+            bots_count_as_approvers: false,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }
@@ -249,6 +294,29 @@ mod tests {
         let r = effective(&rules, b"release/1");
         assert!(r.nobody && r.require_mr);
         assert!(!effective(&rules, b"feature/x").protected);
+    }
+
+    #[test]
+    fn merge_request_settings_combine_strictest() {
+        let mut a = rule("main", false, false, false, "write");
+        a.required_approvals = 2;
+        a.bots_count_as_approvers = true;
+        let mut b = rule("*", false, false, false, "write");
+        b.required_approvals = 1;
+        b.dismiss_stale_approvals = false;
+        b.require_up_to_date = true;
+        let e = effective(&[a.clone(), b], b"main");
+        assert_eq!(e.required_approvals, 2);
+        assert!(e.dismiss_stale_approvals && e.require_up_to_date);
+        // Bots count only if every matching rule says so.
+        assert!(!e.bots_count_as_approvers);
+        assert!(effective(&[a], b"main").bots_count_as_approvers);
+        // Unprotected branches require nothing.
+        let none = effective(&[], b"main");
+        assert_eq!(
+            (none.required_approvals, none.bots_count_as_approvers),
+            (0, false)
+        );
     }
 
     #[test]

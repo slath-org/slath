@@ -68,6 +68,21 @@ branch, the strictest setting of each applies.
   still push; Git tells them so, and each such push is recorded in the
   audit log (`protection.bypass`).
 
+For merging merge requests into a protected branch:
+
+- **Approvals needed** (default 1): approvals from people with write
+  access, not counting the author, or bots unless **Count approvals by
+  bots** is on.
+- **Dismiss approvals when the changes change** (on by default): a new
+  revision makes earlier approvals stale, unless it's a rebase that keeps
+  every change's patch the same.
+- **Require resolved threads** and **Require the branch to be up to date
+  with the target**.
+
+With several matching rules, the highest number of approvals applies, any
+rule can turn on a requirement, and bots count only if every rule allows
+it.
+
 A refused push changes nothing: no ref moves and nothing is recorded. Tags
 aren't affected by branch rules (moving or deleting a tag needs the
 maintain role). Changes to rules are recorded in the audit log.

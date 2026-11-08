@@ -926,6 +926,12 @@ struct RuleForm {
     block_force_push: Option<String>,
     block_deletion: Option<String>,
     require_mr: Option<String>,
+    #[serde(default)]
+    required_approvals: String,
+    dismiss_stale_approvals: Option<String>,
+    require_resolved_threads: Option<String>,
+    require_up_to_date: Option<String>,
+    bots_count_as_approvers: Option<String>,
 }
 
 async fn save_protection(
@@ -948,6 +954,16 @@ async fn save_protection(
                 block_deletion: f.block_deletion.is_some(),
                 require_mr: f.require_mr.is_some(),
                 push_role: f.push_role,
+                // Empty is the default, 1; anything else that isn't a
+                // number from 0 to 20 is reported by the service.
+                required_approvals: match f.required_approvals.trim() {
+                    "" => 1,
+                    n => n.parse().unwrap_or(-1),
+                },
+                dismiss_stale_approvals: f.dismiss_stale_approvals.is_some(),
+                require_resolved_threads: f.require_resolved_threads.is_some(),
+                require_up_to_date: f.require_up_to_date.is_some(),
+                bots_count_as_approvers: f.bots_count_as_approvers.is_some(),
             },
         )
         .await

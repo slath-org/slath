@@ -6200,6 +6200,12 @@
           "block_force_push": {
             "type": "boolean"
           },
+          "bots_count_as_approvers": {
+            "type": "boolean"
+          },
+          "dismiss_stale_approvals": {
+            "type": "boolean"
+          },
           "pattern": {
             "type": "string"
           },
@@ -6209,6 +6215,17 @@
           },
           "require_mr": {
             "type": "boolean"
+          },
+          "require_resolved_threads": {
+            "type": "boolean"
+          },
+          "require_up_to_date": {
+            "type": "boolean"
+          },
+          "required_approvals": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Default 1."
           }
         }
       },
@@ -6287,7 +6304,12 @@
           "block_force_push",
           "block_deletion",
           "require_mr",
-          "push_role"
+          "push_role",
+          "required_approvals",
+          "dismiss_stale_approvals",
+          "require_resolved_threads",
+          "require_up_to_date",
+          "bots_count_as_approvers"
         ],
         "properties": {
           "block_deletion": {
@@ -6295,6 +6317,13 @@
           },
           "block_force_push": {
             "type": "boolean"
+          },
+          "bots_count_as_approvers": {
+            "type": "boolean"
+          },
+          "dismiss_stale_approvals": {
+            "type": "boolean",
+            "description": "New changes dismiss approvals (a rebase with identical patches doesn't)."
           },
           "id": {
             "type": "string"
@@ -6309,6 +6338,18 @@
           },
           "require_mr": {
             "type": "boolean"
+          },
+          "require_resolved_threads": {
+            "type": "boolean"
+          },
+          "require_up_to_date": {
+            "type": "boolean",
+            "description": "The target must be an ancestor of the source."
+          },
+          "required_approvals": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Approvals by people with write access, other than the author."
           }
         }
       },

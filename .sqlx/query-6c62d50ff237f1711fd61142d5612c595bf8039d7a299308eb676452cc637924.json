@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
+  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
   "describe": {
     "columns": [
       {
@@ -71,6 +71,61 @@
       },
       {
         "ordinal": 6,
+        "name": "required_approvals",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "required_approvals"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "dismiss_stale_approvals",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "dismiss_stale_approvals"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "require_resolved_threads",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "require_resolved_threads"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "require_up_to_date",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "require_up_to_date"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "bots_count_as_approvers",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "bots_count_as_approvers"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -93,8 +148,13 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "97ce69e2968ed85929c6c556b350a3e4880835cea86fc438eebef1e0f49df9ce"
+  "hash": "6c62d50ff237f1711fd61142d5612c595bf8039d7a299308eb676452cc637924"
 }

@@ -18,7 +18,7 @@
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="rules-caption">
 <table class="table">
   <caption id="rules-caption" class="visually-hidden">Protection rules</caption>
-  <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col">Merge requests</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {%- for r in rules %}
     <tr>
@@ -26,6 +26,7 @@
       <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
       <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
+      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -63,6 +64,23 @@
   <div class="checkbox"><input id="block_deletion" type="checkbox" name="block_deletion" value="1" checked><label for="block_deletion">Block deletion</label></div>
   <div class="checkbox"><input id="require_mr" type="checkbox" name="require_mr" value="1" aria-describedby="require_mr-hint"><label for="require_mr">Require merge requests</label></div>
   <p id="require_mr-hint" class="hint">Direct pushes are refused; admins may still push, and each such push is recorded in the audit log.</p>
+  <fieldset class="field">
+    <legend>Merging merge requests</legend>
+    <div class="field">
+      <label for="required_approvals">Approvals needed</label>
+      <input id="required_approvals" name="required_approvals" type="number" min="0" max="20" value="1" inputmode="numeric" aria-describedby="required_approvals-hint{% if self.error("required_approvals").is_some() %} required_approvals-error{% endif %}"
+        {%- if self.error("required_approvals").is_some() %} aria-invalid="true"{% endif %}>
+      <p id="required_approvals-hint" class="hint">From people with write access, other than the author.</p>
+      {%- if let Some(e) = self.error("required_approvals") %}
+      <p id="required_approvals-error" class="field-error">{{ e }}</p>
+      {%- endif %}
+    </div>
+    <div class="checkbox"><input id="dismiss_stale_approvals" type="checkbox" name="dismiss_stale_approvals" value="1" checked aria-describedby="dismiss_stale_approvals-hint"><label for="dismiss_stale_approvals">Dismiss approvals when the changes change</label></div>
+    <p id="dismiss_stale_approvals-hint" class="hint">A rebase that keeps every patch the same keeps them.</p>
+    <div class="checkbox"><input id="require_resolved_threads" type="checkbox" name="require_resolved_threads" value="1"><label for="require_resolved_threads">Require resolved threads</label></div>
+    <div class="checkbox"><input id="require_up_to_date" type="checkbox" name="require_up_to_date" value="1"><label for="require_up_to_date">Require the branch to be up to date with the target</label></div>
+    <div class="checkbox"><input id="bots_count_as_approvers" type="checkbox" name="bots_count_as_approvers" value="1"><label for="bots_count_as_approvers">Count approvals by bots</label></div>
+  </fieldset>
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>
 </div>
