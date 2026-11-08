@@ -116,9 +116,11 @@
 {% let commits = c.commits %}
 {% include "repo/commit_list.html" %}
 {%- endif %}
-{% let files = c.files %}
-{% let truncated = c.truncated %}
 {%- if !c.nothing %}
+{%- if c.too_big %}
+<div class="notice" role="note"><p>This diff is too large to show.</p></div>
+{%- endif %}
+{% let diff = c.diff %}
 {% include "repo/diff_files.html" %}
 {%- endif %}
 {%- endif %}

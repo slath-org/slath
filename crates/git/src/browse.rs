@@ -371,7 +371,15 @@ pub async fn merge_base(
     }
 }
 
-/// The unified diff of `commit` against its first parent (or the empty tree).
+/// How a diff is computed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DiffOptions {
+    /// `--ignore-all-space`.
+    pub ignore_whitespace: bool,
+}
+
+/// The unified diff from `base` (or the empty tree) to `commit`, and
+/// whether it was cut at `max_bytes` (then empty).
 pub async fn commit_diff(
     runner: &Runner,
     git_dir: &Path,
@@ -379,8 +387,28 @@ pub async fn commit_diff(
     commit: &ObjectId,
     max_bytes: usize,
 ) -> Result<(Vec<u8>, bool), GitError> {
+    diff(
+        runner,
+        git_dir,
+        base,
+        commit,
+        DiffOptions::default(),
+        max_bytes,
+    )
+    .await
+}
+
+/// Like [`commit_diff`], with options.
+pub async fn diff(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+    opts: DiffOptions,
+    max_bytes: usize,
+) -> Result<(Vec<u8>, bool), GitError> {
     let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
-    let result = runner
+    let mut cmd = runner
         .repo(git_dir)
         .config("core.quotePath", "false")
         .args([
@@ -391,9 +419,83 @@ pub async fn commit_diff(
             "-M",
             "--full-index",
             "--patch",
+        ]);
+    if opts.ignore_whitespace {
+        cmd = cmd.arg("--ignore-all-space");
+    }
+    let result = cmd
+        .args(["--end-of-options", base, commit.as_str()])
+        .max_output(max_bytes)
+        .run()
+        .await;
+    match result {
+        Ok(out) => Ok((out.stdout, false)),
+        Err(GitError::Limit(crate::LimitKind::Output)) => Ok((Vec::new(), true)),
+        Err(e) => Err(e),
+    }
+}
+
+/// Which of `paths` are marked generated in `source`'s `.gitattributes`
+/// (`linguist-generated` or `slath-generated` set).
+pub async fn generated_paths(
+    runner: &Runner,
+    git_dir: &Path,
+    source: &ObjectId,
+    paths: &[Vec<u8>],
+) -> Result<std::collections::HashSet<Vec<u8>>, GitError> {
+    let mut out = std::collections::HashSet::new();
+    if paths.is_empty() {
+        return Ok(out);
+    }
+    let mut input = Vec::new();
+    for p in paths {
+        input.extend_from_slice(p);
+        input.push(0);
+    }
+    let res = runner
+        .repo(git_dir)
+        .arg(format!("--attr-source={}", source.as_str()))
+        .args([
+            "check-attr",
+            "-z",
+            "--stdin",
+            "linguist-generated",
+            "slath-generated",
+        ])
+        .stdin(input)
+        .run()
+        .await?;
+    // NUL-separated triples: path, attribute, value.
+    let mut it = res.stdout.split(|b| *b == 0);
+    while let (Some(path), Some(_), Some(value)) = (it.next(), it.next(), it.next()) {
+        if matches!(value, b"set" | b"true") {
+            out.insert(path.to_vec());
+        }
+    }
+    Ok(out)
+}
+
+/// `git range-diff` between two commit ranges (`base..head` each), as
+/// plain text.
+pub async fn range_diff(
+    runner: &Runner,
+    git_dir: &Path,
+    old: (&ObjectId, &ObjectId),
+    new: (&ObjectId, &ObjectId),
+    creation_factor: u32,
+    max_bytes: usize,
+) -> Result<(Vec<u8>, bool), GitError> {
+    let result = runner
+        .repo(git_dir)
+        .config("core.quotePath", "false")
+        .args([
+            "range-diff",
+            "--no-color",
+            "--no-notes",
+            &format!("--creation-factor={creation_factor}"),
             "--end-of-options",
-            base,
-            commit.as_str(),
+            &format!("{}..{}", old.0.as_str(), old.1.as_str()),
+            &format!("{}..{}", new.0.as_str(), new.1.as_str()),
         ])
         .max_output(max_bytes)
         .run()

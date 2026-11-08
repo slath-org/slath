@@ -1,0 +1,47 @@
+<section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
+  <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }}, <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span>{% if f.generated %}, generated{% endif %}</span></h3>
+  {%- if f.index + 1 < diff.files.len() %}<a class="skip-file" href="#diff-{{ f.index + 1 }}">Skip to the next file</a>{% endif %}
+  {%- if f.load != "now" %}
+  <p class="diff-placeholder text-secondary">
+    {%- if f.generated %}This file is generated, so it's collapsed.{% else if f.load == "click" %}This file has many changes.{% else %}Loading…{% endif %}
+    <a class="button" href="{{ diff.file_href(f.index) }}" hx-get="{{ diff.file_href(f.index) }}" hx-target="closest section" hx-swap="outerHTML"{% if f.load == "scroll" %} hx-trigger="revealed"{% endif %} {% call m::hx(ctx.nonce) %}{% endcall %}>Load diff</a>
+  </p>
+  {%- else %}
+  {%- if f.binary %}
+  <p class="text-secondary">Binary file not shown.</p>
+  {%- endif %}
+  {%- for h in f.hunks %}
+  <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
+  <table class="code-view diff-table">
+    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head">{{ h.head }}</th></tr></thead>
+    <tbody>
+    {%- for l in h.lines %}
+      <tr class="diff-{{ l.kind }}">
+        <td class="line-no">{{ l.old_no }}</td><td class="line-no">{{ l.new_no }}</td>
+        <td class="diff-marker">{% if l.kind == "add" %}<span aria-hidden="true">+</span><span class="visually-hidden">added</span>{% else if l.kind == "del" %}<span aria-hidden="true">−</span><span class="visually-hidden">removed</span>{% endif %}</td>
+        <td><code>{{ l.text }}</code></td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {%- if diff.split %}
+  <div class="code-wrap diff-split" tabindex="0" role="region" aria-label="Changes side by side in {{ f.path }}, {{ h.head }}">
+  <table class="code-view diff-table diff-split-table">
+    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head">{{ h.head }}</th></tr></thead>
+    <tbody>
+    {%- for r in h.rows %}
+      <tr>
+        <td class="line-no diff-{{ r.left.kind }}">{{ r.left.no }}</td>
+        <td class="diff-{{ r.left.kind }}">{% if r.left.kind == "del" %}<span class="visually-hidden">removed: </span>{% endif %}<code>{{ r.left.text }}</code></td>
+        <td class="line-no diff-{{ r.right.kind }}">{{ r.right.no }}</td>
+        <td class="diff-{{ r.right.kind }}">{% if r.right.kind == "add" %}<span class="visually-hidden">added: </span>{% endif %}<code>{{ r.right.text }}</code></td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {%- endif %}
+  {%- endfor %}
+  {%- endif %}
+</section>

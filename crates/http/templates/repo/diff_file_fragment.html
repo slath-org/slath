@@ -1,0 +1,4 @@
+{%- import "macros.html" as m -%}
+{%- for f in diff.files %}
+{% include "repo/diff_file.html" %}
+{%- endfor %}

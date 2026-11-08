@@ -19,7 +19,8 @@ use slath_service::mr_changes::{Rebind, StackEntry};
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
-use super::browse::{DiffFileView, diff_files, time};
+use super::browse::time;
+use super::diff::{DiffQuery, DiffView};
 use super::repos::RepoHeader;
 use super::settings::error_for;
 use super::{MarkupHtml, PageCtx, Time, render};
@@ -266,8 +267,8 @@ impl ComparePage {
 struct CompareView {
     commits: Vec<CommitRow>,
     more_commits: bool,
-    files: Vec<DiffFileView>,
-    truncated: bool,
+    diff: DiffView,
+    too_big: bool,
     /// No commits on the source that aren't on the target.
     nothing: bool,
     unrelated: bool,
@@ -337,6 +338,7 @@ async fn compare_page(
     target: &str,
     form: Option<CreateForm>,
     mut errors: Vec<FieldError>,
+    (dq, hx): (&DiffQuery, super::HxRequest),
 ) -> Result<Response, AppError> {
     let a = state
         .services
@@ -368,11 +370,32 @@ async fn compare_page(
     if !source.is_empty() {
         match state
             .services
-            .compare(subject, ns, repo, &source, Some(&target))
+            .compare(
+                subject,
+                ns,
+                repo,
+                &source,
+                Some(&target),
+                dq.git_options(&ctx),
+            )
             .await
         {
             Ok((_, c)) => {
-                let (files, cut) = diff_files(&c.diff, &state.config.limits);
+                let limits = &state.config.limits;
+                let generated = super::diff::generated(
+                    &state.runner,
+                    &git_dir,
+                    &c.source_head,
+                    &c.diff,
+                    limits,
+                )
+                .await;
+                let href = format!(
+                    "/{ns}/{repo}/compare?source={}&target={}",
+                    enc(&source),
+                    enc(&target)
+                );
+                let diff = super::diff::view(&c.diff, limits, &generated, dq, &ctx, href);
                 if form.is_none() {
                     let (title, description) = prefill(&c);
                     form = Some(CreateForm {
@@ -386,8 +409,8 @@ async fn compare_page(
                     more_commits: c.more_commits,
                     nothing: c.commits.is_empty(),
                     unrelated: c.merge_base.is_none(),
-                    files,
-                    truncated: cut || c.diff_truncated,
+                    diff,
+                    too_big: c.diff_truncated,
                     existing: c.existing,
                 });
             }
@@ -401,7 +424,7 @@ async fn compare_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
-    let mut res = render(&ComparePage {
+    let page = ComparePage {
         header: RepoHeader::load(state, &a, subject, TAB).await,
         can_create: a.can(subject, Action::MrCreate) && a.can(subject, Action::RepoPush),
         milestones: ms
@@ -416,7 +439,11 @@ async fn compare_page(
         form: form.unwrap_or_default(),
         errors,
         ctx,
-    });
+    };
+    let mut res = match &page.cmp {
+        Some(c) => super::diff::respond(hx, &page.ctx, &c.diff, &page),
+        None => render(&page),
+    };
     *res.status_mut() = status;
     Ok(res)
 }
@@ -425,8 +452,10 @@ async fn compare(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
+    hx: super::HxRequest,
     Path((ns, repo)): Path<(String, String)>,
     Query(q): Query<CompareQuery>,
+    Query(dq): Query<DiffQuery>,
 ) -> Result<Response, AppError> {
     compare_page(
         &state,
@@ -438,6 +467,7 @@ async fn compare(
         &q.target,
         None,
         Vec::new(),
+        (&dq, hx),
     )
     .await
 }
@@ -475,6 +505,7 @@ async fn create(
                 &target,
                 Some(f),
                 errors,
+                (&DiffQuery::default(), super::HxRequest::default()),
             )
             .await
         }
@@ -1012,8 +1043,8 @@ struct ChangesPage {
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
-    files: Vec<DiffFileView>,
-    truncated: bool,
+    diff: DiffView,
+    too_big: bool,
     /// Showing what changed since this revision.
     since: Option<i32>,
     current: i32,
@@ -1028,28 +1059,42 @@ async fn changes(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
+    hx: super::HxRequest,
     Path((ns, repo, n)): Path<(String, String, String)>,
     Query(q): Query<ChangesQuery>,
+    Query(dq): Query<DiffQuery>,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
     let (a, m) = state.services.mr(&subject, &ns, &repo, number(&n)?).await?;
-    let (files, truncated) = match state.services.mr_diff(&m, q.since).await? {
-        Some((raw, cut)) => {
-            let (files, c) = diff_files(&raw, &state.config.limits);
-            (files, cut || c)
+    let limits = &state.config.limits;
+    let (raw, too_big, generated) = match state
+        .services
+        .mr_diff(&m, q.since, dq.git_options(&ctx))
+        .await?
+    {
+        Some((raw, cut, head)) => {
+            let dir = state.services.repo_path(m.repo_id);
+            let g = super::diff::generated(&state.runner, &dir, &head, &raw, limits).await;
+            (raw, cut, g)
         }
         None if q.since.is_some() => return Err(AppError::not_found()),
-        None => (Vec::new(), false),
+        None => (Vec::new(), false, std::collections::HashSet::new()),
     };
-    Ok(render(&ChangesPage {
+    let href = match q.since {
+        Some(k) => mr_url(&ns, &repo, m.number, &format!("/changes?since={k}")),
+        None => mr_url(&ns, &repo, m.number, "/changes"),
+    };
+    let diff = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+    let page = ChangesPage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         current: m.revisions,
         h: heading(&state, &subject, &a, m).await?,
-        files,
-        truncated,
+        diff,
+        too_big,
         since: q.since,
         ctx,
-    }))
+    };
+    Ok(super::diff::respond(hx, &page.ctx, &page.diff, &page))
 }
 
 /// `/{ns}/{repo}/issues/{n}` of a merge request leads here.

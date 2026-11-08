@@ -911,88 +911,6 @@ async fn commits(
     }))
 }
 
-pub(super) struct DiffLineView {
-    pub(super) kind: &'static str,
-    pub(super) old_no: String,
-    pub(super) new_no: String,
-    pub(super) text: String,
-}
-
-pub(super) struct DiffFileView {
-    pub(super) anchor: String,
-    pub(super) path: String,
-    pub(super) old_path: Option<String>,
-    pub(super) status: &'static str,
-    pub(super) binary: bool,
-    pub(super) additions: u32,
-    pub(super) deletions: u32,
-    pub(super) hunks: Vec<(String, Vec<DiffLineView>)>,
-}
-
-/// The files of a raw unified diff as the diff partial shows them, and
-/// whether the limits cut it.
-pub(super) fn diff_files(
-    raw: &[u8],
-    limits: &slath_core::config::Limits,
-) -> (Vec<DiffFileView>, bool) {
-    let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
-    let files = diff
-        .files
-        .iter()
-        .enumerate()
-        .map(|(i, f)| DiffFileView {
-            anchor: format!("diff-{i}"),
-            path: lossy(f.path()),
-            old_path: (f.status == slath_git::diff::Status::Renamed
-                || f.status == slath_git::diff::Status::Copied)
-                .then(|| lossy(&f.old_path)),
-            status: match f.status {
-                slath_git::diff::Status::Added => "Added",
-                slath_git::diff::Status::Deleted => "Deleted",
-                slath_git::diff::Status::Modified => "Modified",
-                slath_git::diff::Status::Renamed => "Renamed",
-                slath_git::diff::Status::Copied => "Copied",
-            },
-            binary: f.binary,
-            additions: f.additions,
-            deletions: f.deletions,
-            hunks: f
-                .hunks
-                .iter()
-                .map(|h| {
-                    let head = format!(
-                        "@@ -{} +{} @@ {}",
-                        h.old_start,
-                        h.new_start,
-                        lossy(&h.section)
-                    );
-                    let lines = h
-                        .lines
-                        .iter()
-                        .map(|l| {
-                            use slath_git::diff::LineKind as K;
-                            let kind = match l.kind {
-                                K::Added => "add",
-                                K::Removed => "del",
-                                K::Context => "ctx",
-                                K::NoNewline => "meta",
-                            };
-                            DiffLineView {
-                                kind,
-                                old_no: l.old_no.map(|n| n.to_string()).unwrap_or_default(),
-                                new_no: l.new_no.map(|n| n.to_string()).unwrap_or_default(),
-                                text: lossy(&l.text),
-                            }
-                        })
-                        .collect();
-                    (head, lines)
-                })
-                .collect(),
-        })
-        .collect();
-    (files, diff.truncated)
-}
-
 #[derive(Template)]
 #[template(path = "repo/commit.html")]
 struct CommitPage {
@@ -1006,8 +924,8 @@ struct CommitPage {
     author_time: Time,
     committer: String,
     parents: Vec<(String, String)>,
-    files: Vec<DiffFileView>,
-    truncated: bool,
+    diff: super::diff::DiffView,
+    too_big: bool,
     tree_href: String,
 }
 
@@ -1028,6 +946,8 @@ async fn commit(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
+    hx: super::HxRequest,
+    Query(q): Query<super::diff::DiffQuery>,
     raw: RawRepoPath,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
@@ -1051,23 +971,37 @@ async fn commit(
         .filter_map(|p| ObjectId::parse(p).ok())
         .collect();
     let limits = &state.config.limits;
-    let (out, too_big) = browse::commit_diff(
+    let (out, too_big) = browse::diff(
         &state.runner,
         &git_dir,
         parents.first(),
         &oid,
+        q.git_options(&ctx),
         64 * 1024 * 1024,
     )
     .await
     .map_err(|e| git_err(&e))?;
-    let (files, cut) = diff_files(&out, limits);
+    let generated = super::diff::generated(&state.runner, &git_dir, &oid, &out, limits).await;
+    let diff = super::diff::view(
+        &out,
+        limits,
+        &generated,
+        &q,
+        &ctx,
+        format!(
+            "/{}/{}/commit/{}",
+            a.repo.namespace,
+            a.repo.name,
+            oid.as_str()
+        ),
+    );
     let message = String::from_utf8_lossy(&c.message).into_owned();
     let (subject_line, body) = message
         .split_once('\n')
         .map_or((message.as_str(), ""), |(s, b)| (s, b));
     let (author, author_t) = ident(c.header(b"author").unwrap_or_default());
     let (committer, _) = ident(c.header(b"committer").unwrap_or_default());
-    Ok(render(&CommitPage {
+    let page = CommitPage {
         header: RepoHeader::load(&state, &a, &subject, "commits").await,
         short: oid.as_str()[..12].to_owned(),
         subject: slath_markup::reveal_bidi(subject_line).into_owned(),
@@ -1079,8 +1013,8 @@ async fn commit(
             .iter()
             .map(|p| (p.as_str().to_owned(), p.as_str()[..12].to_owned()))
             .collect(),
-        files,
-        truncated: cut || too_big,
+        diff,
+        too_big,
         tree_href: format!(
             "/{}/{}/tree/{}",
             a.repo.namespace,
@@ -1089,7 +1023,8 @@ async fn commit(
         ),
         oid: oid.as_str().to_owned(),
         ctx,
-    }))
+    };
+    Ok(super::diff::respond(hx, &page.ctx, &page.diff, &page))
 }
 
 struct RefRow {

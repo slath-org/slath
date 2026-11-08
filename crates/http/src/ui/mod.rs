@@ -7,6 +7,7 @@ pub mod account;
 pub mod admin;
 pub mod browse;
 pub mod design;
+pub mod diff;
 pub mod editor;
 pub mod identicon;
 pub mod import;
@@ -112,6 +113,10 @@ pub struct PageCtx {
     pub needs_confirmation: bool,
     /// The Markdown editor mode: `wysiwyg` or `source`.
     pub editor_mode: &'static str,
+    /// Diffs side by side (signed-in users' preference).
+    pub diff_split: bool,
+    /// Diffs ignore whitespace changes (signed-in users' preference).
+    pub diff_ignore_whitespace: bool,
     /// User content may load images from other sites.
     pub external_images: bool,
 }
@@ -191,6 +196,8 @@ impl PageCtx {
                 Some("source") => "source",
                 _ => "wysiwyg",
             },
+            diff_split: session.is_some_and(|s| s.row.diff_view == "split"),
+            diff_ignore_whitespace: session.is_some_and(|s| s.row.diff_ignore_whitespace),
             needs_confirmation: session.is_some_and(|s| {
                 !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
             }),
@@ -226,7 +233,7 @@ impl FromRequestParts<AppState> for PageCtx {
 }
 
 /// Whether the request came from htmx and wants a fragment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct HxRequest {
     pub htmx: bool,
     /// `HX-Request-Type: partial` (as opposed to `full`).
@@ -394,6 +401,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(teams::router())
         .merge(issues::router())
         .merge(merge_requests::router())
+        .merge(diff::router())
         .merge(labels::router())
         .merge(secret_scan::router())
         .merge(notifications::router())

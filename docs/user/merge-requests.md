@@ -108,6 +108,20 @@ when it was matched wrongly, or attach a new change to one that was
 removed. Both are recorded in the timeline and the audit log, and can be
 undone the same way.
 
+## Reading diffs
+
+Diffs look the same on commits, the compare page, and merge requests:
+
+- A file tree above the files links to each of them.
+- **Split** shows old and new side by side; it's offered on screens at
+  least 1024 pixels wide. **Ignore whitespace** hides changes that only
+  touch spaces and indentation. Once you're signed in, both choices are
+  remembered.
+- Files marked as generated in the repository's `.gitattributes`
+  (`linguist-generated` or `slath-generated`) are collapsed; **Load diff**
+  shows them.
+- Large diffs load as you scroll, and very large files on request.
+
 ## Checking out a merge request
 
 The merge request page shows commands to copy. With Git, the current

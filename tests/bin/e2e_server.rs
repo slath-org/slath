@@ -29,6 +29,25 @@ const PROJECTS: [&str; 12] = [
     "webkit-dark-touch",
 ];
 
+/// Branch `diffs`: a commit with 26 changed files (more than load with the
+/// page), a generated one, and one that only changes indentation.
+fn seed_diffs(git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "diffs", "main"]);
+    std::fs::write(w.join("ws.txt"), "alpha\nbeta\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Add ws.txt"]);
+    std::fs::write(w.join("ws.txt"), "  alpha\n  beta\n").unwrap();
+    std::fs::write(w.join(".gitattributes"), "gen.txt linguist-generated\n").unwrap();
+    std::fs::write(w.join("gen.txt"), "generated output\n").unwrap();
+    for i in 0..23 {
+        std::fs::write(w.join(format!("f{i:02}.txt")), format!("file {i}\n")).unwrap();
+    }
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Change many files"]);
+    git.ok(w, &["push", "-q", url, "diffs"]);
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// Branches `e2e/<project>` to open merge requests from, the merge request
 /// "Review fixture" from `review` with two revisions, and `pushed`, which
 /// no test opens a merge request from (the "Recently pushed" banner).
@@ -117,6 +136,7 @@ fn main() {
     let url = server.url(&DEMO);
     git.ok(w, &["push", "-q", &url, "main"]);
     seed_merge_requests(&server, &git, w, &url);
+    seed_diffs(&git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");

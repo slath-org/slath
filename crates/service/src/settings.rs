@@ -64,6 +64,30 @@ impl Services {
         Ok(())
     }
 
+    /// Remembers how diffs are shown (`unified` or `split`, whitespace).
+    pub async fn set_diff_preferences(
+        &self,
+        session: &Session,
+        view: &str,
+        ignore_whitespace: bool,
+    ) -> Result<()> {
+        if !matches!(view, "unified" | "split") {
+            return Err(ServiceError::invalid(
+                "view",
+                "invalid",
+                "Choose unified or split.",
+            ));
+        }
+        slath_db::users::set_diff_preferences(
+            &self.pool,
+            session.user_id(),
+            view,
+            ignore_whitespace,
+        )
+        .await?;
+        Ok(())
+    }
+
     /// Saves theme (`system`/`light`/`dark`), density
     /// (`comfortable`/`compact`), and code font size (12-20 px).
     pub async fn update_appearance(

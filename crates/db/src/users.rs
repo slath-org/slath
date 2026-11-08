@@ -278,6 +278,24 @@ pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Re
 
 /// Saves a user's appearance settings.
 /// The Markdown editor mode (`wysiwyg` or `source`).
+/// Saves how the user likes diffs shown.
+pub async fn set_diff_preferences(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    view: &str,
+    ignore_whitespace: bool,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET diff_view = $2, diff_ignore_whitespace = $3, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        view,
+        ignore_whitespace
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 pub async fn set_editor_mode(
     exec: impl PgExecutor<'_>,
     id: UserId,

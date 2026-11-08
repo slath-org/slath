@@ -1,34 +1,44 @@
-{%- if truncated %}
+<div class="diff" id="diff">
+<div class="diff-toolbar">
+  {%- if diff.signed_in %}
+  <form method="post" action="/-/settings/diff" class="inline-form diff-options">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="next" value="{{ diff.href }}#diff">
+    <div class="field diff-view-choice">
+      <label for="diff-view">View</label>
+      <select id="diff-view" name="view">
+        <option value="unified"{% if !diff.split %} selected{% endif %}>Unified</option>
+        <option value="split"{% if diff.split %} selected{% endif %}>Split</option>
+      </select>
+    </div>
+    <div class="checkbox"><input id="diff-w" type="checkbox" name="w" value="1"{% if diff.ignore_whitespace %} checked{% endif %}><label for="diff-w">Ignore whitespace</label></div>
+    <button type="submit" class="button">Apply</button>
+  </form>
+  {%- else %}
+  <nav class="diff-options" aria-label="Diff options">
+    <span class="diff-view-choice">{% if diff.split %}<a href="{{ diff.unified_href() }}">Unified</a> · <strong>Split</strong>{% else %}<strong>Unified</strong> · <a href="{{ diff.split_href() }}">Split</a>{% endif %}</span>
+    <a href="{{ diff.whitespace_href() }}">{% if diff.ignore_whitespace %}Show whitespace changes{% else %}Ignore whitespace{% endif %}</a>
+  </nav>
+  {%- endif %}
+</div>
+{%- if diff.truncated %}
 <div class="notice" role="note"><p>This diff is too large to show completely. Some files or lines are omitted.</p></div>
 {%- endif %}
-<h2>{{ files.len() }} changed file{% if files.len() != 1 %}s{% endif %}</h2>
-<ul class="diff-index">
-{%- for f in files %}
-  <li><a href="#{{ f.anchor }}">{{ f.path }}</a> <span class="text-secondary">{{ f.status }}, <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></li>
-{%- endfor %}
-</ul>
-{%- for f in files %}
-<section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
-  <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }}</span></h3>
-  {%- if !loop.last %}<a class="skip-file" href="#diff-{{ loop.index }}">Skip to the next file</a>{% endif %}
-  {%- if f.binary %}
-  <p class="text-secondary">Binary file not shown.</p>
-  {%- endif %}
-  {%- for (head, lines) in f.hunks %}
-  <div class="code-wrap" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ head }}">
-  <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head">{{ head }}</th></tr></thead>
-    <tbody>
-    {%- for l in lines %}
-      <tr class="diff-{{ l.kind }}">
-        <td class="line-no">{{ l.old_no }}</td><td class="line-no">{{ l.new_no }}</td>
-        <td class="diff-marker">{% if l.kind == "add" %}<span aria-hidden="true">+</span><span class="visually-hidden">added</span>{% else if l.kind == "del" %}<span aria-hidden="true">−</span><span class="visually-hidden">removed</span>{% endif %}</td>
-        <td><code>{{ l.text }}</code></td>
-      </tr>
-    {%- endfor %}
-    </tbody>
-  </table>
-  </div>
+{%- if let Some(_) = diff.only %}
+<p><a href="{{ diff.href }}#diff">Show all files</a></p>
+{%- else %}
+<h2>{{ diff.files.len() }} changed file{% if diff.files.len() != 1 %}s{% endif %}</h2>
+{%- if diff.files.len() > 1 %}
+<nav class="diff-tree" aria-label="Changed files">
+  <ul>
+  {%- for e in diff.tree %}
+    <li class="depth-{{ e.depth.min(6) }}">{% if let Some(a) = e.anchor %}<a href="#{{ a }}">{{ e.name }}</a> <span class="text-secondary">{{ e.status }}</span>{% else %}<span class="diff-tree-dir">{% call m::icon(ctx, "folder") %}{% endcall %}{{ e.name }}/</span>{% endif %}</li>
   {%- endfor %}
-</section>
+  </ul>
+</nav>
+{%- endif %}
+{%- endif %}
+{%- for f in diff.files %}
+{% include "repo/diff_file.html" %}
 {%- endfor %}
+</div>

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET diff_view = $2, diff_ignore_whitespace = $3, updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "366d73e37ed4ac5f88f6a342c0dc4a5cfb9f3f6be0e081db4e1adbbb00254aef"
+}

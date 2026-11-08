@@ -607,12 +607,81 @@ fieldset.field {
   margin-bottom: var(--space-2);
   font-size: var(--text-sm);
 }
-.diff-index {
+.diff-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-block-end: var(--space-3);
+}
+.diff-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.diff-options .field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.diff-tree ul {
   list-style: none;
   padding: 0;
+  margin: 0 0 var(--space-4);
 }
-.diff-index li {
+.diff-tree li {
   min-height: var(--target-min);
+  overflow-wrap: anywhere;
+}
+/* Nesting in the file tree (deeper levels share the last indent). */
+.diff-tree .depth-1 { padding-inline-start: var(--space-4); }
+.diff-tree .depth-2 { padding-inline-start: calc(2 * var(--space-4)); }
+.diff-tree .depth-3 { padding-inline-start: calc(3 * var(--space-4)); }
+.diff-tree .depth-4 { padding-inline-start: calc(4 * var(--space-4)); }
+.diff-tree .depth-5 { padding-inline-start: calc(5 * var(--space-4)); }
+.diff-tree .depth-6 { padding-inline-start: calc(6 * var(--space-4)); }
+.diff-tree-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+}
+.diff-placeholder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.diff-split-table td:nth-child(2) {
+  border-inline-end: var(--border-width) solid var(--border);
+}
+.diff-split-table td:nth-child(2),
+.diff-split-table td:nth-child(4) {
+  width: 49%;
+}
+.diff-empty {
+  background: var(--surface-subtle);
+}
+/* Side by side only where there's room for it; narrower screens get the
+   unified view, and the choice isn't offered. */
+.diff-split {
+  display: none;
+}
+/* As specific as `.diff-options .field`, and after it. */
+.diff-options .diff-view-choice {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .diff-split {
+    display: block;
+  }
+  .diff-has-split {
+    display: none;
+  }
+  .diff-options .diff-view-choice {
+    display: flex;
+  }
 }
 .commit-list {
   list-style: none;

@@ -145,6 +145,7 @@ impl Services {
         repo: &str,
         source: &str,
         target: Option<&str>,
+        opts: slath_git::browse::DiffOptions,
     ) -> Result<(RepoAccess, Compare)> {
         let a = self.mrs_access(subject, ns, repo, Action::RepoRead).await?;
         let target = target
@@ -186,11 +187,12 @@ impl Services {
         if more_commits {
             commits.remove(0);
         }
-        let (diff, diff_truncated) = slath_git::browse::commit_diff(
+        let (diff, diff_truncated) = slath_git::browse::diff(
             &self.runner,
             &dir,
             merge_base.as_ref(),
             &source_head,
+            opts,
             64 * 1024 * 1024,
         )
         .await
@@ -547,7 +549,8 @@ impl Services {
         &self,
         m: &MergeRequest,
         since: Option<i32>,
-    ) -> Result<Option<(Vec<u8>, bool)>> {
+        opts: slath_git::browse::DiffOptions,
+    ) -> Result<Option<(Vec<u8>, bool, ObjectId)>> {
         let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
         let Some(r) = revs.last() else {
             return Ok(None);
@@ -567,15 +570,16 @@ impl Services {
                 .as_deref()
                 .and_then(|b| ObjectId::parse(b).ok()),
         };
-        slath_git::browse::commit_diff(
+        slath_git::browse::diff(
             &self.runner,
             &self.repo_path(m.repo_id),
             base.as_ref(),
             &head,
+            opts,
             64 * 1024 * 1024,
         )
         .await
-        .map(Some)
+        .map(|(d, cut)| Some((d, cut, head.clone())))
         .map_err(ServiceError::internal)
     }
 
