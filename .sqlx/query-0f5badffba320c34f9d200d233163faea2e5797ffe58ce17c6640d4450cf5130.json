@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pusher_id FROM push_events WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pusher_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "push_events",
+            "name": "pusher_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0f5badffba320c34f9d200d233163faea2e5797ffe58ce17c6640d4450cf5130"
+}

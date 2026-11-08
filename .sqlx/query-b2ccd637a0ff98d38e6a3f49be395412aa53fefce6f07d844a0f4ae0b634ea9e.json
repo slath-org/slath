@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT merge_requests_enabled, delete_source_branch_default FROM repositories WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "merge_requests_enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "merge_requests_enabled"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "delete_source_branch_default",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "delete_source_branch_default"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b2ccd637a0ff98d38e6a3f49be395412aa53fefce6f07d844a0f4ae0b634ea9e"
+}

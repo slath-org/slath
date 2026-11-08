@@ -74,7 +74,7 @@ fn check_title(title: &str) -> Result<String> {
 }
 
 impl Services {
-    fn check_body(&self, field: &str, body: &str) -> Result<()> {
+    pub(crate) fn check_body(&self, field: &str, body: &str) -> Result<()> {
         let max = self.config.limits.text_max_bytes.as_usize();
         if body.len() > max {
             return Err(ServiceError::invalid(

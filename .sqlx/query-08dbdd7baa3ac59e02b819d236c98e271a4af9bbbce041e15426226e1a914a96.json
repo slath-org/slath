@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests SET state = CASE WHEN $2 THEN 'open' ELSE 'closed' END,\n             closed_at = CASE WHEN $2 THEN NULL ELSE now() END, updated_at = now()\n         WHERE id = $1 AND state = CASE WHEN $2 THEN 'closed' ELSE 'open' END",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08dbdd7baa3ac59e02b819d236c98e271a4af9bbbce041e15426226e1a914a96"
+}

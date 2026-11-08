@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, old_oid, new_oid FROM ref_updates WHERE push_id = $1 ORDER BY seq",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "ref_updates",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "old_oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ref_updates",
+            "name": "old_oid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "new_oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ref_updates",
+            "name": "new_oid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "80e5da352c653a6ba750a63151fc5eb966986519eef0efaee41cbdd2c50e357f"
+}

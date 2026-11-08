@@ -38,9 +38,20 @@ impl Services {
             let s = s.clone();
             async move { s.trash_repo(repo_id(&job)?).await }
         })
-        // Nothing reacts to ref changes yet; the job exists so pushes record
-        // their follow-up work durably from the start.
-        .handle(REF_UPDATED, |_job: LeasedJob| async { Ok(()) })
+        .handle(REF_UPDATED, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.run_ref_updated(&job).await }
+            }
+        })
+        .handle(crate::merge_requests::MR_SYNC, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.run_mr_sync(&job).await }
+            }
+        })
         .handle(crate::email::EMAIL_SEND, {
             let s = self.clone();
             move |job: LeasedJob| {

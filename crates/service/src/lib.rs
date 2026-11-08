@@ -22,6 +22,7 @@ pub mod jobs;
 pub mod keys;
 pub mod labels;
 pub mod maintenance;
+pub mod merge_requests;
 pub mod mfa;
 pub mod net;
 pub mod notifications;

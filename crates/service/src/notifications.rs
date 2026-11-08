@@ -97,7 +97,7 @@ pub struct InboxItem {
     pub state: String,
 }
 
-fn user_subject(id: UserId, r: &slath_db::users::User) -> Subject {
+pub(crate) fn user_subject(id: UserId, r: &slath_db::users::User) -> Subject {
     Subject::User {
         id,
         kind: r.kind,

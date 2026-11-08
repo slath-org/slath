@@ -283,7 +283,11 @@ pub async fn log(
         inv = inv.arg_bytes(path.as_bytes());
     }
     let out = inv.run().await?;
-    let fields: Vec<&[u8]> = out.stdout.split(|&b| b == 0).collect();
+    Ok(parse_log(&out.stdout))
+}
+
+fn parse_log(stdout: &[u8]) -> Vec<LogEntry> {
+    let fields: Vec<&[u8]> = stdout.split(|&b| b == 0).collect();
     let mut entries = Vec::new();
     for chunk in fields.chunks(6) {
         if chunk.len() < 6 {
@@ -307,7 +311,64 @@ pub async fn log(
             subject: String::from_utf8_lossy(chunk[5]).into_owned(),
         });
     }
+    entries
+}
+
+/// The commits reachable from `head` but not from `base` (all of them
+/// without a base), oldest first, at most `max` (from the newest).
+pub async fn log_range(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    head: &ObjectId,
+    max: usize,
+) -> Result<Vec<LogEntry>, GitError> {
+    let range = match base {
+        Some(b) => format!("{}..{}", b.as_str(), head.as_str()),
+        None => head.as_str().to_owned(),
+    };
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "log",
+            "--no-color",
+            "-z",
+            "--topo-order",
+            "--format=%H%x00%P%x00%an%x00%ae%x00%at%x00%s",
+            &format!("--max-count={max}"),
+            "--end-of-options",
+            &range,
+            "--",
+        ])
+        .run()
+        .await?;
+    let mut entries = parse_log(&out.stdout);
+    entries.reverse();
     Ok(entries)
+}
+
+/// The best common ancestor of two commits, if they have one.
+pub async fn merge_base(
+    runner: &Runner,
+    git_dir: &Path,
+    a: &ObjectId,
+    b: &ObjectId,
+) -> Result<Option<ObjectId>, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args(["merge-base", "--end-of-options", a.as_str(), b.as_str()])
+        .output()
+        .await?;
+    match out.status.code() {
+        Some(0) => ObjectId::parse(out.stdout.trim_ascii())
+            .map(Some)
+            .map_err(GitError::Protocol),
+        Some(1) => Ok(None),
+        _ => Err(GitError::Failed {
+            status: out.status,
+            stderr: out.stderr,
+        }),
+    }
 }
 
 /// The unified diff of `commit` against its first parent (or the empty tree).

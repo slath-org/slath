@@ -7,6 +7,7 @@
 
 pub mod issues;
 pub mod labels;
+pub mod merge_requests;
 pub mod orgs;
 pub mod repos;
 pub mod support;
@@ -155,6 +156,8 @@ impl utoipa::Modify for SecurityAddon {
         repos::list_protections, repos::post_protection, repos::delete_protection,
         issues::list_issues, issues::create_issue, issues::get_issue, issues::update_issue,
         issues::list_comments, issues::create_comment, issues::update_comment, issues::delete_comment,
+        merge_requests::list_mrs, merge_requests::create_mr, merge_requests::get_mr, merge_requests::update_mr,
+        merge_requests::list_mr_comments, merge_requests::create_mr_comment,
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,
         labels::list_milestones, labels::create_milestone, labels::update_milestone, labels::delete_milestone,
         crate::attachments::api_upload, crate::references::api_references,
@@ -164,7 +167,7 @@ impl utoipa::Modify for SecurityAddon {
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
-    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"))
+    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"))
 )]
 pub struct ApiDoc;
 
@@ -190,6 +193,7 @@ pub fn router() -> Router<AppState> {
         .merge(orgs::router())
         .merge(repos::router())
         .merge(issues::router())
+        .merge(merge_requests::router())
         .merge(labels::router())
         .merge(crate::attachments::api_router())
         .merge(crate::references::api_router())

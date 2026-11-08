@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_revisions (id, mr_id, seq, base_oid, merge_base_oid, head_oid, pushed_by,\n             commit_count, mode, mode_reason)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8e0e9ccce492a85decf4b8d08c50230d3e9289c17ff1fdf84964867eaff06c43"
+}

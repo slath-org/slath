@@ -10,6 +10,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Merge requests (first part): open them through the API from a branch, and each push to the branch records a new revision, fetchable at `refs/merge-requests/<n>/head`. Numbers are shared with issues.
+- After a push, Git prints a link to create a merge request for the branch, or the link of its open merge request.
 - Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.
 - The Compose TLS profile also works on private networks, with Caddy's internal CA or your own certificate (`SLATH_TLS`).
 - `slath doctor` checks an installation (configuration, SSH separation, database, schema, Git, disk, backups, TLS, update readiness) and says what to fix; `--output json` is for monitoring.

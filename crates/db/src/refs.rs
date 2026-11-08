@@ -104,3 +104,55 @@ pub async fn push_count(
     .fetch_one(exec)
     .await?)
 }
+
+/// The pusher and ref updates of one recorded push.
+pub async fn push_updates(
+    exec: impl PgExecutor<'_> + Copy,
+    push: uuid::Uuid,
+) -> Result<Option<(Option<UserId>, Vec<RefUpdate>)>, DbError> {
+    let Some(pusher) = sqlx::query_scalar!("SELECT pusher_id FROM push_events WHERE id = $1", push)
+        .fetch_optional(exec)
+        .await?
+    else {
+        return Ok(None);
+    };
+    const ZERO: &str = "0000000000000000000000000000000000000000";
+    let rows = sqlx::query!(
+        "SELECT name, old_oid, new_oid FROM ref_updates WHERE push_id = $1 ORDER BY seq",
+        push
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(Some((
+        pusher.map(UserId::from_uuid),
+        rows.into_iter()
+            .map(|r| RefUpdate {
+                name: r.name,
+                old: r.old_oid.unwrap_or_else(|| ZERO.to_owned()),
+                new: r.new_oid.unwrap_or_else(|| ZERO.to_owned()),
+            })
+            .collect(),
+    )))
+}
+
+/// Branches `pusher` pushed to `repo` since `since`, newest first.
+pub async fn recent_branch_pushes(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    pusher: UserId,
+    since: time::OffsetDateTime,
+) -> Result<Vec<Vec<u8>>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT u.name AS "name!", max(p.created_at) AS "at!"
+           FROM push_events p JOIN ref_updates u ON u.push_id = p.id
+           WHERE p.repo_id = $1 AND p.pusher_id = $2 AND p.created_at > $3
+             AND u.new_oid IS NOT NULL AND u.name LIKE 'refs/heads/%'
+           GROUP BY u.name ORDER BY 2 DESC LIMIT 5"#,
+        repo.as_uuid(),
+        pusher.as_uuid(),
+        since
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.name).collect())
+}

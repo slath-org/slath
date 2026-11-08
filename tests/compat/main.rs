@@ -8,5 +8,6 @@ mod git_http;
 mod git_ssh;
 mod import;
 mod jj;
+mod merge_requests;
 mod oidc_providers;
 mod reserved_refs;

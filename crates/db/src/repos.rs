@@ -729,3 +729,17 @@ pub async fn set_secret_allowance_role(
     .await?;
     Ok(())
 }
+
+/// Whether merge requests are enabled, and the default for deleting the
+/// source branch after merging.
+pub async fn mr_settings(exec: impl PgExecutor<'_>, id: RepoId) -> Result<(bool, bool), DbError> {
+    let r = sqlx::query!(
+        "SELECT merge_requests_enabled, delete_source_branch_default FROM repositories WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map_or((false, false), |r| {
+        (r.merge_requests_enabled, r.delete_source_branch_default)
+    }))
+}

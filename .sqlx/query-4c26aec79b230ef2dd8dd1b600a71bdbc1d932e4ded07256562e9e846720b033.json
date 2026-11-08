@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests SET draft = $2, updated_at = now() WHERE id = $1 AND draft <> $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c26aec79b230ef2dd8dd1b600a71bdbc1d932e4ded07256562e9e846720b033"
+}
