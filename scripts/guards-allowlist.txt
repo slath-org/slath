@@ -3,3 +3,4 @@
 #
 # Exceptions to scripts/guards.sh: `<guard> <path>  # reason`, one per line.
 git-spawn apps/slath/src/setup/system.rs  # slath setup runs fixed system tools (systemd-sysusers, usermod, systemctl) and its own database helper as root, with fixed arguments and no shell
+commit-scan crates/git/src/merge.rs  # the Git library that builds merge commits; its caller (crates/service/src/merge.rs) scans the messages it writes, and rewritten content was scanned when it was pushed

@@ -77,6 +77,14 @@ fn hex_to_jj(hex: &str) -> Option<String> {
         .collect()
 }
 
+/// A change ID in jj's format from 16 bytes (for new IDs Slath makes up,
+/// such as a squash of several changes).
+#[must_use]
+pub fn id_from_bytes(bytes: &[u8; 16]) -> String {
+    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    hex_to_jj(&hex).unwrap_or_default()
+}
+
 /// jj's change ID for a commit without a `change-id` header: bytes 4..20
 /// of the commit ID in reverse order, each byte's bits reversed, in jj's
 /// alphabet. `None` for anything but a SHA-1 commit ID in lower-case hex.

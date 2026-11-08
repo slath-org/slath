@@ -289,3 +289,21 @@ pub async fn also_in(
         .map(|r| (r.kind, r.value, r.number))
         .collect())
 }
+
+/// Marks the changes of a revision merged.
+pub async fn set_merged(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    revision_seq: i32,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE mr_changes c SET state = 'merged'
+         FROM mr_change_versions v JOIN mr_revisions r ON r.id = v.revision_id
+         WHERE v.change_id = c.id AND r.mr_id = $1 AND r.seq = $2",
+        mr.as_uuid(),
+        revision_seq
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

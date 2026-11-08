@@ -3681,6 +3681,7 @@ version = "0.2.0"
 dependencies = [
  "askama",
  "base64 0.23.1",
+ "getrandom 0.4.3",
  "image",
  "lettre",
  "qrcode",

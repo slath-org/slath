@@ -21,6 +21,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Merge requests merge on the server with fast-forward, rebase, merge commit, or squash, using the head you reviewed and retrying when the target moves.
+- Rebase merges keep authors, messages, and change IDs, drop signatures, and write each change's ID into commits made with Git, so jj shows the same IDs.
+- Conflicts with the target are listed in the merge box with commands for Git and jj; the source branch can be deleted after merging.
 - Commit statuses: tools report `pending`, `success`, `failure`, or `error` per context on a commit, and every status shows its reporter.
 - Branch protection can require status contexts, optionally only from listed reporters; the author's own and their bots' statuses never count.
 - The merge box shows each required check with its reporter, and why a status didn't count.

@@ -783,6 +783,27 @@ struct MrPage {
     since_review: Option<i32>,
     /// The latest statuses of the head.
     statuses: Vec<super::StatusRow>,
+    /// The viewer may merge: the strategies (default first), the head
+    /// they're looking at, and whether the source goes after merging.
+    merge_form: Option<MergeForm>,
+    /// Commands for Git and jj that resolve conflicts with the target.
+    conflict_commands: Option<(String, String)>,
+}
+
+struct MergeForm {
+    strategies: Vec<(String, &'static str)>,
+    head: String,
+    delete_source: bool,
+}
+
+fn strategy_label(s: &str) -> &'static str {
+    match s {
+        "fast-forward" => "Fast-forward",
+        "rebase" => "Rebase",
+        "merge-commit" => "Merge commit",
+        "squash" => "Squash",
+        _ => "Other",
+    }
 }
 
 impl MrPage {
@@ -952,6 +973,28 @@ async fn mr_page(
     let can_review = open && a.can(subject, Action::MrReview) && me.is_some();
     let can_approve = can_review && m.author_id != me;
     let since_review = state.services.last_reviewed_revision(subject, &m).await?;
+    let conflicted = merge_box
+        .requirements
+        .iter()
+        .any(|r| r.key == "conflicts" && r.state != "met");
+    let conflict_commands = conflicted.then(|| {
+        slath_service::merge::conflict_commands(&sh(&m.source_branch()), &sh(&m.target_branch))
+    });
+    let merge_form = if open && a.can(subject, Action::MrMerge) && merge_box.mergeable {
+        let (allowed, default) = state.services.mr_merge_settings(&a).await?;
+        let mut strategies: Vec<(String, &'static str)> = allowed
+            .iter()
+            .map(|x| (x.clone(), strategy_label(x)))
+            .collect();
+        strategies.sort_by_key(|(x, _)| *x != default);
+        Some(MergeForm {
+            strategies,
+            head: m.head_oid.clone().unwrap_or_default(),
+            delete_source: m.delete_source_on_merge,
+        })
+    } else {
+        None
+    };
     let statuses = state
         .services
         .mr_statuses(&m)
@@ -986,6 +1029,8 @@ async fn mr_page(
         can_approve,
         since_review,
         statuses,
+        merge_form,
+        conflict_commands,
         message,
         errors,
         assignees,
@@ -1014,6 +1059,7 @@ async fn view(
         Some("saved") => Some("Merge request saved."),
         Some("restored") => Some("Branch restored."),
         Some("reviewers") => Some("Reviewers saved."),
+        Some("merged") => Some("Merged."),
         _ => None,
     };
     mr_page(
@@ -1683,6 +1729,52 @@ async fn review(
 }
 
 #[derive(Deserialize)]
+struct MergeFormInput {
+    #[serde(default)]
+    strategy: String,
+    #[serde(default)]
+    expected_head_oid: String,
+    #[serde(default)]
+    commit_message: String,
+    delete_source: Option<String>,
+}
+
+async fn merge(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<MergeFormInput>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let input = slath_service::merge::MergeInput {
+        strategy: Some(f.strategy).filter(|x| !x.is_empty()),
+        expected_head_oid: f.expected_head_oid,
+        commit_message: Some(f.commit_message).filter(|x| !x.trim().is_empty()),
+        delete_source: Some(f.delete_source.is_some()),
+    };
+    match state
+        .services
+        .merge_mr(&s.subject, (&ns, &repo, n), &input)
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=merged")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(ServiceError::Conflict(why)) => {
+            let errors = vec![FieldError {
+                field: "merge".into(),
+                code: "conflict".into(),
+                message: why,
+            }];
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
 struct ReviewersForm {
     #[serde(default)]
     reviewers: String,
@@ -1923,6 +2015,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/reviews",
             Access::Resource,
             post(review),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/merge",
+            Access::Resource,
+            post(merge),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/reviewers",

@@ -3490,6 +3490,115 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Merges the merge request (`mr.merge`). 409 when its head isn't\n`expected_head_oid`, a requirement isn't met, merging conflicts, or the\ntarget kept moving.",
+        "operationId": "merge",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability": {
       "get": {
         "tags": [
@@ -6176,6 +6285,37 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "MergeBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "commit_message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For merge commits and squashes."
+          },
+          "delete_source": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Default: the merge request's setting."
+          },
+          "expected_head_oid": {
+            "type": "string",
+            "description": "The head you reviewed; if the merge request moved on, 409."
+          },
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`fast-forward`, `rebase`, `merge-commit`, or `squash`; default: the\nrepository's default."
           }
         }
       },

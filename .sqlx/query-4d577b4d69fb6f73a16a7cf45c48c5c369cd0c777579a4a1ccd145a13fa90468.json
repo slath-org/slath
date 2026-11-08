@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_changes c SET state = 'merged'\n         FROM mr_change_versions v JOIN mr_revisions r ON r.id = v.revision_id\n         WHERE v.change_id = c.id AND r.mr_id = $1 AND r.seq = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4d577b4d69fb6f73a16a7cf45c48c5c369cd0c777579a4a1ccd145a13fa90468"
+}

@@ -569,3 +569,40 @@ pub async fn add_label(
     .await?;
     Ok(())
 }
+
+/// Marks a merge request merged.
+pub async fn set_merged(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    by: Option<slath_core::ids::UserId>,
+    strategy: &str,
+    merged_oid: &str,
+) -> Result<bool, DbError> {
+    let done = sqlx::query!(
+        "UPDATE merge_requests SET state = 'merged', merged_at = now(), merged_by = $2,
+             merge_strategy = $3, merged_oid = $4, updated_at = now()
+         WHERE id = $1 AND state = 'open'",
+        mr.as_uuid(),
+        by.map(|u| *u.as_uuid()),
+        strategy,
+        merged_oid
+    )
+    .execute(exec)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// Holds the merge lock of a target branch until the transaction ends.
+pub async fn lock_target(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    target: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        format!("merge:{}:{target}", repo.as_uuid())
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

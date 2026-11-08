@@ -138,6 +138,9 @@ test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, 
   const box = page.getByRole("region", { name: "Ready to merge" });
   await expect(box).toContainText("No approvals are required.");
   await expect(box).toContainText("Every commit belongs to one change.");
+  // Mergeable: the merge form offers the repository's strategies.
+  await expect(box.getByLabel("Merge with")).toBeVisible();
+  await expect(box.getByRole("button", { name: "Merge" })).toBeVisible();
   // The author can comment, not approve.
   await expect(page.getByLabel("Comment", { exact: true })).toBeChecked();
   await expect(page.getByLabel("Approve")).toHaveCount(0);

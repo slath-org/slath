@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT merge_strategies, default_merge_strategy FROM repositories WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "merge_strategies",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "merge_strategies"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "default_merge_strategy",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "default_merge_strategy"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f2c07d15dbca6a088deeab74e4e01100b3fa781cee9cbfcebcb01b502b096b72"
+}

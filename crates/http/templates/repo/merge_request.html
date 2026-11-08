@@ -87,6 +87,43 @@
     <li class="requirement requirement-{{ r.state }}">{% if r.state == "met" %}{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">Met: </span>{% else if r.state == "pending" %}{% call m::icon(ctx, "clock") %}{% endcall %}<span class="visually-hidden">Pending: </span>{% else %}{% call m::icon(ctx, "circle-x") %}{% endcall %}<span class="visually-hidden">Not met: </span>{% endif %}<span>{{ r.reason }}{% if let Some(f) = r.fix %} <span class="text-secondary">{{ f }}.</span>{% endif %}</span></li>
   {%- endfor %}
   </ul>
+  {%- if let Some((git, jj)) = conflict_commands %}
+  <details class="conflict-help">
+    <summary>Resolve the conflicts on your machine</summary>
+    <p class="text-secondary">With Git:</p>
+    <pre><code id="conflicts-git">{{ git }}</code></pre>
+    <button type="button" class="button" data-copy="conflicts-git" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy Git commands</button>
+    <p class="text-secondary">With jj:</p>
+    <pre><code id="conflicts-jj">{{ jj }}</code></pre>
+    <button type="button" class="button" data-copy="conflicts-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button>
+  </details>
+  {%- endif %}
+  {%- if let Some(e) = self.error("merge") %}
+  <div class="error-summary" role="alert" id="merge"><p>{{ e }}</p></div>
+  {%- endif %}
+  {%- if let Some(f) = merge_form %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/merge" class="form merge-form" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="expected_head_oid" value="{{ f.head }}">
+    <div class="field">
+      <label for="strategy">Merge with</label>
+      <select id="strategy" name="strategy"{% if self.error("strategy").is_some() %} aria-invalid="true" aria-describedby="strategy-error"{% endif %}>
+        {%- for (value, label) in f.strategies %}
+        <option value="{{ value }}">{{ label }}</option>
+        {%- endfor %}
+      </select>
+      {%- if let Some(e) = self.error("strategy") %}
+      <p id="strategy-error" class="field-error">{{ e }}</p>
+      {%- endif %}
+    </div>
+    <div class="field">
+      <label for="commit_message">Commit message <span class="text-secondary">(optional; merge commit and squash)</span></label>
+      <textarea id="commit_message" name="commit_message" rows="3" autocomplete="off"></textarea>
+    </div>
+    <div class="checkbox"><input id="delete_source" type="checkbox" name="delete_source" value="1"{% if f.delete_source %} checked{% endif %}><label for="delete_source">Delete <code class="branch-name"><bdi>{{ h.source }}</bdi></code> after merging</label></div>
+    <div class="button-row"><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merge</button></div>
+  </form>
+  {%- endif %}
 </section>
 {%- if can_review %}
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviews" class="form form-wide review-form" novalidate>

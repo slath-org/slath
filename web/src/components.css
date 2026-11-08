@@ -1161,6 +1161,14 @@ fieldset.field {
 .status-error > svg {
   color: var(--error);
 }
+.merge-form {
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-width) solid var(--border);
+}
+.conflict-help pre {
+  margin: var(--space-2) 0;
+}
 .review-form {
   margin-block-end: var(--space-4);
 }

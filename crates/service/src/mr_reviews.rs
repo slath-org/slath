@@ -61,7 +61,8 @@ pub struct ReviewView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
     /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
-    /// `statuses` (one per required check), `threads`, or `identity`.
+    /// `statuses` (one per required check), `threads`, `conflicts`, or
+    /// `identity`.
     pub key: &'static str,
     /// `met`, `unmet`, or `pending`.
     pub state: &'static str,
@@ -452,6 +453,26 @@ impl Services {
         reqs.extend(self.check_requirements(m, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
             reqs.push(met("threads", "No threads are unresolved."));
+        }
+        if m.state == "open" {
+            let files = self.mr_conflicts(m).await?;
+            reqs.push(if files.is_empty() {
+                met(
+                    "conflicts",
+                    format!("No conflicts with {}.", m.target_branch),
+                )
+            } else {
+                unmet(
+                    "conflicts",
+                    format!(
+                        "Conflicts with {} in {}: {}.",
+                        m.target_branch,
+                        plural(files.len(), "file", "files"),
+                        files.join(", ")
+                    ),
+                    "Rebase onto the target and resolve them",
+                )
+            });
         }
         let stack = self.mr_stack(m).await?;
         let unresolved = stack

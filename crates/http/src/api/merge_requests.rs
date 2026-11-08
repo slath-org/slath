@@ -617,6 +617,51 @@ pub async fn get_mergeability(
     }))
 }
 
+/// Every field is optional in the JSON so that authorization runs first.
+#[derive(Deserialize, ToSchema)]
+pub struct MergeBody {
+    /// `fast-forward`, `rebase`, `merge-commit`, or `squash`; default: the
+    /// repository's default.
+    #[serde(default)]
+    pub strategy: Option<String>,
+    /// The head you reviewed; if the merge request moved on, 409.
+    #[serde(default)]
+    pub expected_head_oid: String,
+    /// For merge commits and squashes.
+    #[serde(default)]
+    pub commit_message: Option<String>,
+    /// Default: the merge request's setting.
+    #[serde(default)]
+    pub delete_source: Option<bool>,
+}
+
+/// Merges the merge request (`mr.merge`). 409 when its head isn't
+/// `expected_head_oid`, a requirement isn't met, merging conflicts, or the
+/// target kept moving.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = MergeBody,
+    responses((status = 200, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn merge(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<MergeBody>,
+) -> Result<Json<MergeRequest>, AppError> {
+    let m = state
+        .services
+        .merge_mr(
+            &s,
+            (&ns, &repo, number),
+            &slath_service::merge::MergeInput {
+                strategy: b.strategy,
+                expected_head_oid: b.expected_head_oid,
+                commit_message: b.commit_message,
+                delete_source: b.delete_source,
+            },
+        )
+        .await?;
+    Ok(Json(render(&state, &s, &ns, &repo, m).await?))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -644,6 +689,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviewers",
             Access::Resource,
             axum::routing::put(put_reviewers),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
+            Access::Resource,
+            axum::routing::post(merge),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability",

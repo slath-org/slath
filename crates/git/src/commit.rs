@@ -25,6 +25,16 @@ pub struct RawCommit {
 }
 
 impl RawCommit {
+    /// A commit from headers and a message (after the blank line).
+    #[must_use]
+    pub fn new(headers: Vec<Header>, message: Vec<u8>) -> Self {
+        Self {
+            headers,
+            message,
+            has_separator: true,
+        }
+    }
+
     pub fn parse(data: impl AsRef<[u8]>) -> Result<Self, &'static str> {
         let data = data.as_ref();
         let mut headers: Vec<Header> = Vec::new();

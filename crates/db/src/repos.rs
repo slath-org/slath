@@ -743,3 +743,17 @@ pub async fn mr_settings(exec: impl PgExecutor<'_>, id: RepoId) -> Result<(bool,
         (r.merge_requests_enabled, r.delete_source_branch_default)
     }))
 }
+
+/// The merge strategies a repository allows, and its default.
+pub async fn merge_settings(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+) -> Result<(Vec<String>, String), DbError> {
+    let r = sqlx::query!(
+        "SELECT merge_strategies, default_merge_strategy FROM repositories WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?;
+    Ok((r.merge_strategies, r.default_merge_strategy))
+}

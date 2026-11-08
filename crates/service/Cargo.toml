@@ -13,6 +13,7 @@ publish.workspace = true
 [dependencies]
 askama.workspace = true
 base64.workspace = true
+getrandom.workspace = true
 image.workspace = true
 lettre.workspace = true
 qrcode.workspace = true
@@ -27,11 +28,11 @@ slath-markup.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 time.workspace = true
-toml.workspace = true
 tokio = { workspace = true, features = ["rt"] }
+toml.workspace = true
 tracing.workspace = true
-url.workspace = true
 ureq = { workspace = true, features = ["rustls"] }
+url.workspace = true
 uuid.workspace = true
 webauthn-rs.workspace = true
 
