@@ -80,6 +80,20 @@ this order:
    carry approvals over, since the patch changed.
 4. Otherwise, a **new** change.
 
+Pushing to the source branch reports this right away, in the same form
+for `git push` and `jj git push`:
+
+```text
+remote: slath: merge request !12 for my-topic, revision 3: https://slath.example/alice/demo/merge-requests/12
+remote: slath:   kxyzabcd unchanged          Add the parser
+remote: slath:   lmnopqrs updated (version 3) Handle empty input
+remote: slath:   nopqrstu new                Add a flag
+remote: slath:   zyxwvuts removed
+```
+
+If recording the revision takes longer than a few seconds, the push only
+prints the link, and the merge request updates a moment later.
+
 If two equally similar changes could fit, the commit becomes a new change
 and the Commits tab says which ones it may continue. The timeline sums up
 each push, for example "rebased onto main, 2 changes modified, 1 added".

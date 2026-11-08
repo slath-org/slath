@@ -1060,10 +1060,12 @@ impl Services {
     }
 
     /// The `remote:` lines after a push: for each pushed branch other than
-    /// the default, its open merge request or a link to create one.
+    /// the default, how the push changed its open merge requests (spec:
+    /// push feedback), or a link to create one.
     pub async fn push_hints(
         &self,
         repo: RepoId,
+        pusher: Option<UserId>,
         updates: &[slath_git::ipc::RefUpdate],
     ) -> Vec<String> {
         let Ok(Some(r)) = slath_db::repos::get(&self.pool, repo).await else {
@@ -1093,10 +1095,18 @@ impl Services {
                 .join(&format!("/{}/{}", r.namespace, r.name));
             match slath_db::merge_requests::open_by_source(&self.pool, repo, &u.name).await {
                 Ok(open) if !open.is_empty() => {
-                    for (_, _, n) in open {
-                        out.push(format!(
-                            "slath: merge request !{n} for {branch}: {base}/merge-requests/{n}"
-                        ));
+                    for (id, _, n) in open {
+                        let url = format!("{base}/merge-requests/{n}");
+                        out.extend(
+                            self.push_feedback(
+                                id,
+                                pusher,
+                                &u.new,
+                                &format!("!{n} for {branch}"),
+                                &url,
+                            )
+                            .await,
+                        );
                     }
                 }
                 Ok(_) => {

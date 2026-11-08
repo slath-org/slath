@@ -638,3 +638,122 @@ fn revisions_reviewed_as_a_whole_have_no_changes() {
         assert_eq!(got, format!("whole-only:{reason}"), "{branch}");
     }
 }
+
+/// The `remote:` lines of a push, without the prefix.
+fn push_output(c: &Ctx, dir: &Path, refspec: &str) -> Vec<String> {
+    let out = c
+        .git
+        .cmd(dir)
+        .args(["push", "--force", &c.url, refspec])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{err}");
+    feedback(&err)
+}
+
+fn feedback(err: &str) -> Vec<String> {
+    err.lines()
+        .filter_map(|l| l.strip_prefix("remote: slath: "))
+        .filter(|l| l.contains("merge request") || l.starts_with("  "))
+        .map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect()
+}
+
+#[test]
+fn conf_jj_11_push_feedback_lists_each_change() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    c.git.ok(&w, &["switch", "-q", "-c", "fb", "main"]);
+    commit_file(&c.git, &w, "a.txt", &lines("a", None), "Add a");
+    commit_file(&c.git, &w, "b.txt", &lines("b", None), "Add b");
+    commit_file(&c.git, &w, "c.txt", &lines("c", None), "Add c");
+    c.push(&w, "fb");
+    let n = c.open_mr("fb");
+    let first = c.stack(n, 1);
+    let id = |i: usize| ids(&first)[i][..8].to_owned();
+    let url = format!("{}/alice/demo/merge-requests/{n}", c.s.base());
+
+    // Git: amend the middle commit's content (a keeps its patch), drop c,
+    // add d.
+    c.git.ok(&w, &["reset", "-q", "--hard", "HEAD~2"]);
+    commit_file(&c.git, &w, "b.txt", &lines("b", Some(1)), "Add b");
+    commit_file(&c.git, &w, "d.txt", &lines("d", None), "Add d");
+    let got = push_output(&c, &w, "fb");
+    let s = c.stack(n, 2);
+    let new_d = ids(&s)[2][..8].to_owned();
+    assert_eq!(
+        got,
+        vec![
+            format!("merge request !{n} for fb, revision 2: {url}"),
+            format!("{} unchanged Add a", id(0)),
+            format!("{} inferred (version 2) Add b", id(1)),
+            format!("{new_d} new Add d"),
+            format!("{} removed", id(2)),
+        ]
+    );
+
+    // jj: the same report for the same kind of push.
+    if let Some((version, bin)) = jj_binaries().into_iter().last() {
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(d.path(), &["git", "clone", &c.url, j.to_str().unwrap()]);
+        jj.ok(&j, &["bookmark", "track", "fb@origin"]);
+        jj.ok(&j, &["edit", "fb"]);
+        std::fs::write(j.join("d.txt"), lines("d", Some(5))).unwrap();
+        let out = jj
+            .cmd(&j)
+            .args(["git", "push", "--bookmark", "fb"])
+            .output()
+            .unwrap();
+        let err = String::from_utf8_lossy(&out.stderr).into_owned();
+        assert!(out.status.success(), "{err}");
+        assert_eq!(
+            feedback(&err),
+            vec![
+                format!("merge request !{n} for fb, revision 3: {url}"),
+                format!("{} unchanged Add a", id(0)),
+                format!("{} unchanged Add b", id(1)),
+                format!("{new_d} updated (version 2) Add d"),
+            ],
+            "{version}"
+        );
+    }
+
+    // A push that doesn't move the head: only the link.
+    c.git.ok(&w, &["fetch", "-q", &c.url, "fb"]);
+    c.git.ok(&w, &["reset", "-q", "--hard", "FETCH_HEAD"]);
+    c.git.ok(&w, &["push", "-q", &c.url, "fb:refs/heads/other"]);
+    let got = push_output(&c, &w, "fb:refs/heads/fb");
+    assert!(
+        got.is_empty() || got == vec![format!("merge request !{n} for fb: {url}")],
+        "{got:?}"
+    );
+}
+
+#[test]
+fn push_feedback_past_its_budget_prints_only_the_link() {
+    let s = TestServer::start_full(&[DEMO], "[limits]\npush_feedback_timeout = \"0ms\"\n");
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "ids", &["repo:write", "mrs:write"]);
+    let c = Ctx {
+        url: s.url(&DEMO),
+        s,
+        token,
+        git: GitClient::new(),
+    };
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    c.git.ok(&w, &["switch", "-q", "-c", "slow", "main"]);
+    commit_file(&c.git, &w, "a.txt", "a\n", "Add a");
+    c.push(&w, "slow");
+    let n = c.open_mr("slow");
+    c.stack(n, 1);
+    commit_file(&c.git, &w, "b.txt", "b\n", "Add b");
+    let got = push_output(&c, &w, "slow");
+    let url = format!("{}/alice/demo/merge-requests/{n}", c.s.base());
+    assert_eq!(got, vec![format!("merge request !{n} for slow: {url}")]);
+    // The job still records the revision.
+    assert_eq!(entries(&c.stack(n, 2)).len(), 2);
+}

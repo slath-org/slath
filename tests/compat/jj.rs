@@ -78,7 +78,7 @@ impl Jj {
         }
     }
 
-    fn cmd(&self, cwd: &Path) -> Command {
+    pub(crate) fn cmd(&self, cwd: &Path) -> Command {
         let mut c = Command::new(&self.bin);
         c.current_dir(cwd)
             .env_clear()

@@ -483,7 +483,10 @@ impl Services {
         {
             tracing::error!(error = %e, repo = %grant.repo_id, "post-receive bookkeeping failed; the reconciler will repair it");
         }
-        messages.extend(self.push_hints(grant.repo_id, updates).await);
+        messages.extend(
+            self.push_hints(grant.repo_id, grant.user_id(), updates)
+                .await,
+        );
         match self.measure_repo(grant.repo_id).await {
             Ok(size) => {
                 let quota = self.config.limits.repo_soft_quota_bytes.get();

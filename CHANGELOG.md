@@ -19,6 +19,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Change IDs use jj's format: jj users see the same IDs as in `jj log`, and Git commits get the ID jj would give them.
 - Commits with conflicting or duplicate IDs are marked unresolved and block merging until someone picks a change; wrongly matched commits can be split off or attached.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
+- A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - `GET /api/v1/repos/{ns}/{repo}/merge-requests/{n}/stack` lists the current revision's changes; `POST …/stack/{position}/bind` resolves, splits, or joins them.
 - After a push, Git prints a link to create a merge request for the branch, or the link of its open merge request.
 - Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.

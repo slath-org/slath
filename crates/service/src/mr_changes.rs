@@ -376,6 +376,186 @@ impl Services {
         Ok(out)
     }
 
+    /// The push feedback of one merge request: records the revision for
+    /// the pushed head `new` within the time budget and lists what happened
+    /// to each change. Past the budget, or on errors, only the link.
+    pub(crate) async fn push_feedback(
+        &self,
+        id: MergeRequestId,
+        pusher: Option<UserId>,
+        new: &str,
+        label: &str,
+        url: &str,
+    ) -> Vec<String> {
+        let link = vec![format!("slath: merge request {label}: {url}")];
+        let svc = self.clone();
+        // Spawned, so that a sync past the budget still finishes.
+        let task = tokio::spawn(async move { svc.sync_mr(id, pusher).await });
+        let budget = self.config.limits.push_feedback_timeout.get();
+        match tokio::time::timeout(budget, task).await {
+            Ok(Ok(Ok(_))) => {}
+            Ok(Ok(Err(e))) => {
+                tracing::warn!(error = %e, mr = %id, "recording a revision during the push failed");
+                return link;
+            }
+            _ => return link,
+        }
+        let Ok(Some(m)) = slath_db::merge_requests::get_by_id(&self.pool, id).await else {
+            return link;
+        };
+        if m.head_oid.as_deref() != Some(new) {
+            return link;
+        }
+        match self.feedback_lines(&m, label, url).await {
+            Ok(lines) => lines,
+            Err(e) => {
+                tracing::warn!(error = %e, mr = %id, "push feedback failed");
+                link
+            }
+        }
+    }
+
+    async fn feedback_lines(
+        &self,
+        m: &MergeRequest,
+        label: &str,
+        url: &str,
+    ) -> Result<Vec<String>> {
+        let seq = m.revisions;
+        let mut out = vec![format!(
+            "slath: merge request {label}, revision {seq}: {url}"
+        )];
+        let revisions = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        let Some(rev) = revisions.iter().find(|r| r.seq == seq) else {
+            return Ok(out);
+        };
+        if rev.mode == "whole-only" {
+            let why = match rev.mode_reason.as_deref() {
+                Some("unrelated-histories") => "the branches have no common history",
+                Some("empty") => "it has no commits of its own",
+                Some("too-many-commits") => "it has too many commits",
+                Some("merge-commits") => "it contains merge commits",
+                _ => "of its history",
+            };
+            out.push(format!("slath:   reviewed as a whole: {why}"));
+            return Ok(out);
+        }
+        let versions = db::versions(&self.pool, m.id).await?;
+        let display: HashMap<uuid::Uuid, String> = db::changes(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .map(|c| (c.id, c.display_id))
+            .collect();
+        let here: Vec<&db::Version> = versions.iter().filter(|v| v.revision_seq == seq).collect();
+        let prev_seq = versions
+            .iter()
+            .map(|v| v.revision_seq)
+            .filter(|s| *s < seq)
+            .max();
+        let before: HashMap<uuid::Uuid, Option<&str>> = versions
+            .iter()
+            .filter(|v| Some(v.revision_seq) == prev_seq)
+            .filter_map(|v| Some((v.change_id?, v.patch_id.as_deref())))
+            .collect();
+        // Subjects of the revision's commits.
+        let head = ObjectId::parse(&rev.head_oid).map_err(ServiceError::internal)?;
+        let base = rev
+            .merge_base_oid
+            .as_deref()
+            .and_then(|b| ObjectId::parse(b).ok());
+        let subjects: HashMap<String, String> = slath_git::browse::log_range(
+            &self.runner,
+            &self.repo_path(m.repo_id),
+            base.as_ref(),
+            &head,
+            self.config.limits.review_max_commits,
+        )
+        .await
+        .map_err(ServiceError::internal)?
+        .into_iter()
+        .map(|c| (c.oid.as_str().to_owned(), c.subject))
+        .collect();
+        let subject = |oid: &str| -> String {
+            let s: String = subjects
+                .get(oid)
+                .map(String::as_str)
+                .unwrap_or("")
+                .chars()
+                .filter(|c| !c.is_control())
+                .collect();
+            if s.chars().count() > 60 {
+                format!("{}…", s.chars().take(59).collect::<String>())
+            } else {
+                s
+            }
+        };
+        let version_of = |k: uuid::Uuid| {
+            versions
+                .iter()
+                .filter(|v| v.change_id == Some(k) && v.revision_seq <= seq)
+                .count()
+        };
+        let mut rows: Vec<(String, String, String)> = Vec::new();
+        for v in &here {
+            let (id, outcome) = match v.change_id {
+                None => (
+                    "(unresolved)".to_owned(),
+                    if v.reason.as_deref() == Some("duplicate-id") {
+                        format!(
+                            "unresolved: another commit has the same ID; choose at {url}/commits"
+                        )
+                    } else {
+                        format!(
+                            "unresolved: its IDs name {} changes; choose at {url}/commits",
+                            v.candidates.len()
+                        )
+                    },
+                ),
+                Some(k) => {
+                    let id = display
+                        .get(&k)
+                        .map_or("", |d| d.get(..8).unwrap_or(d))
+                        .to_owned();
+                    let outcome = match (v.state.as_str(), before.get(&k)) {
+                        ("inferred", _) => format!("inferred (version {})", version_of(k)),
+                        ("new", _) | (_, None) => "new".to_owned(),
+                        (_, Some(p)) if p.is_some() && *p == v.patch_id.as_deref() => {
+                            "unchanged".to_owned()
+                        }
+                        _ => format!("updated (version {})", version_of(k)),
+                    };
+                    (id, outcome)
+                }
+            };
+            rows.push((id, outcome, subject(&v.commit_oid)));
+        }
+        let width = rows
+            .iter()
+            .map(|r| r.1.chars().count())
+            .filter(|w| *w < 30)
+            .max()
+            .unwrap_or(0);
+        for (id, outcome, subj) in rows {
+            let line = if outcome.starts_with("unresolved") {
+                format!("slath:   {id} {subj}: {outcome}")
+            } else {
+                format!("slath:   {id} {outcome:<width$} {subj}")
+            };
+            out.push(line.trim_end().to_owned());
+        }
+        let current: HashSet<uuid::Uuid> = here.iter().filter_map(|v| v.change_id).collect();
+        let mut removed: Vec<&String> = before
+            .keys()
+            .filter(|k| !current.contains(k))
+            .filter_map(|k| display.get(k))
+            .collect();
+        removed.sort();
+        for d in removed {
+            out.push(format!("slath:   {} removed", d.get(..8).unwrap_or(d)));
+        }
+        Ok(out)
+    }
+
     /// Whether the subject may rebind commits of this merge request: its
     /// author, or anyone who can push its source.
     #[must_use]

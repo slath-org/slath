@@ -355,6 +355,8 @@ pub struct Limits {
     pub diff_max_files: usize,
     pub diff_max_lines: usize,
     pub review_max_commits: usize,
+    /// Recording merge request revisions during a push, for its feedback.
+    pub push_feedback_timeout: Dur,
     /// Request bodies (API and UI); pushes are limited separately.
     pub http_max_body_bytes: Bytes,
     pub attachment_max_bytes: Bytes,
@@ -409,6 +411,7 @@ impl Default for Limits {
             diff_max_files: 300,
             diff_max_lines: 20_000,
             review_max_commits: 250,
+            push_feedback_timeout: Dur::secs(3),
             http_max_body_bytes: Bytes(10 * MIB),
             attachment_max_bytes: Bytes(25 * MIB),
             avatar_max_bytes: Bytes(5 * MIB),
