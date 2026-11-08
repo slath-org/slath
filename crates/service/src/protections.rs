@@ -8,13 +8,23 @@
 //! a branch, the strictest value of each setting applies.
 
 use slath_core::authz::{Action, Role, Subject};
+use slath_core::ids::UserId;
 use slath_db::protections::{NewProtection, Protection};
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
 
+/// A status context that must succeed, and whose reports count.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequiredCheck {
+    pub context: String,
+    /// `None`: anyone allowed to report statuses (but never the merge
+    /// request's author or their bots).
+    pub reporters: Option<Vec<UserId>>,
+}
+
 /// The settings that apply to one branch (all matching rules combined).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Effective {
     pub protected: bool,
     pub block_force_push: bool,
@@ -30,6 +40,29 @@ pub struct Effective {
     pub require_up_to_date: bool,
     /// Only if every matching rule lets bots approve.
     pub bots_count_as_approvers: bool,
+    /// Every rule's required contexts; with reporter lists from several
+    /// rules, only reporters on all of them.
+    pub required_checks: Vec<RequiredCheck>,
+    /// Only if every matching rule accepts statuses on the head.
+    pub statuses_on_head_ok: bool,
+}
+
+/// The reporter lists of a rule: context -> user IDs.
+fn reporters_of(p: &Protection) -> std::collections::HashMap<String, Vec<UserId>> {
+    let mut out = std::collections::HashMap::new();
+    if let Some(map) = p.status_reporters.as_object() {
+        for (ctx, ids) in map {
+            let ids: Vec<UserId> = ids
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str()?.parse::<uuid::Uuid>().ok())
+                .map(UserId::from_uuid)
+                .collect();
+            out.insert(ctx.clone(), ids);
+        }
+    }
+    out
 }
 
 /// Glob match of `pattern` on a short branch name.
@@ -73,6 +106,7 @@ fn push_role(s: &str) -> Option<Role> {
 pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
     let mut e = Effective {
         bots_count_as_approvers: true,
+        statuses_on_head_ok: true,
         ..Effective::default()
     };
     for r in rules
@@ -85,6 +119,25 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.require_resolved_threads |= r.require_resolved_threads;
         e.require_up_to_date |= r.require_up_to_date;
         e.bots_count_as_approvers &= r.bots_count_as_approvers;
+        e.statuses_on_head_ok &= r.statuses_on_head_ok;
+        let lists = reporters_of(r);
+        for ctx in &r.required_status_contexts {
+            let list = lists.get(ctx).filter(|l| !l.is_empty()).cloned();
+            match e.required_checks.iter_mut().find(|c| c.context == *ctx) {
+                Some(c) => {
+                    c.reporters = match (c.reporters.take(), list) {
+                        (Some(a), Some(b)) => {
+                            Some(a.into_iter().filter(|u| b.contains(u)).collect())
+                        }
+                        (a, b) => a.or(b),
+                    };
+                }
+                None => e.required_checks.push(RequiredCheck {
+                    context: ctx.clone(),
+                    reporters: list,
+                }),
+            }
+        }
         e.block_force_push |= r.block_force_push;
         e.block_deletion |= r.block_deletion;
         e.require_mr |= r.require_mr;
@@ -96,6 +149,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
     if !e.protected {
         e.bots_count_as_approvers = false;
     }
+    e.required_checks.sort_by(|a, b| a.context.cmp(&b.context));
     e
 }
 
@@ -131,6 +185,18 @@ pub struct RuleInput {
     pub require_resolved_threads: bool,
     pub require_up_to_date: bool,
     pub bots_count_as_approvers: bool,
+    /// Required contexts, each with the names of the users or bots whose
+    /// statuses count (empty: anyone allowed).
+    pub required_checks: Vec<(String, Vec<String>)>,
+    pub statuses_on_head_ok: bool,
+}
+
+/// Whether `s` is a valid status context.
+#[must_use]
+pub fn valid_context(s: &str) -> bool {
+    (1..=100).contains(&s.len())
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b" ._/:-".contains(&b))
 }
 
 impl Services {
@@ -177,6 +243,46 @@ impl Services {
                 "Use a number from 0 to 20.",
             ));
         }
+        let mut contexts = Vec::new();
+        let mut reporters = serde_json::Map::new();
+        for (ctx, names) in &r.required_checks {
+            let ctx = ctx.trim();
+            if !valid_context(ctx) {
+                return Err(ServiceError::invalid(
+                    "required_checks",
+                    "invalid",
+                    format!(
+                        "“{ctx}” isn't a status context: use up to 100 letters, digits, spaces, and . _ / : -"
+                    ),
+                ));
+            }
+            let mut ids = Vec::new();
+            for n in names
+                .iter()
+                .map(|n| n.trim().trim_start_matches('@'))
+                .filter(|n| !n.is_empty())
+            {
+                match slath_db::orgs::resolve_namespace(&self.pool, n).await? {
+                    Some((_, _, slath_db::orgs::NamespaceKind::User(u))) => {
+                        ids.push(serde_json::Value::String(u.to_string()));
+                    }
+                    _ => {
+                        return Err(ServiceError::invalid(
+                            "required_checks",
+                            "unknown",
+                            format!("{n} isn't a user or bot."),
+                        ));
+                    }
+                }
+            }
+            if !contexts.iter().any(|c: &String| c == ctx) {
+                contexts.push(ctx.to_owned());
+            }
+            if !ids.is_empty() {
+                reporters.insert(ctx.to_owned(), serde_json::Value::Array(ids));
+            }
+        }
+        let reporters = serde_json::Value::Object(reporters);
         slath_db::protections::upsert(
             &self.pool,
             a.repo.id,
@@ -191,6 +297,9 @@ impl Services {
                 require_resolved_threads: r.require_resolved_threads,
                 require_up_to_date: r.require_up_to_date,
                 bots_count_as_approvers: r.bots_count_as_approvers,
+                required_status_contexts: &contexts,
+                statuses_on_head_ok: r.statuses_on_head_ok,
+                status_reporters: &reporters,
             },
         )
         .await?;
@@ -209,10 +318,31 @@ impl Services {
                 "require_resolved_threads": r.require_resolved_threads,
                 "require_up_to_date": r.require_up_to_date,
                 "bots_count_as_approvers": r.bots_count_as_approvers,
+                "required_status_contexts": contexts,
+                "status_reporters": reporters,
+                "statuses_on_head_ok": r.statuses_on_head_ok,
             }),
         )
         .await;
         Ok(())
+    }
+
+    /// A rule's reporter lists with user names instead of IDs.
+    pub async fn reporter_names(
+        &self,
+        p: &Protection,
+    ) -> Result<std::collections::BTreeMap<String, Vec<String>>> {
+        let mut out = std::collections::BTreeMap::new();
+        for (ctx, ids) in reporters_of(p) {
+            let mut names = Vec::new();
+            for u in ids {
+                if let Some(user) = slath_db::users::get(&self.pool, u).await? {
+                    names.push(user.name);
+                }
+            }
+            out.insert(ctx, names);
+        }
+        Ok(out)
     }
 
     /// Removes a rule. Audited.
@@ -277,6 +407,9 @@ mod tests {
             require_resolved_threads: false,
             require_up_to_date: false,
             bots_count_as_approvers: false,
+            required_status_contexts: Vec::new(),
+            statuses_on_head_ok: true,
+            status_reporters: serde_json::json!({}),
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

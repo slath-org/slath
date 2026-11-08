@@ -149,6 +149,29 @@ for changes, and every commit belonging to one change. Protection can also
 require the branch to be up to date and threads to be resolved. The API
 returns the same list at `GET …/merge-requests/{n}/mergeability`.
 
+## Statuses and required checks
+
+CI systems and other tools report the result of a check on a commit with
+`POST /api/v1/repos/{namespace}/{repo}/statuses/{commit}` and a token with
+the `statuses:write` scope:
+
+```json
+{"state": "success", "context": "ci/build", "target_url": "https://ci.example.org/runs/42"}
+```
+
+`state` is `pending`, `success`, `failure`, or `error`; the latest status
+per context counts. Every status shows who reported it: Slath knows the
+reporter, not whether the check really ran. The commit page and the
+merge request's **Checks** list them, and
+`GET …/commits/{commit}/statuses` returns them.
+
+When the target's branch protection requires a context, the merge box
+shows it, with the reporter and why a status didn't count:
+
+- only statuses on the merge request's head commit count;
+- never the author's own statuses, or those of bots the author owns;
+- if the rule lists reporters for the context, only theirs.
+
 ## Reading diffs
 
 Diffs look the same on commits, the compare page, and merge requests:

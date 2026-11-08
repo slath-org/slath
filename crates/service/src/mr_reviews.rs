@@ -61,7 +61,7 @@ pub struct ReviewView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
     /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
-    /// `threads`, or `identity`.
+    /// `statuses` (one per required check), `threads`, or `identity`.
     pub key: &'static str,
     /// `met`, `unmet`, or `pending`.
     pub state: &'static str,
@@ -445,9 +445,11 @@ impl Services {
                 "Push changes that address the review",
             )
         });
+        let (up_to_date, up_req) = self.up_to_date(m).await?;
         if eff.require_up_to_date {
-            reqs.push(self.up_to_date(m).await?);
+            reqs.push(up_req);
         }
+        reqs.extend(self.check_requirements(m, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
             reqs.push(met("threads", "No threads are unresolved."));
         }
@@ -485,7 +487,9 @@ impl Services {
         })
     }
 
-    async fn up_to_date(&self, m: &MergeRequest) -> Result<Requirement> {
+    /// Whether the target head is an ancestor of the source head, and the
+    /// requirement saying so.
+    async fn up_to_date(&self, m: &MergeRequest) -> Result<(bool, Requirement)> {
         let target = slath_git::args::RefName::branch(m.target_branch.as_bytes())
             .map_err(|_| ServiceError::internal("bad target"))?;
         let dir = self.repo_path(m.repo_id);
@@ -497,16 +501,20 @@ impl Services {
                 .as_deref()
                 .and_then(|h| slath_git::ObjectId::parse(h).ok()),
         ) else {
-            return Ok(unmet(
-                "up_to_date",
-                "The target branch doesn't exist.",
-                "Choose another target",
+            return Ok((
+                false,
+                unmet(
+                    "up_to_date",
+                    "The target branch doesn't exist.",
+                    "Choose another target",
+                ),
             ));
         };
         let base = slath_git::browse::merge_base(&self.runner, &dir, &t, &h)
             .await
             .map_err(ServiceError::internal)?;
-        Ok(if base.as_ref() == Some(&t) {
+        let ok = base.as_ref() == Some(&t);
+        let req = if ok {
             met(
                 "up_to_date",
                 format!("It's up to date with {}.", m.target_branch),
@@ -517,7 +525,8 @@ impl Services {
                 format!("{} has commits the branch doesn't.", m.target_branch),
                 "Rebase or merge the target into the branch",
             )
-        })
+        };
+        Ok((ok, req))
     }
 
     /// After revision `seq`: whether it kept every change's patch, and the

@@ -16,7 +16,7 @@ struct Users {
 
 fn token(s: &TestServer, user: &str) -> String {
     let mut c = s.login(user, PASSWORD);
-    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
+    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write", "statuses:write"])
 }
 
 fn api(
@@ -349,5 +349,207 @@ fn conf_review_01_resolved_threads_and_up_to_date_are_evaluated() {
             "unmet".into(),
             "main has commits the branch doesn't.".into()
         )
+    );
+}
+
+/// alice/demo with `main` and a merge request from `topic`, a protection
+/// requiring `ci/build`, and the head commit.
+fn status_setup(protection: Value) -> (Users, i64, String, String) {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.create_user("carol", PASSWORD, false);
+    let u = Users {
+        alice: token(&s, "alice"),
+        bob: token(&s, "bob"),
+        carol: token(&s, "carol"),
+        s,
+    };
+    for who in ["bob", "carol"] {
+        let r = api(
+            &u,
+            &u.alice,
+            "PUT",
+            &format!("/collaborators/{who}"),
+            Some(json!({"role": "write"})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    let r = api(&u, &u.alice, "POST", "/protections", Some(protection));
+    assert_eq!(r.status, 200, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = u.s.url(&DEMO);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    let main = git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned();
+    git.ok(w, &["switch", "-q", "-c", "topic"]);
+    std::fs::write(w.join("t.txt"), "t\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "Topic"]);
+    git.ok(w, &["push", "-q", &url, "topic"]);
+    let head = git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned();
+    let n = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "T"})),
+    )
+    .json()["number"]
+        .as_i64()
+        .unwrap();
+    wait_revisions(&u, n, 1);
+    (u, n, head, main)
+}
+
+fn report(u: &Users, token: &str, oid: &str, state: &str) -> slath_tests::http::Resp {
+    api(
+        u,
+        token,
+        "POST",
+        &format!("/statuses/{oid}"),
+        Some(
+            json!({"state": state, "context": "ci/build", "target_url": "https://ci.example.org/1"}),
+        ),
+    )
+}
+
+#[test]
+fn conf_review_04_only_statuses_on_the_landing_commit_count() {
+    let (u, n, head, main) = status_setup(
+        json!({"pattern": "main", "required_approvals": 0, "required_status_contexts": ["ci/build"]}),
+    );
+    assert_eq!(
+        requirement(&u, n, "statuses"),
+        ("pending".into(), "ci/build: no status yet.".into())
+    );
+    // A token without statuses:write can't report.
+    let mut c = u.s.login("bob", PASSWORD);
+    let read_only = slath_tests::http::create_token(&mut c, "ro", &["repo:read"]);
+    assert_eq!(report(&u, &read_only, &head, "success").status, 403);
+    // Unknown commits, and other repositories, are refused.
+    assert_eq!(report(&u, &u.bob, &"0".repeat(40), "success").status, 404);
+    // A success on another commit doesn't count.
+    assert_eq!(report(&u, &u.bob, &main, "success").status, 201);
+    assert_eq!(requirement(&u, n, "statuses").0, "pending");
+    // On the head it does; the latest report wins.
+    assert_eq!(report(&u, &u.bob, &head, "failure").status, 201);
+    assert_eq!(
+        requirement(&u, n, "statuses"),
+        ("unmet".into(), "ci/build: failure, reported by bob.".into())
+    );
+    assert_eq!(report(&u, &u.bob, &head, "success").status, 201);
+    assert_eq!(
+        requirement(&u, n, "statuses"),
+        ("met".into(), "ci/build: success, reported by bob.".into())
+    );
+    let m = api(
+        &u,
+        &u.alice,
+        "GET",
+        &format!("/merge-requests/{n}/mergeability"),
+        None,
+    )
+    .json();
+    assert_eq!(m["mergeable"], true, "{m}");
+    // The statuses show their reporter and evidence class.
+    let list = api(
+        &u,
+        &u.alice,
+        "GET",
+        &format!("/commits/{head}/statuses"),
+        None,
+    )
+    .json();
+    assert_eq!(list[0]["reporter"], "bob");
+    assert_eq!(list[0]["evidence"], "reported");
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    // Bad input.
+    for body in [
+        json!({"state": "done", "context": "ci/build"}),
+        json!({"state": "success", "context": "bad\ncontext"}),
+        json!({"state": "success", "context": "ci", "target_url": "http://ci.example.org"}),
+    ] {
+        assert_eq!(
+            api(&u, &u.bob, "POST", &format!("/statuses/{head}"), Some(body)).status,
+            422
+        );
+    }
+    // The merge request shows who reported it.
+    let page =
+        u.s.login("alice", PASSWORD)
+            .get(&format!("/alice/demo/merge-requests/{n}"))
+            .body;
+    assert!(page.contains("Reported by bob"));
+}
+
+#[test]
+fn conf_review_11_who_may_satisfy_required_checks() {
+    let (u, n, head, _) = status_setup(
+        json!({"pattern": "main", "required_approvals": 0, "required_status_contexts": ["ci/build"]}),
+    );
+    // The author's own report never counts.
+    assert_eq!(report(&u, &u.alice, &head, "success").status, 201);
+    let (st, reason) = requirement(&u, n, "statuses");
+    assert_eq!(st, "unmet");
+    assert!(
+        reason.contains(
+            "the report by alice doesn't count: the author can't report their own checks"
+        ),
+        "{reason}"
+    );
+    // Nor a bot the author owns.
+    u.s.create_user("alicebot", PASSWORD, false);
+    let bot = token(&u.s, "alicebot");
+    let alice_id = u.s.db.query_one("SELECT u.id::text FROM users u JOIN namespaces n ON n.id = u.namespace_id WHERE n.name = 'alice'");
+    // Bot accounts can't be created yet; turn a user into one.
+    let _bot_id = u.s.db.query_one(&format!(
+        "UPDATE users u SET kind = 'bot', bot_owner_kind = 'user', bot_owner_id = '{alice_id}', password_hash = NULL
+           FROM namespaces n WHERE n.id = u.namespace_id AND n.name = 'alicebot' RETURNING u.id::text"
+    ));
+    let r = api(
+        &u,
+        &u.alice,
+        "PUT",
+        "/collaborators/alicebot",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(report(&u, &bot, &head, "success").status, 201);
+    let reason = requirement(&u, n, "statuses").1;
+    assert!(
+        reason.contains(
+            "the report by alicebot doesn't count: bots of the author can't report its checks"
+        ),
+        "{reason}"
+    );
+    // With a reporter list, only listed reporters count.
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/protections",
+        Some(json!({
+            "pattern": "main", "required_approvals": 0,
+            "required_status_contexts": ["ci/build"],
+            "status_reporters": {"ci/build": ["carol"]},
+        })),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["status_reporters"]["ci/build"], json!(["carol"]));
+    assert_eq!(report(&u, &u.bob, &head, "success").status, 201);
+    let reason = requirement(&u, n, "statuses").1;
+    assert!(
+        reason.contains("the report by bob doesn't count: only the listed reporters count"),
+        "{reason}"
+    );
+    assert_eq!(report(&u, &u.carol, &head, "success").status, 201);
+    assert_eq!(
+        requirement(&u, n, "statuses"),
+        ("met".into(), "ci/build: success, reported by carol.".into())
     );
 }

@@ -1,0 +1,7 @@
+{%- if !statuses.is_empty() %}
+<ul class="plain-list statuses">
+{%- for st in statuses %}
+  <li class="status status-{{ st.state }}">{% call m::icon(ctx, st.icon) %}{% endcall %}<span><strong>{{ st.context }}</strong>: {{ st.state }}{% if let Some(d) = st.description %} – {{ d }}{% endif %}{% if let Some(u) = st.url %} (<a href="{{ u }}" rel="nofollow noopener noreferrer">details</a>){% endif %}<br><span class="text-secondary">Reported by {{ st.reporter }}, <time datetime="{{ st.time.iso }}">{{ st.time.text }}</time></span></span></li>
+{%- endfor %}
+</ul>
+{%- endif %}

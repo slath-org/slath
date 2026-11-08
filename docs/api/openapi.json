@@ -1744,6 +1744,72 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/commits/{oid}/statuses": {
+      "get": {
+        "tags": [
+          "statuses"
+        ],
+        "summary": "The latest status of each context on a commit.",
+        "operationId": "list_statuses",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommitStatus"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/import": {
       "get": {
         "tags": [
@@ -4608,6 +4674,105 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/statuses/{oid}": {
+      "post": {
+        "tags": [
+          "statuses"
+        ],
+        "summary": "Reports a status on a commit (scope `statuses:write`). The latest\nstatus per context wins.",
+        "operationId": "create_status",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "statuses:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/tags": {
       "get": {
         "tags": [
@@ -5570,6 +5735,59 @@
           }
         }
       },
+      "CommitStatus": {
+        "type": "object",
+        "description": "A reported status.",
+        "required": [
+          "id",
+          "commit_oid",
+          "context",
+          "state",
+          "evidence",
+          "created_at"
+        ],
+        "properties": {
+          "commit_oid": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Always `reported`: Slath knows who reported it, not that the check\nran."
+          },
+          "id": {
+            "type": "string"
+          },
+          "reporter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who reported it (a user or bot); `null` once that account is gone."
+          },
+          "state": {
+            "type": "string",
+            "description": "`pending`, `success`, `failure`, or `error`."
+          },
+          "target_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "GitRef": {
         "type": "object",
         "required": [
@@ -6484,6 +6702,33 @@
           }
         }
       },
+      "NewStatus": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs before\nvalidation.",
+        "properties": {
+          "context": {
+            "type": "string",
+            "description": "Up to 100 letters, digits, spaces, and `. _ / : -`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "description": "`pending`, `success`, `failure`, or `error`."
+          },
+          "target_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An `https://` URL (`http://` only for localhost)."
+          }
+        }
+      },
       "NotificationJson": {
         "type": "object",
         "description": "A notification in the API.",
@@ -6642,6 +6887,28 @@
             "type": "integer",
             "format": "int32",
             "description": "Default 1."
+          },
+          "required_status_contexts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status_reporters": {
+            "type": "object",
+            "description": "Per context, user or bot names whose statuses count.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "statuses_on_head_ok": {
+            "type": "boolean"
           }
         }
       },
@@ -6725,7 +6992,10 @@
           "dismiss_stale_approvals",
           "require_resolved_threads",
           "require_up_to_date",
-          "bots_count_as_approvers"
+          "bots_count_as_approvers",
+          "required_status_contexts",
+          "status_reporters",
+          "statuses_on_head_ok"
         ],
         "properties": {
           "block_deletion": {
@@ -6766,6 +7036,30 @@
             "type": "integer",
             "format": "int32",
             "description": "Approvals by people with write access, other than the author."
+          },
+          "required_status_contexts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Status contexts that must be `success` on the commit that lands."
+          },
+          "status_reporters": {
+            "type": "object",
+            "description": "Per context, the users or bots whose statuses count (none listed:\nanyone allowed, except the author and the author's bots).",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "statuses_on_head_ok": {
+            "type": "boolean",
+            "description": "Statuses on the head also count for rebase and merge commits."
           }
         }
       },
@@ -7468,6 +7762,9 @@
     },
     {
       "name": "merge requests"
+    },
+    {
+      "name": "statuses"
     }
   ]
 }

@@ -927,6 +927,7 @@ struct CommitPage {
     diff: super::diff::DiffView,
     too_big: bool,
     tree_href: String,
+    statuses: Vec<super::StatusRow>,
 }
 
 /// Name and time from a raw `author`/`committer` header value.
@@ -1001,7 +1002,15 @@ async fn commit(
         .map_or((message.as_str(), ""), |(s, b)| (s, b));
     let (author, author_t) = ident(c.header(b"author").unwrap_or_default());
     let (committer, _) = ident(c.header(b"committer").unwrap_or_default());
+    let statuses = state
+        .services
+        .commit_statuses(&subject, (&ns, &repo), oid.as_str())
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
     let page = CommitPage {
+        statuses,
         header: RepoHeader::load(&state, &a, &subject, "commits").await,
         short: oid.as_str()[..12].to_owned(),
         subject: slath_markup::reveal_bidi(subject_line).into_owned(),

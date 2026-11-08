@@ -43,6 +43,7 @@ pub mod search;
 pub mod secrets;
 pub mod sessions;
 pub mod settings;
+pub mod statuses;
 pub mod teams;
 pub mod tokens;
 pub mod updates;

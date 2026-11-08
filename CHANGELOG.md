@@ -21,6 +21,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Commit statuses: tools report `pending`, `success`, `failure`, or `error` per context on a commit, and every status shows its reporter.
+- Branch protection can require status contexts, optionally only from listed reporters; the author's own and their bots' statuses never count.
+- The merge box shows each required check with its reporter, and why a status didn't count.
 - Merge requests can be reviewed: comment, approve, or request changes on the current revision; the author can only comment.
 - Reviews can be requested from users and teams; requested reviewers find them under Review requests until they review.
 - Approvals stay current after a rebase that keeps every patch and go stale after content changes; the timeline notes both.

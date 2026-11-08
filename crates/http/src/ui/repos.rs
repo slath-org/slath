@@ -855,6 +855,8 @@ struct ProtectionsSettings<'a> {
     ctx: PageCtx,
     header: RepoHeader,
     rules: Vec<slath_db::protections::Protection>,
+    /// Per rule: its required checks as text ("ci/build by bob; lint").
+    checks: Vec<String>,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
     pattern: String,
@@ -884,9 +886,24 @@ async fn protections_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let mut checks = Vec::new();
+    for r in &rules {
+        let names = state.services.reporter_names(r).await?;
+        checks.push(
+            r.required_status_contexts
+                .iter()
+                .map(|c| match names.get(c).filter(|n| !n.is_empty()) {
+                    Some(n) => format!("{c} by {}", n.join(", ")),
+                    None => c.clone(),
+                })
+                .collect::<Vec<_>>()
+                .join("; "),
+        );
+    }
     let mut res = render(&ProtectionsSettings {
         ctx,
         header: RepoHeader::load(state, a, subject, "settings").await,
+        checks,
         rules,
         message,
         errors,
@@ -932,6 +949,29 @@ struct RuleForm {
     require_resolved_threads: Option<String>,
     require_up_to_date: Option<String>,
     bots_count_as_approvers: Option<String>,
+    /// One per line: `context` or `context by name, name`.
+    #[serde(default)]
+    required_checks: String,
+    statuses_on_head_ok: Option<String>,
+}
+
+/// Parses the required checks field: one per line, `context` or
+/// `context by name, name`.
+fn parse_checks(text: &str) -> Vec<(String, Vec<String>)> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| match l.split_once(" by ") {
+            Some((c, who)) => (
+                c.trim().to_owned(),
+                who.split(',')
+                    .map(|w| w.trim().to_owned())
+                    .filter(|w| !w.is_empty())
+                    .collect(),
+            ),
+            None => (l.to_owned(), Vec::new()),
+        })
+        .collect()
 }
 
 async fn save_protection(
@@ -964,6 +1004,8 @@ async fn save_protection(
                 require_resolved_threads: f.require_resolved_threads.is_some(),
                 require_up_to_date: f.require_up_to_date.is_some(),
                 bots_count_as_approvers: f.bots_count_as_approvers.is_some(),
+                required_checks: parse_checks(&f.required_checks),
+                statuses_on_head_ok: f.statuses_on_head_ok.is_some(),
             },
         )
         .await

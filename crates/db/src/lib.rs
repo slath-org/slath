@@ -32,6 +32,7 @@ pub mod secrets;
 pub mod sessions;
 pub mod settings;
 pub mod ssh_keys;
+pub mod statuses;
 pub mod teams;
 pub mod tokens;
 pub mod users;
@@ -46,7 +47,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 108;
+pub const REQUIRED_SCHEMA: i32 = 109;
 
 /// Schema version of the baseline migration, where every supported
 /// installation starts. Lower versions come from the 0.1/0.2 previews.

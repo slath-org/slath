@@ -288,6 +288,36 @@ impl std::fmt::Display for MarkupHtml {
 
 impl askama::filters::HtmlSafe for MarkupHtml {}
 
+/// A commit status as pages show it, with its reporter.
+pub struct StatusRow {
+    pub context: String,
+    /// `pending`, `success`, `failure`, or `error`.
+    pub state: String,
+    pub icon: &'static str,
+    pub reporter: String,
+    pub description: Option<String>,
+    pub url: Option<String>,
+    pub time: Time,
+}
+
+impl From<slath_db::statuses::Status> for StatusRow {
+    fn from(s: slath_db::statuses::Status) -> Self {
+        Self {
+            icon: match s.state.as_str() {
+                "success" => "circle-check",
+                "pending" => "clock",
+                _ => "circle-x",
+            },
+            context: s.context,
+            state: s.state,
+            reporter: s.reporter.unwrap_or_else(|| "a deleted user".to_owned()),
+            description: s.description,
+            url: s.target_url,
+            time: s.created_at.into(),
+        }
+    }
+}
+
 /// A timestamp for templates: `<time datetime="{iso}">{text}</time>` (UTC).
 #[derive(Debug, Clone)]
 pub struct Time {

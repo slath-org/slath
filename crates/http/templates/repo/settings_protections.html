@@ -18,7 +18,7 @@
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="rules-caption">
 <table class="table">
   <caption id="rules-caption" class="visually-hidden">Protection rules</caption>
-  <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col">Merge requests</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col">Merge requests</th><th scope="col">Required checks</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {%- for r in rules %}
     <tr>
@@ -27,6 +27,7 @@
       <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}</td>
+      <td>{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -80,6 +81,17 @@
     <div class="checkbox"><input id="require_resolved_threads" type="checkbox" name="require_resolved_threads" value="1"><label for="require_resolved_threads">Require resolved threads</label></div>
     <div class="checkbox"><input id="require_up_to_date" type="checkbox" name="require_up_to_date" value="1"><label for="require_up_to_date">Require the branch to be up to date with the target</label></div>
     <div class="checkbox"><input id="bots_count_as_approvers" type="checkbox" name="bots_count_as_approvers" value="1"><label for="bots_count_as_approvers">Count approvals by bots</label></div>
+    <div class="field">
+      <label for="required_checks">Required status checks</label>
+      <textarea id="required_checks" name="required_checks" rows="3" autocapitalize="none" spellcheck="false" aria-describedby="required_checks-hint{% if self.error("required_checks").is_some() %} required_checks-error{% endif %}"
+        {%- if self.error("required_checks").is_some() %} aria-invalid="true"{% endif %}></textarea>
+      <p id="required_checks-hint" class="hint">One status context per line, for example <code>ci/build</code>. To count only some reporters' statuses: <code>ci/build by ci-bot, alice</code>. Statuses from the merge request's author and the author's bots never count.</p>
+      {%- if let Some(e) = self.error("required_checks") %}
+      <p id="required_checks-error" class="field-error">{{ e }}</p>
+      {%- endif %}
+    </div>
+    <div class="checkbox"><input id="statuses_on_head_ok" type="checkbox" name="statuses_on_head_ok" value="1" checked aria-describedby="statuses_on_head_ok-hint"><label for="statuses_on_head_ok">Accept statuses on the merge request's head for rebase and merge commits</label></div>
+    <p id="statuses_on_head_ok-hint" class="hint">Otherwise only a fast-forward merge can use them; other merges need statuses on the new commit.</p>
   </fieldset>
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>

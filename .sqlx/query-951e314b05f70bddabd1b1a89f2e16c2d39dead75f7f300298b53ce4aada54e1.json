@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
+  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
   "describe": {
     "columns": [
       {
@@ -126,6 +126,39 @@
       },
       {
         "ordinal": 11,
+        "name": "required_status_contexts",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "required_status_contexts"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "statuses_on_head_ok",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "statuses_on_head_ok"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "status_reporters",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "status_reporters"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -153,8 +186,11 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "6c62d50ff237f1711fd61142d5612c595bf8039d7a299308eb676452cc637924"
+  "hash": "951e314b05f70bddabd1b1a89f2e16c2d39dead75f7f300298b53ce4aada54e1"
 }

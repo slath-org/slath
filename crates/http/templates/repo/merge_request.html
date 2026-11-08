@@ -173,6 +173,14 @@
     <pre><code id="checkout-jj">{{ jj_checkout }}</code></pre>
     <button type="button" class="button" data-copy="checkout-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button>
   </section>
+  <section aria-labelledby="side-checks">
+    <h2 id="side-checks" class="sidebar-heading">Checks</h2>
+    {%- if statuses.is_empty() %}
+    <p class="text-secondary">No statuses reported.</p>
+    {%- else %}
+    {% include "repo/statuses.html" %}
+    {%- endif %}
+  </section>
   <section aria-labelledby="side-reviewers">
     <h2 id="side-reviewers" class="sidebar-heading">Reviewers</h2>
     {%- if reviewers.is_empty() %}

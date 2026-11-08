@@ -10,6 +10,12 @@
 <p class="text-secondary">Commit <code>{{ oid }}</code>
 {%- for (p, ps) in parents %} · parent <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ p }}"><code>{{ ps }}</code></a>{% endfor %}
 · <a href="{{ tree_href }}">Browse files</a></p>
+{%- if !statuses.is_empty() %}
+<section aria-labelledby="statuses-title">
+<h2 id="statuses-title">Statuses</h2>
+{% include "repo/statuses.html" %}
+</section>
+{%- endif %}
 {%- if too_big %}
 <div class="notice" role="note"><p>This diff is too large to show.</p></div>
 {%- endif %}

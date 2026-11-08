@@ -781,6 +781,8 @@ struct MrPage {
     can_request: bool,
     /// The viewer last reviewed this earlier revision.
     since_review: Option<i32>,
+    /// The latest statuses of the head.
+    statuses: Vec<super::StatusRow>,
 }
 
 impl MrPage {
@@ -950,6 +952,13 @@ async fn mr_page(
     let can_review = open && a.can(subject, Action::MrReview) && me.is_some();
     let can_approve = can_review && m.author_id != me;
     let since_review = state.services.last_reviewed_revision(subject, &m).await?;
+    let statuses = state
+        .services
+        .mr_statuses(&m)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
     let status = if errors.is_empty() {
         StatusCode::OK
     } else {
@@ -976,6 +985,7 @@ async fn mr_page(
         can_review,
         can_approve,
         since_review,
+        statuses,
         message,
         errors,
         assignees,

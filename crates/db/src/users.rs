@@ -278,6 +278,21 @@ pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Re
 
 /// Saves a user's appearance settings.
 /// The Markdown editor mode (`wysiwyg` or `source`).
+/// The user that owns a bot account, if `id` is a bot owned by a user.
+pub async fn bot_owner_user(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+) -> Result<Option<UserId>, DbError> {
+    let owner = sqlx::query_scalar!(
+        "SELECT bot_owner_id FROM users WHERE id = $1 AND kind = 'bot' AND bot_owner_kind = 'user'",
+        id.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?
+    .flatten();
+    Ok(owner.map(UserId::from_uuid))
+}
+
 /// Saves how the user likes diffs shown.
 pub async fn set_diff_preferences(
     exec: impl PgExecutor<'_>,

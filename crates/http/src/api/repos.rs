@@ -751,11 +751,34 @@ pub struct ProtectionRule {
     /// The target must be an ancestor of the source.
     pub require_up_to_date: bool,
     pub bots_count_as_approvers: bool,
+    /// Status contexts that must be `success` on the commit that lands.
+    pub required_status_contexts: Vec<String>,
+    /// Per context, the users or bots whose statuses count (none listed:
+    /// anyone allowed, except the author and the author's bots).
+    pub status_reporters: std::collections::BTreeMap<String, Vec<String>>,
+    /// Statuses on the head also count for rebase and merge commits.
+    pub statuses_on_head_ok: bool,
+}
+
+impl ProtectionRule {
+    async fn load(
+        state: &AppState,
+        p: slath_db::protections::Protection,
+    ) -> Result<Self, AppError> {
+        let status_reporters = state.services.reporter_names(&p).await?;
+        Ok(Self {
+            status_reporters,
+            ..p.into()
+        })
+    }
 }
 
 impl From<slath_db::protections::Protection> for ProtectionRule {
     fn from(p: slath_db::protections::Protection) -> Self {
         Self {
+            required_status_contexts: p.required_status_contexts.clone(),
+            status_reporters: std::collections::BTreeMap::new(),
+            statuses_on_head_ok: p.statuses_on_head_ok,
             id: p.id.to_string(),
             pattern: p.pattern,
             block_force_push: p.block_force_push,
@@ -779,8 +802,11 @@ pub async fn list_protections(
     ApiUser(s): ApiUser,
     Path((ns, repo)): Path<(String, String)>,
 ) -> Result<Json<Vec<ProtectionRule>>, AppError> {
-    let rules = state.services.protections(&s, &ns, &repo).await?;
-    Ok(Json(rules.into_iter().map(Into::into).collect()))
+    let mut out = Vec::new();
+    for r in state.services.protections(&s, &ns, &repo).await? {
+        out.push(ProtectionRule::load(&state, r).await?);
+    }
+    Ok(Json(out))
 }
 
 /// Every field is optional in the JSON so that authorization runs before
@@ -809,6 +835,13 @@ pub struct PostProtection {
     pub require_up_to_date: bool,
     #[serde(default)]
     pub bots_count_as_approvers: bool,
+    #[serde(default)]
+    pub required_status_contexts: Vec<String>,
+    /// Per context, user or bot names whose statuses count.
+    #[serde(default)]
+    pub status_reporters: std::collections::BTreeMap<String, Vec<String>>,
+    #[serde(default = "yes")]
+    pub statuses_on_head_ok: bool,
 }
 
 const fn one() -> i32 {
@@ -850,6 +883,17 @@ pub async fn post_protection(
                 require_resolved_threads: p.require_resolved_threads,
                 require_up_to_date: p.require_up_to_date,
                 bots_count_as_approvers: p.bots_count_as_approvers,
+                required_checks: p
+                    .required_status_contexts
+                    .iter()
+                    .map(|c| {
+                        (
+                            c.clone(),
+                            p.status_reporters.get(c).cloned().unwrap_or_default(),
+                        )
+                    })
+                    .collect(),
+                statuses_on_head_ok: p.statuses_on_head_ok,
             },
         )
         .await?;
@@ -860,7 +904,7 @@ pub async fn post_protection(
         .into_iter()
         .find(|r| r.pattern == pattern)
         .ok_or_else(AppError::not_found)?;
-    Ok(Json(rule.into()))
+    Ok(Json(ProtectionRule::load(&state, rule).await?))
 }
 
 /// Removes a rule (admins).

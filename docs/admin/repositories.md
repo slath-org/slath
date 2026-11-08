@@ -79,9 +79,19 @@ For merging merge requests into a protected branch:
 - **Require resolved threads** and **Require the branch to be up to date
   with the target**.
 
+- **Required status checks:** status contexts that must report `success`
+  on the commit that lands, one per line (`ci/build`). Add `by` and names
+  to count only those reporters' statuses (`ci/build by ci-bot`).
+  Statuses from the merge request's author and from bots the author owns
+  never count, whatever the rule says.
+- **Accept statuses on the merge request's head for rebase and merge
+  commits** (on by default). Off, only a fast-forward merge can use the
+  head's statuses.
+
 With several matching rules, the highest number of approvals applies, any
-rule can turn on a requirement, and bots count only if every rule allows
-it.
+rule can turn on a requirement, bots count only if every rule allows it,
+and the required checks of all rules apply (with reporter lists, only
+reporters on every list count).
 
 A refused push changes nothing: no ref moves and nothing is recorded. Tags
 aren't affected by branch rules (moving or deleting a tag needs the
