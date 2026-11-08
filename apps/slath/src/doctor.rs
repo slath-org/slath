@@ -378,11 +378,9 @@ fn run_checks(path: &Path) -> Vec<Finding> {
         out.push(disk_finding(free, total));
     }
     let backups = cfg.storage.data_dir.join("backups");
-    out.push(backup_finding(
-        newest_backup(&backups),
-        Duration::from_secs(7 * 86_400),
-        false,
-    ));
+    let scheduled = cfg.backup.schedule.is_some();
+    let max_age = Duration::from_secs(if scheduled { 2 } else { 7 } * 86_400);
+    out.push(backup_finding(newest_backup(&backups), max_age, scheduled));
     out.extend(schema_and_update(&cfg));
     out.push(check_tls(&cfg.server.public_url.join("/")));
     out
@@ -414,6 +412,18 @@ fn schema_and_update(cfg: &Loaded) -> Vec<Finding> {
                     e.to_string(),
                     "see docs/admin/upgrading.md",
                 )),
+            }
+            if let Ok(Some(v)) = slath_db::settings::get(&pool, "scheduled_backup").await
+                && let Ok(last) = serde_json::from_value::<slath_service::admin::ScheduledBackup>(v)
+            {
+                out.push(match last.result {
+                    Ok(path) => Finding::ok("backup.failed", format!("the last scheduled backup succeeded: {path}")),
+                    Err(e) => Finding::fail(
+                        "backup.failed",
+                        format!("the last scheduled backup failed: {e}"),
+                        "fix the cause (often disk space or permissions on <data_dir>/backups); the next run retries",
+                    ),
+                });
             }
             for (item, failed, detail) in crate::upgrade::preflight_problems(cfg, &pool).await? {
                 let fix = "see `slath upgrade --check`";

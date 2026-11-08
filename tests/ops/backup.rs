@@ -384,3 +384,103 @@ fn conf_ops_02_restore_needs_an_empty_target() {
     assert!(!ok);
     assert!(stderr.contains("not empty"), "{stderr}");
 }
+
+/// Scheduled backups (OPS-12): with the day shortened to two seconds, they
+/// run while pushes happen, retention keeps the newest `keep`, the newest
+/// restores, and a failure is reported.
+#[test]
+fn conf_ops_12_scheduled_backups_run_keep_the_newest_and_report_failures() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = TestServer::start_opts(
+        &[DEMO],
+        "[backup]\nschedule = \"03:00\"\nkeep = 2\n",
+        &[("SLATH_TEST_BACKUP_INTERVAL", "2")],
+    );
+    let git = GitClient::new();
+    let work = tempfile::tempdir().unwrap();
+    let src = work.path().join("src");
+    fixtures::generate("basic", &src, &[]);
+    let dir = s.data_dir().join("backups");
+    let scheduled = || -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(&dir)
+            .map(|d| {
+                d.flatten()
+                    // Complete backups only (one may be cut short by the stop).
+                    .filter(|e| e.path().join("manifest.json").is_file())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .filter(|n| n.starts_with("scheduled-"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        v.sort();
+        v
+    };
+    // Pushes while the schedule runs; an unrelated directory stays.
+    std::fs::create_dir_all(dir.join("keep-me")).unwrap();
+    let start = std::time::Instant::now();
+    let mut runs = 0;
+    while runs < 3 {
+        git.ok(
+            &src,
+            &[
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                &format!("push {runs}"),
+            ],
+        );
+        git.ok(&src, &["push", "-q", &s.url(&DEMO), "HEAD:refs/heads/main"]);
+        let last = s.db.query_one(
+            "SELECT coalesce((SELECT value->>'at' FROM instance_settings WHERE key = 'scheduled_backup'), '')",
+        );
+        if !last.is_empty() {
+            runs = s.log().matches("scheduled backup written").count();
+        }
+        assert!(start.elapsed().as_secs() < 60, "{}", s.log());
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let kept = scheduled();
+    assert!(kept.len() <= 2 && !kept.is_empty(), "{kept:?}");
+    assert!(dir.join("keep-me").is_dir());
+
+    // A failing backup is recorded and reported.
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let start = std::time::Instant::now();
+    while !s.log().contains("the scheduled backup failed") {
+        assert!(start.elapsed().as_secs() < 30, "{}", s.log());
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let (_, out, _) = s.slath(&["doctor", "--output", "json"], None);
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let failed = v["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["code"] == "backup.failed")
+        .unwrap();
+    assert_eq!(failed["status"], "fail", "{v}");
+
+    // The newest restores to a clean instance (with the server stopped, so
+    // no further run prunes it meanwhile).
+    let mut s = s;
+    s.stop();
+    let kept = scheduled();
+    assert!(kept.len() <= 2 && !kept.is_empty(), "{kept:?}");
+    let newest = dir.join(kept.last().unwrap());
+    let target = Instance::new("");
+    let (ok, out, err) = target.slath(
+        &["backup", "restore", "--input", newest.to_str().unwrap()],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    assert_eq!(
+        target
+            .db
+            .query_one("SELECT count(*)::text FROM repositories"),
+        "1"
+    );
+}

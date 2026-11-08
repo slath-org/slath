@@ -47,6 +47,8 @@ pub struct Config {
     #[serde(default)]
     pub push_protection: PushProtection,
     #[serde(default)]
+    pub backup: Backup,
+    #[serde(default)]
     pub log: Log,
 }
 
@@ -528,6 +530,72 @@ impl Default for Ui {
     }
 }
 
+/// A time of day in UTC, written `HH:MM`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DailyTime {
+    pub hour: u8,
+    pub minute: u8,
+}
+
+impl std::str::FromStr for DailyTime {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        let bad = || format!("invalid time {s:?} (use HH:MM, in UTC)");
+        let (h, m) = s.split_once(':').ok_or_else(bad)?;
+        let (hour, minute): (u8, u8) =
+            (h.parse().map_err(|_| bad())?, m.parse().map_err(|_| bad())?);
+        if h.len() != 2 || m.len() != 2 || hour > 23 || minute > 59 {
+            return Err(bad());
+        }
+        Ok(Self { hour, minute })
+    }
+}
+
+impl<'de> Deserialize<'de> for DailyTime {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        String::deserialize(d)?
+            .parse()
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl DailyTime {
+    /// Seconds from `now` (Unix seconds) until the next occurrence.
+    #[must_use]
+    pub fn seconds_until_next(self, now: i64) -> i64 {
+        let day = 86_400;
+        let at = i64::from(self.hour) * 3600 + i64::from(self.minute) * 60;
+        let today = now.rem_euclid(day);
+        let wait = (at - today).rem_euclid(day);
+        if wait == 0 { day } else { wait }
+    }
+}
+
+/// Scheduled backups into `<data_dir>/backups`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Backup {
+    /// Daily, at this UTC time; none without it.
+    #[serde(default)]
+    pub schedule: Option<DailyTime>,
+    /// Newest scheduled backups to keep (others are deleted; at least 1).
+    #[serde(default = "default_backup_keep")]
+    pub keep: u32,
+}
+
+impl Default for Backup {
+    fn default() -> Self {
+        Self {
+            schedule: None,
+            keep: default_backup_keep(),
+        }
+    }
+}
+
+fn default_backup_keep() -> u32 {
+    7
+}
+
 /// How strictly push protection treats a repository's findings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -923,6 +991,25 @@ impl<'de> Deserialize<'de> for Bytes {
             Raw::Int(n) => Ok(Self(n)),
             Raw::Str(s) => s.parse().map_err(serde::de::Error::custom),
         }
+    }
+}
+
+#[cfg(test)]
+mod backup_tests {
+    use super::DailyTime;
+
+    #[test]
+    fn daily_times() {
+        let t: DailyTime = "03:15".parse().unwrap();
+        assert_eq!((t.hour, t.minute), (3, 15));
+        for bad in ["3:15", "24:00", "03:60", "0315", "03:15:00", ""] {
+            assert!(bad.parse::<DailyTime>().is_err(), "{bad}");
+        }
+        // 2026-11-08T03:00:00Z → 15 minutes; right at 03:15 → a day.
+        let three = 1_794_106_800;
+        assert_eq!(t.seconds_until_next(three), 900);
+        assert_eq!(t.seconds_until_next(three + 900), 86_400);
+        assert_eq!(t.seconds_until_next(three + 901), 86_399);
     }
 }
 

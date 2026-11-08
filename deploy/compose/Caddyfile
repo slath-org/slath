@@ -2,11 +2,28 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # TLS in front of Slath (`docker compose --profile tls up -d`). Caddy serves
-# the host in SLATH_PUBLIC_URL (https://git.example.org) and obtains its
-# certificate. Slath trusts exactly this container's address as its proxy
-# (SLATH_PROXY_IP in compose.yml).
+# the host in SLATH_PUBLIC_URL (https://git.example.org). Slath trusts
+# exactly this container's address as its proxy (SLATH_PROXY_IP in
+# compose.yml). SLATH_TLS picks the certificate:
+#   acme      (default) a public certificate from Let's Encrypt or ZeroSSL;
+#             the host must be reachable from the internet on ports 80/443
+#   internal  Caddy's own CA, for private networks; clients must trust its
+#             root (docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt)
+#   files     your own certificate: cert.pem and key.pem in SLATH_CERTS_DIR
+
+(tls-acme) {
+}
+
+(tls-internal) {
+	tls internal
+}
+
+(tls-files) {
+	tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
+}
 
 {$SLATH_PUBLIC_URL} {
+	import tls-{$SLATH_TLS:acme}
 	encode zstd gzip
 	reverse_proxy slath:3000
 }

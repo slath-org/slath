@@ -1073,6 +1073,11 @@ pub async fn upgrade_on_start(
 /// `keep` (0 keeps all). Only `pre-upgrade-*` directories holding a backup
 /// manifest are touched.
 fn prune_backups(newest: &Path, keep: u32) {
+    prune_backups_named(newest, keep, "pre-upgrade-");
+}
+
+/// Like [`prune_backups`], for backups whose names start with `prefix`.
+pub(crate) fn prune_backups_named(newest: &Path, keep: u32, prefix: &str) {
     let (Some(base), true) = (newest.parent(), keep > 0) else {
         return;
     };
@@ -1081,7 +1086,7 @@ fn prune_backups(newest: &Path, keep: u32) {
     };
     let mut found: Vec<(std::time::SystemTime, PathBuf)> = rd
         .flatten()
-        .filter(|e| e.file_name().to_string_lossy().starts_with("pre-upgrade-"))
+        .filter(|e| e.file_name().to_string_lossy().starts_with(prefix))
         .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
         .filter(|e| e.path().join("manifest.json").is_file())
         .filter_map(|e| {
@@ -1101,9 +1106,9 @@ fn prune_backups(newest: &Path, keep: u32) {
             continue;
         }
         match std::fs::remove_dir_all(&old) {
-            Ok(()) => tracing::info!(path = %old.display(), "deleted an older pre-upgrade backup"),
+            Ok(()) => tracing::info!(path = %old.display(), "deleted an older backup"),
             Err(e) => {
-                tracing::warn!(path = %old.display(), error = %e, "cannot delete an older pre-upgrade backup")
+                tracing::warn!(path = %old.display(), error = %e, "cannot delete an older backup")
             }
         }
     }

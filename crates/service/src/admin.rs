@@ -194,3 +194,40 @@ impl Services {
         })
     }
 }
+
+/// The outcome of the last scheduled backup.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct ScheduledBackup {
+    /// When it finished (Unix seconds).
+    pub at: i64,
+    /// The backup's directory, or why it failed.
+    pub result: Result<String, String>,
+}
+
+/// Key in `instance_settings`.
+const LAST_BACKUP: &str = "scheduled_backup";
+
+impl Services {
+    /// Records a scheduled backup's outcome (the server's backup task).
+    pub async fn record_scheduled_backup(&self, outcome: &ScheduledBackup) -> Result<()> {
+        let v = serde_json::to_value(outcome).map_err(ServiceError::internal)?;
+        slath_db::settings::set(&self.pool, LAST_BACKUP, &v).await?;
+        Ok(())
+    }
+
+    /// The last scheduled backup, without authorization (CLI diagnostics).
+    pub async fn last_scheduled_backup_unchecked(&self) -> Result<Option<ScheduledBackup>> {
+        Ok(slath_db::settings::get(&self.pool, LAST_BACKUP)
+            .await?
+            .and_then(|v| serde_json::from_value(v).ok()))
+    }
+
+    /// The last scheduled backup, for site administrators.
+    pub async fn last_scheduled_backup(
+        &self,
+        subject: &Subject,
+    ) -> Result<Option<ScheduledBackup>> {
+        self.require_site_admin(subject)?;
+        self.last_scheduled_backup_unchecked().await
+    }
+}

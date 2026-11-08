@@ -42,6 +42,11 @@ ssh_port = 22
 # password_file = "/etc/slath/smtp-password"
 # from = "Slath <noreply@example.org>"
 
+# Daily backups into <data_dir>/backups (copy them off the host too).
+# [backup]
+# schedule = "03:15"          # UTC
+# keep = 7
+
 # Updates: a new version backs up and migrates when it starts.
 # [upgrade]
 # auto_backup = true          # the pre-upgrade backup

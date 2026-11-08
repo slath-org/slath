@@ -10,6 +10,7 @@
   <dt>Slath</dt><dd>{{ version }}</dd>
   <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<strong>Problem:</strong> {{ git }}{% endif %}</dd>
   <dt>Email</dt><dd>{% if let Some(relay) = smtp %}sent through {{ relay }}{% else %}not configured: email features are hidden (set <code>[smtp] host</code>){% endif %}</dd>
+  <dt>Backups</dt><dd>{% if backup_failed %}<strong>Problem:</strong> {% endif %}{{ backup }}</dd>
   <dt>Database schema</dt><dd>{{ schema }}{% if schema != required_schema %} <strong>(this binary needs {{ required_schema }})</strong>{% else %} (current){% endif %}</dd>
 </dl>
 {%- if smtp.is_some() %}

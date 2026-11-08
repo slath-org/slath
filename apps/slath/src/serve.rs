@@ -204,6 +204,64 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
             }
         });
     }
+    if let Some(at) = state.config.backup.schedule {
+        // Scheduled backups (daily, UTC) into <data_dir>/backups; the
+        // newest `keep` scheduled backups stay.
+        let svc = state.services.clone();
+        let config_path = config_path.to_path_buf();
+        let dir = state.config.storage.data_dir.join("backups");
+        let keep = state.config.backup.keep.max(1);
+        // Tests shorten the day to a few seconds.
+        let test_interval = std::env::var("SLATH_TEST_BACKUP_INTERVAL")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok());
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            loop {
+                let wait = test_interval.unwrap_or_else(|| {
+                    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+                    u64::try_from(at.seconds_until_next(now)).unwrap_or(86_400)
+                });
+                tokio::select! {
+                    () = tokio::time::sleep(std::time::Duration::from_secs(wait)) => {}
+                    _ = stop.changed() => return,
+                }
+                let started = time::OffsetDateTime::now_utc();
+                let name = format!(
+                    "scheduled-{:04}{:02}{:02}T{:02}{:02}{:02}Z",
+                    started.year(),
+                    u8::from(started.month()),
+                    started.day(),
+                    started.hour(),
+                    started.minute(),
+                    started.second()
+                );
+                let target = dir.join(&name);
+                let result = crate::backup::create_with(&config_path, &target, false, false).await;
+                let outcome = slath_service::admin::ScheduledBackup {
+                    at: time::OffsetDateTime::now_utc().unix_timestamp(),
+                    result: match &result {
+                        Ok(_) => Ok(target.display().to_string()),
+                        Err(e) => Err(e.clone()),
+                    },
+                };
+                match result {
+                    Ok(_) => {
+                        tracing::info!(path = %target.display(), "scheduled backup written");
+                        crate::upgrade::prune_backups_named(&target, keep, "scheduled-");
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "the scheduled backup failed");
+                        // Leave no half-written backup behind.
+                        let _ = std::fs::remove_dir_all(&target);
+                    }
+                }
+                if let Err(e) = svc.record_scheduled_backup(&outcome).await {
+                    tracing::warn!(error = %e, "recording the scheduled backup failed");
+                }
+            }
+        });
+    }
     if state.config.upgrade.check_for_updates {
         // The opt-in update check: at start, then once a day. Off by
         // default; then no request leaves the server.

@@ -90,6 +90,12 @@ SLATH_PUBLIC_URL=https://git.example.org
 docker compose --profile tls up -d
 ```
 
+On a private network, set `SLATH_TLS=internal` to use Caddy's own CA (the
+clients must trust its root certificate, printed by `docker compose exec
+caddy cat /data/caddy/pki/authorities/local/root.crt`), or
+`SLATH_TLS=files` with your own `cert.pem` and `key.pem` in `./certs`
+(`SLATH_CERTS_DIR`). `slath doctor` warns before a certificate expires.
+
 Caddy has a fixed address in the Compose network, and Slath trusts exactly
 that address to report the client's address (`X-Forwarded-For`). If the
 network's default subnet `172.29.79.0/24` is taken on your host, set

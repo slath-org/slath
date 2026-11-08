@@ -10,6 +10,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.
+- The Compose TLS profile also works on private networks, with Caddy's internal CA or your own certificate (`SLATH_TLS`).
 - `slath doctor` checks an installation (configuration, SSH separation, database, schema, Git, disk, backups, TLS, update readiness) and says what to fix; `--output json` is for monitoring.
 - Push protection rejects pushes that contain secrets, such as provider tokens, private keys, passwords in URLs, and Slath tokens, before anything of them is stored. It works the same for Git and jj.
 - Rejections name the commit, file, line, and rule, show a shortened excerpt, and explain how to remove the secret with Git or jj.

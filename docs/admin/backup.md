@@ -42,6 +42,38 @@ out and can't decrypt stored secrets.
 No `pg_dump` is needed, so the PostgreSQL client version never has to match
 the server.
 
+## Scheduled backups
+
+Slath can back itself up every day:
+
+```toml
+[backup]
+schedule = "03:15"   # daily, in UTC
+keep = 7             # newest scheduled backups to keep
+```
+
+The server writes `scheduled-<time>` backups into `<data_dir>/backups`
+(the `backups` volume in Compose) while it keeps serving, and then deletes
+the oldest scheduled ones beyond `keep`. Other backups there, such as the
+pre-upgrade ones, aren't touched by this. A failed run leaves no partial
+backup; the admin **Health** page and `slath doctor` report it, and the
+next day's run tries again.
+
+### Copy backups off the host
+
+Backups on the same disk don't survive the loss of that disk or host. Copy
+them somewhere else, for example nightly after the scheduled backup:
+
+```sh
+rsync -a --delete /var/lib/slath/backups/ backup-host:/srv/slath-backups/
+# or: restic -r sftp:backup-host:/srv/restic backup /var/lib/slath/backups
+```
+
+With Compose, the volume is `slath_backups`; `docker run --rm -v
+slath_backups:/b:ro -v "$PWD":/out alpine tar -C /b -czf /out/backups.tgz .`
+copies it out. Keep the master key apart from these copies, and test a
+restore from time to time.
+
 ## Restore
 
 1. Install the same or a newer Slath release.

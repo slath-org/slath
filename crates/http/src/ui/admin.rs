@@ -480,6 +480,9 @@ struct HealthPage {
     jobs: Vec<(String, String, i64)>,
     /// `host:port` of the SMTP relay; `None` when email is off.
     smtp: Option<String>,
+    /// Scheduled backups: the schedule and the last outcome.
+    backup: String,
+    backup_failed: bool,
     message: Option<&'static str>,
 }
 
@@ -491,6 +494,32 @@ async fn health(
 ) -> Result<Response, AppError> {
     let h = state.services.health(&session.subject()).await?;
     let update = update_view(&state, &session.subject()).await?;
+    let last = state
+        .services
+        .last_scheduled_backup(&session.subject())
+        .await?;
+    let backup_failed = last.as_ref().is_some_and(|l| l.result.is_err());
+    let backup = match (state.config.backup.schedule, last) {
+        (None, _) => "not scheduled (set [backup] schedule)".to_owned(),
+        (Some(t), None) => format!("daily at {:02}:{:02} UTC; none yet", t.hour, t.minute),
+        (Some(t), Some(l)) => {
+            let at = Time::from(
+                time::OffsetDateTime::from_unix_timestamp(l.at)
+                    .unwrap_or(time::OffsetDateTime::UNIX_EPOCH),
+            )
+            .text;
+            match l.result {
+                Ok(_) => format!(
+                    "daily at {:02}:{:02} UTC; last one succeeded {at}",
+                    t.hour, t.minute
+                ),
+                Err(e) => format!(
+                    "daily at {:02}:{:02} UTC; the last one failed {at}: {e}",
+                    t.hour, t.minute
+                ),
+            }
+        }
+    };
     let smtp = &state.config.smtp;
     Ok(render(&HealthPage {
         ctx,
@@ -502,6 +531,8 @@ async fn health(
         required_schema: h.required_schema,
         version: env!("CARGO_PKG_VERSION"),
         jobs: h.jobs,
+        backup,
+        backup_failed,
         smtp: smtp
             .enabled()
             .then(|| format!("{}:{}", smtp.host, smtp.port)),

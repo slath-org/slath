@@ -91,11 +91,13 @@ services:
     restart: unless-stopped
     environment:
       SLATH_PUBLIC_URL: ${SLATH_PUBLIC_URL}
+      SLATH_TLS: ${SLATH_TLS:-acme}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SLATH_CERTS_DIR:-./certs}:/etc/caddy/certs:ro
       - caddy:/data
     networks:
       default:
