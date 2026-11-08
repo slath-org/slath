@@ -906,6 +906,14 @@ impl Services {
         } else {
             ("per-change", None)
         };
+        // Identity needs the commits only, so it's worked out before the
+        // transaction.
+        let plan = if mode == "per-change" {
+            let oids: Vec<ObjectId> = commits.iter().map(|c| c.oid.clone()).collect();
+            Some(self.plan_changes(&m, &dir, &oids).await?)
+        } else {
+            None
+        };
         let seq = m.revisions + 1;
         let seq_u = u32::try_from(seq).map_err(ServiceError::internal)?;
         // Pin first: a dangling pin is harmless, an unpinned revision isn't.
@@ -934,7 +942,11 @@ impl Services {
             // Another sync recorded this revision meanwhile.
             return Ok(None);
         }
-        r?;
+        let revision = r?;
+        if let Some(plan) = plan {
+            self.apply_changes(&mut tx, id, (revision, seq), pusher, plan)
+                .await?;
+        }
         slath_db::merge_requests::touch(&mut *tx, id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         let number = u32::try_from(m.number).map_err(ServiceError::internal)?;

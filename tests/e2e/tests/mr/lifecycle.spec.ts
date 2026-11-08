@@ -97,6 +97,7 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   // 8. Both revisions in the timeline, the second with "Compare with previous".
   await expect(page.locator("#revision-1")).toContainText("opened revision 1 with 1 commit");
   await expect(page.locator("#revision-2")).toContainText("pushed revision 2 with 2 commits");
+  await expect(page.locator("#revision-2")).toContainText(": 1 change added");
   await expectAccessible(page);
   await tapOrClick(page, page.locator("#revision-2").getByRole("link", { name: "Compare with previous" }));
   await expect(page.getByRole("note")).toContainText("Changes from revision 1 to revision 2.");
@@ -109,6 +110,11 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   );
   await expect(page.getByRole("heading", { name: "2 commits" })).toBeVisible();
   await expect(page.locator(".commit-list")).toContainText("Revise review notes");
+  // Each commit shows its change ID (jj's format); the second one is new.
+  const rows = page.locator(".change-list > li");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator(".change-id")).toHaveText(/^[k-z]{8}$/);
+  await expect(rows.nth(1).locator(".badge")).toHaveText("New");
   await expectAccessible(page);
 
   // Issue URLs of a merge request lead to it.

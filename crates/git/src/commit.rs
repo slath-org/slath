@@ -117,9 +117,19 @@ impl RawCommit {
             .filter_map(|h| h.value.as_deref())
     }
 
-    /// jj's change ID: the `change-id` header, valid iff it matches `^[k-z]{32}$`.
+    /// jj's change ID: the `change-id` header, valid iff it appears exactly
+    /// once and matches `^[k-z]{32}$`.
     #[must_use]
     pub fn change_id(&self) -> Option<&str> {
+        if self
+            .headers
+            .iter()
+            .filter(|h| h.name == b"change-id")
+            .count()
+            != 1
+        {
+            return None;
+        }
         let v = self.header(b"change-id")?;
         (v.len() == 32 && v.iter().all(|b| (b'k'..=b'z').contains(b)))
             .then(|| std::str::from_utf8(v).ok())
@@ -160,6 +170,12 @@ mod tests {
             let raw = format!("tree {TREE}\nchange-id {bad}\n\n");
             assert_eq!(RawCommit::parse(raw.as_bytes()).unwrap().change_id(), None);
         }
+        let k = "k".repeat(32);
+        let twice = format!("tree {TREE}\nchange-id {k}\nchange-id {k}\n\n");
+        assert_eq!(
+            RawCommit::parse(twice.as_bytes()).unwrap().change_id(),
+            None
+        );
     }
 
     #[test]

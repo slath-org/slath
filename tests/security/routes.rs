@@ -59,6 +59,7 @@ fn concrete(template: &str, missing: bool, head: &str) -> String {
             "{name}" | "{user}" => "alice".to_owned(),
             "{team}" => "devs".to_owned(),
             "{n}" | "{number}" => "1".to_owned(),
+            "{position}" | "{pos}" => "0".to_owned(),
             "{op}" if template.contains("/settings/state/") => "archive".to_owned(),
             "{op}" => "suspend".to_owned(),
             "{id}" => "0192f1a2-3b4c-7d5e-8f60-718293a4b5c6".to_owned(),
@@ -156,7 +157,12 @@ fn fingerprint(s: &TestServer, git: &GitClient) -> String {
 
 #[test]
 fn conf_rbac_01_route_markers_hold_for_strangers_and_anonymous_visitors() {
-    let s = TestServer::start_with(&[SECRET]);
+    // Every route is probed twice per visitor: more than the default
+    // anonymous rate limit.
+    let s = TestServer::start_full(
+        &[SECRET],
+        "[limits]\napi_anonymous_requests_per_hour = 100000\n",
+    );
     s.create_user("mallory", PW, false);
     let git = GitClient::new();
     let work = tempfile::tempdir().unwrap();

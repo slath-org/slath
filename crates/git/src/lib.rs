@@ -10,6 +10,7 @@
 
 pub mod args;
 pub mod browse;
+pub mod changes;
 pub mod commit;
 pub mod diff;
 pub mod error;

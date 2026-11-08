@@ -4,6 +4,7 @@
 //! Needs the `slath` binary built and a Git client (`$SLATH_TEST_GIT`).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod change_identity;
 mod git_http;
 mod git_ssh;
 mod import;

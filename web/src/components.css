@@ -1052,6 +1052,21 @@ fieldset.field {
   padding-block: var(--space-2);
   border-block-end: var(--border-width) solid var(--border);
 }
+.badge-danger {
+  border-color: var(--error);
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+.change-id {
+  font-weight: var(--weight-semibold);
+}
+.change-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.change-form select {
+  min-height: var(--control-height);
+}
 .commit-list .commit-subject {
   flex: 1;
   min-width: 12rem;

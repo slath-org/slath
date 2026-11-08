@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_change_aliases SET change_id = $2 WHERE change_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aac9560ff64d7479794cb602e80e9c8e2cfbe0ebd048555eda7eea273ce9f090"
+}

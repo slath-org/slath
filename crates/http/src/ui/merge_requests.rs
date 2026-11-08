@@ -15,6 +15,7 @@ use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
 use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{Compare, MrPerms, MrTimelineItem, NewMr};
+use slath_service::mr_changes::{Rebind, StackEntry};
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -513,6 +514,36 @@ struct RevisionView {
     since_href: Option<String>,
     /// Why only the whole diff can be reviewed, if so.
     whole_reason: Option<&'static str>,
+    /// "rebased onto main, 2 changes modified, 1 added".
+    summary: Option<String>,
+}
+
+fn summary_text(s: &slath_service::mr_changes::RevisionSummary, target: &str) -> Option<String> {
+    let mut parts = Vec::new();
+    if s.rebased {
+        parts.push(format!("rebased onto {target}"));
+    }
+    // "2 changes modified, 1 added": the noun only on the first count.
+    let mut first = true;
+    for (n, what) in [
+        (s.modified, "modified"),
+        (s.added, "added"),
+        (s.removed, "removed"),
+        (s.unresolved, "unresolved"),
+    ] {
+        if n > 0 {
+            parts.push(if first {
+                format!("{n} change{} {what}", if n == 1 { "" } else { "s" })
+            } else {
+                format!("{n} {what}")
+            });
+            first = false;
+        }
+    }
+    if first && s.unchanged > 0 {
+        parts.push("no change modified".to_owned());
+    }
+    (!parts.is_empty()).then(|| parts.join(", "))
 }
 
 enum TimelineView {
@@ -547,6 +578,27 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
         "review_requested" => ("eye", format!("requested a review from {}", str_of("user"))),
+        "change_split" => (
+            "git-commit-horizontal",
+            format!(
+                "split a commit into the new change {}",
+                short(&str_of("change"))
+            ),
+        ),
+        "change_joined" => (
+            "git-commit-horizontal",
+            format!(
+                "attached a commit to the change {}",
+                short(&str_of("change"))
+            ),
+        ),
+        "change_resolved" => (
+            "git-commit-horizontal",
+            format!(
+                "chose the change {} for a commit with conflicting IDs",
+                short(&str_of("change"))
+            ),
+        ),
         "renamed" => (
             "pencil",
             format!(
@@ -690,6 +742,7 @@ async fn mr_page(
         .services
         .render_markdown(subject, Some(&rc), &m.description)
         .await?;
+    let summaries = state.services.revision_summaries(&m).await?;
     let mut timeline = Vec::new();
     for item in state.services.mr_timeline(subject, &a, &m).await? {
         match item {
@@ -729,7 +782,10 @@ async fn mr_page(
                 since_href: previous_head
                     .is_some()
                     .then(|| mr_url(ns, repo, m.number, &format!("/changes?since={}", r.seq - 1))),
-                whole_reason: if r.mode == "whole" {
+                summary: summaries
+                    .get(&r.seq)
+                    .and_then(|x| summary_text(x, &m.target_branch)),
+                whole_reason: if r.mode == "whole-only" {
                     whole_reason(r.mode_reason.as_deref())
                 } else {
                     None
@@ -801,13 +857,96 @@ async fn view(
     .await
 }
 
+/// A commit with the change it belongs to.
+struct ChangeRow {
+    commit: CommitRow,
+    entry: Option<StackEntry>,
+    /// What the commit can be rebound to: (value, label); `""` is a new
+    /// change.
+    options: Vec<(String, String)>,
+}
+
 #[derive(Template)]
 #[template(path = "repo/merge_request_commits.html")]
 struct CommitsPage {
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
-    commits: Vec<CommitRow>,
+    rows: Vec<ChangeRow>,
+    removed: Vec<String>,
+    /// The revision can only be reviewed as a whole.
+    whole: bool,
+    blocked: bool,
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+}
+
+fn short(id: &str) -> &str {
+    id.get(..8).unwrap_or(id)
+}
+
+async fn commits_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    (ns, repo, n): (&str, &str, i32),
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
+    let (a, m) = state.services.mr(subject, ns, repo, n).await?;
+    let commits = commit_rows(&state.services.mr_commits(&m).await?);
+    let stack = state.services.mr_stack(&m).await?;
+    let can = m.state == "open" && slath_service::Services::can_rebind(subject, &a, &m);
+    let rows = commits
+        .into_iter()
+        .map(|c| {
+            let entry = stack
+                .entries
+                .iter()
+                .find(|e| e.commit_oid == c.oid)
+                .cloned();
+            let options = match &entry {
+                Some(e) if can && e.binding == "unresolved" => e
+                    .candidates
+                    .iter()
+                    .map(|d| (d.clone(), format!("Continue {}", short(d))))
+                    .chain([(String::new(), "Start a new change".to_owned())])
+                    .collect(),
+                Some(e) if can && e.earlier_versions > 0 => {
+                    vec![(String::new(), "Split into a new change".to_owned())]
+                }
+                Some(_) if can => stack
+                    .removed
+                    .iter()
+                    .map(|d| (d.clone(), format!("Continue {}", short(d))))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            ChangeRow {
+                commit: c,
+                entry,
+                options,
+            }
+        })
+        .collect();
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&CommitsPage {
+        header: RepoHeader::load(state, &a, subject, TAB).await,
+        whole: stack.entries.is_empty() && m.revisions > 0,
+        blocked: stack.blocks_merge(),
+        removed: stack.removed,
+        h: heading(state, subject, &a, m).await?,
+        rows,
+        message,
+        errors,
+        ctx,
+    });
+    *res.status_mut() = status;
+    Ok(res)
 }
 
 async fn commits(
@@ -815,16 +954,56 @@ async fn commits(
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo, n)): Path<(String, String, String)>,
+    Query(q): Query<StatusQuery>,
 ) -> Result<Response, AppError> {
-    let subject = session.subject();
-    let (a, m) = state.services.mr(&subject, &ns, &repo, number(&n)?).await?;
-    let commits = commit_rows(&state.services.mr_commits(&m).await?);
-    Ok(render(&CommitsPage {
-        header: RepoHeader::load(&state, &a, &subject, TAB).await,
-        h: heading(&state, &subject, &a, m).await?,
-        commits,
+    let message = match q.status.as_deref() {
+        Some("rebound") => Some("Saved. The next push keeps this choice."),
+        _ => None,
+    };
+    commits_page(
+        &state,
         ctx,
-    }))
+        &session.subject(),
+        (&ns, &repo, number(&n)?),
+        message,
+        Vec::new(),
+    )
+    .await
+}
+
+#[derive(Deserialize)]
+struct BindForm {
+    #[serde(default)]
+    change: String,
+}
+
+async fn bind(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n, pos)): Path<(String, String, String, String)>,
+    Form(f): Form<BindForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let pos: i32 = pos.parse().map_err(|_| AppError::not_found())?;
+    let to = if f.change.is_empty() {
+        Rebind::New
+    } else {
+        Rebind::Change(f.change)
+    };
+    match state
+        .services
+        .rebind_change(&s.subject, (&ns, &repo, n), pos, &to)
+        .await
+    {
+        Ok(()) => {
+            Ok(Redirect::to(&mr_url(&ns, &repo, n, "/commits?status=rebound")).into_response())
+        }
+        Err(ServiceError::Invalid(errors)) => {
+            commits_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[derive(Template)]
@@ -1232,6 +1411,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/commits",
             Access::Resource,
             get(commits),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/stack/{pos}/bind",
+            Access::Resource,
+            post(bind),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/changes",

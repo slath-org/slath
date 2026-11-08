@@ -16,7 +16,7 @@ use slath_tests::server::{DEMO, GitClient, TestServer};
 use slath_tests::sshd::{self, Sshd};
 
 /// All jj binaries to test, with their versions.
-fn jj_binaries() -> Vec<(String, PathBuf)> {
+pub(crate) fn jj_binaries() -> Vec<(String, PathBuf)> {
     if std::env::var_os("SLATH_SKIP_JJ_TESTS").is_some_and(|v| v == "1") {
         eprintln!("SLATH_SKIP_JJ_TESTS=1: skipping");
         return Vec::new();
@@ -55,7 +55,7 @@ fn jj_binaries() -> Vec<(String, PathBuf)> {
 }
 
 /// One jj "machine": its own HOME and config.
-struct Jj {
+pub(crate) struct Jj {
     bin: PathBuf,
     version: String,
     home: tempfile::TempDir,
@@ -63,7 +63,7 @@ struct Jj {
 }
 
 impl Jj {
-    fn new(version: &str, bin: &Path) -> Self {
+    pub(crate) fn new(version: &str, bin: &Path) -> Self {
         let home = tempfile::tempdir().unwrap();
         std::fs::write(
             home.path().join("jj.toml"),
@@ -98,7 +98,7 @@ impl Jj {
         self.cmd(cwd).args(args).output().unwrap()
     }
 
-    fn ok(&self, cwd: &Path, args: &[&str]) -> String {
+    pub(crate) fn ok(&self, cwd: &Path, args: &[&str]) -> String {
         let out = self.run(cwd, args);
         assert!(
             out.status.success(),
@@ -110,7 +110,7 @@ impl Jj {
     }
 
     /// `jj log` of one revision with a template.
-    fn show(&self, repo: &Path, rev: &str, template: &str) -> String {
+    pub(crate) fn show(&self, repo: &Path, rev: &str, template: &str) -> String {
         self.ok(repo, &["log", "--no-graph", "-r", rev, "-T", template])
             .trim()
             .to_owned()

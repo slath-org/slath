@@ -3424,6 +3424,188 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The changes of the current revision: each commit with its change ID\nand how it was matched.",
+        "operationId": "get_stack",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MrStack"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack/{position}/bind": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Binds a commit of the current revision by hand: picks a change for an\nunresolved commit, splits a continued change into a new one\n(`change: null`), or joins a new change to a removed one. Open to the\nauthor and anyone who can push the source; audited.",
+        "operationId": "bind_change",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MrStack"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/milestones": {
       "get": {
         "tags": [
@@ -4787,6 +4969,18 @@
           }
         }
       },
+      "BindBody": {
+        "type": "object",
+        "properties": {
+          "change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change to continue (its ID), or null for a new change."
+          }
+        }
+      },
       "BlobContent": {
         "type": "object",
         "required": [
@@ -5654,6 +5848,43 @@
           }
         }
       },
+      "MrStack": {
+        "type": "object",
+        "description": "The changes of a merge request's current revision.",
+        "required": [
+          "entries",
+          "removed",
+          "merge_blocked"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StackEntry"
+            },
+            "description": "Empty when the revision can only be reviewed as a whole."
+          },
+          "merge_blocked": {
+            "type": "boolean",
+            "description": "An unresolved or conflicted commit blocks merging."
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Changes without a version in the current revision."
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The current revision; null before the first."
+          }
+        }
+      },
       "NewImport": {
         "type": "object",
         "description": "A repository import request.",
@@ -6336,6 +6567,71 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "StackEntry": {
+        "type": "object",
+        "description": "One commit of the current revision and the change it belongs to.",
+        "required": [
+          "position",
+          "commit_oid",
+          "binding",
+          "candidates",
+          "conflicted",
+          "earlier_versions",
+          "also_in"
+        ],
+        "properties": {
+          "also_in": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Other open merge requests of the repository with one of its IDs."
+          },
+          "binding": {
+            "type": "string",
+            "description": "`new`, `confirmed`, `inferred`, or `unresolved`."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Changes it may continue (new) or must pick from (unresolved)."
+          },
+          "change_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change's ID in jj's format; null while unresolved."
+          },
+          "commit_oid": {
+            "type": "string"
+          },
+          "conflicted": {
+            "type": "boolean",
+            "description": "jj recorded a conflict in this commit."
+          },
+          "earlier_versions": {
+            "type": "integer",
+            "description": "Versions of its change in earlier revisions.",
+            "minimum": 0
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 is the bottom of the stack."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`alias`, `patch`, `content`, `aliases-conflict`, `duplicate-id`,\n`split`, `join`, or `resolved`."
           }
         }
       },

@@ -15,6 +15,11 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Merge requests show their commits and changes, each revision with a link to what changed since the previous one, and copy-paste checkout commands for Git and jj.
 - A "Recently pushed" banner on the repository front page, branch list, and merge request list links to creating a merge request for the branch.
 - Merge requests can be marked as draft or ready, closed, reopened, and their deleted source branch restored, all from the page.
+- Merge requests track each commit as a change across pushes, using jj change IDs, `Change-Id` trailers, identical patches, or similar content; Git and jj users need no setup.
+- Change IDs use jj's format: jj users see the same IDs as in `jj log`, and Git commits get the ID jj would give them.
+- Commits with conflicting or duplicate IDs are marked unresolved and block merging until someone picks a change; wrongly matched commits can be split off or attached.
+- The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
+- `GET /api/v1/repos/{ns}/{repo}/merge-requests/{n}/stack` lists the current revision's changes; `POST …/stack/{position}/bind` resolves, splits, or joins them.
 - After a push, Git prints a link to create a merge request for the branch, or the link of its open merge request.
 - Scheduled daily backups (`[backup] schedule`, `keep`) with retention; failures show on the Health page and in `slath doctor`. The backup guide explains copying backups off the host.
 - The Compose TLS profile also works on private networks, with Caddy's internal CA or your own certificate (`SLATH_TLS`).

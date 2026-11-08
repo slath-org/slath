@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_change_versions SET change_id = $2 WHERE change_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "43c912ff1636e40e31558b97a10c49d45f2aa3307c2f1ba2e41e3f565f834026"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_change_versions SET change_id = $2, state = $3, reason = $4, candidates = '{}'\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14c71636fa4760628a46b1cc3721a727622890106dd82d986fb2774dac623734"
+}

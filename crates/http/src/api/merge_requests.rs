@@ -12,6 +12,7 @@ use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
 use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{MrTimelineItem, NewMr};
+use slath_service::mr_changes::Rebind;
 use utoipa::{IntoParams, ToSchema};
 
 use super::support::{PageParams, page};
@@ -363,6 +364,102 @@ pub async fn create_mr_comment(
     ))
 }
 
+/// One commit of the current revision and the change it belongs to.
+#[derive(Serialize, ToSchema)]
+pub struct StackEntry {
+    /// 0 is the bottom of the stack.
+    pub position: i32,
+    pub commit_oid: String,
+    /// The change's ID in jj's format; null while unresolved.
+    pub change_id: Option<String>,
+    /// `new`, `confirmed`, `inferred`, or `unresolved`.
+    pub binding: String,
+    /// `alias`, `patch`, `content`, `aliases-conflict`, `duplicate-id`,
+    /// `split`, `join`, or `resolved`.
+    pub reason: Option<String>,
+    /// Changes it may continue (new) or must pick from (unresolved).
+    pub candidates: Vec<String>,
+    /// jj recorded a conflict in this commit.
+    pub conflicted: bool,
+    /// Versions of its change in earlier revisions.
+    pub earlier_versions: usize,
+    /// Other open merge requests of the repository with one of its IDs.
+    pub also_in: Vec<i32>,
+}
+
+/// The changes of a merge request's current revision.
+#[derive(Serialize, ToSchema)]
+pub struct MrStack {
+    /// The current revision; null before the first.
+    pub revision: Option<i32>,
+    /// Empty when the revision can only be reviewed as a whole.
+    pub entries: Vec<StackEntry>,
+    /// Changes without a version in the current revision.
+    pub removed: Vec<String>,
+    /// An unresolved or conflicted commit blocks merging.
+    pub merge_blocked: bool,
+}
+
+/// The changes of the current revision: each commit with its change ID
+/// and how it was matched.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, body = MrStack), (status = 404, body = super::Problem)))]
+pub async fn get_stack(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Json<MrStack>, AppError> {
+    let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    let st = state.services.mr_stack(&m).await?;
+    Ok(Json(MrStack {
+        revision: st.revision,
+        merge_blocked: st.blocks_merge(),
+        removed: st.removed,
+        entries: st
+            .entries
+            .into_iter()
+            .map(|e| StackEntry {
+                position: e.position,
+                commit_oid: e.commit_oid,
+                change_id: e.display_id,
+                binding: e.binding,
+                reason: e.reason,
+                candidates: e.candidates,
+                conflicted: e.conflicted,
+                earlier_versions: e.earlier_versions,
+                also_in: e.also_in,
+            })
+            .collect(),
+    }))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct BindBody {
+    /// The change to continue (its ID), or null for a new change.
+    #[serde(default)]
+    pub change: Option<String>,
+}
+
+/// Binds a commit of the current revision by hand: picks a change for an
+/// unresolved commit, splits a continued change into a new one
+/// (`change: null`), or joins a new change to a removed one. Open to the
+/// author and anyone who can push the source; audited.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack/{position}/bind", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("position" = i32, Path)), request_body = BindBody,
+    responses((status = 200, body = MrStack), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn bind_change(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number, position)): Path<(String, String, i32, i32)>,
+    Json(b): Json<BindBody>,
+) -> Result<Json<MrStack>, AppError> {
+    let to = b.change.map_or(Rebind::New, Rebind::Change);
+    state
+        .services
+        .rebind_change(&s, (&ns, &repo, number), position, &to)
+        .await?;
+    get_stack(State(state), ApiSubject(s), Path((ns, repo, number))).await
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -380,5 +477,15 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments",
             Access::Resource,
             get(list_mr_comments).post(create_mr_comment),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack",
+            Access::Resource,
+            get(get_stack),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack/{position}/bind",
+            Access::Resource,
+            axum::routing::post(bind_change),
         )
 }

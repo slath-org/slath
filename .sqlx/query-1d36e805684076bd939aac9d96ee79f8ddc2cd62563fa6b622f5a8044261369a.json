@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.kind, a.value, o.number\n           FROM mr_change_aliases a\n           JOIN merge_requests o ON o.id = a.mr_id\n           JOIN merge_requests m ON m.id = $1\n           JOIN unnest($2::text[], $3::text[]) AS x(kind, value) ON x.kind = a.kind AND x.value = a.value\n           WHERE o.repo_id = m.repo_id AND o.id <> m.id AND o.state = 'open'\n           ORDER BY o.number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_change_aliases",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_change_aliases",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "number"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1d36e805684076bd939aac9d96ee79f8ddc2cd62563fa6b622f5a8044261369a"
+}
