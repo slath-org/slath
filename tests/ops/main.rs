@@ -7,6 +7,7 @@
 mod backup;
 mod compose;
 mod crash;
+mod doctor;
 mod fixture;
 mod maintenance;
 mod setup;

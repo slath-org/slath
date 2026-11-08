@@ -196,6 +196,8 @@ way:
 
 ## Next steps
 
+- `slath doctor` checks the installation and says what to fix
+  ([Diagnosing an installation](doctor.md)).
 - [Backup and restore](backup.md)
 - [Upgrading](upgrading.md)
 - `slath fsck` checks repositories against the database; `--reconcile`

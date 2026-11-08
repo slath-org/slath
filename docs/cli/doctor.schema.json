@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/doctor.schema.json",
+  "title": "slath doctor --output json",
+  "type": "object",
+  "required": ["ok", "checks"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {"type": "boolean", "description": "False if any check failed."},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "status", "detail", "fix"],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code; see docs/admin/doctor.md.",
+            "enum": [
+              "config.invalid", "config.deprecated", "git.version", "storage.writable",
+              "ssh.boundary", "db.unreachable", "keys.unreadable", "check.other", "disk.low",
+              "backup.none", "backup.stale", "backup.failed", "schema.state", "update.postgres",
+              "update.extensions", "update.git", "update.source", "update.action", "update.config",
+              "update.data_dir", "update.lock", "update.other", "tls.expiry", "tls.trust",
+              "tls.unreachable"
+            ]
+          },
+          "status": {"enum": ["ok", "warn", "fail"]},
+          "detail": {"type": "string"},
+          "fix": {"type": "string", "description": "What to do; empty when the check passed."}
+        }
+      }
+    }
+  }
+}

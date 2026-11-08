@@ -157,6 +157,23 @@ async fn from_version(pool: &PgPool, all: &[Notes], schema: i32) -> Option<Versi
     notes::release_for_schema(all, schema).map(|n| n.version.clone())
 }
 
+/// For `slath doctor`: the preflight's warnings and failures as
+/// `(item, failed, detail)`, without a backup check. Changes nothing.
+pub(crate) async fn preflight_problems(
+    cfg: &Loaded,
+    pool: &PgPool,
+) -> Result<Vec<(&'static str, bool, String)>, String> {
+    let (p, lock) = preflight(cfg, pool, &[], None, false).await?;
+    if let Some(l) = lock {
+        l.release().await;
+    }
+    Ok(p.items
+        .into_iter()
+        .filter(|i| i.mark != Mark::Ok)
+        .map(|i| (i.name, i.mark == Mark::Fail, i.detail))
+        .collect())
+}
+
 /// Bytes used under `dir`, not following symlinks, skipping `skip`.
 fn du(dir: &Path, skip: &Path) -> u64 {
     let mut total = 0;

@@ -7,6 +7,7 @@ mod admin;
 mod backup;
 mod check;
 mod config;
+mod doctor;
 mod hook;
 mod output;
 mod serve;
@@ -50,6 +51,15 @@ enum Command {
     },
     /// Upgrade the database and data directory to this version: preflight,
     /// automatic backup, migrations, verification. `--check` only reports.
+    /// Diagnose this installation: configuration, the SSH boundary, database
+    /// and schema, Git, disk, backups, TLS, and the update preflight. Each
+    /// problem has a stable code and a fix. Changes nothing.
+    Doctor {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Set up this host (systemd): users, files, database, unit, sshd,
     /// schema, first administrator. Idempotent; `--check` changes nothing.
     Setup {
@@ -345,6 +355,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Serve { config } => serve::run(&config::resolve_path(config)),
+        Command::Doctor { config, output } => doctor::run(&config::resolve_path(config), output),
         Command::Setup {
             helper: Some(SetupHelper::DbHelper),
             ..
