@@ -21,6 +21,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Merge request pages open with a readiness card: a headline, the reason, and your one next step; each requirement shows as done, waiting, or blocking.
+- Returning reviewers see how much is new since their review, marked in the timeline; metadata changes fold into one line, and bot comments are marked as claims.
+- Draft, ready, close, and reopen moved to a menu next to the merge request's title; commits show their check results.
+- Branch protection can dismiss approvals on every new revision, even after a rebase that keeps every patch.
 - A review ledger records how each commit was matched to a change, which approvals were kept or went stale and why, stale statuses, target moves, and removed signatures.
 - Each change's page shows how its versions were matched and its history; `GET …/merge-requests/{n}/ledger` returns the ledger.
 - Merge requests merge on the server with fast-forward, rebase, merge commit, or squash, using the head you reviewed and retrying when the target moves.

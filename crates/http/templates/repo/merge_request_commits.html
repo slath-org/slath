@@ -32,6 +32,9 @@
     <a class="commit-subject" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}">{{ r.commit.subject }}</a>
     <span class="text-secondary">{{ r.commit.author }} · <time datetime="{{ r.commit.time.iso }}">{{ r.commit.time.text }}</time></span>
     <code>{{ r.commit.short }}</code>
+    {%- if let Some((tone, text)) = r.checks %}
+    <span class="commit-checks tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}{{ text }}</span>
+    {%- endif %}
     {%- if let Some(e) = r.entry %}
     {%- if !e.also_in.is_empty() %}
     <span class="text-secondary">Also in {% for o in e.also_in %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ o }}">!{{ o }}</a>{% if !loop.last %}, {% endif %}{% endfor %}</span>

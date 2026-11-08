@@ -758,6 +758,8 @@ pub struct ProtectionRule {
     pub status_reporters: std::collections::BTreeMap<String, Vec<String>>,
     /// Statuses on the head also count for rebase and merge commits.
     pub statuses_on_head_ok: bool,
+    /// Any new revision makes earlier approvals stale, even a rebase.
+    pub dismiss_approvals_on_new_revision: bool,
 }
 
 impl ProtectionRule {
@@ -779,6 +781,7 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
             required_status_contexts: p.required_status_contexts.clone(),
             status_reporters: std::collections::BTreeMap::new(),
             statuses_on_head_ok: p.statuses_on_head_ok,
+            dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
             id: p.id.to_string(),
             pattern: p.pattern,
             block_force_push: p.block_force_push,
@@ -842,6 +845,8 @@ pub struct PostProtection {
     pub status_reporters: std::collections::BTreeMap<String, Vec<String>>,
     #[serde(default = "yes")]
     pub statuses_on_head_ok: bool,
+    #[serde(default)]
+    pub dismiss_approvals_on_new_revision: bool,
 }
 
 const fn one() -> i32 {
@@ -894,6 +899,7 @@ pub async fn post_protection(
                     })
                     .collect(),
                 statuses_on_head_ok: p.statuses_on_head_ok,
+                dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
             },
         )
         .await?;

@@ -1114,69 +1114,141 @@ fieldset.field {
 .branch-name {
   overflow-wrap: anywhere;
 }
-.merge-box {
+/* Readiness card (Weave: ReadinessCard, StatusLine, RequirementRow) */
+.readiness {
   margin-block: var(--space-4);
-  padding: var(--space-3) var(--space-4);
   border: var(--border-width) solid var(--border);
+  border-inline-start-width: var(--space-1);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
-.merge-box h2 {
-  margin-top: 0;
+.readiness.tone-done {
+  border-inline-start-color: var(--success);
+}
+.readiness.tone-waiting {
+  border-inline-start-color: var(--border);
+}
+.readiness.tone-blocking {
+  border-inline-start-color: var(--error);
+}
+.readiness-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.readiness-text {
+  flex: 1;
+  min-width: 12rem;
+}
+.readiness-title {
+  margin: 0;
   font-size: var(--text-lg);
+}
+.readiness-reason,
+.readiness-since {
+  margin: var(--space-1) 0 0;
+}
+.readiness-action {
+  align-self: center;
 }
 .requirements {
   list-style: none;
-  padding: 0;
+  padding: 0 var(--space-4) var(--space-3);
   margin: 0;
-}
-.requirement {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding-block: var(--space-1);
-}
-.requirement-met > svg {
-  color: var(--success);
-}
-.requirement-unmet > svg {
-  color: var(--error);
-}
-.requirement-pending > svg {
-  color: var(--warning);
-}
-.status {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  overflow-wrap: anywhere;
-}
-.status-success > svg {
-  color: var(--success);
-}
-.status-pending > svg {
-  color: var(--warning);
-}
-.status-failure > svg,
-.status-error > svg {
-  color: var(--error);
-}
-.merge-form {
-  margin-block-start: var(--space-3);
-  padding-block-start: var(--space-3);
   border-block-start: var(--border-width) solid var(--border);
 }
-.conflict-help pre {
-  margin: var(--space-2) 0;
+.requirement {
+  padding-block: var(--space-1);
+}
+.requirement,
+.requirement > details > summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+}
+.requirement > details > summary {
+  cursor: pointer;
+}
+.requirement-fix {
+  margin: 0 0 var(--space-1) var(--space-6);
+  color: var(--text-secondary);
+}
+/* The tones: icon and words, the color only adds to them. */
+.tone-done > svg,
+.tone-done > details > summary > svg,
+.readiness.tone-done .readiness-icon svg {
+  color: var(--success);
+}
+.tone-waiting > svg,
+.tone-waiting > details > summary > svg,
+.readiness.tone-waiting .readiness-icon svg {
+  color: var(--text-secondary);
+}
+.tone-blocking > svg,
+.tone-blocking > details > summary > svg,
+.readiness.tone-blocking .readiness-icon svg {
+  color: var(--error);
+}
+.merge-area {
+  margin-block: var(--space-4);
+}
+.commit-checks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+.evidence-chip {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: var(--border-width) dashed var(--control-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.since-marker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.since-marker::before,
+.since-marker::after {
+  content: "";
+  flex: 1;
+  border-block-start: var(--border-width) solid var(--accent);
+}
+.timeline-jump {
+  margin: 0;
+  text-align: end;
+  font-size: var(--text-sm);
+}
+.timeline-group details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.timeline-group ul {
+  margin: var(--space-2) 0 0;
+}
+.timeline-group li {
+  display: flex;
+  gap: var(--space-2);
+}
+.header-actions .menu-panel form {
+  margin: 0;
+}
+.header-actions .menu-item {
+  width: 100%;
+  justify-content: flex-start;
 }
 .review-form {
   margin-block-end: var(--space-4);
-}
-.mr-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-block-start: var(--space-4);
 }
 .checkout pre {
   margin: var(--space-2) 0 var(--space-3);

@@ -7126,6 +7126,9 @@
           "bots_count_as_approvers": {
             "type": "boolean"
           },
+          "dismiss_approvals_on_new_revision": {
+            "type": "boolean"
+          },
           "dismiss_stale_approvals": {
             "type": "boolean"
           },
@@ -7257,7 +7260,8 @@
           "bots_count_as_approvers",
           "required_status_contexts",
           "status_reporters",
-          "statuses_on_head_ok"
+          "statuses_on_head_ok",
+          "dismiss_approvals_on_new_revision"
         ],
         "properties": {
           "block_deletion": {
@@ -7268,6 +7272,10 @@
           },
           "bots_count_as_approvers": {
             "type": "boolean"
+          },
+          "dismiss_approvals_on_new_revision": {
+            "type": "boolean",
+            "description": "Any new revision makes earlier approvals stale, even a rebase."
           },
           "dismiss_stale_approvals": {
             "type": "boolean",

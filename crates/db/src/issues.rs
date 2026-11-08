@@ -254,6 +254,8 @@ pub struct Comment {
     pub subject_id: uuid::Uuid,
     pub author_id: Option<UserId>,
     pub author: Option<String>,
+    /// The author is a bot account (its words are claims, D-47).
+    pub author_bot: bool,
     pub body: String,
     pub edited_at: Option<OffsetDateTime>,
     pub deleted_at: Option<OffsetDateTime>,
@@ -269,6 +271,7 @@ macro_rules! to_comment {
             subject_id: $r.subject_id,
             author_id: $r.author_id.map(UserId::from_uuid),
             author: $r.author,
+            author_bot: $r.author_bot,
             body: $r.body,
             edited_at: $r.edited_at,
             deleted_at: $r.deleted_at,
@@ -307,7 +310,8 @@ pub async fn comments(
     subject: uuid::Uuid,
 ) -> Result<Vec<Comment>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author, c.body, c.edited_at,
+        r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.edited_at,
                   c.deleted_at, c.hidden_at, c.created_at
            FROM comments c LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
@@ -325,7 +329,8 @@ pub async fn comment(
     id: uuid::Uuid,
 ) -> Result<Option<Comment>, DbError> {
     let r = sqlx::query!(
-        r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author, c.body, c.edited_at,
+        r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.edited_at,
                   c.deleted_at, c.hidden_at, c.created_at
            FROM comments c LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id

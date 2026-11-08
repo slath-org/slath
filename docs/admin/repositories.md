@@ -76,6 +76,9 @@ For merging merge requests into a protected branch:
 - **Dismiss approvals when the changes change** (on by default): a new
   revision makes earlier approvals stale, unless it's a rebase that keeps
   every change's patch the same.
+- **Dismiss approvals on every new revision** (off by default): stricter,
+  even a rebase that keeps every patch needs new approvals, since the code
+  it builds on changed.
 - **Require resolved threads** and **Require the branch to be up to date
   with the target**.
 

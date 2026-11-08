@@ -26,7 +26,7 @@
       <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
       <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
-      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}</td>
+      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}</td>
       <td>{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
@@ -78,6 +78,8 @@
     </div>
     <div class="checkbox"><input id="dismiss_stale_approvals" type="checkbox" name="dismiss_stale_approvals" value="1" checked aria-describedby="dismiss_stale_approvals-hint"><label for="dismiss_stale_approvals">Dismiss approvals when the changes change</label></div>
     <p id="dismiss_stale_approvals-hint" class="hint">A rebase that keeps every patch the same keeps them.</p>
+    <div class="checkbox"><input id="dismiss_approvals_on_new_revision" type="checkbox" name="dismiss_approvals_on_new_revision" value="1" aria-describedby="dismiss_approvals_on_new_revision-hint"><label for="dismiss_approvals_on_new_revision">Dismiss approvals on every new revision</label></div>
+    <p id="dismiss_approvals_on_new_revision-hint" class="hint">Stricter: even a rebase that keeps every patch needs new approvals, since the code it builds on changed.</p>
     <div class="checkbox"><input id="require_resolved_threads" type="checkbox" name="require_resolved_threads" value="1"><label for="require_resolved_threads">Require resolved threads</label></div>
     <div class="checkbox"><input id="require_up_to_date" type="checkbox" name="require_up_to_date" value="1"><label for="require_up_to_date">Require the branch to be up to date with the target</label></div>
     <div class="checkbox"><input id="bots_count_as_approvers" type="checkbox" name="bots_count_as_approvers" value="1"><label for="bots_count_as_approvers">Count approvals by bots</label></div>

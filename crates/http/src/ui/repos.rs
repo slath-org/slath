@@ -953,6 +953,7 @@ struct RuleForm {
     #[serde(default)]
     required_checks: String,
     statuses_on_head_ok: Option<String>,
+    dismiss_approvals_on_new_revision: Option<String>,
 }
 
 /// Parses the required checks field: one per line, `context` or
@@ -1006,6 +1007,7 @@ async fn save_protection(
                 bots_count_as_approvers: f.bots_count_as_approvers.is_some(),
                 required_checks: parse_checks(&f.required_checks),
                 statuses_on_head_ok: f.statuses_on_head_ok.is_some(),
+                dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
             },
         )
         .await

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
+  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
   "describe": {
     "columns": [
       {
@@ -159,6 +159,17 @@
       },
       {
         "ordinal": 14,
+        "name": "dismiss_approvals_on_new_revision",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "dismiss_approvals_on_new_revision"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -189,8 +200,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "951e314b05f70bddabd1b1a89f2e16c2d39dead75f7f300298b53ce4aada54e1"
+  "hash": "553150cf06f18205a14e3dac7134e4b252be04142854c3255198c03483fe4510"
 }

@@ -45,6 +45,8 @@ pub struct Effective {
     pub required_checks: Vec<RequiredCheck>,
     /// Only if every matching rule accepts statuses on the head.
     pub statuses_on_head_ok: bool,
+    /// Any rule's: every new revision makes earlier approvals stale.
+    pub dismiss_approvals_on_new_revision: bool,
 }
 
 /// The reporter lists of a rule: context -> user IDs.
@@ -120,6 +122,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.require_up_to_date |= r.require_up_to_date;
         e.bots_count_as_approvers &= r.bots_count_as_approvers;
         e.statuses_on_head_ok &= r.statuses_on_head_ok;
+        e.dismiss_approvals_on_new_revision |= r.dismiss_approvals_on_new_revision;
         let lists = reporters_of(r);
         for ctx in &r.required_status_contexts {
             let list = lists.get(ctx).filter(|l| !l.is_empty()).cloned();
@@ -189,6 +192,7 @@ pub struct RuleInput {
     /// statuses count (empty: anyone allowed).
     pub required_checks: Vec<(String, Vec<String>)>,
     pub statuses_on_head_ok: bool,
+    pub dismiss_approvals_on_new_revision: bool,
 }
 
 /// Whether `s` is a valid status context.
@@ -300,6 +304,7 @@ impl Services {
                 required_status_contexts: &contexts,
                 statuses_on_head_ok: r.statuses_on_head_ok,
                 status_reporters: &reporters,
+                dismiss_approvals_on_new_revision: r.dismiss_approvals_on_new_revision,
             },
         )
         .await?;
@@ -321,6 +326,7 @@ impl Services {
                 "required_status_contexts": contexts,
                 "status_reporters": reporters,
                 "statuses_on_head_ok": r.statuses_on_head_ok,
+                "dismiss_approvals_on_new_revision": r.dismiss_approvals_on_new_revision,
             }),
         )
         .await;
@@ -410,6 +416,7 @@ mod tests {
             required_status_contexts: Vec::new(),
             statuses_on_head_ok: true,
             status_reporters: serde_json::json!({}),
+            dismiss_approvals_on_new_revision: false,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

@@ -553,3 +553,179 @@ fn conf_review_11_who_may_satisfy_required_checks() {
         ("met".into(), "ci/build: success, reported by carol.".into())
     );
 }
+
+#[test]
+fn conf_review_13_returning_reviewer_and_the_strict_rule() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let u = Users {
+        alice: token(&s, "alice"),
+        bob: token(&s, "bob"),
+        carol: String::new(),
+        s,
+    };
+    let r = api(
+        &u,
+        &u.alice,
+        "PUT",
+        "/collaborators/bob",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1, "block_force_push": false})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    std::fs::create_dir_all(&w).unwrap();
+    let url = u.s.url(&DEMO);
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "init"]);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    git.ok(&w, &["switch", "-q", "-c", "topic"]);
+    std::fs::write(w.join("a.txt"), lines(None)).unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "Add a"]);
+    git.ok(&w, &["push", "-q", &url, "topic"]);
+    let n = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Topic"})),
+    )
+    .json()["number"]
+        .as_i64()
+        .unwrap();
+    wait_revisions(&u, n, 1);
+    assert_eq!(
+        api(
+            &u,
+            &u.bob,
+            "POST",
+            &format!("/merge-requests/{n}/reviews"),
+            Some(json!({"verdict": "approve"}))
+        )
+        .status,
+        201
+    );
+    let mut bob = u.s.login("bob", PASSWORD);
+    let page = bob.get(&format!("/alice/demo/merge-requests/{n}")).body;
+    assert!(
+        page.contains(r#"id="readiness-title" class="readiness-title">Ready to merge"#),
+        "{page}"
+    );
+
+    // Git, then jj, change the content.
+    std::fs::write(w.join("a.txt"), lines(Some(2))).unwrap();
+    git.ok(&w, &["commit", "-qa", "--amend", "--no-edit"]);
+    git.ok(&w, &["push", "-q", "--force", &url, "topic"]);
+    wait_revisions(&u, n, 2);
+    let mut revisions = 2;
+    if let Some((version, bin)) = crate::jj::jj_binaries().into_iter().last() {
+        let jj = crate::jj::Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(d.path(), &["git", "clone", &url, j.to_str().unwrap()]);
+        jj.ok(&j, &["bookmark", "track", "topic@origin"]);
+        jj.ok(&j, &["edit", "topic"]);
+        std::fs::write(j.join("a.txt"), lines(Some(5))).unwrap();
+        jj.ok(&j, &["git", "push", "--bookmark", "topic"]);
+        revisions = 3;
+        wait_revisions(&u, n, 3);
+    }
+    // Bob returns: the headline, his next step, each requirement's tone,
+    // and what's new since his review, marked in the timeline.
+    let page = bob.get(&format!("/alice/demo/merge-requests/{n}")).body;
+    assert!(
+        page.contains(r#"class="readiness-title">Approval required"#),
+        "{page}"
+    );
+    assert!(
+        page.contains(&format!(
+            r#"href="/alice/demo/merge-requests/{n}#review-form""#
+        )),
+        "{page}"
+    );
+    // Every revision since counts, plus the note that the approval went stale.
+    let new_since: usize = page
+        .split(" new since your review")
+        .next()
+        .and_then(|before| before.rsplit('>').next())
+        .and_then(|n| n.trim().parse().ok())
+        .unwrap_or(0);
+    assert!(
+        new_since >= usize::try_from(revisions - 1).unwrap(),
+        "{new_since}: {page}"
+    );
+    assert!(page.contains(r#"id="since""#));
+    assert!(page.contains(r#"<span class="visually-hidden">Waiting: </span>"#));
+    assert!(page.contains(r#"<span class="visually-hidden">Done: </span>"#));
+    assert_eq!(
+        page.matches("button button-primary").count(),
+        1,
+        "one primary action"
+    );
+
+    // The strict rule: even a pure rebase makes the approval stale.
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/protections",
+        Some(json!({
+            "pattern": "main", "required_approvals": 1, "block_force_push": false,
+            "dismiss_approvals_on_new_revision": true,
+        })),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["dismiss_approvals_on_new_revision"], true);
+    assert_eq!(
+        api(
+            &u,
+            &u.bob,
+            "POST",
+            &format!("/merge-requests/{n}/reviews"),
+            Some(json!({"verdict": "approve"}))
+        )
+        .status,
+        201
+    );
+    assert_eq!(requirement(&u, n, "approvals").0, "met");
+    git.ok(&w, &["fetch", "-q", &url, "topic"]);
+    git.ok(&w, &["reset", "-q", "--hard", "FETCH_HEAD"]);
+    git.ok(&w, &["switch", "-q", "main"]);
+    std::fs::write(w.join("m.txt"), "m\n").unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "Main"]);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    git.ok(&w, &["switch", "-q", "topic"]);
+    git.ok(&w, &["reset", "-q", "--hard", "FETCH_HEAD"]);
+    git.ok(&w, &["rebase", "-q", "main"]);
+    git.ok(&w, &["push", "-q", "--force", &url, "topic"]);
+    wait_revisions(&u, n, revisions + 1);
+    assert_eq!(requirement(&u, n, "approvals").0, "unmet");
+    let ledger = api(
+        &u,
+        &u.alice,
+        "GET",
+        &format!("/merge-requests/{n}/ledger"),
+        None,
+    )
+    .json();
+    assert!(
+        ledger
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["kind"] == "approval_stale" && e["reason"] == "new-revision"),
+        "{ledger}"
+    );
+}

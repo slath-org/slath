@@ -171,6 +171,23 @@ impl Services {
         Ok(latest_per_context(&all))
     }
 
+    /// The latest status per context of each of a merge request's
+    /// commits.
+    pub async fn statuses_of_commits(
+        &self,
+        m: &MergeRequest,
+        oids: &[String],
+    ) -> Result<std::collections::HashMap<String, Vec<Status>>> {
+        let mut out = std::collections::HashMap::new();
+        for oid in oids {
+            let all = slath_db::statuses::for_commit(&self.pool, m.repo_id, oid).await?;
+            if !all.is_empty() {
+                out.insert(oid.clone(), latest_per_context(&all));
+            }
+        }
+        Ok(out)
+    }
+
     /// The latest statuses of the merge request's head.
     pub async fn mr_statuses(&self, m: &MergeRequest) -> Result<Vec<Status>> {
         let Some(head) = m.head_oid.as_deref() else {
@@ -228,6 +245,7 @@ impl Services {
                 out.push(Requirement {
                     key: "statuses",
                     state: "pending",
+                    tone: "waiting",
                     reason: format!("{ctx}: needs a status on the commit that lands, since the head's don't count here."),
                     fix: Some("Update the branch so it can be fast-forwarded".to_owned()),
                 });
@@ -256,30 +274,35 @@ impl Services {
                 Some(s) if s.state == "success" => Requirement {
                     key: "statuses",
                     state: "met",
+                    tone: "done",
                     reason: format!("{ctx}: success, reported by {}.", by(s)),
                     fix: None,
                 },
                 Some(s) if s.state == "pending" => Requirement {
                     key: "statuses",
                     state: "pending",
+                    tone: "waiting",
                     reason: format!("{ctx}: pending, reported by {}.", by(s)),
                     fix: Some("Wait for the check".to_owned()),
                 },
                 Some(s) => Requirement {
                     key: "statuses",
                     state: "unmet",
+                    tone: "blocking",
                     reason: format!("{ctx}: {}, reported by {}.", s.state, by(s)),
                     fix: Some("Fix what the check found and push again".to_owned()),
                 },
                 None if ignored.is_empty() => Requirement {
                     key: "statuses",
                     state: "pending",
+                    tone: "waiting",
                     reason: format!("{ctx}: no status yet."),
                     fix: Some("Wait for the check".to_owned()),
                 },
                 None => Requirement {
                     key: "statuses",
                     state: "unmet",
+                    tone: "blocking",
                     reason: format!("{ctx}: no status counts; {}.", ignored.join("; ")),
                     fix: Some("Have an allowed reporter report it".to_owned()),
                 },

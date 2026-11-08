@@ -1,0 +1,44 @@
+<section class="readiness tone-{{ h.card.tone }}" aria-labelledby="{% if !card_top %}{{ card_id }}-label {% endif %}{{ card_id }}-title">
+  {%- if !card_top %}<span id="{{ card_id }}-label" class="visually-hidden">Merge box:</span>{% endif %}
+  <div class="readiness-head">
+    <span class="readiness-icon">{% call m::tone_icon(ctx, h.card.tone) %}{% endcall %}</span>
+    <div class="readiness-text">
+      <h2 id="{{ card_id }}-title" class="readiness-title">{{ h.card.headline }}</h2>
+      {%- if !h.card.reason.is_empty() %}<p class="readiness-reason">{{ h.card.reason }}</p>{% endif %}
+      {%- if let Some(n) = h.card.since %}
+      <p class="readiness-since"><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}#since">{{ n }} new since your review</a></p>
+      {%- endif %}
+    </div>
+    {%- if card_top %}
+    {%- if let Some(act) = h.card.action %}
+    <div class="readiness-action">
+      {%- if let Some((url, field, value)) = act.form %}
+      <form method="post" action="{{ url }}" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <input type="hidden" name="{{ field }}" value="{{ value }}">
+        <button type="submit" class="button button-primary">{% call m::icon(ctx, act.icon) %}{% endcall %}{{ act.label }}</button>
+      </form>
+      {%- else if let Some(href) = act.href %}
+      <a class="button button-primary" href="{{ href }}">{% call m::icon(ctx, act.icon) %}{% endcall %}{{ act.label }}</a>
+      {%- endif %}
+    </div>
+    {%- endif %}
+    {%- endif %}
+  </div>
+  {%- if !h.card.rows.is_empty() %}
+  <ul class="requirements">
+  {%- for r in h.card.rows %}
+    <li class="requirement tone-{{ r.tone }}">
+      {%- if r.tone == "done" %}
+      {% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span>
+      {%- else %}
+      <details>
+        <summary>{% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span></summary>
+        {%- if let Some(f) = r.fix %}<p class="requirement-fix">{{ f }}.</p>{% endif %}
+      </details>
+      {%- endif %}
+    </li>
+  {%- endfor %}
+  </ul>
+  {%- endif %}
+</section>

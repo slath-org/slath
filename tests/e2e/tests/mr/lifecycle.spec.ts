@@ -69,6 +69,8 @@ test("ux_mr_02_compare_page_creates_a_merge_request", async ({ page }, testInfo)
   // Closing it from the list's merge request page.
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: `Add notes for ${p}` }));
+  // Closing is in the header's action menu.
+  await tapOrClick(page, page.getByText("More actions"));
   await tapOrClick(page, page.getByRole("button", { name: "Close merge request" }));
   await expect(page.locator(".state-label")).toHaveText("Closed");
   await expect(page.getByText("closed this")).toBeVisible();
@@ -137,12 +139,17 @@ test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, 
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
   // No protection on main: nothing but the basics is required.
-  const box = page.getByRole("region", { name: "Ready to merge" });
+  const box = page.getByRole("region", { name: "Ready to merge", exact: true });
+  await expect(page.getByRole("region", { name: "Merge box: Ready to merge" })).toBeVisible();
   await expect(box).toContainText("No approvals are required.");
   await expect(box).toContainText("Every commit belongs to one change.");
-  // Mergeable: the merge form offers the repository's strategies.
-  await expect(box.getByLabel("Merge with")).toBeVisible();
-  await expect(box.getByRole("button", { name: "Merge" })).toBeVisible();
+  // Mergeable: the card's one action leads to the merge form, which offers
+  // the repository's strategies.
+  await expect(box.getByRole("link", { name: "Merge" })).toHaveAttribute("href", /#merge-form$/);
+  await expect(page.getByLabel("Merge with")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Merge", exact: true })).toBeVisible();
+  // One primary action per page.
+  await expect(page.locator(".button-primary")).toHaveCount(1);
   // The author can comment, not approve.
   await expect(page.getByLabel("Comment", { exact: true })).toBeChecked();
   await expect(page.getByLabel("Approve")).toHaveCount(0);

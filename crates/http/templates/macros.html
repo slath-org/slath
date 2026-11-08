@@ -13,3 +13,11 @@
 {%- macro line_text(kind, text, segments) -%}
 <code>{%- if segments.is_empty() %}{{ text }}{% else %}{% for sg in segments.iter() %}{% if sg.changed %}{% if kind == "del" %}<del><span class="visually-hidden">changed: </span>{{ sg.text }}</del>{% else %}<ins><span class="visually-hidden">changed: </span>{{ sg.text }}</ins>{% endif %}{% else %}{{ sg.text }}{% endif %}{% endfor %}{% endif -%}</code>
 {%- endmacro -%}
+{#- A tone as an icon plus words for screen readers (Weave: StatusLine). -#}
+{%- macro tone_icon(ctx, tone) -%}
+{%- if tone == "done" %}{% call icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">Done: </span>{% else if tone == "waiting" %}{% call icon(ctx, "clock") %}{% endcall %}<span class="visually-hidden">Waiting: </span>{% else %}{% call icon(ctx, "circle-x") %}{% endcall %}<span class="visually-hidden">Blocking: </span>{% endif -%}
+{%- endmacro -%}
+{#- What kind of evidence something is (Weave: EvidenceChip). -#}
+{%- macro evidence(kind) -%}
+<span class="evidence-chip">{{ kind }}</span>
+{%- endmacro -%}

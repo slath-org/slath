@@ -148,67 +148,26 @@ the target: by default, an approval stays only if the new revision kept
 every change's patch, as after a plain rebase. Otherwise it's marked stale
 and no longer counts. The timeline notes either case.
 
-The **merge box** below the timeline lists what the target branch
-requires, each with a reason and what fixes it: not a draft, enough
-approvals from people with write access (not the author), no open request
-for changes, and every commit belonging to one change. Protection can also
-require the branch to be up to date and threads to be resolved. The API
-returns the same list at `GET …/merge-requests/{n}/mergeability`.
+Every merge request page opens with a **readiness card**: one headline
+(such as "Ready to merge", "Approval required", or "Conflicts with
+main"), the reason, and the one thing you can do next, chosen for you:
+**Merge**, **Review**, **Ask for review**, **Mark as ready**, or **Resolve
+conflicts**. Below it, each requirement of the target branch is a line
+marked done (✓), waiting (clock, for normal waiting such as missing
+approvals or running checks), or blocking (✗, something must change).
+Open a line to see why and what fixes it. The same card sits again above
+the merge and review forms at the bottom, so you don't have to scroll up.
+The API returns the requirements at `GET …/merge-requests/{n}/mergeability`.
 
-## Merging
+The timeline stays in one order, oldest first; **Jump to newest** skips
+to the end. When you come back after reviewing, the card says how many
+entries are new since your review, and a divider marks where they start.
+Runs of label, assignee, milestone, and review-request changes fold into
+one line you can open. Comments by bots are marked as claims: they never
+look like a review.
 
-When every requirement is met, the merge box offers **Merge** to people
-who can merge (the write role), with the strategies the repository allows:
-
-- **Fast-forward** moves the target to the branch's head; only possible
-  when the target has nothing the branch doesn't.
-- **Rebase** (the default) replays each commit on the target. Authors,
-  messages, and unknown headers stay as they were; the committer is the
-  person merging, and signatures are dropped because the commits change.
-  Each commit carries its change's ID, so jj users who fetch see the same
-  IDs as the merge request, even for commits made with Git.
-- **Merge commit** adds a commit with both parents ("Merge !12: title"
-  unless you write another message).
-- **Squash** makes one commit from the first commit's author, with the
-  title and description as the message unless you write another. It keeps
-  the change's ID if there's one change, and gets a new one otherwise.
-
-Merging uses the head you looked at: if someone pushed meanwhile, it stops
-and shows the new revision. If someone pushes to the target while merging,
-Slath rebuilds the merge on top, a few times at most. **Delete the branch
-after merging** removes the source branch unless it's protected.
-
-Messages you write for merge commits and squashes go through the
-repository's push protection like pushed commits do.
-
-When the branch conflicts with the target, the merge box lists the
-conflicting files and the commands that resolve them with Git or jj.
-
-The API merges with `POST …/merge-requests/{n}/merge` and
-`{"strategy": "rebase", "expected_head_oid": "<head you reviewed>"}`.
-
-## Statuses and required checks
-
-CI systems and other tools report the result of a check on a commit with
-`POST /api/v1/repos/{namespace}/{repo}/statuses/{commit}` and a token with
-the `statuses:write` scope:
-
-```json
-{"state": "success", "context": "ci/build", "target_url": "https://ci.example.org/runs/42"}
-```
-
-`state` is `pending`, `success`, `failure`, or `error`; the latest status
-per context counts. Every status shows who reported it: Slath knows the
-reporter, not whether the check really ran. The commit page and the
-merge request's **Checks** list them, and
-`GET …/commits/{commit}/statuses` returns them.
-
-When the target's branch protection requires a context, the merge box
-shows it, with the reporter and why a status didn't count:
-
-- only statuses on the merge request's head commit count;
-- never the author's own statuses, or those of bots the author owns;
-- if the rule lists reporters for the context, only theirs.
+**More** next to the title marks a merge request as draft or ready, and
+closes or reopens it.
 
 ## Reading diffs
 

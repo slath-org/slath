@@ -519,6 +519,8 @@ async fn create(
 struct CommentView {
     id: String,
     author_text: String,
+    /// Written by a bot: a claim, not a verdict (Weave: EvidenceChip).
+    bot: bool,
     created: Time,
     edited: bool,
     deleted: bool,
@@ -533,6 +535,9 @@ struct EventView {
     actor: String,
     text: String,
     created: Time,
+    /// Metadata (labels, assignees, milestones, review requests): folded
+    /// with its neighbours (Weave: EventGroup).
+    quiet: bool,
 }
 
 struct RevisionView {
@@ -597,6 +602,61 @@ enum TimelineView {
     Event(EventView),
     Revision(RevisionView),
     Review(ReviewItem),
+    /// Consecutive quiet events in one line: the summary and the events.
+    Group(String, Vec<EventView>),
+}
+
+/// Folds runs of two or more quiet events into one expandable line,
+/// moving the "new since your review" position along.
+fn fold_events(items: Vec<TimelineView>, since_at: &mut Option<usize>) -> Vec<TimelineView> {
+    let mut out: Vec<TimelineView> = Vec::new();
+    let mut run: Vec<EventView> = Vec::new();
+    let mut new_since = None;
+    let flush = |run: &mut Vec<EventView>, out: &mut Vec<TimelineView>| match run.len() {
+        0 => {}
+        1 => out.push(TimelineView::Event(run.remove(0))),
+        n => {
+            let actors: std::collections::BTreeSet<&str> =
+                run.iter().map(|e| e.actor.as_str()).collect();
+            let who = if actors.len() == 1 {
+                format!("{} changed", run[0].actor)
+            } else {
+                format!("{} people changed", actors.len())
+            };
+            let mut what: Vec<&str> = Vec::new();
+            for e in run.iter() {
+                let w = match e.icon {
+                    "tag" => "labels",
+                    "user" => "assignees",
+                    "flag" => "the milestone",
+                    _ => "reviewers",
+                };
+                if !what.contains(&w) {
+                    what.push(w);
+                }
+            }
+            let summary = format!("{who} {} · {n} events", what.join(" and "));
+            out.push(TimelineView::Group(summary, std::mem::take(run)));
+        }
+    };
+    for (i, item) in items.into_iter().enumerate() {
+        if *since_at == Some(i) {
+            flush(&mut run, &mut out);
+            new_since = Some(out.len());
+        }
+        match item {
+            TimelineView::Event(e) if e.quiet => run.push(e),
+            other => {
+                flush(&mut run, &mut out);
+                out.push(other);
+            }
+        }
+    }
+    flush(&mut run, &mut out);
+    if since_at.is_some() {
+        *since_at = new_since;
+    }
+    out
 }
 
 fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
@@ -693,7 +753,19 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         _ => return None,
     };
     let system = matches!(e.kind.as_str(), "approvals_carried" | "approvals_stale");
+    let quiet = matches!(
+        e.kind.as_str(),
+        "labeled"
+            | "unlabeled"
+            | "assigned"
+            | "unassigned"
+            | "milestoned"
+            | "demilestoned"
+            | "review_requested"
+            | "review_request_removed"
+    );
     Some(EventView {
+        quiet,
         icon,
         actor: e
             .actor
@@ -725,6 +797,148 @@ struct MrHeading {
     /// The source branch still exists.
     source_exists: bool,
     can_push: bool,
+    /// The readiness card: what to decide, and the viewer's next step.
+    card: Card,
+}
+
+/// The one primary action of a merge request page, for this viewer.
+struct NextAction {
+    label: &'static str,
+    icon: &'static str,
+    /// A link (`#anchor` or a page), or a form posting `field=value`.
+    href: Option<String>,
+    form: Option<(String, &'static str, &'static str)>,
+}
+
+/// The readiness card (Weave: ReadinessCard).
+struct Card {
+    headline: String,
+    reason: String,
+    /// `done`, `waiting`, or `blocking`.
+    tone: &'static str,
+    action: Option<NextAction>,
+    rows: Vec<slath_service::mr_reviews::Requirement>,
+    /// Timeline entries by others since the viewer's last review.
+    since: Option<usize>,
+    mergeable: bool,
+}
+
+/// Who the viewer is to this merge request, for choosing the next step.
+struct Viewer {
+    author: bool,
+    edit: bool,
+    merge: bool,
+    review: bool,
+    push: bool,
+    /// The viewer's approval or request for changes counts now.
+    reviewed: bool,
+}
+
+fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, base: &str) -> Card {
+    let link = |label, icon, anchor: &str| {
+        Some(NextAction {
+            label,
+            icon,
+            href: Some(format!("{base}{anchor}")),
+            form: None,
+        })
+    };
+    let done = |headline: String, reason: String, action| Card {
+        headline,
+        reason,
+        tone: "done",
+        action,
+        rows: Vec::new(),
+        since,
+        mergeable: false,
+    };
+    match m.state.as_str() {
+        "merged" => {
+            return done(
+                "Merged".to_owned(),
+                format!("Merged into {}.", m.target_branch),
+                None,
+            );
+        }
+        "closed" => {
+            return Card {
+                tone: "waiting",
+                ..done(
+                    "Closed".to_owned(),
+                    "It won't be merged unless it's reopened.".to_owned(),
+                    None,
+                )
+            };
+        }
+        _ => {}
+    }
+    if mb.mergeable {
+        let action = if v.merge {
+            link("Merge", "git-merge", "#merge-form")
+        } else {
+            None
+        };
+        let reason = if v.merge {
+            "Every requirement is met.".to_owned()
+        } else {
+            "Every requirement is met; someone with write access can merge it.".to_owned()
+        };
+        return Card {
+            rows: mb.requirements,
+            mergeable: true,
+            ..done("Ready to merge".to_owned(), reason, action)
+        };
+    }
+    let first = mb
+        .requirements
+        .iter()
+        .find(|r| r.tone == "blocking")
+        .or_else(|| mb.requirements.iter().find(|r| r.tone == "waiting"))
+        .cloned();
+    let Some(r) = first else {
+        return Card {
+            rows: mb.requirements,
+            ..done("Not ready".to_owned(), String::new(), None)
+        };
+    };
+    let headline = match r.key {
+        "draft" => "Draft".to_owned(),
+        "approvals" => "Approval required".to_owned(),
+        "changes_requested" => "Changes requested".to_owned(),
+        "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
+        "statuses" => "Checks failing".to_owned(),
+        "conflicts" => format!("Conflicts with {}", m.target_branch),
+        "identity" => "Commits need a change".to_owned(),
+        "up_to_date" => format!("Behind {}", m.target_branch),
+        "threads" => "Unresolved threads".to_owned(),
+        _ => "Not ready".to_owned(),
+    };
+    let action = match r.key {
+        "draft" if v.edit => Some(NextAction {
+            label: "Mark as ready",
+            icon: "git-pull-request",
+            href: None,
+            form: Some((format!("{base}/draft"), "draft", "false")),
+        }),
+        "approvals" | "changes_requested" if v.review && !v.reviewed => {
+            link("Review", "eye", "#review-form")
+        }
+        "approvals" if v.edit => link("Ask for review", "users", "#reviewers"),
+        "conflicts" if v.push || v.author => link("Resolve conflicts", "terminal", "#conflicts"),
+        "identity" if v.push || v.author => {
+            link("Choose changes", "git-commit-horizontal", "/commits")
+        }
+        _ => None,
+    };
+    Card {
+        headline,
+        reason: r.reason.clone(),
+        tone: r.tone,
+        action,
+        rows: mb.requirements,
+        since,
+        mergeable: false,
+    }
 }
 
 async fn heading(
@@ -743,8 +957,38 @@ async fn heading(
     .await
     .map_err(|e| AppError::internal(&e))?
     .is_some();
+    let perms = state.services.mr_perms(subject, a, &m);
+    let me = match subject {
+        Subject::User { id, .. } => Some(*id),
+        _ => None,
+    };
+    let reviewed = me.is_some()
+        && state
+            .services
+            .mr_reviews(&m)
+            .await?
+            .iter()
+            .any(|r| r.counts && r.review.reviewer_id == me);
+    let viewer = Viewer {
+        author: me.is_some() && m.author_id == me,
+        edit: perms.edit,
+        merge: a.can(subject, Action::MrMerge),
+        review: me.is_some() && a.can(subject, Action::MrReview) && m.author_id != me,
+        push: a.can(subject, Action::RepoPush),
+        reviewed,
+    };
+    let mb = state.services.mr_mergeability(a, &m).await?;
+    let since = state
+        .services
+        .since_last_review(subject, a, &m)
+        .await?
+        .map(|(_, n)| n)
+        .filter(|n| *n > 0);
+    let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
+    let card = card(&m, mb, &viewer, since, &base);
     Ok(MrHeading {
-        perms: state.services.mr_perms(subject, a, &m),
+        card,
+        perms,
         source: m.source_branch(),
         created: m.created_at.into(),
         icon,
@@ -773,7 +1017,8 @@ struct MrPage {
     milestone: Option<String>,
     git_checkout: String,
     jj_checkout: String,
-    merge_box: Mergeability,
+    /// Where the "New since your review" divider goes in the timeline.
+    since_at: Option<usize>,
     /// The viewer may review, and approve (not the author).
     can_review: bool,
     can_approve: bool,
@@ -807,6 +1052,11 @@ fn strategy_label(s: &str) -> &'static str {
 }
 
 impl MrPage {
+    /// The "New since your review" divider goes before timeline entry `i`.
+    fn since_here(&self, i: &usize) -> bool {
+        self.since_at == Some(*i)
+    }
+
     fn error(&self, field: &str) -> Option<&str> {
         error_for(&self.errors, field)
     }
@@ -852,8 +1102,21 @@ async fn mr_page(
         .render_markdown(subject, Some(&rc), &m.description)
         .await?;
     let summaries = state.services.revision_summaries(&m).await?;
+    let last_review = state
+        .services
+        .since_last_review(subject, &a, &m)
+        .await?
+        .map(|(t, _)| t);
+    let mut since_at = None;
     let mut timeline = Vec::new();
     for item in state.services.mr_timeline(subject, &a, &m).await? {
+        let at = slath_service::mr_reviews::item_time(&item).map(|(t, _)| t);
+        if since_at.is_none()
+            && let (Some(t), Some(last)) = (at, last_review)
+            && t > last
+        {
+            since_at = Some(timeline.len());
+        }
         match item {
             MrTimelineItem::Comment(TimelineItem::Comment {
                 comment,
@@ -861,6 +1124,7 @@ async fn mr_page(
                 hidden,
                 own,
             }) => timeline.push(TimelineView::Comment(CommentView {
+                bot: comment.author_bot,
                 id: comment.id.to_string(),
                 author_text: comment
                     .author
@@ -934,6 +1198,7 @@ async fn mr_page(
             })),
         }
     }
+    let timeline = fold_events(timeline, &mut since_at);
     let (assignees, requested, labels, milestone) = state.services.mr_details(&m).await?;
     // Each reviewer's state: their current verdict, else the request.
     let mut reviewers: Vec<(String, String)> = requested
@@ -964,7 +1229,7 @@ async fn mr_page(
             }
         }
     }
-    let merge_box = state.services.mr_mergeability(&a, &m).await?;
+    let h = heading(state, subject, &a, m.clone()).await?;
     let me = match subject {
         Subject::User { id, .. } => Some(*id),
         _ => None,
@@ -973,14 +1238,15 @@ async fn mr_page(
     let can_review = open && a.can(subject, Action::MrReview) && me.is_some();
     let can_approve = can_review && m.author_id != me;
     let since_review = state.services.last_reviewed_revision(subject, &m).await?;
-    let conflicted = merge_box
-        .requirements
+    let conflicted = h
+        .card
+        .rows
         .iter()
         .any(|r| r.key == "conflicts" && r.state != "met");
     let conflict_commands = conflicted.then(|| {
         slath_service::merge::conflict_commands(&sh(&m.source_branch()), &sh(&m.target_branch))
     });
-    let merge_form = if open && a.can(subject, Action::MrMerge) && merge_box.mergeable {
+    let merge_form = if open && a.can(subject, Action::MrMerge) && h.card.mergeable {
         let (allowed, default) = state.services.mr_merge_settings(&a).await?;
         let mut strategies: Vec<(String, &'static str)> = allowed
             .iter()
@@ -1020,11 +1286,11 @@ async fn mr_page(
             r = sh(&format!("{source}@origin"))
         ),
         can_request: open && state.services.mr_perms(subject, &a, &m).edit,
-        h: heading(state, subject, &a, m).await?,
+        h,
         body_empty: body_html.trim().is_empty(),
         body_html: MarkupHtml::from_markup(body_html),
         timeline,
-        merge_box,
+        since_at,
         can_review,
         can_approve,
         since_review,
@@ -1076,6 +1342,8 @@ async fn view(
 /// A commit with the change it belongs to.
 struct ChangeRow {
     commit: CommitRow,
+    /// The commit's statuses in one: tone and words ("2 passed").
+    checks: Option<(&'static str, String)>,
     entry: Option<StackEntry>,
     /// What the commit can be rebound to: (value, label); `""` is a new
     /// change.
@@ -1113,6 +1381,8 @@ async fn commits_page(
     let commits = commit_rows(&state.services.mr_commits(&m).await?);
     let stack = state.services.mr_stack(&m).await?;
     let can = m.state == "open" && slath_service::Services::can_rebind(subject, &a, &m);
+    let oids: Vec<String> = commits.iter().map(|c| c.oid.clone()).collect();
+    let statuses = state.services.statuses_of_commits(&m, &oids).await?;
     let rows = commits
         .into_iter()
         .map(|c| {
@@ -1138,7 +1408,28 @@ async fn commits_page(
                     .collect(),
                 _ => Vec::new(),
             };
+            let checks = statuses.get(&c.oid).map(|list| {
+                let failing = list
+                    .iter()
+                    .filter(|s| matches!(s.state.as_str(), "failure" | "error"))
+                    .count();
+                let pending = list.iter().filter(|s| s.state == "pending").count();
+                if failing > 0 {
+                    (
+                        "blocking",
+                        format!("{failing} of {} checks failing", list.len()),
+                    )
+                } else if pending > 0 {
+                    (
+                        "waiting",
+                        format!("{pending} of {} checks running", list.len()),
+                    )
+                } else {
+                    ("done", format!("{} checks passed", list.len()))
+                }
+            });
             ChangeRow {
+                checks,
                 commit: c,
                 entry,
                 options,

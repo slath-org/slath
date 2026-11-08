@@ -66,6 +66,10 @@ pub struct Requirement {
     pub key: &'static str,
     /// `met`, `unmet`, or `pending`.
     pub state: &'static str,
+    /// How the merge box shows it: `done`, `waiting` (normal, nothing is
+    /// wrong yet: a draft, missing approvals, checks running), or
+    /// `blocking` (something must change).
+    pub tone: &'static str,
     pub reason: String,
     /// What fixes it, in words (e.g. "Mark as ready").
     pub fix: Option<String>,
@@ -82,6 +86,7 @@ fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
     Requirement {
         key,
         state: "met",
+        tone: "done",
         reason: reason.into(),
         fix: None,
     }
@@ -91,6 +96,11 @@ fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement
     Requirement {
         key,
         state: "unmet",
+        tone: if matches!(key, "draft" | "approvals") {
+            "waiting"
+        } else {
+            "blocking"
+        },
         reason: reason.into(),
         fix: Some(fix.to_owned()),
     }
@@ -98,6 +108,24 @@ fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement
 
 fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
+}
+
+/// When a timeline entry happened, and who did it (by name).
+#[must_use]
+pub fn item_time(
+    item: &crate::merge_requests::MrTimelineItem,
+) -> Option<(time::OffsetDateTime, Option<String>)> {
+    use crate::merge_requests::MrTimelineItem as I;
+    match item {
+        I::Comment(crate::issues::TimelineItem::Comment { comment, .. }) => {
+            Some((comment.created_at, comment.author.clone()))
+        }
+        I::Comment(crate::issues::TimelineItem::Event(e, _)) | I::Event(e) => {
+            Some((e.created_at, e.actor.clone()))
+        }
+        I::Revision { revision, .. } => Some((revision.created_at, revision.pushed_by.clone())),
+        I::Review(v) => Some((v.review.created_at, v.review.reviewer.clone())),
+    }
 }
 
 /// Which reviews count on revision `current`: each reviewer's latest
@@ -111,6 +139,19 @@ pub fn counting(
     same_patches: &HashMap<i32, bool>,
     dismiss_stale: bool,
 ) -> Vec<ReviewView> {
+    counting_with(reviews, current, same_patches, dismiss_stale, false)
+}
+
+/// Like [`counting`]; with `strict`, any later revision makes approvals
+/// and requests for changes stale.
+#[must_use]
+pub fn counting_with(
+    reviews: &[Review],
+    current: i32,
+    same_patches: &HashMap<i32, bool>,
+    dismiss_stale: bool,
+    strict: bool,
+) -> Vec<ReviewView> {
     let mut latest: HashMap<UserId, uuid::Uuid> = HashMap::new();
     for r in reviews.iter().filter(|r| r.verdict != "comment") {
         if let Some(u) = r.reviewer_id {
@@ -118,6 +159,9 @@ pub fn counting(
         }
     }
     let carried = |seq: i32| {
+        if strict {
+            return seq == current;
+        }
         !dismiss_stale
             || ((seq + 1)..=current).all(|s| same_patches.get(&s).copied().unwrap_or(false))
     };
@@ -215,11 +259,12 @@ impl Services {
             .map(|(s, v)| (s, v.unwrap_or(false)))
             .collect();
         let eff = self.effective_for(m).await?;
-        Ok(counting(
+        Ok(counting_with(
             &reviews,
             m.revisions,
             &same,
             eff.dismiss_stale_approvals,
+            eff.dismiss_approvals_on_new_revision,
         ))
     }
 
@@ -240,6 +285,39 @@ impl Services {
             .find(|r| r.reviewer_id == Some(*id))
             .map(|r| r.revision_seq)
             .filter(|s| *s < m.revisions))
+    }
+
+    /// When the viewer last reviewed, and how many timeline entries by
+    /// others came after it ("new since your review").
+    pub async fn since_last_review(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        m: &MergeRequest,
+    ) -> Result<Option<(time::OffsetDateTime, usize)>> {
+        let Subject::User { id, .. } = subject else {
+            return Ok(None);
+        };
+        let Some(last) = db::list(&self.pool, m.id)
+            .await?
+            .iter()
+            .rev()
+            .find(|r| r.reviewer_id == Some(*id))
+            .map(|r| r.created_at)
+        else {
+            return Ok(None);
+        };
+        let me = slath_db::users::get(&self.pool, *id).await?.map(|u| u.name);
+        let mut count = 0;
+        for item in self.mr_timeline(subject, a, m).await? {
+            if let Some((t, by)) = item_time(&item)
+                && t > last
+                && by != me
+            {
+                count += 1;
+            }
+        }
+        Ok(Some((last, count)))
     }
 
     /// Sets the requested reviewers (users, or `org/team` for teams of the
@@ -591,7 +669,13 @@ impl Services {
             .filter(|(s, _)| *s < seq)
             .map(|(s, v)| (s, v.unwrap_or(false)))
             .collect();
-        let before = counting(&reviews, seq - 1, &same_map, eff.dismiss_stale_approvals);
+        let before = counting_with(
+            &reviews,
+            seq - 1,
+            &same_map,
+            eff.dismiss_stale_approvals,
+            eff.dismiss_approvals_on_new_revision,
+        );
         let stale_reason = if here.is_empty() {
             "whole-only"
         } else if here.iter().any(|v| v.change_id.is_none()) {
@@ -607,6 +691,7 @@ impl Services {
             .filter(|v| v.counts && v.review.verdict == "approve")
         {
             let (kind, reason) = match (eff.dismiss_stale_approvals, same) {
+                _ if eff.dismiss_approvals_on_new_revision => ("approval_stale", "new-revision"),
                 (false, _) => ("approval_carried", "not-dismissed"),
                 (true, true) => ("approval_carried", "same-patches"),
                 (true, false) => ("approval_stale", stale_reason),
@@ -652,9 +737,10 @@ impl Services {
                 .await?;
             }
         }
-        if !carried_any || !eff.dismiss_stale_approvals {
+        if !carried_any || !(eff.dismiss_stale_approvals || eff.dismiss_approvals_on_new_revision) {
             return Ok(());
         }
+        let same = same && !eff.dismiss_approvals_on_new_revision;
         slath_db::issues::insert_event(
             &self.pool,
             m.repo_id,
@@ -711,6 +797,20 @@ mod tests {
         // Without dismissal, approvals stay.
         assert_eq!(
             counted(&counting(&reviews, 3, &same, false)),
+            vec![(1, true, false)]
+        );
+    }
+
+    #[test]
+    fn the_strict_rule_dismisses_on_any_new_revision() {
+        let reviews = [review(1, 7, 1, "approve")];
+        let same = HashMap::from([(2, true)]);
+        assert_eq!(
+            counted(&counting_with(&reviews, 2, &same, true, true)),
+            vec![(1, false, true)]
+        );
+        assert_eq!(
+            counted(&counting_with(&reviews, 1, &same, true, true)),
             vec![(1, true, false)]
         );
     }
