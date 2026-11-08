@@ -8,3 +8,8 @@
 {%- macro icon(ctx, name) -%}
 <svg class="icon" aria-hidden="true" focusable="false"><use href="{{ ctx.icons_url }}#{{ name }}"></use></svg>
 {%- endmacro -%}
+{#- A diff line's text, with the changed characters of paired lines in
+    <del>/<ins> (not only colored: underlined, and announced). -#}
+{%- macro line_text(kind, text, segments) -%}
+<code>{%- if segments.is_empty() %}{{ text }}{% else %}{% for sg in segments.iter() %}{% if sg.changed %}{% if kind == "del" %}<del><span class="visually-hidden">changed: </span>{{ sg.text }}</del>{% else %}<ins><span class="visually-hidden">changed: </span>{{ sg.text }}</ins>{% endif %}{% else %}{{ sg.text }}{% endif %}{% endfor %}{% endif -%}</code>
+{%- endmacro -%}

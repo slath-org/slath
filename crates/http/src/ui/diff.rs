@@ -13,6 +13,7 @@ use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::config::Limits;
 use slath_git::diff::{LineKind, Status};
+use slath_markup::intraline::{Bounds, CharacterRefiner, Refiner, Segment};
 
 use super::PageCtx;
 use super::browse::lossy;
@@ -33,6 +34,8 @@ pub struct LineView {
     pub old_no: String,
     pub new_no: String,
     pub text: String,
+    /// The line in runs, changed ones marked; empty without emphasis.
+    pub segments: Vec<Segment>,
 }
 
 /// One side of a split row; `kind` is `empty` for a blank side.
@@ -40,6 +43,7 @@ pub struct Cell {
     pub kind: &'static str,
     pub no: String,
     pub text: String,
+    pub segments: Vec<Segment>,
 }
 
 pub struct SplitRow {
@@ -198,11 +202,13 @@ fn split_rows(lines: &[LineView]) -> Vec<SplitRow> {
             l.new_no.clone()
         },
         text: l.text.clone(),
+        segments: l.segments.clone(),
     };
     let empty = || Cell {
         kind: "empty",
         no: String::new(),
         text: String::new(),
+        segments: Vec::new(),
     };
     let mut rows = Vec::new();
     let mut i = 0;
@@ -233,6 +239,48 @@ fn split_rows(lines: &[LineView]) -> Vec<SplitRow> {
         }
     }
     rows
+}
+
+/// Marks the changed characters of paired lines in each run of removals
+/// followed by additions. A file with more pairs than the limit gets none.
+fn refine(hunks: &mut [HunkView], bounds: &Bounds) {
+    let refiner = CharacterRefiner;
+    // (hunk, removed line, added line, marks)
+    let mut found: Vec<(usize, usize, usize, slath_markup::intraline::Refined)> = Vec::new();
+    for (hi, h) in hunks.iter().enumerate() {
+        let mut i = 0;
+        while i < h.lines.len() {
+            if h.lines[i].kind != "del" {
+                i += 1;
+                continue;
+            }
+            let dels: Vec<usize> = (i..h.lines.len())
+                .take_while(|k| h.lines[*k].kind == "del")
+                .collect();
+            let start = i + dels.len();
+            let adds: Vec<usize> = (start..h.lines.len())
+                .take_while(|k| h.lines[*k].kind == "add")
+                .collect();
+            if !adds.is_empty() {
+                let old: Vec<&str> = dels.iter().map(|k| h.lines[*k].text.as_str()).collect();
+                let new: Vec<&str> = adds.iter().map(|k| h.lines[*k].text.as_str()).collect();
+                found.extend(
+                    refiner
+                        .refine(&old, &new, bounds)
+                        .into_iter()
+                        .map(|(a, b, r)| (hi, dels[a], adds[b], r)),
+                );
+            }
+            i = start + adds.len();
+        }
+    }
+    if found.len() > bounds.max_pairs {
+        return;
+    }
+    for (hi, a, b, r) in found {
+        hunks[hi].lines[a].segments = r.old;
+        hunks[hi].lines[b].segments = r.new;
+    }
 }
 
 /// The file tree: directories once, files below them.
@@ -278,6 +326,11 @@ pub fn view(
 ) -> DiffView {
     let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
     let (split, ignore_whitespace) = q.options(ctx);
+    let bounds = Bounds {
+        max_line_bytes: limits.diff_intraline_max_line_bytes,
+        max_pairs: limits.diff_intraline_max_pairs,
+        ignore_whitespace,
+    };
     // `git diff -w` keeps the header of a file whose changes are all
     // whitespace; such files have nothing to show.
     let mut files: Vec<FileView> = diff
@@ -316,6 +369,7 @@ pub fn view(
                                 old_no: l.old_no.map(|n| n.to_string()).unwrap_or_default(),
                                 new_no: l.new_no.map(|n| n.to_string()).unwrap_or_default(),
                                 text: lossy(&l.text),
+                                segments: Vec::new(),
                             })
                             .collect();
                         HunkView {
@@ -325,11 +379,7 @@ pub fn view(
                                 h.new_start,
                                 lossy(&h.section)
                             ),
-                            rows: if split {
-                                split_rows(&lines)
-                            } else {
-                                Vec::new()
-                            },
+                            rows: Vec::new(),
                             lines,
                         }
                     })
@@ -337,6 +387,13 @@ pub fn view(
             } else {
                 Vec::new()
             };
+            let mut hunks = hunks;
+            refine(&mut hunks, &bounds);
+            if split {
+                for h in &mut hunks {
+                    h.rows = split_rows(&h.lines);
+                }
+            }
             FileView {
                 index: i,
                 anchor: format!("diff-{i}"),
@@ -463,7 +520,43 @@ mod tests {
             old_no: String::new(),
             new_no: String::new(),
             text: text.to_owned(),
+            segments: Vec::new(),
         }
+    }
+
+    fn hunk(lines: Vec<LineView>) -> HunkView {
+        HunkView {
+            head: String::new(),
+            lines,
+            rows: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn paired_lines_get_marks_unless_the_file_has_too_many() {
+        let bounds = Bounds {
+            max_line_bytes: 1000,
+            max_pairs: 1,
+            ignore_whitespace: false,
+        };
+        let one = || hunk(vec![line("del", "let x = 1;"), line("add", "let x = 2;")]);
+        let mut hunks = vec![one()];
+        refine(&mut hunks, &bounds);
+        let marked: Vec<&str> = hunks[0].lines[1]
+            .segments
+            .iter()
+            .filter(|s| s.changed)
+            .map(|s| s.text.as_str())
+            .collect();
+        assert_eq!(marked, vec!["2"]);
+        // Two pairs in the file, one allowed: no marks anywhere.
+        let mut hunks = vec![one(), one()];
+        refine(&mut hunks, &bounds);
+        assert!(
+            hunks
+                .iter()
+                .all(|h| h.lines.iter().all(|l| l.segments.is_empty()))
+        );
     }
 
     #[test]

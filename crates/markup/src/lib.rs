@@ -12,6 +12,7 @@
 #![forbid(unsafe_code)]
 
 mod highlight;
+pub mod intraline;
 pub mod refs;
 
 use std::collections::HashSet;

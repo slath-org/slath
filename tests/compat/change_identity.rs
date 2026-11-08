@@ -793,7 +793,8 @@ fn conf_review_03_interdiffs_are_labeled_exact_or_heuristic() {
     let base = format!("/changes/{id}");
     let exact = page(&mut ui, &format!("{base}?from=1&rev=2"));
     assert!(exact.contains("<strong>Exact:</strong>"), "{exact}");
-    assert!(exact.contains("a line 3, edited"));
+    // The changed words are marked, so look for them alone.
+    assert!(exact.contains("edited"));
     let patches = page(&mut ui, &format!("{base}?from=2&rev=3"));
     assert!(
         patches.contains("<strong>Diff of patches:</strong>"),

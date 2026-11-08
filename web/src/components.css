@@ -592,6 +592,22 @@ fieldset.field {
 .diff-del {
   background: var(--diff-del-bg);
 }
+/* Changed characters in paired lines: a background token plus an
+   underline, so the emphasis survives grayscale and forced colors. */
+.diff-table ins,
+.diff-table del {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  border-radius: 2px;
+}
+.diff-table ins {
+  background: var(--diff-add-emph);
+}
+.diff-table del {
+  background: var(--diff-del-emph);
+  text-decoration-style: dotted;
+}
 .diff-marker {
   width: 1%;
   user-select: none;

@@ -62,3 +62,19 @@ test("diff_split_view_only_on_wide_screens_and_ignoring_whitespace", async ({ pa
   await expect(page.getByRole("heading", { name: "25 changed files" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Changed files" }).getByRole("link", { name: "ws.txt" })).toHaveCount(0);
 });
+
+test("conf_diff_01_changed_characters_are_marked", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/commits/main");
+  await tapOrClick(page, page.getByRole("link", { name: "Greet the world" }).first());
+  // println!("hello") → println!("hello, world"): only ", world" is marked.
+  const ins = page.locator(".diff-unified ins").first();
+  await expect(ins).toHaveText("changed: , world");
+  await expect(page.locator(".diff-unified del")).toHaveCount(0);
+  // Not color alone: underlined, which stays in grayscale and forced colors.
+  expect(await ins.evaluate((e) => getComputedStyle(e).textDecorationLine)).toContain("underline");
+  await page.emulateMedia({ forcedColors: "active" });
+  expect(await ins.evaluate((e) => getComputedStyle(e).textDecorationLine)).toContain("underline");
+  await page.emulateMedia({ forcedColors: "none" });
+  await expectAccessible(page);
+});

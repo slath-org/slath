@@ -126,6 +126,10 @@ undone the same way.
 
 Diffs look the same on commits, the compare page, and merge requests:
 
+- In a changed line, the characters that changed are highlighted and
+  underlined. Lines are paired with the most similar line of the hunk;
+  lines that changed almost entirely, and very long lines, are shown
+  without highlighting.
 - A file tree above the files links to each of them.
 - **Split** shows old and new side by side; it's offered on screens at
   least 1024 pixels wide. **Ignore whitespace** hides changes that only

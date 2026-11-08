@@ -19,7 +19,7 @@
       <tr class="diff-{{ l.kind }}">
         <td class="line-no">{{ l.old_no }}</td><td class="line-no">{{ l.new_no }}</td>
         <td class="diff-marker">{% if l.kind == "add" %}<span aria-hidden="true">+</span><span class="visually-hidden">added</span>{% else if l.kind == "del" %}<span aria-hidden="true">−</span><span class="visually-hidden">removed</span>{% endif %}</td>
-        <td><code>{{ l.text }}</code></td>
+        <td>{% call m::line_text(l.kind, l.text, l.segments) %}{% endcall %}</td>
       </tr>
     {%- endfor %}
     </tbody>
@@ -33,9 +33,9 @@
     {%- for r in h.rows %}
       <tr>
         <td class="line-no diff-{{ r.left.kind }}">{{ r.left.no }}</td>
-        <td class="diff-{{ r.left.kind }}">{% if r.left.kind == "del" %}<span class="visually-hidden">removed: </span>{% endif %}<code>{{ r.left.text }}</code></td>
+        <td class="diff-{{ r.left.kind }}">{% if r.left.kind == "del" %}<span class="visually-hidden">removed: </span>{% endif %}{% call m::line_text(r.left.kind, r.left.text, r.left.segments) %}{% endcall %}</td>
         <td class="line-no diff-{{ r.right.kind }}">{{ r.right.no }}</td>
-        <td class="diff-{{ r.right.kind }}">{% if r.right.kind == "add" %}<span class="visually-hidden">added: </span>{% endif %}<code>{{ r.right.text }}</code></td>
+        <td class="diff-{{ r.right.kind }}">{% if r.right.kind == "add" %}<span class="visually-hidden">added: </span>{% endif %}{% call m::line_text(r.right.kind, r.right.text, r.right.segments) %}{% endcall %}</td>
       </tr>
     {%- endfor %}
     </tbody>

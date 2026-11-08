@@ -15,6 +15,10 @@ ammonia.workspace = true
 comrak.workspace = true
 sha2.workspace = true
 syntect.workspace = true
+unicode-segmentation.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
 
 [lints]
 workspace = true

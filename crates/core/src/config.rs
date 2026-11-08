@@ -354,6 +354,10 @@ pub struct Limits {
     pub render_max_file_bytes: Bytes,
     pub diff_max_files: usize,
     pub diff_max_lines: usize,
+    /// Longer lines get no character-level emphasis.
+    pub diff_intraline_max_line_bytes: usize,
+    /// Files with more paired lines get no character-level emphasis.
+    pub diff_intraline_max_pairs: usize,
     pub review_max_commits: usize,
     /// Recording merge request revisions during a push, for its feedback.
     pub push_feedback_timeout: Dur,
@@ -410,6 +414,8 @@ impl Default for Limits {
             render_max_file_bytes: Bytes(MIB),
             diff_max_files: 300,
             diff_max_lines: 20_000,
+            diff_intraline_max_line_bytes: 1000,
+            diff_intraline_max_pairs: 2000,
             review_max_commits: 250,
             push_feedback_timeout: Dur::secs(3),
             http_max_body_bytes: Bytes(10 * MIB),
