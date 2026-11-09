@@ -69,6 +69,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Fork repositories through the API: branches and tags are copied in the background with hardlinked packs, and the fork stays whole if its parent is deleted.
 - A fork can't be more visible than its parent was; pushes to a fork wait until its copy is done.
 - Fork from the repository header: choose the owner, name, and visibility, or copy only the default branch. Forks show where they came from, and each repository lists its forks.
+- Forks show how far their default branch is ahead of or behind the original's, and Sync fork brings it forward (or, after confirming, discards the fork's own commits).
 
 ### Changed
 

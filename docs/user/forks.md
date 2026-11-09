@@ -33,6 +33,23 @@ A fork shows **Forked from** with a link to the original (or "a deleted
 repository"). **Forks** of a repository (`/<owner>/<repo>/forks`, linked
 from the fork form) lists the forks you can see.
 
+## Keeping a fork up to date
+
+On a fork's front page, a line compares its default branch with the
+original's: up to date, or how many commits it's ahead and behind. If
+it's behind, **Sync fork** brings it forward, without a clone on your side.
+
+If both have their own commits, the branch can't simply move forward:
+**Sync fork** explains this and offers to discard your commits (it asks
+for your password again). To keep them, push them to another branch
+first. Branch protection in your fork applies to syncing like to a push.
+
+With a token (`repo:write`), `POST /api/v1/repos/{owner}/{repo}/sync`
+with `{"branch": "main"}` does the same; it answers `fast_forwarded`,
+`created`, `up_to_date`, or `diverged` with the counts, and
+`"discard": true` drops your commits. `GET .../fork` includes `ahead`
+and `behind` for the default branch.
+
 ## What a fork contains
 
 Only branches and tags. The fork doesn't depend on the original: it keeps

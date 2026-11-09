@@ -5459,6 +5459,106 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/sync": {
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Brings a fork's branch up to its parent's (`repo:write`): a\nfast-forward, or with `discard` a force update. Branch protection of the\nfork applies.",
+        "operationId": "sync_fork",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/tags": {
       "get": {
         "tags": [
@@ -6482,6 +6582,23 @@
           "state"
         ],
         "properties": {
+          "ahead": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Commits on the default branch that the parent's lacks, and the\nother way round (when both have it and you can read the parent).",
+            "minimum": 0
+          },
+          "behind": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "error": {
             "type": [
               "string",
@@ -7316,9 +7433,6 @@
       },
       "NewFork": {
         "type": "object",
-        "required": [
-          "namespace"
-        ],
         "properties": {
           "default_branch_only": {
             "type": "boolean",
@@ -7333,7 +7447,7 @@
           },
           "namespace": {
             "type": "string",
-            "description": "Your username or an organization you belong to."
+            "description": "Required: your username or an organization you belong to."
           },
           "visibility": {
             "type": [
@@ -8335,6 +8449,47 @@
               "null"
             ],
             "description": "`alias`, `patch`, `content`, `aliases-conflict`, `duplicate-id`,\n`split`, `join`, or `resolved`."
+          }
+        }
+      },
+      "SyncBody": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string",
+            "description": "Required: the fork's branch to bring up to the parent's branch of\nthe same name."
+          },
+          "discard": {
+            "type": "boolean",
+            "description": "If both have their own commits, drop the fork's (a force update)."
+          }
+        }
+      },
+      "SyncResult": {
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "properties": {
+          "ahead": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "behind": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "result": {
+            "type": "string",
+            "description": "`up_to_date`, `fast_forwarded`, `created`, `discarded`, or\n`diverged` (nothing changed; see `ahead` and `behind`)."
           }
         }
       },

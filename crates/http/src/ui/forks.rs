@@ -9,14 +9,14 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::authz::{Action, Visibility};
-use slath_service::forks::ForkInput;
+use slath_service::forks::{BranchCompare, ForkInput, Synced};
 use slath_service::{FieldError, ServiceError};
 
 use super::repos::{RepoHeader, creatable_namespaces, parse_visibility, visibility_name};
 use super::settings::error_for;
 use super::{PageCtx, Time, render};
 use crate::AppState;
-use crate::auth::{MaybeSession, RequireSession};
+use crate::auth::{MaybeSession, RequireSession, Sudo};
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
@@ -183,6 +183,82 @@ async fn forks_page(
     }))
 }
 
+#[derive(Deserialize)]
+struct SyncForm {
+    #[serde(default)]
+    branch: String,
+}
+
+/// `POST /{ns}/{repo}/sync`: a fast-forward (or the new branch); a
+/// diverged branch goes to the page that explains the choice.
+async fn sync(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<SyncForm>,
+) -> Result<Response, AppError> {
+    match state
+        .services
+        .sync_fork(&s.subject, (&ns, &repo), &f.branch, false, false)
+        .await?
+    {
+        Synced::Diverged { .. } => Ok(Redirect::to(&format!(
+            "/{ns}/{repo}/sync?branch={}",
+            percent_encoding::utf8_percent_encode(&f.branch, percent_encoding::NON_ALPHANUMERIC)
+        ))
+        .into_response()),
+        _ => Ok(Redirect::to(&format!("/{ns}/{repo}")).into_response()),
+    }
+}
+
+#[derive(Template)]
+#[template(path = "repo/sync.html")]
+struct SyncPage {
+    ctx: PageCtx,
+    header: RepoHeader,
+    compare: Option<BranchCompare>,
+}
+
+/// `GET /{ns}/{repo}/sync?branch=`: how the branch compares, and for a
+/// diverged branch the way to drop the fork's commits.
+async fn sync_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    axum::extract::Query(q): axum::extract::Query<SyncForm>,
+) -> Result<Response, AppError> {
+    let a = state
+        .services
+        .repo_access(&s.subject, &ns, &repo, Action::RepoPush)
+        .await?;
+    let branch = if q.branch.is_empty() {
+        a.repo.default_branch.clone()
+    } else {
+        q.branch
+    };
+    let compare = state.services.fork_compare(&s.subject, &a, &branch).await?;
+    Ok(render(&SyncPage {
+        header: RepoHeader::load(&state, &a, &s.subject, "code").await,
+        compare,
+        ctx,
+    }))
+}
+
+/// `POST /{ns}/{repo}/sync/discard` (sudo): drops the fork's own commits.
+async fn sync_discard(
+    State(state): State<AppState>,
+    Sudo(s): Sudo,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<SyncForm>,
+) -> Result<Response, AppError> {
+    state
+        .services
+        .sync_fork(&s.subject, (&ns, &repo), &f.branch, true, true)
+        .await?;
+    Ok(Redirect::to(&format!("/{ns}/{repo}")).into_response())
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -192,4 +268,14 @@ pub fn router() -> Router<AppState> {
             get(fork_page).post(fork_submit),
         )
         .route_as("/{ns}/{repo}/forks", Access::Resource, get(forks_page))
+        .route_as(
+            "/{ns}/{repo}/sync",
+            Access::Resource,
+            get(sync_page).post(sync),
+        )
+        .route_as(
+            "/{ns}/{repo}/sync/discard",
+            Access::Resource,
+            axum::routing::post(sync_discard),
+        )
 }

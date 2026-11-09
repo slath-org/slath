@@ -249,6 +249,16 @@ impl Invocation {
         Ok(self)
     }
 
+    /// Also reads objects of another repository, for comparing a fork with
+    /// its parent without copying anything: `other` is that repository's
+    /// directory (derived from its ID). Only for commands that read.
+    pub fn read_objects_of(mut self, other: &Path) -> Result<Self, GitError> {
+        let objects = std::fs::canonicalize(other.join("objects"))?;
+        self.env
+            .push(("GIT_ALTERNATE_OBJECT_DIRECTORIES", objects.into_os_string()));
+        Ok(self)
+    }
+
     /// Reads `path` as the global Git configuration (instead of none). Used
     /// for import credentials, which must not appear in the argument list
     /// (visible to every local user) but only in the environment and a file

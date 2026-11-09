@@ -1,0 +1,10 @@
+<div class="fork-compare">
+  <p>{% if c.ahead == 0 && c.behind == 0 %}<code><bdi>{{ c.branch }}</bdi></code> is up to date with <bdi>{{ c.parent }}</bdi>.{% else %}<code><bdi>{{ c.branch }}</bdi></code> is {% if c.ahead > 0 %}<span class="numeric">{{ c.ahead }}</span> commit{% if c.ahead != 1 %}s{% endif %} ahead of{% if c.behind > 0 %} and {% endif %}{% endif %}{% if c.behind > 0 %}<span class="numeric">{{ c.behind }}</span> behind{% endif %} <bdi>{{ c.parent }}</bdi>.{% endif %}</p>
+  {%- if c.behind > 0 && header.can_sync %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/sync" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="branch" value="{{ c.branch }}">
+    <button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Sync fork</button>
+  </form>
+  {%- endif %}
+</div>

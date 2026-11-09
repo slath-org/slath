@@ -52,6 +52,46 @@ pub(crate) const fn rank(v: Visibility) -> u8 {
     }
 }
 
+/// A fork's branch next to the same branch of its parent.
+#[derive(Debug, Clone)]
+pub struct BranchCompare {
+    /// `ns/name` of the parent.
+    pub parent: String,
+    pub branch: String,
+    /// Commits only the fork has, and only the parent has.
+    pub ahead: u32,
+    pub behind: u32,
+}
+
+/// What syncing a fork's branch did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Synced {
+    UpToDate,
+    FastForwarded,
+    /// The fork didn't have the branch.
+    Created,
+    /// The fork's own commits were dropped.
+    Discarded,
+    /// Nothing changed: both have commits the other lacks.
+    Diverged {
+        ahead: u32,
+        behind: u32,
+    },
+}
+
+impl Synced {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::UpToDate => "up_to_date",
+            Self::FastForwarded => "fast_forwarded",
+            Self::Created => "created",
+            Self::Discarded => "discarded",
+            Self::Diverged { .. } => "diverged",
+        }
+    }
+}
+
 /// A fork as its viewers see it.
 #[derive(Debug, Clone)]
 pub struct ForkView {
@@ -199,6 +239,201 @@ impl Services {
         Ok(slath_db::forks::get(&self.pool, a.repo.id)
             .await?
             .map_or(Visibility::Public, |f| f.max_visibility))
+    }
+
+    /// The parent of a finished fork, if the subject can read it.
+    async fn readable_parent(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+    ) -> Result<Option<RepoAccess>> {
+        let Some(f) = slath_db::forks::get(&self.pool, a.repo.id).await? else {
+            return Ok(None);
+        };
+        let Some(p) = f.parent_id.filter(|_| f.state == "done") else {
+            return Ok(None);
+        };
+        Ok(self
+            .repo_access_by_id(subject, p, Action::RepoRead)
+            .await
+            .ok())
+    }
+
+    /// How a fork's `branch` compares with the parent's, if both have it
+    /// and the subject can read the parent.
+    pub async fn fork_compare(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        branch: &str,
+    ) -> Result<Option<BranchCompare>> {
+        self.authorize(subject, a, Action::RepoRead)?;
+        let Some(p) = self.readable_parent(subject, a).await? else {
+            return Ok(None);
+        };
+        let Ok(name) = slath_git::args::RefName::branch(branch.as_bytes()) else {
+            return Ok(None);
+        };
+        let (fork_dir, parent_dir) = (self.repo_path(a.repo.id), self.repo_path(p.repo.id));
+        let read = |dir: std::path::PathBuf| {
+            let name = name.clone();
+            async move { slath_git::refs::read(&self.runner, &dir, &name).await }
+        };
+        let (Some(ours), Some(theirs)) = (
+            read(fork_dir.clone())
+                .await
+                .map_err(ServiceError::internal)?,
+            read(parent_dir.clone())
+                .await
+                .map_err(ServiceError::internal)?,
+        ) else {
+            return Ok(None);
+        };
+        let (ahead, behind) =
+            slath_git::forks::ahead_behind(&self.runner, &fork_dir, &parent_dir, &ours, &theirs)
+                .await
+                .map_err(ServiceError::internal)?;
+        Ok(Some(BranchCompare {
+            parent: format!("{}/{}", p.repo.namespace, p.repo.name),
+            branch: branch.to_owned(),
+            ahead,
+            behind,
+        }))
+    }
+
+    /// Brings a fork's `branch` up to the parent's: a fast-forward (or the
+    /// new branch). If both have their own commits, nothing changes unless
+    /// `discard` (sudo for browsers) drops the fork's. Branch protection of
+    /// the fork applies as for a push.
+    pub async fn sync_fork(
+        &self,
+        subject: &Subject,
+        (ns, repo): (&str, &str),
+        branch: &str,
+        discard: bool,
+        sudo: bool,
+    ) -> Result<Synced> {
+        let a = self
+            .repo_access(subject, ns, repo, Action::RepoPush)
+            .await?;
+        let Subject::User { id: user, .. } = subject else {
+            return Err(ServiceError::Unauthenticated);
+        };
+        if slath_db::forks::get(&self.pool, a.repo.id)
+            .await?
+            .is_some_and(|f| f.in_progress())
+        {
+            return Err(ServiceError::Conflict(
+                "The fork is still being created.".into(),
+            ));
+        }
+        let Some(p) = self.readable_parent(subject, &a).await? else {
+            return Err(ServiceError::invalid(
+                "branch",
+                "no_parent",
+                "This isn't a fork of a repository you can read.",
+            ));
+        };
+        let name = slath_git::args::RefName::branch(branch.trim().as_bytes())
+            .map_err(|_| ServiceError::invalid("branch", "invalid", "Choose a branch."))?;
+        let rules = slath_db::protections::list(&self.pool, a.repo.id).await?;
+        let rule = crate::protections::effective(&rules, &name.as_bytes()[b"refs/heads/".len()..]);
+        let role = a.ctx.role;
+        if rule.protected
+            && (rule.nobody
+                || rule.require_mr
+                || rule
+                    .push_role
+                    .is_some_and(|min| role.is_none_or(|r| r < min)))
+        {
+            return Err(ServiceError::invalid(
+                "branch",
+                "protected",
+                "This branch is protected in your fork; change it with a push or merge request.",
+            ));
+        }
+        let dir = self.repo_path(a.repo.id);
+        let Some(tip) = slath_git::forks::fetch_parent_branch(
+            &self.runner,
+            &dir,
+            &self.repo_path(p.repo.id),
+            &name,
+        )
+        .await
+        .map_err(ServiceError::internal)?
+        else {
+            return Err(ServiceError::invalid(
+                "branch",
+                "missing",
+                format!(
+                    "{}/{} has no branch {branch}.",
+                    p.repo.namespace, p.repo.name
+                ),
+            ));
+        };
+        let ours = slath_git::refs::read(&self.runner, &dir, &name)
+            .await
+            .map_err(ServiceError::internal)?;
+        let result = match &ours {
+            None => Synced::Created,
+            Some(o) if *o == tip => return Ok(Synced::UpToDate),
+            Some(o) => {
+                if slath_git::forks::is_ancestor(&self.runner, &dir, o, &tip)
+                    .await
+                    .map_err(ServiceError::internal)?
+                {
+                    Synced::FastForwarded
+                } else if discard {
+                    crate::repos::require_sudo_for_sessions(subject, sudo)?;
+                    if rule.block_force_push {
+                        return Err(ServiceError::invalid(
+                            "branch",
+                            "protected",
+                            "Force updates of this branch are blocked in your fork.",
+                        ));
+                    }
+                    Synced::Discarded
+                } else {
+                    let (ahead, behind) =
+                        slath_git::forks::ahead_behind(&self.runner, &dir, &dir, o, &tip)
+                            .await
+                            .map_err(ServiceError::internal)?;
+                    return Ok(Synced::Diverged { ahead, behind });
+                }
+            }
+        };
+        match slath_git::refs::update_cas(&self.runner, &dir, &name, Some(&tip), ours.as_ref())
+            .await
+        {
+            Ok(()) => {}
+            Err(slath_git::refs::RefUpdateError::Conflict { .. }) => {
+                return Err(ServiceError::Conflict(
+                    "The branch moved meanwhile; try again.".into(),
+                ));
+            }
+            Err(e) => return Err(ServiceError::internal(e)),
+        }
+        let zero = "0".repeat(40);
+        self.record_push(
+            a.repo.id,
+            Some(*user),
+            "internal",
+            &[slath_git::ipc::RefUpdate {
+                name: name.as_bytes().to_vec(),
+                old: ours.as_ref().map_or(zero, |o| o.as_str().to_owned()),
+                new: tip.as_str().to_owned(),
+            }],
+        )
+        .await?;
+        let target = self.repo_target(&a.repo).await;
+        self.audit(
+            subject,
+            "repo.sync",
+            target,
+            serde_json::json!({"branch": branch, "result": result.as_str()}),
+        )
+        .await;
+        Ok(result)
     }
 
     /// The `repo.fork` job.

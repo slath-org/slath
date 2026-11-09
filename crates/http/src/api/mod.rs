@@ -153,7 +153,7 @@ impl utoipa::Modify for SecurityAddon {
         orgs::list_orgs, orgs::create_org, orgs::get_org, orgs::update_org,
         orgs::list_members, orgs::get_member, orgs::put_member, orgs::delete_member,
         repos::list_repos, repos::create_repo, repos::get_repo, repos::update_repo, repos::delete_repo,
-        repos::create_fork, repos::get_fork,
+        repos::create_fork, repos::get_fork, repos::sync_fork,
         repos::list_branches, repos::list_tags, repos::list_commits, repos::get_commit, repos::get_tree, repos::get_blob,
         repos::list_collaborators, repos::put_collaborator, repos::delete_collaborator,
         repos::list_protections, repos::post_protection, repos::delete_protection,

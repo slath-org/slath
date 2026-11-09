@@ -49,6 +49,7 @@ moon
 paperclip
 pencil
 plus
+refresh-cw
 search
 settings
 shield

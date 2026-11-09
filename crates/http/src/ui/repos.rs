@@ -107,6 +107,10 @@ pub struct RepoHeader {
     pub fork: Option<slath_service::forks::ForkView>,
     /// The viewer may fork it.
     pub can_fork: bool,
+    /// A fork's default branch next to the parent's (front page only).
+    pub fork_compare: Option<slath_service::forks::BranchCompare>,
+    /// The viewer may sync the fork's branches.
+    pub can_sync: bool,
 }
 
 /// An import as the front page shows it.
@@ -140,6 +144,8 @@ impl RepoHeader {
             recent_pushes: Vec::new(),
             fork: None,
             can_fork: !matches!(subject, Subject::Anonymous) && a.can(subject, Action::RepoFork),
+            fork_compare: None,
+            can_sync: a.can(subject, Action::RepoPush),
         }
     }
 
@@ -177,6 +183,27 @@ impl RepoHeader {
         match state.services.recently_pushed(subject, a).await {
             Ok(b) => self.recent_pushes = b,
             Err(e) => tracing::warn!(error = %e, "looking up recent pushes failed"),
+        }
+        self
+    }
+
+    /// Adds how a fork's default branch compares with its parent's (front
+    /// page only).
+    pub async fn with_fork_compare(
+        mut self,
+        state: &AppState,
+        a: &RepoAccess,
+        subject: &Subject,
+    ) -> Self {
+        if self.fork.as_ref().is_some_and(|f| f.state == "done") {
+            match state
+                .services
+                .fork_compare(subject, a, &a.repo.default_branch)
+                .await
+            {
+                Ok(c) => self.fork_compare = c,
+                Err(e) => tracing::warn!(error = %e, "comparing a fork with its parent failed"),
+            }
         }
         self
     }

@@ -315,6 +315,8 @@ async fn tree_page(
             .await
             .with_recent_pushes(state, a, subject)
             .await
+            .with_fork_compare(state, a, subject)
+            .await
     } else {
         RepoHeader::load(state, a, subject, "code").await
     };

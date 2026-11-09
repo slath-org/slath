@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Forking from the repository header: the form (a private repository's
-// fork can only be private), the fork's "forked from" line once its copy
-// is done, and the parent's list of forks.
+// fork can only be private), the fork's "forked from" and sync lines once
+// its copy is done, and the parent's list of forks.
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_04_fork_a_repository", async ({ page }) => {
@@ -25,6 +25,11 @@ test("conf_a11y_04_fork_a_repository", async ({ page }) => {
     await expect(page.getByText("This fork is being created")).toHaveCount(0, { timeout: 500 });
     await expect(page.getByText("README.md").first()).toBeVisible({ timeout: 500 });
   }).toPass();
+  await expect(page.getByText("is up to date with alice/demo")).toBeVisible();
+  await expectAccessible(page);
+  await page.goto(`/alice/${name}/sync`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sync fork");
+  await expect(page.locator("main")).toContainText("is up to date with alice/demo");
   await expectAccessible(page);
 
   await page.goto("/alice/demo/forks");

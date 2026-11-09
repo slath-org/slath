@@ -209,6 +209,67 @@ fn conf_git_10_forks_copy_branches_and_tags_and_stand_alone() {
     git.fails(c.path(), &["fetch", "-q", &fork_url, &secret]);
     git.ok(c.path(), &["fetch", "-q", &fork_url, "main"]);
 
+    // Sync: a fast-forward, then a diverged branch that changes only when
+    // the fork's commits are discarded.
+    let head = |dir: &std::path::Path| {
+        git.ok(dir, &["rev-parse", "refs/heads/main"])
+            .trim()
+            .to_owned()
+    };
+    git.ok(w, &["switch", "-q", "main"]);
+    std::fs::write(w.join("more.txt"), "1\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "More"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    let f = api(&s, &bob, "GET", "/bob/demo/fork", None).json();
+    assert_eq!(
+        (f["ahead"].as_u64(), f["behind"].as_u64()),
+        (Some(0), Some(1)),
+        "{f}"
+    );
+    let sync = |discard: bool| {
+        api(
+            &s,
+            &bob,
+            "POST",
+            "/bob/demo/sync",
+            Some(json!({"branch": "main", "discard": discard})),
+        )
+    };
+    let r = sync(false);
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["result"], "fast_forwarded");
+    assert_eq!(head(&fork), head(&parent));
+    assert_eq!(sync(false).json()["result"], "up_to_date");
+    let b = tempfile::tempdir().unwrap();
+    git.ok(b.path(), &["clone", "-q", &fork_url, "."]);
+    git.ok(b.path(), &["config", "user.name", "Bob"]);
+    git.ok(b.path(), &["config", "user.email", "bob@example.org"]);
+    std::fs::write(b.path().join("bob.txt"), "b\n").unwrap();
+    git.ok(b.path(), &["add", "."]);
+    git.ok(b.path(), &["commit", "-q", "-m", "Bob's"]);
+    git.ok(b.path(), &["push", "-q", "origin", "main"]);
+    std::fs::write(w.join("more.txt"), "2\n").unwrap();
+    git.ok(w, &["commit", "-q", "-am", "Even more"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    let before = head(&fork);
+    let r = sync(false).json();
+    assert_eq!(r["result"], "diverged", "{r}");
+    assert_eq!(
+        (r["ahead"].as_u64(), r["behind"].as_u64()),
+        (Some(1), Some(1))
+    );
+    assert_eq!(head(&fork), before, "a diverged branch stays as it is");
+    let r = sync(true);
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["result"], "discarded");
+    assert_eq!(head(&fork), head(&parent));
+    assert!(
+        !git.ok(&fork, &["for-each-ref", "refs/slath/sync"])
+            .contains("refs/slath"),
+        "no temporary refs stay behind"
+    );
+
     // The fork stands alone after the parent's gc and deletion.
     git.ok(&parent, &["gc", "-q", "--prune=now"]);
     let r = api(&s, &alice, "DELETE", "/alice/demo", None);

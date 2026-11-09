@@ -104,7 +104,7 @@ fn check_branch(b: &str) -> Result<()> {
 
 /// Browser sessions need sudo mode for the most sensitive actions; tokens
 /// are their own credential.
-fn require_sudo_for_sessions(subject: &Subject, sudo: bool) -> Result<()> {
+pub(crate) fn require_sudo_for_sessions(subject: &Subject, sudo: bool) -> Result<()> {
     match subject {
         Subject::User {
             credential: Credential::Session,

@@ -51,6 +51,18 @@ pub fn mr_head(number: u32) -> RefName {
     reserved(format!("refs/merge-requests/{number}/head"))
 }
 
+/// A temporary ref for fetching a fork's parent branch, unique within this
+/// process and over restarts.
+#[must_use]
+pub fn sync_temp() -> RefName {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    reserved(format!("refs/slath/sync/{t}-{}-{n}", std::process::id()))
+}
+
 fn reserved(name: String) -> RefName {
     // Built from a UUID or numbers only, so always a valid ref name.
     RefName::parse(name).unwrap_or_else(|_| unreachable!("reserved ref names are valid"))

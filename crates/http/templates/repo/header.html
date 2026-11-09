@@ -24,6 +24,9 @@
   {%- if let Some(f) = header.fork %}
   <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}</p>
   {%- endif %}
+  {%- if let Some(c) = header.fork_compare %}
+  {% include "repo/fork_compare.html" %}
+  {%- endif %}
   <nav class="tabs" aria-label="Repository">
     <ul>
       <li><a href="/{{ header.namespace }}/{{ header.name }}"{% if header.tab == "code" %} aria-current="page"{% endif %}>Code</a></li>

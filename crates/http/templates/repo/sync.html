@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sync fork · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="narrow">
+<h1>Sync fork</h1>
+{%- if let Some(c) = compare %}
+  {%- if c.ahead > 0 && c.behind > 0 %}
+<p><code><bdi>{{ c.branch }}</bdi></code> has <span class="numeric">{{ c.ahead }}</span> commit{% if c.ahead != 1 %}s{% endif %} that <bdi>{{ c.parent }}</bdi> doesn't have, and is <span class="numeric">{{ c.behind }}</span> behind it, so it can't simply move forward.</p>
+<p>To keep your commits, push them to another branch first. Then discard them here to bring <code><bdi>{{ c.branch }}</bdi></code> up to date with <bdi>{{ c.parent }}</bdi>.</p>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/sync/discard" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="branch" value="{{ c.branch }}">
+  <div><button type="submit" class="button button-danger">{% call m::icon(ctx, "trash-2") %}{% endcall %}Discard {{ c.ahead }} commit{% if c.ahead != 1 %}s{% endif %} and sync</button></div>
+</form>
+  {%- else if c.behind > 0 %}
+<p><code><bdi>{{ c.branch }}</bdi></code> is <span class="numeric">{{ c.behind }}</span> behind <bdi>{{ c.parent }}</bdi>.</p>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/sync" class="form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="branch" value="{{ c.branch }}">
+  <div><button type="submit" class="button button-primary">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Sync fork</button></div>
+</form>
+  {%- else %}
+<p><code><bdi>{{ c.branch }}</bdi></code> is up to date with <bdi>{{ c.parent }}</bdi>.</p>
+  {%- endif %}
+{%- else %}
+<p>There's nothing to compare: this isn't a fork of a repository you can read, or one of them has no such branch.</p>
+{%- endif %}
+<p><a href="/{{ header.namespace }}/{{ header.name }}">Back to the repository</a></p>
+</div>
+{% endblock %}

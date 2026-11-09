@@ -14,6 +14,7 @@ pub mod changes;
 pub mod commit;
 pub mod diff;
 pub mod error;
+pub mod forks;
 pub mod import;
 pub mod ipc;
 pub mod linemap;

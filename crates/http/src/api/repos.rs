@@ -928,7 +928,8 @@ pub async fn delete_protection(
 
 #[derive(Deserialize, ToSchema)]
 pub struct NewFork {
-    /// Your username or an organization you belong to.
+    /// Required: your username or an organization you belong to.
+    #[serde(default)]
     pub namespace: String,
     /// Defaults to the parent's name.
     pub name: Option<String>,
@@ -951,6 +952,10 @@ pub struct Fork {
     pub state: String,
     /// Why it failed.
     pub error: Option<String>,
+    /// Commits on the default branch that the parent's lacks, and the
+    /// other way round (when both have it and you can read the parent).
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
 }
 
 async fn fork_json(state: &AppState, subject: &Subject, a: &RepoAccess) -> Result<Fork, AppError> {
@@ -959,13 +964,65 @@ async fn fork_json(state: &AppState, subject: &Subject, a: &RepoAccess) -> Resul
         .fork_status(subject, a)
         .await?
         .ok_or_else(AppError::not_found)?;
+    let cmp = state
+        .services
+        .fork_compare(subject, a, &a.repo.default_branch)
+        .await?;
     Ok(Fork {
         repository: repo_json(state, &a.repo),
         parent: f.parent,
         parent_deleted: f.parent_deleted,
         state: f.state,
         error: f.error,
+        ahead: cmp.as_ref().map(|c| c.ahead),
+        behind: cmp.as_ref().map(|c| c.behind),
     })
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct SyncBody {
+    /// Required: the fork's branch to bring up to the parent's branch of
+    /// the same name.
+    #[serde(default)]
+    pub branch: String,
+    /// If both have their own commits, drop the fork's (a force update).
+    #[serde(default)]
+    pub discard: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct SyncResult {
+    /// `up_to_date`, `fast_forwarded`, `created`, `discarded`, or
+    /// `diverged` (nothing changed; see `ahead` and `behind`).
+    pub result: String,
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
+}
+
+/// Brings a fork's branch up to its parent's (`repo:write`): a
+/// fast-forward, or with `discard` a force update. Branch protection of the
+/// fork applies.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/sync", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = SyncBody,
+    responses((status = 200, body = SyncResult), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn sync_fork(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    Json(b): Json<SyncBody>,
+) -> Result<Json<SyncResult>, AppError> {
+    let r = state
+        .services
+        .sync_fork(&subject, (&ns, &repo), &b.branch, b.discard, false)
+        .await?;
+    let (ahead, behind) = match r {
+        slath_service::forks::Synced::Diverged { ahead, behind } => (Some(ahead), Some(behind)),
+        _ => (None, None),
+    };
+    Ok(Json(SyncResult {
+        result: r.as_str().to_owned(),
+        ahead,
+        behind,
+    }))
 }
 
 /// Forks a repository into a namespace of yours (`repo:write`). Copying
@@ -1032,6 +1089,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/fork",
             Access::Resource,
             get(get_fork),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/sync",
+            Access::Resource,
+            axum::routing::post(sync_fork),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/branches",
