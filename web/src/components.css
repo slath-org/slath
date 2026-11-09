@@ -1230,6 +1230,22 @@ fieldset.field {
   background: var(--surface-subtle);
   font-weight: var(--weight-semibold);
 }
+.diff-thread-row > td {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  white-space: normal;
+}
+.inline-thread,
+.inline-composer {
+  max-width: 48rem;
+  font-family: var(--font-ui);
+}
+.inline-comment + .inline-comment {
+  border-block-start: var(--border-width) solid var(--border);
+}
+.viewed-toggle {
+  float: inline-end;
+}
 .thread-snippet .snippet-anchor {
   background: var(--selection);
 }

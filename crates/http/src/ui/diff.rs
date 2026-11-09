@@ -4,7 +4,7 @@
 //! changes): unified and split views, ignoring whitespace, a file tree,
 //! collapsed generated files, and files that load as they come into view.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use askama::Template;
 use axum::extract::State;
@@ -68,6 +68,8 @@ pub struct FileView {
     pub deletions: u32,
     /// Marked generated in `.gitattributes`: collapsed until asked for.
     pub generated: bool,
+    /// The viewer marked it viewed (and it hasn't changed since).
+    pub viewed: bool,
     /// `now`, `scroll` (loads when it comes into view), or `click`.
     pub load: &'static str,
     pub hunks: Vec<HunkView>,
@@ -80,6 +82,35 @@ pub struct TreeEntry {
     /// The file's anchor; `None` for a directory.
     pub anchor: Option<String>,
     pub status: &'static str,
+}
+
+/// A thread shown under its line.
+pub struct InlineThread {
+    pub id: String,
+    pub resolved: bool,
+    /// Carried from this earlier revision.
+    pub from: Option<i32>,
+    /// (author, rendered body, pending)
+    pub comments: Vec<(String, super::MarkupHtml, bool)>,
+    /// The thread in the conversation, for answering.
+    pub link: String,
+}
+
+/// Review features on a merge request's diff.
+pub struct ReviewCtx {
+    /// Where new threads and viewed marks are posted.
+    pub thread_post: String,
+    pub viewed_post: String,
+    /// The page to come back to.
+    pub back: String,
+    pub can_comment: bool,
+    /// Threads by (path, side, last line).
+    pub threads: HashMap<(String, String, String), Vec<InlineThread>>,
+    /// The line being commented on: (path, side, line).
+    pub composer: Option<(String, String, String)>,
+    /// For a change's own diff: its commit.
+    pub commit: Option<String>,
+    pub revision: i32,
 }
 
 /// What the diff partial renders.
@@ -95,9 +126,78 @@ pub struct DiffView {
     pub only: Option<usize>,
     /// The diff options are saved for signed-in users.
     pub signed_in: bool,
+    /// Merge request diffs: threads, commenting, viewed files.
+    pub review: Option<ReviewCtx>,
+}
+
+/// The side and number a line is anchored by: removed lines by their old
+/// number, the rest by their new one.
+fn side_of<'a>(kind: &str, old_no: &'a str, new_no: &'a str) -> (&'static str, &'a str) {
+    if kind == "del" {
+        ("old", old_no)
+    } else {
+        ("new", new_no)
+    }
 }
 
 impl DiffView {
+    /// `old` for removed lines, `new` otherwise.
+    #[must_use]
+    pub fn side_for(&self, kind: &str) -> &'static str {
+        side_of(kind, "", "").0
+    }
+
+    /// The line number a line is commented by.
+    #[must_use]
+    pub fn line_for<'a>(&self, kind: &str, old_no: &'a str, new_no: &'a str) -> &'a str {
+        side_of(kind, old_no, new_no).1
+    }
+
+    /// Threads that end on this line.
+    #[must_use]
+    pub fn inline(&self, path: &str, kind: &str, old_no: &str, new_no: &str) -> &[InlineThread] {
+        let (side, no) = side_of(kind, old_no, new_no);
+        self.review
+            .as_ref()
+            .and_then(|r| {
+                r.threads
+                    .get(&(path.to_owned(), side.to_owned(), no.to_owned()))
+            })
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// The link that opens a comment form under this line.
+    #[must_use]
+    pub fn comment_href(
+        &self,
+        path: &str,
+        kind: &str,
+        old_no: &str,
+        new_no: &str,
+    ) -> Option<String> {
+        let r = self.review.as_ref().filter(|r| r.can_comment)?;
+        let (side, no) = side_of(kind, old_no, new_no);
+        if no.is_empty() || kind == "meta" {
+            return None;
+        }
+        let sep = if r.back.contains('?') { '&' } else { '?' };
+        Some(format!(
+            "{}{sep}comment={side}:{no}:{}#composer",
+            r.back,
+            super::issues::enc(path)
+        ))
+    }
+
+    /// Whether the comment form opens under this line.
+    #[must_use]
+    pub fn composing(&self, path: &str, kind: &str, old_no: &str, new_no: &str) -> bool {
+        let (side, no) = side_of(kind, old_no, new_no);
+        self.review
+            .as_ref()
+            .and_then(|r| r.composer.as_ref())
+            .is_some_and(|(p, s, n)| p == path && s == side && n == no)
+    }
+
     /// The URL of one file of this diff.
     #[must_use]
     pub fn file_href(&self, index: &usize) -> String {
@@ -156,6 +256,20 @@ pub struct DiffQuery {
     pub w: Option<String>,
     /// Show only this file (by position).
     pub file: Option<usize>,
+    /// Open a comment form: `side:line:path`.
+    pub comment: Option<String>,
+}
+
+impl DiffQuery {
+    /// The line a comment form opens under: (path, side, line).
+    #[must_use]
+    pub fn composer(&self) -> Option<(String, String, String)> {
+        let c = self.comment.as_deref()?;
+        let mut parts = c.splitn(3, ':');
+        let (side, line, path) = (parts.next()?, parts.next()?, parts.next()?);
+        (matches!(side, "old" | "new") && line.parse::<u32>().is_ok() && !path.is_empty())
+            .then(|| (path.to_owned(), side.to_owned(), line.to_owned()))
+    }
 }
 
 impl DiffQuery {
@@ -405,6 +519,7 @@ pub fn view(
                 additions: f.additions,
                 deletions: f.deletions,
                 generated: is_generated,
+                viewed: false,
                 load,
                 hunks,
             }
@@ -423,6 +538,7 @@ pub fn view(
         href,
         only: q.file,
         signed_in: ctx.user.is_some(),
+        review: None,
     }
 }
 
@@ -604,6 +720,7 @@ mod tests {
             additions: 0,
             deletions: 0,
             generated: false,
+            viewed: false,
             load: "now",
             hunks: Vec::new(),
         };

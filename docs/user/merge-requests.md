@@ -183,6 +183,13 @@ are unchanged (marked "from revision N"). If they changed, the thread is
 **outdated**: it stays in the conversation and on the revision it was made
 on, but never sits on a line it wasn't written about.
 
+On the **Changes** tab, select a line number to open a comment form under
+that line; set the last line to comment on a range. It works without
+JavaScript and with touch. Threads show under the lines they're about,
+with a link to answer in the conversation. **Mark viewed** collapses a
+file you've reviewed; it opens again by itself when the file changes in a
+new revision.
+
 In the conversation, each thread shows the code it's about, its replies,
 and whether it's outdated or resolved. **Reply** sends an answer right
 away; **Add to my review** keeps it pending. **All**, **Unresolved**, and

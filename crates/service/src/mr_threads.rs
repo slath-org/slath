@@ -438,3 +438,63 @@ impl Services {
             .count())
     }
 }
+
+/// The blob of `path` at `commit`, or 40 zeros if the file isn't there.
+async fn blob_at(s: &Services, m: &MergeRequest, commit: &str, path: &str) -> Result<String> {
+    let out = s
+        .runner
+        .repo(&s.repo_path(m.repo_id))
+        .args(["rev-parse", "--verify", "--quiet"])
+        .arg(format!("{commit}:{path}"))
+        .output()
+        .await
+        .map_err(ServiceError::internal)?;
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    Ok(if out.status.success() && text.len() == 40 {
+        text
+    } else {
+        "0".repeat(40)
+    })
+}
+
+impl Services {
+    /// The files the viewer marked viewed that are still as they saw them
+    /// at the current head (a changed file counts as not viewed).
+    pub async fn viewed_files(
+        &self,
+        subject: &Subject,
+        m: &MergeRequest,
+    ) -> Result<std::collections::HashSet<String>> {
+        let mut out = std::collections::HashSet::new();
+        let (Subject::User { id, .. }, Some(head)) = (subject, m.head_oid.as_deref()) else {
+            return Ok(out);
+        };
+        for (path, blob) in db::viewed(&self.pool, m.id, *id).await? {
+            if blob_at(self, m, head, &path).await? == blob {
+                out.insert(path);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Marks a file of the current head viewed or not viewed.
+    pub async fn set_file_viewed(
+        &self,
+        subject: &Subject,
+        (ns, repo, number): (&str, &str, i32),
+        path: &str,
+        viewed: bool,
+    ) -> Result<()> {
+        let (_, m) = self.mr(subject, ns, repo, number).await?;
+        let user = me(subject)?;
+        if path.is_empty() || path.len() > 4096 {
+            return Err(ServiceError::invalid("path", "invalid", "Choose a file."));
+        }
+        let blob = match (viewed, m.head_oid.as_deref()) {
+            (true, Some(head)) => Some(blob_at(self, &m, head, path).await?),
+            _ => None,
+        };
+        db::set_viewed(&self.pool, m.id, user, path, blob.as_deref()).await?;
+        Ok(())
+    }
+}

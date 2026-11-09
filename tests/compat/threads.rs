@@ -304,3 +304,94 @@ fn conf_review_02_threads_carry_forward_or_become_outdated() {
         2
     );
 }
+
+#[test]
+fn line_comments_without_javascript_and_viewed_files() {
+    let s = TestServer::start();
+    let alice = token(&s, "alice");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = s.url(&DEMO);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "-c", "topic"]);
+    std::fs::write(w.join("a.txt"), lines(None)).unwrap();
+    std::fs::write(w.join("b.txt"), "b\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "Add"]);
+    git.ok(w, &["push", "-q", &url, "topic"]);
+    let n = api(
+        &s,
+        &alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "T"})),
+    )
+    .json()["number"]
+        .as_i64()
+        .unwrap();
+    wait(&s, &alice, n, 1);
+    let mut ui = s.login("alice", PASSWORD);
+    let changes = format!("/alice/demo/merge-requests/{n}/changes");
+    // A line number links to a comment form under that line.
+    let page = ui.get(&changes).body;
+    assert!(
+        page.contains(&format!("{changes}?comment=new:4:a.txt#composer")),
+        "{page}"
+    );
+    let page = ui.get(&format!("{changes}?comment=new:4:a.txt")).body;
+    assert!(page.contains(r#"id="composer""#), "{page}");
+    // Posting it (a range, pending) comes back to the changes.
+    let r = slath_tests::http::submit(
+        &mut ui,
+        &changes,
+        &format!("/alice/demo/merge-requests/{n}/threads"),
+        &[
+            ("path", "a.txt"),
+            ("side", "new"),
+            ("line_start", "4"),
+            ("line_end", "5"),
+            ("revision", "1"),
+            ("body", "Two lines"),
+            ("mode", "pending"),
+            ("back", &changes),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let page = ui.get(&changes).body;
+    assert!(
+        page.contains("Two lines") && page.contains(">Pending<"),
+        "{page}"
+    );
+    let t = api(
+        &s,
+        &alice,
+        "GET",
+        &format!("/merge-requests/{n}/threads"),
+        None,
+    )
+    .json();
+    assert_eq!(t[0]["line_end"], 5);
+
+    // Viewed files collapse until they change.
+    let r = slath_tests::http::submit(
+        &mut ui,
+        &changes,
+        &format!("/alice/demo/merge-requests/{n}/viewed"),
+        &[("path", "b.txt"), ("viewed", "true"), ("back", &changes)],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let page = ui.get(&changes).body;
+    assert!(page.contains("You marked this file viewed"), "{page}");
+    std::fs::write(w.join("b.txt"), "b changed\n").unwrap();
+    git.ok(w, &["commit", "-qa", "--amend", "--no-edit"]);
+    git.ok(w, &["push", "-q", "--force", &url, "topic"]);
+    wait(&s, &alice, n, 2);
+    let page = ui.get(&changes).body;
+    assert!(!page.contains("You marked this file viewed"), "{page}");
+    assert!(page.contains("Mark viewed"));
+}

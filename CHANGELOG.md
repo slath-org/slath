@@ -23,6 +23,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
 - Review threads on lines of a diff (either side) or on the whole merge request, with replies, resolving, and pending comments sent with the review.
 - Threads move with their lines when a new revision leaves them unchanged and are marked outdated otherwise; resolved threads can be required for merging.
+- Comment on a line or range from the Changes tab by selecting a line number; threads show under their lines, and files can be marked viewed until they change.
 - The conversation shows each thread with its code, replies, and state, and filters to unresolved threads or your own comments.
 - Merge request pages open with a readiness card: a headline, the reason, and your one next step; each requirement shows as done, waiting, or blocking.
 - Returning reviewers see how much is new since their review, marked in the timeline; metadata changes fold into one line, and bot comments are marked as claims.

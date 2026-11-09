@@ -168,19 +168,42 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
-  const thread = page.getByRole("article", { name: "Thread on review.md, line 1" });
-  await expect(thread).toContainText("Is this the final wording?");
-  await expect(thread.getByRole("region", { name: "Code at review.md, line 1" })).toContainText("Second draft.");
+  // Other tests add threads on the same line; this is the seeded one.
+  const seeded = () =>
+    page.getByRole("article", { name: "Thread on review.md, line 1" }).filter({ hasText: "Is this the final wording?" });
+  await expect(seeded()).toBeVisible();
+  await expect(seeded().getByRole("region", { name: "Code at review.md, line 1" })).toContainText("Second draft.");
   await expectAccessible(page);
   // The filter narrows the conversation to unresolved threads.
   await tapOrClick(page, page.getByRole("navigation", { name: "Show in the conversation" }).getByRole("link", { name: /Unresolved/ }));
   await expect(page).toHaveURL(/show=unresolved/);
-  await expect(page.getByRole("article", { name: "Thread on review.md, line 1" })).toBeVisible();
+  await expect(seeded()).toBeVisible();
   await expect(page.getByRole("article", { name: "Description" })).toBeVisible();
   await expectAccessible(page);
   // A reply lands in the thread.
   const text = `Reply from ${testInfo.project.name}`;
-  await page.getByLabel("Reply").first().fill(text);
-  await tapOrClick(page, page.getByRole("button", { name: "Reply", exact: true }).first());
-  await expect(page.getByRole("article", { name: "Thread on review.md, line 1" })).toContainText(text);
+  await seeded().getByLabel("Reply").fill(text);
+  await tapOrClick(page, seeded().getByRole("button", { name: "Reply", exact: true }));
+  await expect(seeded()).toContainText(text);
+});
+
+test("conf_a11y_04_line_comments_on_the_changes_tab", async ({ page }, testInfo) => {
+  test.slow();
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  // The seeded thread sits under its line.
+  await expect(page.locator(".diff-thread-row").first()).toContainText("Is this the final wording?");
+  await expectAccessible(page);
+  // Tapping a line number opens a comment form under that line.
+  await tapOrClick(page, page.locator(".diff-unified a[title='Comment on this line']").first());
+  await expect(page).toHaveURL(/comment=new:1:review\.md/);
+  const text = `Inline note from ${testInfo.project.name}`;
+  await page.getByLabel("Comment", { exact: true }).fill(text);
+  await expect(page.getByLabel(/Comment on lines 1 to/)).toHaveValue("1");
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Add to my review" }));
+  const mine = page.locator(".diff-thread-row").filter({ hasText: text });
+  await expect(mine).toContainText("Pending");
 });

@@ -1740,7 +1740,10 @@ async fn changes(
         Some(k) => mr_url(&ns, &repo, m.number, &format!("/changes?since={k}")),
         None => mr_url(&ns, &repo, m.number, "/changes"),
     };
-    let diff = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+    let mut diff = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+    if q.since.is_none() && m.state == "open" {
+        attach_review(&state, &subject, &a, &m, &mut diff, &dq, None).await?;
+    }
     let page = ChangesPage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         current: m.revisions,
@@ -1897,7 +1900,20 @@ async fn change(
             let head = slath_git::ObjectId::parse(&shown.commit_oid)
                 .map_err(|e| AppError::internal(&e))?;
             let generated = super::diff::generated(&state.runner, &dir, &head, &raw, limits).await;
-            Some(super::diff::view(&raw, limits, &generated, &dq, &ctx, href))
+            let mut d = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+            if from.is_none() && m.state == "open" && shown.revision == m.revisions {
+                attach_review(
+                    &state,
+                    &subject,
+                    &a,
+                    &m,
+                    &mut d,
+                    &dq,
+                    Some(&shown.commit_oid),
+                )
+                .await?;
+            }
+            Some(d)
         }
         None => None,
     };
@@ -2002,6 +2018,191 @@ async fn interdiff(
         too_big,
         ctx,
     }))
+}
+
+/// Adds review features to a merge request diff: threads under their
+/// lines, the comment form, and viewed files (collapsed while unchanged).
+/// `commit`: a change's own diff, whose threads are those made on it.
+async fn attach_review(
+    state: &AppState,
+    subject: &Subject,
+    a: &RepoAccess,
+    m: &MergeRequest,
+    diff: &mut DiffView,
+    dq: &DiffQuery,
+    commit: Option<&str>,
+) -> Result<(), AppError> {
+    use slath_service::mr_threads::Position;
+    if matches!(subject, Subject::Anonymous) {
+        return Ok(());
+    }
+    let rc = RefContext {
+        ns: a.repo.namespace.clone(),
+        repo: a.repo.name.clone(),
+    };
+    let mut threads: std::collections::HashMap<
+        (String, String, String),
+        Vec<super::diff::InlineThread>,
+    > = std::collections::HashMap::new();
+    for t in state.services.mr_threads(subject, a, m).await? {
+        let key = match (&t.position, commit) {
+            (
+                Position::Current {
+                    path,
+                    side,
+                    line_end,
+                    ..
+                },
+                None,
+            ) => (path.clone(), side.clone(), line_end.to_string()),
+            (_, Some(c)) if t.thread.anchor.new_oid.as_deref() == Some(c) => {
+                let an = &t.thread.anchor;
+                match (&an.path, &an.side, an.line_end) {
+                    (Some(p), Some(sd), Some(e)) => (p.clone(), sd.clone(), e.to_string()),
+                    _ => continue,
+                }
+            }
+            _ => continue,
+        };
+        let mut comments = Vec::new();
+        for c in &t.comments {
+            let html = state
+                .services
+                .render_markdown(subject, Some(&rc), &c.body)
+                .await?;
+            comments.push((
+                c.author
+                    .clone()
+                    .unwrap_or_else(|| "A deleted user".to_owned()),
+                MarkupHtml::from_markup(html),
+                c.pending,
+            ));
+        }
+        threads
+            .entry(key)
+            .or_default()
+            .push(super::diff::InlineThread {
+                link: mr_url(
+                    &a.repo.namespace,
+                    &a.repo.name,
+                    m.number,
+                    &format!("#thread-{}", t.thread.id),
+                ),
+                id: t.thread.id.to_string(),
+                resolved: t.thread.resolved_at.is_some(),
+                from: match t.position {
+                    Position::Current { from, .. } => from,
+                    _ => None,
+                },
+                comments,
+            });
+    }
+    let viewed = state.services.viewed_files(subject, m).await?;
+    for f in &mut diff.files {
+        if viewed.contains(&f.path) {
+            f.viewed = true;
+            if dq.file != Some(f.index) {
+                f.load = "click";
+                f.hunks.clear();
+            }
+        }
+    }
+    let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
+    diff.review = Some(super::diff::ReviewCtx {
+        thread_post: format!("{base}/threads"),
+        viewed_post: format!("{base}/viewed"),
+        back: diff.href.clone(),
+        can_comment: a.can(subject, Action::MrComment),
+        threads,
+        composer: dq.composer(),
+        commit: commit.map(str::to_owned),
+        revision: m.revisions,
+    });
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ThreadForm {
+    #[serde(default)]
+    body: String,
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    side: String,
+    #[serde(default)]
+    line_start: String,
+    #[serde(default)]
+    line_end: String,
+    #[serde(default)]
+    revision: String,
+    commit: Option<String>,
+    #[serde(default)]
+    mode: String,
+    #[serde(default)]
+    back: String,
+}
+
+async fn new_thread(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<ThreadForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let start: Option<i32> = f.line_start.trim().parse().ok();
+    let input = slath_service::mr_threads::NewThread {
+        body: f.body,
+        path: Some(f.path).filter(|p| !p.is_empty()),
+        side: Some(f.side).filter(|p| !p.is_empty()),
+        line_start: start,
+        line_end: f.line_end.trim().parse().ok().or(start),
+        revision: f.revision.trim().parse().ok(),
+        commit: f.commit.filter(|c| !c.is_empty()),
+        pending: f.mode == "pending",
+    };
+    match state
+        .services
+        .create_thread(&s.subject, (&ns, &repo, n), &input)
+        .await
+    {
+        Ok(t) => Ok(Redirect::to(&back_to(
+            &ns,
+            &repo,
+            n,
+            &f.back,
+            &format!("#thread-{}", t.thread.id),
+        ))
+        .into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
+struct ViewedForm {
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    viewed: String,
+    #[serde(default)]
+    back: String,
+}
+
+async fn set_viewed(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<ViewedForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    state
+        .services
+        .set_file_viewed(&s.subject, (&ns, &repo, n), &f.path, f.viewed == "true")
+        .await?;
+    Ok(Redirect::to(&back_to(&ns, &repo, n, &f.back, "")).into_response())
 }
 
 /// `/{ns}/{repo}/issues/{n}` of a merge request leads here.
@@ -2633,6 +2834,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/reviews",
             Access::Resource,
             post(review),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/threads",
+            Access::Resource,
+            post(new_thread),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/viewed",
+            Access::Resource,
+            post(set_viewed),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/threads/{id}/comments",

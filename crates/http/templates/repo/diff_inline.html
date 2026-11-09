@@ -1,0 +1,44 @@
+{#- Threads under a diff line, and the comment form when it's open there.
+    Expects: diff, f (the file), inline (threads), compose (bool),
+    side, line, cols. -#}
+{%- for t in inline %}
+<tr class="diff-thread-row" id="thread-{{ t.id }}"><td colspan="{{ cols }}">
+  <div class="inline-thread{% if t.resolved %} thread-resolved{% endif %}">
+    {%- if t.resolved %}<p class="text-secondary">Resolved</p>{% endif %}
+    {%- if let Some(r) = t.from %}<p class="text-secondary">From revision {{ r }}</p>{% endif %}
+    {%- for (author, html, pending) in t.comments %}
+    <div class="inline-comment"><p class="thread-comment-head"><strong>{{ author }}</strong>{% if *pending %} <span class="badge">Pending</span>{% endif %}</p><div class="markdown" hx-ignore>{{ html }}</div></div>
+    {%- endfor %}
+    <p><a href="{{ t.link }}">Reply in the conversation</a></p>
+  </div>
+</td></tr>
+{%- endfor %}
+{%- if compose %}
+{%- if let Some(r) = diff.review %}
+<tr class="diff-thread-row" id="composer"><td colspan="{{ cols }}">
+  <form method="post" action="{{ r.thread_post }}" class="form inline-composer" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="back" value="{{ r.back }}">
+    <input type="hidden" name="path" value="{{ f.path }}">
+    <input type="hidden" name="side" value="{{ side }}">
+    <input type="hidden" name="line_start" value="{{ line }}">
+    <input type="hidden" name="revision" value="{{ r.revision }}">
+    {%- if let Some(c) = r.commit %}<input type="hidden" name="commit" value="{{ c }}">{% endif %}
+    <div class="field">
+      <label for="composer-end">Comment on lines {{ line }} to</label>
+      <input id="composer-end" name="line_end" type="number" min="{{ line }}" value="{{ line }}" inputmode="numeric" aria-describedby="composer-end-hint">
+      <p id="composer-end-hint" class="hint">Change the last line to comment on a range{% if side == "old" %} of removed lines{% endif %}.</p>
+    </div>
+    <div class="field">
+      <label for="composer-body">Comment</label>
+      <textarea id="composer-body" name="body" rows="3" autocomplete="off" required></textarea>
+    </div>
+    <div class="button-row">
+      <button type="submit" name="mode" value="pending" class="button">Add to my review</button>
+      <button type="submit" class="button button-quiet">Comment now</button>
+      <a class="button button-quiet" href="{{ r.back }}">Cancel</a>
+    </div>
+  </form>
+</td></tr>
+{%- endif %}
+{%- endif %}
