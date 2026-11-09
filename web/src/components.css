@@ -424,9 +424,19 @@ fieldset.field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2) var(--space-4);
   margin: 0 0 var(--space-2);
+}
+.repo-title-row .repo-actions {
+  margin-inline-start: auto;
+}
+/* A fork's origin and how its default branch compares, next to the title. */
+.repo-fork-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
 }
 .repo-title {
   font-size: var(--text-lg);
@@ -436,12 +446,7 @@ fieldset.field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
+  gap: var(--space-2);
 }
 .fork-compare p {
   margin: 0;
@@ -450,8 +455,7 @@ fieldset.field {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-sm);
+  margin: 0;
 }
 .repo-title .badge {
   margin-inline-start: var(--space-3);
@@ -483,18 +487,77 @@ fieldset.field {
   font-weight: var(--weight-semibold);
   border-bottom-color: var(--accent);
 }
-.clone-urls {
+/* The row above the files: the ref on the start side, Clone on the end. */
+.repo-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-3);
 }
-.clone-urls .field {
-  flex: 1 1 18rem;
+.repo-toolbar-start,
+.repo-toolbar-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }
-.clone-urls input {
+.repo-toolbar-end {
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+.repo-toolbar .ref-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+/* The branch picker: long lists scroll inside the panel. */
+.ref-panel {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  min-width: 16rem;
+}
+.ref-panel-list {
+  max-height: 20rem;
+  overflow-y: auto;
+  margin-block-end: var(--space-1);
+  padding-block-end: var(--space-1);
+  border-block-end: var(--border-width) solid var(--border);
+}
+.menu-heading {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.clone-panel {
+  width: min(28rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.clone-panel .field:last-child {
+  margin-bottom: 0;
+}
+.input-with-button {
+  display: flex;
+  gap: var(--space-2);
+}
+.input-with-button input {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: var(--code-size);
+}
+/* A table in a rounded box, for lists that stand on their own (files). */
+.table-boxed {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.table-boxed tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 /* Code browser */
@@ -528,6 +591,7 @@ fieldset.field {
   align-items: center;
   gap: var(--space-2);
   min-height: var(--target-min);
+  min-width: var(--target-min);
 }
 .readme {
   margin-top: var(--space-5);

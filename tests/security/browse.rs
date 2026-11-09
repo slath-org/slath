@@ -114,7 +114,8 @@ fn conf_git_04_branches_with_slashes_and_longest_match() {
     let r = a.get("/alice/demo/tree/feature/deep/name/dir");
     assert_eq!(r.status, 200);
     assert!(
-        r.body.contains("Branch <strong>feature/deep/name</strong>"),
+        r.body
+            .contains("aria-label=\"Branch feature/deep/name: switch branch\""),
         "{}",
         r.body
     );
@@ -128,7 +129,7 @@ fn conf_git_04_branches_with_slashes_and_longest_match() {
     assert!(
         a.get("/alice/demo/tree/release/dir")
             .body
-            .contains("Branch <strong>release</strong>")
+            .contains("aria-label=\"Branch release: switch branch\"")
     );
     assert_eq!(a.get("/alice/demo/tree/v1").status, 200, "tags resolve too");
     let oid =

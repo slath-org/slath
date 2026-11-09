@@ -1,3 +1,5 @@
+{#- At the repository root the path is just its name, which the header shows. #}
+{%- if crumbs.len() > 1 %}
 <nav aria-label="Path" class="crumbs">
   <ol>
   {%- for c in crumbs %}
@@ -5,3 +7,4 @@
   {%- endfor %}
   </ol>
 </nav>
+{%- endif %}

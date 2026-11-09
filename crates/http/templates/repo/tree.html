@@ -7,15 +7,9 @@
 {%- if let Some(d) = description %}
 <p>{{ d }}</p>
 {%- endif %}
-{%- if let Some((https_url, ssh_url)) = clone %}
-<div class="clone-urls">
-  <div class="field"><label for="clone-https">Clone with HTTPS</label><input id="clone-https" type="text" value="{{ https_url }}" readonly spellcheck="false"></div>
-  <div class="field"><label for="clone-ssh">Clone with SSH</label><input id="clone-ssh" type="text" value="{{ ssh_url }}" readonly spellcheck="false"></div>
-</div>
-{%- endif %}
 {% include "repo/ref_line.html" %}
 {% include "repo/crumbs.html" %}
-<div class="table-wrap" tabindex="0" role="region" aria-label="Files">
+<div class="table-wrap table-boxed" tabindex="0" role="region" aria-label="Files">
 <table class="table file-list">
   <caption class="visually-hidden">Files and directories</caption>
   <thead><tr><th scope="col">Name</th><th scope="col">Type</th></tr></thead>

@@ -1,10 +1,19 @@
-<div class="clone-urls">
-  <div class="field">
-    <label for="clone-https">Clone with HTTPS</label>
-    <input id="clone-https" type="text" value="{{ https_url }}" readonly spellcheck="false">
+<details class="menu clone-menu">
+  <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <div class="menu-panel clone-panel">
+    <div class="field">
+      <label for="clone-https">HTTPS</label>
+      <div class="input-with-button">
+        <input id="clone-https" type="text" value="{{ https_url }}" readonly spellcheck="false">
+        <button type="button" class="button button-icon" data-copy="clone-https" title="Copy the HTTPS URL" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the HTTPS URL</span></button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="clone-ssh">SSH</label>
+      <div class="input-with-button">
+        <input id="clone-ssh" type="text" value="{{ ssh_url }}" readonly spellcheck="false">
+        <button type="button" class="button button-icon" data-copy="clone-ssh" title="Copy the SSH URL" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the SSH URL</span></button>
+      </div>
+    </div>
   </div>
-  <div class="field">
-    <label for="clone-ssh">Clone with SSH</label>
-    <input id="clone-ssh" type="text" value="{{ ssh_url }}" readonly spellcheck="false">
-  </div>
-</div>
+</details>

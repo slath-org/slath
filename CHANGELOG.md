@@ -88,6 +88,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The first administrator is created with one `docker compose run` command.
 - Access tokens have a new format: a prefix that names the kind, and a checksum so mistyped or fake tokens are rejected at once. Tokens from 0.1 and 0.2 no longer work; create new ones.
 - The top bar and favicon show the new Slath logo, in the variant for the light or dark theme in use.
+- Repository pages: Clone and Download are menus next to the branch, clone URLs have copy buttons, and the files sit in a rounded box.
+- The branch name above the files opens a branch picker that keeps the current view and path.
+- A fork's origin shows next to the repository name, and how its default branch compares with the original next to the branch.
 
 ### Removed
 

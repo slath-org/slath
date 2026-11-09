@@ -3,6 +3,11 @@
   <p class="repo-title"><a href="/{{ header.namespace }}">{{ header.namespace }}</a> / <a href="/{{ header.namespace }}/{{ header.name }}"><strong>{{ header.name }}</strong></a>
   {%- if header.visibility == "private" %} <span class="badge">Private</span>{% else if header.visibility == "internal" %} <span class="badge">Internal</span>{% else %} <span class="badge">Public</span>{% endif %}
   {%- if header.archived %} <span class="badge">Archived</span>{% endif %}</p>
+  {%- if let Some(f) = header.fork %}
+  <div class="repo-fork-meta text-secondary">
+    <p class="repo-fork-of">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}{% if f.contribute %}{% if let Some(p) = f.parent %} · <a href="/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}">Contribute</a>{% endif %}{% endif %}</p>
+  </div>
+  {%- endif %}
   {%- if header.watch.is_some() || header.can_fork %}
   <div class="repo-actions">
   {%- if let Some(w) = header.watch %}
@@ -21,12 +26,6 @@
   </div>
   {%- endif %}
   </div>
-  {%- if let Some(f) = header.fork %}
-  <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}{% if f.contribute %}{% if let Some(p) = f.parent %} · <a href="/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}">Contribute</a>{% endif %}{% endif %}</p>
-  {%- endif %}
-  {%- if let Some(c) = header.fork_compare %}
-  {% include "repo/fork_compare.html" %}
-  {%- endif %}
   <nav class="tabs" aria-label="Repository">
     <ul>
       <li><a href="/{{ header.namespace }}/{{ header.name }}"{% if header.tab == "code" %} aria-current="page"{% endif %}>Code</a></li>

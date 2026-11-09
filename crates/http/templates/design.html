@@ -78,6 +78,18 @@
         <button type="button" class="menu-item">{% call m::icon(ctx, "trash-2") %}{% endcall %}Delete</button>
       </div>
     </details>
+    <details class="menu clone-menu">
+      <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+      <div class="menu-panel clone-panel">
+        <div class="field">
+          <label for="demo-clone">HTTPS</label>
+          <div class="input-with-button">
+            <input id="demo-clone" type="text" value="https://slath.example/alice/demo.git" readonly spellcheck="false">
+            <button type="button" class="button button-icon" data-copy="demo-clone" title="Copy the HTTPS URL" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the HTTPS URL</span></button>
+          </div>
+        </div>
+      </div>
+    </details>
     <button type="button" class="button" data-dialog-open="demo-dialog">Open dialog</button>
     <button type="button" class="button" data-dialog-open="demo-drawer">Open drawer</button>
     <button type="button" class="button" data-toast="Settings saved.">Show toast</button>
@@ -148,6 +160,16 @@
     <tbody>
       <tr><td><a href="#table-heading">slath</a></td><td class="numeric">1 024</td><td>2 hours ago</td></tr>
       <tr><td><a href="#table-heading">weave</a></td><td class="numeric">88</td><td>yesterday</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="text-secondary">Boxed, for a list that stands on its own (a repository's files):</p>
+  <div class="table-wrap table-boxed" tabindex="0" role="region" aria-label="Example files">
+  <table class="table file-list">
+    <thead><tr><th scope="col">Name</th><th scope="col">Type</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#table-heading">{% call m::icon(ctx, "folder") %}{% endcall %} src</a></td><td class="text-secondary">Directory</td></tr>
+      <tr><td><a href="#table-heading">{% call m::icon(ctx, "file") %}{% endcall %} README.md</a></td><td class="text-secondary">File</td></tr>
     </tbody>
   </table>
   </div>

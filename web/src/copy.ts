@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Copy buttons: `<button data-copy="ID" hidden>` copies the text of the
-// element with that id. The buttons stay hidden without this script (and
+// element with that id (an input's value). The buttons stay hidden without this script (and
 // without a clipboard), since the text can always be selected.
 import { t } from "./i18n/en";
 import { showToast } from "./toast";
@@ -28,7 +28,8 @@ export function installCopyButtons(): void {
     if (!btn) return;
     const src = document.getElementById(btn.dataset.copy ?? "");
     if (!src) return;
-    navigator.clipboard.writeText((src.textContent ?? "").trim()).then(
+    const text = src instanceof HTMLInputElement ? src.value : (src.textContent ?? "");
+    navigator.clipboard.writeText(text.trim()).then(
       () => showToast(t("copied"), undefined, "info"),
       () => showToast(t("copyFailed")),
     );

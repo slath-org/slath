@@ -193,9 +193,47 @@ struct RefView {
     name: String,
     commit: String,
     short: String,
+    /// The branch picker: each branch with the same view on it.
+    branches: Vec<BranchLink>,
+    /// The clone URLs (HTTPS, SSH), on the front page only.
+    clone: Option<(String, String)>,
 }
 
-fn ref_view(r: &RefPath) -> RefView {
+struct BranchLink {
+    name: String,
+    href: String,
+    current: bool,
+}
+
+/// The ref line's model: the ref, and the branches to switch to, linked to
+/// `view` (`tree`, `blob`, `blame`, or `commits`) of the same path.
+async fn ref_view(state: &AppState, a: &RepoAccess, r: &RefPath, view: &str) -> RefView {
+    let names = browse::list_refs(
+        &state.runner,
+        &state.services.repo_path(a.repo.id),
+        RefKind::Branch,
+        500,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "listing branches for the picker failed");
+        Vec::new()
+    });
+    let branches = names
+        .into_iter()
+        .map(|b| {
+            let other = RefPath {
+                kind: RefKind::Branch,
+                name: b.name.clone(),
+                ..r.clone()
+            };
+            BranchLink {
+                current: r.kind == RefKind::Branch && b.name == r.name,
+                href: link(a, view, &other, r.path.as_bytes()),
+                name: lossy(&b.name),
+            }
+        })
+        .collect();
     RefView {
         kind: match r.kind {
             RefKind::Branch => "Branch",
@@ -205,6 +243,8 @@ fn ref_view(r: &RefPath) -> RefView {
         name: lossy(&r.name),
         commit: r.commit.as_str().to_owned(),
         short: r.commit.as_str()[..12].to_owned(),
+        branches,
+        clone: None,
     }
 }
 
@@ -219,7 +259,6 @@ struct TreePage {
     entries: Vec<EntryView>,
     readme: Option<Readme>,
     commits_href: String,
-    clone: Option<(String, String)>,
     description: Option<String>,
 }
 
@@ -323,12 +362,14 @@ async fn tree_page(
     Ok(render(&TreePage {
         header,
         title,
-        reference: ref_view(&r),
+        reference: RefView {
+            clone: home.then(|| clone_urls(state, &a.repo.namespace, &a.repo.name)),
+            ..ref_view(state, a, &r, "tree").await
+        },
         crumbs: crumbs(a, &r),
         entries: entry_views(a, &r, &entries),
         readme,
         commits_href: link(a, "commits", &r, r.path.as_bytes()),
-        clone: home.then(|| clone_urls(state, &a.repo.namespace, &a.repo.name)),
         description: if home {
             a.repo.description.clone()
         } else {
@@ -446,7 +487,7 @@ async fn blob(
             a.repo.namespace,
             a.repo.name
         ),
-        reference: ref_view(&r),
+        reference: ref_view(&state, &a, &r, "blob").await,
         crumbs: crumbs(&a, &r),
         raw_href: link(&a, "raw", &r, r.path.as_bytes()),
         commits_href: link(&a, "commits", &r, r.path.as_bytes()),
@@ -587,7 +628,7 @@ async fn blame(
             a.repo.namespace,
             a.repo.name
         ),
-        reference: ref_view(&r),
+        reference: ref_view(&state, &a, &r, "blame").await,
         crumbs: crumbs(&a, &r),
         blob_href: link(&a, "blob", &r, r.path.as_bytes()),
         commits_href: link(&a, "commits", &r, r.path.as_bytes()),
@@ -847,7 +888,7 @@ async fn commits_for(
     let base = link(a, "commits", &r, r.path.as_bytes());
     Ok(render(&CommitsPage {
         header: RepoHeader::load(state, a, subject, "commits").await,
-        reference: Some(ref_view(&r)),
+        reference: Some(ref_view(state, a, &r, "commits").await),
         empty_text: "No commits.".to_owned(),
         path: lossy(r.path.as_bytes()),
         commits: entries

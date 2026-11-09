@@ -6,7 +6,11 @@
 {%- if let Some(d) = description %}
 <p>{{ d }}</p>
 {%- endif %}
+<div class="repo-toolbar">
+  <div class="repo-toolbar-end">
 {% include "repo/clone.html" %}
+  </div>
+</div>
 {%- if empty %}
 <section aria-labelledby="empty-heading">
   <h2 id="empty-heading">This repository is empty</h2>
