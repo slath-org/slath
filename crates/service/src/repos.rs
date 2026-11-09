@@ -262,6 +262,17 @@ impl Services {
     /// transaction that creates the row: a crash leaves either nothing or a
     /// complete repository, never a half-initialized one.
     pub async fn create_repo(&self, subject: &Subject, input: NewRepoInput) -> Result<RepoAccess> {
+        self.create_repo_as(subject, input, None).await
+    }
+
+    /// [`Self::create_repo`], and for a fork the record and job that copy
+    /// its parent, in the same transaction.
+    pub(crate) async fn create_repo_as(
+        &self,
+        subject: &Subject,
+        input: NewRepoInput,
+        fork: Option<&crate::forks::ForkPlan>,
+    ) -> Result<RepoAccess> {
         user_with_scope(subject, Scope::RepoWrite)?;
         self.require_confirmed(subject).await?;
         let mut errors: Vec<FieldError> = Vec::new();
@@ -348,6 +359,27 @@ impl Services {
             )
             .await?;
         }
+        if let Some(f) = fork {
+            slath_db::forks::insert(
+                &mut tx,
+                id,
+                f.parent,
+                f.default_branch_only,
+                f.max_visibility,
+                f.by,
+            )
+            .await?;
+            slath_db::jobs::enqueue(
+                &mut *tx,
+                &slath_db::jobs::NewJob::new(
+                    "default",
+                    crate::forks::REPO_FORK,
+                    serde_json::json!({"repo_id": id.to_string()}),
+                )
+                .dedupe_key(format!("{}:{id}", crate::forks::REPO_FORK)),
+            )
+            .await?;
+        }
         let path = slath_git::storage::create_bare(
             &self.runner,
             &self.config.storage.data_dir,
@@ -398,6 +430,18 @@ impl Services {
     ) -> Result<()> {
         self.authorize(subject, a, Action::RepoVisibility)?;
         require_sudo_for_sessions(subject, sudo)?;
+        if let Some(f) = slath_db::forks::get(&self.pool, a.repo.id).await?
+            && crate::forks::rank(v) > crate::forks::rank(f.max_visibility)
+        {
+            return Err(ServiceError::invalid(
+                "visibility",
+                "fork",
+                format!(
+                    "A fork of a {} repository can't be more visible than that.",
+                    slath_db::repos::visibility_str(f.max_visibility)
+                ),
+            ));
+        }
         slath_db::repos::set_visibility(&self.pool, a.repo.id, v).await?;
         let target = self.repo_target(&a.repo).await;
         self.audit(

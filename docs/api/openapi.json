@@ -1810,6 +1810,152 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/fork": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Whether a repository is a fork, of what, and whether copying finished.",
+        "operationId": "get_fork",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fork"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/forks": {
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Forks a repository into a namespace of yours (`repo:write`). Copying\nruns in the background; poll the fork's `/fork` until it's `done`.",
+        "operationId": "create_fork",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewFork"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fork"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/import": {
       "get": {
         "tags": [
@@ -6328,6 +6474,41 @@
           }
         }
       },
+      "Fork": {
+        "type": "object",
+        "required": [
+          "repository",
+          "parent_deleted",
+          "state"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it failed."
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`namespace/name` of the parent, if you can read it."
+          },
+          "parent_deleted": {
+            "type": "boolean",
+            "description": "The parent was deleted."
+          },
+          "repository": {
+            "$ref": "#/components/schemas/Repo"
+          },
+          "state": {
+            "type": "string",
+            "description": "`queued`, `running`, `done`, or `failed`. Pushes wait until `done`."
+          }
+        }
+      },
       "GitRef": {
         "type": "object",
         "required": [
@@ -7130,6 +7311,36 @@
             ],
             "format": "int32",
             "description": "The current revision; null before the first."
+          }
+        }
+      },
+      "NewFork": {
+        "type": "object",
+        "required": [
+          "namespace"
+        ],
+        "properties": {
+          "default_branch_only": {
+            "type": "boolean",
+            "description": "Copy only the default branch (and its tags)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Defaults to the parent's name."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Your username or an organization you belong to."
+          },
+          "visibility": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`public`, `internal`, or `private`; defaults to the parent's, and\ncan't be more visible than it."
           }
         }
       },

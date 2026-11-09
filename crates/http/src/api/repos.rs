@@ -926,6 +926,90 @@ pub async fn delete_protection(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct NewFork {
+    /// Your username or an organization you belong to.
+    pub namespace: String,
+    /// Defaults to the parent's name.
+    pub name: Option<String>,
+    /// `public`, `internal`, or `private`; defaults to the parent's, and
+    /// can't be more visible than it.
+    pub visibility: Option<String>,
+    /// Copy only the default branch (and its tags).
+    #[serde(default)]
+    pub default_branch_only: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct Fork {
+    pub repository: Repo,
+    /// `namespace/name` of the parent, if you can read it.
+    pub parent: Option<String>,
+    /// The parent was deleted.
+    pub parent_deleted: bool,
+    /// `queued`, `running`, `done`, or `failed`. Pushes wait until `done`.
+    pub state: String,
+    /// Why it failed.
+    pub error: Option<String>,
+}
+
+async fn fork_json(state: &AppState, subject: &Subject, a: &RepoAccess) -> Result<Fork, AppError> {
+    let f = state
+        .services
+        .fork_status(subject, a)
+        .await?
+        .ok_or_else(AppError::not_found)?;
+    Ok(Fork {
+        repository: repo_json(state, &a.repo),
+        parent: f.parent,
+        parent_deleted: f.parent_deleted,
+        state: f.state,
+        error: f.error,
+    })
+}
+
+/// Forks a repository into a namespace of yours (`repo:write`). Copying
+/// runs in the background; poll the fork's `/fork` until it's `done`.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/forks", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = NewFork,
+    responses((status = 202, body = Fork), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn create_fork(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    Json(n): Json<NewFork>,
+) -> Result<Response, AppError> {
+    let v = n.visibility.as_deref().map(visibility).transpose()?;
+    let a = state
+        .services
+        .fork_repo(
+            &subject,
+            &ns,
+            &repo,
+            slath_service::forks::ForkInput {
+                namespace: n.namespace,
+                name: n.name.unwrap_or_default(),
+                visibility: v,
+                default_branch_only: n.default_branch_only,
+            },
+        )
+        .await?;
+    let f = fork_json(&state, &subject, &a).await?;
+    let loc = format!("/api/v1/repos/{}/fork", f.repository.full_name);
+    Ok((StatusCode::ACCEPTED, [(header::LOCATION, loc)], Json(f)).into_response())
+}
+
+/// Whether a repository is a fork, of what, and whether copying finished.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/fork", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    responses((status = 200, body = Fork), (status = 404, body = super::Problem)))]
+pub async fn get_fork(
+    State(state): State<AppState>,
+    ApiSubject(subject): ApiSubject,
+    Path((ns, repo)): Path<(String, String)>,
+) -> Result<Json<Fork>, AppError> {
+    let a = access(&state, &subject, &ns, &repo, Action::RepoRead).await?;
+    Ok(Json(fork_json(&state, &subject, &a).await?))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::get;
     Router::new()
@@ -938,6 +1022,16 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}",
             Access::Resource,
             get(get_repo).patch(update_repo).delete(delete_repo),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/forks",
+            Access::Resource,
+            axum::routing::post(create_fork),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/fork",
+            Access::Resource,
+            get(get_fork),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/branches",

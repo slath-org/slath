@@ -58,6 +58,8 @@ pub enum DenyReason {
     InvalidRef,
     NoPermission,
     Archived,
+    /// A fork whose branches are still being copied.
+    NotReady,
     TagMove,
     Protected,
     /// Push protection found a secret, or couldn't finish its scan.
@@ -73,6 +75,7 @@ impl DenyReason {
             Self::InvalidRef => "invalid_ref",
             Self::NoPermission => "no_permission",
             Self::Archived => "archived",
+            Self::NotReady => "not_ready",
             Self::TagMove => "tag_move",
             Self::Protected => "protected",
             Self::Secret => "secret",
@@ -195,6 +198,13 @@ impl Services {
         let archived = access
             .as_ref()
             .is_some_and(|a| a.repo.state == RepoState::Archived);
+        let forking = match &access {
+            Some(a) => slath_db::forks::get(&self.pool, a.repo.id)
+                .await
+                .map(|f| f.is_some_and(|f| f.in_progress()))
+                .unwrap_or(true),
+            None => false,
+        };
         let rules = match &access {
             Some(a) => match slath_db::protections::list(&self.pool, a.repo.id).await {
                 Ok(r) => r,
@@ -241,6 +251,13 @@ impl Services {
             }
             if archived {
                 deny(DenyReason::Archived, "the repository is archived");
+                continue;
+            }
+            if forking {
+                deny(
+                    DenyReason::NotReady,
+                    "the fork is still being created; try again in a moment",
+                );
                 continue;
             }
             if !can(Action::RepoPush) {

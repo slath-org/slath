@@ -9,6 +9,7 @@ pub mod backup;
 pub mod bgmigrations;
 pub mod blobs;
 pub mod email_tokens;
+pub mod forks;
 pub mod idempotency;
 pub mod imports;
 pub mod invitations;
@@ -49,7 +50,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 112;
+pub const REQUIRED_SCHEMA: i32 = 113;
 
 /// Schema version of the baseline migration, where every supported
 /// installation starts. Lower versions come from the 0.1/0.2 previews.

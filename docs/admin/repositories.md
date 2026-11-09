@@ -51,6 +51,31 @@ role, so only collaborators, teams, and organization members can push or
 change settings. Raw files and attachments of internal repositories are
 never cached by shared caches.
 
+## Forks
+
+Anyone who can read a repository can fork it into their own namespace or
+an organization where they can create repositories, with a token
+(`repo:write`): `POST /api/v1/repos/{ns}/{repo}/forks` with `namespace`,
+and optionally `name` (default: the parent's), `visibility` (default: the
+parent's), and `default_branch_only`. The fork exists right away, empty;
+its branches and tags are copied in the background, and pushes to it are
+refused until `GET /api/v1/repos/{ns}/{repo}/fork` says `done`.
+
+- Only branches and tags are copied, never merge request or internal
+  refs. The parent's packs are hardlinked when both are on the same
+  filesystem (so a fork takes almost no space or time) and copied
+  otherwise; the rest is fetched. The fork shares nothing with its parent
+  afterwards: garbage collection or deletion of the parent doesn't affect
+  it.
+- Objects only the parent's deleted branches reached aren't copied when
+  they are loose or in a cruft pack, which is where they are once the
+  parent's maintenance ran. Objects of a recent large push whose branch
+  was deleted before that can come along until the fork's own maintenance
+  removes them; anyone who can read the fork can fetch them by ID.
+- A fork can never be more visible than its parent was when it was
+  forked: a fork of a private repository stays private, even after the
+  parent is deleted.
+
 ## Branch protection
 
 Repository administrators protect branches under **Settings → Branch

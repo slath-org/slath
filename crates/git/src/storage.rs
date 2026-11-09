@@ -114,6 +114,216 @@ pub async fn create_bare(
     Ok(final_path)
 }
 
+/// Whether a directory tree holds only directories and regular files: no
+/// symlinks or other special files, which a local clone would follow or
+/// copy into another repository.
+fn only_plain_files(dir: &Path) -> std::io::Result<bool> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let t = entry.file_type()?;
+        if t.is_dir() {
+            if !only_plain_files(&entry.path())? {
+                return Ok(false);
+            }
+        } else if !t.is_file() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Hardlinks (or copies, across filesystems) the parent's regular packs
+/// into `to`: each pack's index first, then the pack, so a pack that
+/// vanishes meanwhile (a concurrent gc) is skipped whole. Cruft packs (a
+/// `.mtimes` file) hold only unreachable objects and aren't linked; loose
+/// objects aren't either.
+fn link_packs(from: &Path, to: &Path) -> std::io::Result<()> {
+    let Ok(entries) = std::fs::read_dir(from) else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(to)?;
+    for entry in entries {
+        let path = entry?.path();
+        if path.extension().is_none_or(|e| e != "pack") || !path.is_file() {
+            continue;
+        }
+        if path.with_extension("mtimes").exists() || path.with_extension("promisor").exists() {
+            continue;
+        }
+        let mut linked = Vec::new();
+        let mut ok = true;
+        for ext in ["idx", "rev", "bitmap", "pack"] {
+            let src = path.with_extension(ext);
+            if ext != "idx" && ext != "pack" && !src.exists() {
+                continue;
+            }
+            let Some(name) = src.file_name() else {
+                ok = false;
+                break;
+            };
+            let dst = to.join(name);
+            if std::fs::hard_link(&src, &dst)
+                .or_else(|_| std::fs::copy(&src, &dst).map(|_| ()))
+                .is_err()
+            {
+                ok = false;
+                break;
+            }
+            linked.push(dst);
+        }
+        if !ok {
+            for f in linked {
+                let _ = std::fs::remove_file(f);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Replaces the (empty) repository of `id` with a copy of `parent`'s
+/// branches and tags (or only `branch`, with the tags in its history).
+///
+/// Git serves any object a repository holds to whoever asks for it by ID
+/// (protocol v2 has no reachability check), so a fork must not hold
+/// objects only the parent's deleted refs reached. The parent's regular
+/// packs are hardlinked (copied across filesystems); its loose objects and
+/// cruft packs, where unreachable objects end up, aren't. A local fetch
+/// then brings what's missing, sending only objects reachable from the
+/// copied refs. Unreachable objects inside a regular pack (from a recent
+/// push whose branch was deleted before the parent's next gc) remain
+/// possible. Internal and merge request refs never come along. The copy is
+/// made under `<data_dir>/repos/.tmp/` and swapped into place.
+pub async fn fork_clone(
+    runner: &Runner,
+    data_dir: &Path,
+    parent: &Path,
+    id: RepoId,
+    branch: Option<&str>,
+) -> Result<PathBuf, GitError> {
+    let objects = parent.join("objects");
+    let plain = tokio::task::spawn_blocking(move || only_plain_files(&objects))
+        .await
+        .map_err(|e| GitError::Io(std::io::Error::other(e)))??;
+    if !plain {
+        return Err(GitError::InvalidArgument(
+            "the parent's object store holds something other than plain files",
+        ));
+    }
+    let branch = branch
+        .map(|b| RefName::branch(b.as_bytes()).map_err(GitError::InvalidArgument))
+        .transpose()?;
+    let final_path = repo_path(data_dir, id);
+    let tmp_root = data_dir.join("repos").join(".tmp");
+    tokio::fs::create_dir_all(&tmp_root).await?;
+    let tmp = tmp_root.join(format!("{id}.fork.git"));
+    let old = tmp_root.join(format!("{id}.empty.git"));
+    for leftover in [&tmp, &old] {
+        if leftover.exists() {
+            tokio::fs::remove_dir_all(leftover).await?;
+        }
+    }
+    runner
+        .repo(&tmp)
+        .args(["init", "--bare", "--quiet"])
+        .run()
+        .await?;
+    apply_config(runner, &tmp).await?;
+    let (from, to) = (parent.join("objects/pack"), tmp.join("objects/pack"));
+    tokio::task::spawn_blocking(move || link_packs(&from, &to))
+        .await
+        .map_err(|e| GitError::Io(std::io::Error::other(e)))??;
+
+    // Refs whose history the linked packs already hold completely are
+    // written directly; the fetch below then only negotiates the rest.
+    let wanted: Vec<&[u8]> = match &branch {
+        Some(b) => vec![b.as_bytes()],
+        None => vec![b"refs/heads", b"refs/tags"],
+    };
+    let mut list = runner
+        .repo(parent)
+        .args(["for-each-ref", "--format=%(objectname) %(refname)"]);
+    for w in &wanted {
+        list = list.arg_bytes(w);
+    }
+    let listed = list.run().await?.stdout;
+    let tips: Vec<(&[u8], &[u8])> = listed
+        .split(|c| *c == b'\n')
+        .filter_map(|l| {
+            let sp = l.iter().position(|c| *c == b' ')?;
+            Some((&l[..sp], &l[sp + 1..]))
+        })
+        .collect();
+    if !tips.is_empty() {
+        let mut stdin = Vec::new();
+        for (oid, _) in &tips {
+            stdin.extend_from_slice(oid);
+            stdin.push(b'\n');
+        }
+        let complete = runner
+            .repo(&tmp)
+            .args([
+                "rev-list",
+                "--objects",
+                "--quiet",
+                "--use-bitmap-index",
+                "--stdin",
+            ])
+            .stdin(stdin)
+            .timeout(std::time::Duration::from_secs(3600))
+            .output()
+            .await?
+            .status
+            .success();
+        if complete {
+            let mut script = Vec::new();
+            for (oid, name) in &tips {
+                script.extend_from_slice(b"create ");
+                script.extend_from_slice(name);
+                script.push(b' ');
+                script.extend_from_slice(oid);
+                script.push(b'\n');
+            }
+            runner
+                .repo(&tmp)
+                .args(["update-ref", "--stdin"])
+                .stdin(script)
+                .run()
+                .await?;
+        }
+    }
+    let mut fetch = runner
+        .repo(&tmp)
+        .config("protocol.file.allow", "always")
+        .args(["fetch", "--quiet", "--no-write-fetch-head", "--"])
+        .arg(parent);
+    match &branch {
+        Some(b) => {
+            let mut spec = b"+".to_vec();
+            spec.extend_from_slice(b.as_bytes());
+            spec.push(b':');
+            spec.extend_from_slice(b.as_bytes());
+            fetch = fetch.arg_bytes(&spec);
+        }
+        None => {
+            fetch = fetch.args(["+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*"]);
+        }
+    }
+    fetch
+        .timeout(std::time::Duration::from_secs(3600))
+        .run()
+        .await?;
+    if final_path.exists() {
+        tokio::fs::rename(&final_path, &old).await?;
+    } else if let Some(p) = final_path.parent() {
+        tokio::fs::create_dir_all(p).await?;
+    }
+    tokio::fs::rename(&tmp, &final_path).await?;
+    if old.exists() {
+        tokio::fs::remove_dir_all(&old).await?;
+    }
+    Ok(final_path)
+}
+
 /// True if the repository has no branches or tags yet.
 pub async fn is_empty(runner: &Runner, git_dir: &Path) -> Result<bool, GitError> {
     let out = runner

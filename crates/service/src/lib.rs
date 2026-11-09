@@ -16,6 +16,7 @@ pub mod bgmigrations;
 pub mod blobs;
 pub mod email;
 pub mod error;
+pub mod forks;
 pub mod imports;
 pub mod issues;
 pub mod jobs;

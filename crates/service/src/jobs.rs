@@ -66,6 +66,13 @@ impl Services {
                 async move { s.run_fanout(&job).await }
             }
         })
+        .handle(crate::forks::REPO_FORK, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.run_fork(&job).await }
+            }
+        })
         .handle(crate::imports::REPO_IMPORT, {
             let s = self.clone();
             move |job: LeasedJob| {

@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod change_identity;
+mod forks;
 mod git_http;
 mod git_ssh;
 mod import;

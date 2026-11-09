@@ -66,6 +66,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - An opt-in update check (`[upgrade] check_for_updates`) shows administrators when a newer release is available; it makes no request unless turned on.
 - Notifications cover merge requests: review requests, ready for review, new revisions, comments, reviews, merges, closing, and reopening, in the inbox and by email.
 - Drafts send no review requests; requested reviewers hear about a merge request once it's marked ready.
+- Fork repositories through the API: branches and tags are copied in the background with hardlinked packs, and the fork stays whole if its parent is deleted.
+- A fork can't be more visible than its parent was; pushes to a fork wait until its copy is done.
 
 ### Changed
 

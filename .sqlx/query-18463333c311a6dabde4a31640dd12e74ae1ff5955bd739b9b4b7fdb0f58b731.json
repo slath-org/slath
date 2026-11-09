@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.repo_id, r.fork_parent_id, f.default_branch_only, f.max_visibility, f.state, f.error,\n                f.created_at, f.finished_at\n           FROM repo_forks f JOIN repositories r ON r.id = f.repo_id WHERE f.repo_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "repo_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "fork_parent_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "fork_parent_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "default_branch_only",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "default_branch_only"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "max_visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "max_visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "error"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "repo_forks",
+            "name": "finished_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "18463333c311a6dabde4a31640dd12e74ae1ff5955bd739b9b4b7fdb0f58b731"
+}

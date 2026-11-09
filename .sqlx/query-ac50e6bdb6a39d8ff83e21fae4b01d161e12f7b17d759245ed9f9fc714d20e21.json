@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repo_forks SET state = $2, error = $3,\n             finished_at = CASE WHEN $2 IN ('done', 'failed') THEN now() END\n         WHERE repo_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac50e6bdb6a39d8ff83e21fae4b01d161e12f7b17d759245ed9f9fc714d20e21"
+}
