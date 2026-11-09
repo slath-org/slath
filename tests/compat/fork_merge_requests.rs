@@ -12,7 +12,7 @@ use slath_tests::server::{DEMO, GitClient, PASSWORD, TestRepo, TestServer};
 
 fn token(s: &TestServer, user: &str) -> String {
     let mut c = s.login(user, PASSWORD);
-    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
+    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write", "statuses:write"])
 }
 
 fn api(
@@ -59,6 +59,27 @@ fn commit(git: &GitClient, dir: &std::path::Path, file: &str) -> String {
     git.ok(dir, &["add", "."]);
     git.ok(dir, &["commit", "-q", "-m", &format!("Add {file}")]);
     git.ok(dir, &["rev-parse", "HEAD"]).trim().to_owned()
+}
+
+/// The state of one requirement in the mergeability API.
+fn requirement(s: &TestServer, token: &str, n: i64, key: &str) -> String {
+    let m = api(
+        s,
+        token,
+        "GET",
+        &format!("/alice/demo/merge-requests/{n}/mergeability"),
+        None,
+    )
+    .json();
+    m["requirements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["key"] == key)
+        .unwrap_or_else(|| panic!("no {key} in {m}"))["state"]
+        .as_str()
+        .unwrap()
+        .to_owned()
 }
 
 fn has_object(git: &GitClient, repo: &std::path::Path, oid: &str) -> bool {
@@ -182,6 +203,47 @@ fn conf_review_06_fork_merge_requests_with_git() {
         .json();
         m["revisions"] == 2 && m["head_oid"] == second.as_str()
     });
+
+    // Required checks are read from the target: a status reported in the
+    // fork doesn't count, one reported in the target does.
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/alice/demo/protections",
+        Some(json!({"pattern": "main", "required_approvals": 0,
+                    "required_status_contexts": ["ci/build"]})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    s.create_user("carol", PASSWORD, false);
+    let carol = token(&s, "carol");
+    let r = api(
+        &s,
+        &bob,
+        "PUT",
+        "/bob/demo/collaborators/carol",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let ok = json!({"state": "success", "context": "ci/build"});
+    let r = api(
+        &s,
+        &carol,
+        "POST",
+        &format!("/bob/demo/statuses/{second}"),
+        Some(ok.clone()),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(requirement(&s, &alice, n, "statuses"), "pending");
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        &format!("/alice/demo/statuses/{second}"),
+        Some(ok),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(requirement(&s, &alice, n, "statuses"), "met");
 
     // It merges like a same-repository MR, and the fork's branch stays.
     let r = api(
@@ -384,6 +446,32 @@ fn conf_review_06_fork_content_meets_the_targets_push_protection() {
         m["revisions"] == 2 && m["held_source"].is_null() && m["head_oid"] == secret.as_str()
     });
     assert!(has_object(&git, &parent, &secret));
+
+    // The target's allowlist (on its default branch) lets intentional
+    // secrets through.
+    std::fs::create_dir_all(w.join(".slath")).unwrap();
+    std::fs::write(
+        w.join(".slath/secret-scan.toml"),
+        "[[allow]]\npath = \"fixtures/**\"\n",
+    )
+    .unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "Allow fixtures"]);
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let (_, token_text) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "github-token")
+        .unwrap();
+    std::fs::create_dir_all(b.join("fixtures")).unwrap();
+    std::fs::write(b.join("fixtures/token.txt"), token_text).unwrap();
+    git.ok(&b, &["add", "."]);
+    git.ok(&b, &["commit", "-q", "-m", "Add a fixture"]);
+    let fixture = git.ok(&b, &["rev-parse", "HEAD"]).trim().to_owned();
+    git.ok(&b, &["push", "-q", "origin", "topic"]);
+    eventually(&s, "the allowlisted fixture wasn't fetched", || {
+        let m = api(&s, &bob, "GET", &path, None).json();
+        m["revisions"] == 3 && m["held_source"].is_null() && m["head_oid"] == fixture.as_str()
+    });
 }
 
 #[test]
@@ -677,4 +765,151 @@ fn conf_review_06_fork_merge_requests_in_the_ui() {
     assert_eq!(r.status, 303, "{}", r.body);
     let m = web.get(&r.headers["location"]);
     assert!(m.body.contains("become readable here"), "{}", m.body);
+}
+
+/// The fork flow with jj: Bob pushes and rewrites with jj, Carol (a writer
+/// of the target) adds a maintainer edit with Git, and the change keeps
+/// its jj ID throughout.
+#[test]
+fn conf_review_06_fork_merge_requests_with_jj() {
+    use crate::jj::{Jj, jj_binaries};
+    let jjs = jj_binaries();
+    if jjs.is_empty() {
+        return;
+    }
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.create_user("carol", PASSWORD, false);
+    let (alice, bob, carol) = (token(&s, "alice"), token(&s, "bob"), token(&s, "carol"));
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("alice");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    for (method, path, body) in [
+        ("PATCH", "/alice/demo", json!({"visibility": "public"})),
+        (
+            "PUT",
+            "/alice/demo/collaborators/carol",
+            json!({"role": "write"}),
+        ),
+    ] {
+        let r = api(&s, &alice, method, path, Some(body));
+        assert!(r.status < 300, "{}", r.body);
+    }
+    fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+    let parent = s.repo_path(&DEMO);
+    let mr = |n: i64| {
+        api(
+            &s,
+            &bob,
+            "GET",
+            &format!("/alice/demo/merge-requests/{n}"),
+            None,
+        )
+        .json()
+    };
+    let stack = |n: i64| {
+        api(
+            &s,
+            &bob,
+            "GET",
+            &format!("/alice/demo/merge-requests/{n}/stack"),
+            None,
+        )
+        .json()
+    };
+
+    for (version, bin) in jjs {
+        let v = version.replace(['.', ' '], "-");
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join(format!("jj-{v}"));
+        jj.ok(
+            d.path(),
+            &[
+                "git",
+                "clone",
+                &http_url(&s, &bob, "bob/demo"),
+                j.to_str().unwrap(),
+            ],
+        );
+        let topic = format!("jj-topic-{v}");
+        jj.ok(&j, &["new", "main@origin", "-m", "Add j"]);
+        std::fs::write(j.join(format!("{topic}.txt")), "j\n").unwrap();
+        jj.ok(&j, &["bookmark", "create", &topic, "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &topic]);
+        let change = jj.show(&j, &topic, "change_id");
+        let head = jj.show(&j, &topic, "commit_id");
+
+        let r = api(
+            &s,
+            &bob,
+            "POST",
+            "/alice/demo/merge-requests",
+            Some(json!({"source_repo": "bob/demo", "source_branch": topic, "title": "Add j"})),
+        );
+        assert_eq!(r.status, 201, "{version}: {}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        assert_eq!(mr(n)["head_oid"], head.as_str(), "{version}");
+        assert_eq!(
+            stack(n)["entries"][0]["change_id"],
+            change.as_str(),
+            "{version}"
+        );
+        assert!(has_object(&git, &parent, &head), "{version}");
+
+        // A jj rewrite is a new revision of the same change.
+        jj.ok(&j, &["describe", "-r", &topic, "-m", "Add j, reworded"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &topic]);
+        let rewritten = jj.show(&j, &topic, "commit_id");
+        eventually(&s, "no revision from the jj rewrite", || {
+            mr(n)["head_oid"] == rewritten.as_str()
+        });
+        assert_eq!(
+            stack(n)["entries"][0]["change_id"],
+            change.as_str(),
+            "{version}"
+        );
+
+        // Carol edits the fork's branch with Git; the stack is now mixed.
+        let c = d.path().join(format!("carol-{v}"));
+        let carol_url = http_url(&s, &carol, "bob/demo");
+        git.ok(
+            d.path(),
+            &["clone", "-q", "-b", &topic, &carol_url, c.to_str().unwrap()],
+        );
+        git.ok(&c, &["config", "user.name", "Carol"]);
+        git.ok(&c, &["config", "user.email", "carol@example.org"]);
+        let edit = commit(&git, &c, &format!("carol-{v}.txt"));
+        git.ok(&c, &["push", "-q", &carol_url, &topic]);
+        eventually(&s, "no revision from Carol's edit", || {
+            mr(n)["head_oid"] == edit.as_str()
+        });
+        let st = stack(n);
+        assert_eq!(
+            st["entries"][0]["change_id"],
+            change.as_str(),
+            "{version}: {st}"
+        );
+        assert_eq!(
+            st["entries"].as_array().unwrap().len(),
+            2,
+            "{version}: {st}"
+        );
+
+        // Bob fetches Carol's commit with jj and merges like any MR.
+        jj.ok(&j, &["git", "fetch"]);
+        assert_eq!(jj.show(&j, &format!("{topic}@origin"), "commit_id"), edit);
+        let r = api(
+            &s,
+            &alice,
+            "POST",
+            &format!("/alice/demo/merge-requests/{n}/merge"),
+            Some(json!({"strategy": "rebase", "expected_head_oid": edit})),
+        );
+        assert_eq!(r.status, 200, "{version}: {}", r.body);
+        assert_eq!(mr(n)["state"], "merged", "{version}");
+    }
 }
