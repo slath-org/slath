@@ -29,6 +29,7 @@
     <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"
       {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>
   </div>
+{%- let max_visibility = 2 %}
 {% include "repo/visibility_field.html" %}
   <div class="field">
     <label for="default_branch">Default branch</label>

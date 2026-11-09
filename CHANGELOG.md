@@ -68,6 +68,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Drafts send no review requests; requested reviewers hear about a merge request once it's marked ready.
 - Fork repositories through the API: branches and tags are copied in the background with hardlinked packs, and the fork stays whole if its parent is deleted.
 - A fork can't be more visible than its parent was; pushes to a fork wait until its copy is done.
+- Fork from the repository header: choose the owner, name, and visibility, or copy only the default branch. Forks show where they came from, and each repository lists its forks.
 
 ### Changed
 

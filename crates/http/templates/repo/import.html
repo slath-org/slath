@@ -49,6 +49,7 @@
     <label for="description">Description <span class="text-secondary">(optional)</span></label>
     <input id="description" name="description" type="text" value="{{ description }}" maxlength="500">
   </div>
+{%- let max_visibility = 2 %}
 {% include "repo/visibility_field.html" %}
   <div><button type="submit" class="button button-primary">Import repository</button></div>
 </form>

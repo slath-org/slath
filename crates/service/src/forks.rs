@@ -62,6 +62,8 @@ pub struct ForkView {
     /// `queued`, `running`, `done`, or `failed`.
     pub state: String,
     pub error: Option<String>,
+    /// The most it may be seen by.
+    pub max_visibility: Visibility,
 }
 
 impl Services {
@@ -171,7 +173,32 @@ impl Services {
             parent_deleted,
             state: f.state,
             error: f.error,
+            max_visibility: f.max_visibility,
         }))
+    }
+
+    /// The direct forks of a repository that the subject can read (up to
+    /// 200), newest first.
+    pub async fn list_forks(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+    ) -> Result<Vec<slath_db::repos::Repo>> {
+        self.authorize(subject, a, Action::RepoRead)?;
+        let mut out = Vec::new();
+        for id in slath_db::forks::children(&self.pool, a.repo.id, 200).await? {
+            if let Ok(f) = self.repo_access_by_id(subject, id, Action::RepoRead).await {
+                out.push(f.repo);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The most a repository may be seen by: its cap if it's a fork.
+    pub async fn max_visibility(&self, a: &RepoAccess) -> Result<Visibility> {
+        Ok(slath_db::forks::get(&self.pool, a.repo.id)
+            .await?
+            .map_or(Visibility::Public, |f| f.max_visibility))
     }
 
     /// The `repo.fork` job.

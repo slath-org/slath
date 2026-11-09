@@ -3,8 +3,10 @@
   <p class="repo-title"><a href="/{{ header.namespace }}">{{ header.namespace }}</a> / <a href="/{{ header.namespace }}/{{ header.name }}"><strong>{{ header.name }}</strong></a>
   {%- if header.visibility == "private" %} <span class="badge">Private</span>{% else if header.visibility == "internal" %} <span class="badge">Internal</span>{% else %} <span class="badge">Public</span>{% endif %}
   {%- if header.archived %} <span class="badge">Archived</span>{% endif %}</p>
+  {%- if header.watch.is_some() || header.can_fork %}
+  <div class="repo-actions">
   {%- if let Some(w) = header.watch %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form repo-actions">
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     {%- if *w == "watching" %}
     <button type="submit" name="state" value="default" class="button" title="Stop getting notifications about every issue">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
@@ -13,7 +15,15 @@
     {%- endif %}
   </form>
   {%- endif %}
+  {%- if header.can_fork %}
+  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork" title="Copy this repository into a namespace of yours">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a>
+  {%- endif %}
   </div>
+  {%- endif %}
+  </div>
+  {%- if let Some(f) = header.fork %}
+  <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}</p>
+  {%- endif %}
   <nav class="tabs" aria-label="Repository">
     <ul>
       <li><a href="/{{ header.namespace }}/{{ header.name }}"{% if header.tab == "code" %} aria-current="page"{% endif %}>Code</a></li>
@@ -34,6 +44,13 @@
 </div>
 {%- if header.archived %}
 <div class="notice" role="note"><p>This repository is archived. It's read-only.</p></div>
+{%- endif %}
+{%- if let Some(f) = header.fork %}
+  {%- if f.state == "queued" || f.state == "running" %}
+<div class="notice" role="status"><p>This fork is being created: its branches and tags are being copied. Pushes wait until it's done. Reload the page to see when.</p></div>
+  {%- else if f.state == "failed" %}
+<div class="error-summary" role="alert"><p>Creating this fork failed. {% if let Some(e) = f.error %}{{ e }}{% endif %} Delete it and fork again.</p></div>
+  {%- endif %}
 {%- endif %}
 {%- if let Some(i) = header.import %}
   {%- if i.state == "queued" || i.state == "running" %}

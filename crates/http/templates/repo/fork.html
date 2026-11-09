@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Fork {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="narrow">
+<h1>Fork this repository</h1>
+<p>A fork is your own copy of the branches and tags, to change freely and offer back with a merge request.{% if forks > 0 %} <a href="/{{ header.namespace }}/{{ header.name }}/forks">{{ forks }} existing fork{% if forks != 1 %}s{% endif %}</a>.{% endif %}</p>
+{% include "settings/errors.html" %}
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/fork" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="namespace">Owner</label>
+    <select id="namespace" name="namespace"{% if self.error("namespace").is_some() %} aria-invalid="true"{% endif %}>
+    {%- for n in namespaces %}
+      <option value="{{ n }}"{% if n.as_str() == selected.as_str() %} selected{% endif %}>{{ n }}</option>
+    {%- endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
+      aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="name-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters.</p>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+{% include "repo/visibility_field.html" %}
+  <div class="field checkbox">
+    <input id="default_branch_only" name="default_branch_only" type="checkbox" value="1"{% if default_branch_only %} checked{% endif %}>
+    <label for="default_branch_only">Copy only <code><bdi>{{ default_branch }}</bdi></code>, the default branch</label>
+  </div>
+  <div><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Create fork</button></div>
+</form>
+</div>
+{% endblock %}

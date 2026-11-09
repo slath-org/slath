@@ -105,3 +105,23 @@ pub async fn set_state(
     .await?;
     Ok(())
 }
+
+/// The direct forks of a repository that aren't being deleted, newest
+/// first.
+pub async fn children(
+    exec: impl PgExecutor<'_>,
+    parent: RepoId,
+    limit: i64,
+) -> Result<Vec<RepoId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT id FROM repositories WHERE fork_parent_id = $1 AND state <> 'deleting'
+          ORDER BY created_at DESC, id DESC LIMIT $2",
+        parent.as_uuid(),
+        limit
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(RepoId::from_uuid)
+    .collect())
+}

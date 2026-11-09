@@ -432,6 +432,13 @@ fieldset.field {
   font-size: var(--text-lg);
   margin: 0;
 }
+.repo-fork-of {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
 .repo-title .badge {
   margin-inline-start: var(--space-3);
 }

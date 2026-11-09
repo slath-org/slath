@@ -103,6 +103,10 @@ pub struct RepoHeader {
     /// Branches the viewer pushed recently without a merge request (front
     /// page and branches).
     pub recent_pushes: Vec<String>,
+    /// What it's a fork of, and whether the copy is done.
+    pub fork: Option<slath_service::forks::ForkView>,
+    /// The viewer may fork it.
+    pub can_fork: bool,
 }
 
 /// An import as the front page shows it.
@@ -134,6 +138,8 @@ impl RepoHeader {
             watch: None,
             import: None,
             recent_pushes: Vec::new(),
+            fork: None,
+            can_fork: !matches!(subject, Subject::Anonymous) && a.can(subject, Action::RepoFork),
         }
     }
 
@@ -146,6 +152,10 @@ impl RepoHeader {
     ) -> Self {
         let mut header = Self::new(a, subject, tab);
         header.merge_requests = state.services.mrs_enabled(a).await;
+        match state.services.fork_status(subject, a).await {
+            Ok(f) => header.fork = f,
+            Err(e) => tracing::warn!(error = %e, "looking up the fork's parent failed"),
+        }
         if !matches!(subject, Subject::Anonymous) {
             use slath_service::notifications::Subscription;
             header.watch = Some(match state.services.repo_subscription(subject, a).await {
@@ -220,7 +230,7 @@ impl NewRepoPage {
     }
 }
 
-async fn creatable_namespaces(
+pub(super) async fn creatable_namespaces(
     state: &AppState,
     session: &slath_service::sessions::Session,
 ) -> Result<Vec<String>, AppError> {
@@ -402,6 +412,14 @@ struct GeneralSettings<'a> {
 }
 
 impl GeneralSettings<'_> {
+    /// The visibilities offered: a fork's cap, else all.
+    fn max_visibility(&self) -> u8 {
+        self.header
+            .fork
+            .as_ref()
+            .map_or(2, |f| super::forks::visibility_rank(f.max_visibility))
+    }
+
     fn error(&self, field: &str) -> Option<&str> {
         error_for(&self.errors, field)
     }

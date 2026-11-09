@@ -27,6 +27,7 @@
 <h2>Visibility</h2>
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/visibility" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+{%- let max_visibility = self.max_visibility() %}
 {% include "repo/visibility_field.html" %}
   <div><button type="submit" class="button">Change visibility</button></div>
 </form>

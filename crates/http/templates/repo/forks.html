@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Forks · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+<div class="page-heading">
+  <h1>Forks</h1>
+  {%- if header.can_fork %}
+  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a>
+  {%- endif %}
+</div>
+{%- if rows.is_empty() %}
+<p class="text-secondary empty-state">No forks you can see.</p>
+{%- else %}
+<ul class="repo-list">
+{%- for r in rows %}
+  <li>
+    <a href="/{{ r.full_name }}" class="repo-name"><bdi>{{ r.full_name }}</bdi></a>
+    {%- if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
+    <span class="text-secondary"> · forked <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></span>
+    {%- if let Some(d) = r.description %}
+    <p class="text-secondary">{{ d }}</p>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{% endblock %}
