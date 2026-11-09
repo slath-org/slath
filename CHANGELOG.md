@@ -74,6 +74,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Open merge requests from a fork through the API: the original receives only that branch's history, gets a revision per push, and merges it like any other.
 - A merge request from a less visible fork needs the author's confirmation that its commits become readable in the original; the timeline records it.
 - Pushes to a fork's merge request branch meet the original's push protection before the original takes them over; findings show on the merge request with allow links.
+- Writers of the original can push to an open fork merge request's branch unless its author turns edits by maintainers off; each such push is audited.
 
 ### Changed
 

@@ -3376,7 +3376,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Edits, closes or reopens, or marks a merge request draft or ready\n(author or triage).",
+        "summary": "Edits, closes or reopens, or marks a merge request draft or ready\n(author or triage); turns edits by maintainers on or off (whoever can\npush to a fork source).",
         "operationId": "update_mr",
         "parameters": [
           {
@@ -8945,6 +8945,13 @@
       "UpdateMergeRequest": {
         "type": "object",
         "properties": {
+          "allow_maintainer_edits": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Fork merge requests: let writers of this repository push to the\nsource branch. Only someone who can push to the source may change it."
+          },
           "description": {
             "type": [
               "string",

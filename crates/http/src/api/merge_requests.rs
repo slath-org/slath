@@ -310,10 +310,14 @@ pub struct UpdateMergeRequest {
     /// `open` or `closed`.
     pub state: Option<String>,
     pub draft: Option<bool>,
+    /// Fork merge requests: let writers of this repository push to the
+    /// source branch. Only someone who can push to the source may change it.
+    pub allow_maintainer_edits: Option<bool>,
 }
 
 /// Edits, closes or reopens, or marks a merge request draft or ready
-/// (author or triage).
+/// (author or triage); turns edits by maintainers on or off (whoever can
+/// push to a fork source).
 #[utoipa::path(patch, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = UpdateMergeRequest,
     responses((status = 200, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn update_mr(
@@ -335,6 +339,12 @@ pub async fn update_mr(
         state
             .services
             .set_mr_draft(&s, &ns, &repo, number, d)
+            .await?;
+    }
+    if let Some(allow) = b.allow_maintainer_edits {
+        state
+            .services
+            .set_maintainer_edits(&s, &ns, &repo, number, allow)
             .await?;
     }
     if let Some(st) = b.state.as_deref() {

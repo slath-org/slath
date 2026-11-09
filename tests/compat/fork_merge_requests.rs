@@ -385,3 +385,140 @@ fn conf_review_06_fork_content_meets_the_targets_push_protection() {
     });
     assert!(has_object(&git, &parent, &secret));
 }
+
+#[test]
+fn conf_review_06_maintainer_edits() {
+    let s = TestServer::start();
+    for u in ["bob", "carol", "dave"] {
+        s.create_user(u, PASSWORD, false);
+    }
+    let alice = token(&s, "alice");
+    let (bob, carol, dave) = (token(&s, "bob"), token(&s, "carol"), token(&s, "dave"));
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("alice");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    for (method, path, body) in [
+        ("PATCH", "/alice/demo", json!({"visibility": "public"})),
+        (
+            "PUT",
+            "/alice/demo/collaborators/carol",
+            json!({"role": "write"}),
+        ),
+    ] {
+        let r = api(&s, &alice, method, path, Some(body));
+        assert!(r.status < 300, "{}", r.body);
+    }
+    fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+    let b = d.path().join("bob");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(&s, &bob, "bob/demo"), "bob"],
+    );
+    git.ok(&b, &["config", "user.name", "Bob"]);
+    git.ok(&b, &["config", "user.email", "bob@example.org"]);
+    git.ok(&b, &["switch", "-q", "-c", "topic"]);
+    commit(&git, &b, "a.txt");
+    git.ok(&b, &["push", "-q", "origin", "topic", "main:other"]);
+    let r = api(
+        &s,
+        &bob,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_repo": "bob/demo", "source_branch": "topic", "title": "Add a"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let path = format!("/alice/demo/merge-requests/{n}");
+
+    // Carol writes to the target: she can update the MR's branch in the fork.
+    let c = d.path().join("carol");
+    git.ok(
+        d.path(),
+        &[
+            "clone",
+            "-q",
+            "-b",
+            "topic",
+            &http_url(&s, &carol, "bob/demo"),
+            "carol",
+        ],
+    );
+    git.ok(&c, &["config", "user.name", "Carol"]);
+    git.ok(&c, &["config", "user.email", "carol@example.org"]);
+    let fork_url = http_url(&s, &carol, "bob/demo");
+    let edit = commit(&git, &c, "carol.txt");
+    git.ok(&c, &["push", "-q", &fork_url, "topic"]);
+    eventually(&s, "no revision from the maintainer edit", || {
+        api(&s, &bob, "GET", &path, None).json()["head_oid"] == edit.as_str()
+    });
+    assert_eq!(
+        s.db.query_one(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'push.maintainer_edit'"
+        ),
+        "1"
+    );
+    // Only that branch, and no deletion or tags.
+    let err = git.fails(&c, &["push", &fork_url, "topic:other"]);
+    assert!(err.contains("edits by maintainers"), "{err}");
+    git.fails(&c, &["push", &fork_url, "topic:refs/heads/new"]);
+    git.fails(&c, &["push", &fork_url, ":topic"]);
+    git.ok(&c, &["tag", "t1"]);
+    git.fails(&c, &["push", &fork_url, "t1"]);
+
+    // Nobody else: not a stranger, and the fork's owner gains nothing on
+    // the target.
+    git.ok(&c, &["switch", "-q", "-c", "dave"]);
+    commit(&git, &c, "dave.txt");
+    git.fails(
+        &c,
+        &["push", &http_url(&s, &dave, "bob/demo"), "HEAD:topic"],
+    );
+    git.fails(
+        &b,
+        &["push", &http_url(&s, &bob, "alice/demo"), "topic:main"],
+    );
+
+    // Alice can't change the setting (she can't push to the fork); Bob can.
+    let toggle = |t: &str, allow: bool| {
+        api(
+            &s,
+            t,
+            "PATCH",
+            &path,
+            Some(json!({"allow_maintainer_edits": allow})),
+        )
+    };
+    assert_eq!(toggle(&alice, false).status, 403);
+    let r = toggle(&bob, false);
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["allow_maintainer_edits"], false);
+    git.ok(&c, &["switch", "-q", "topic"]);
+    commit(&git, &c, "carol2.txt");
+    git.fails(&c, &["push", &fork_url, "topic"]);
+    assert_eq!(toggle(&bob, true).status, 200);
+    git.ok(&c, &["push", "-q", &fork_url, "topic"]);
+    // Closing the MR ends it.
+    let r = api(&s, &bob, "PATCH", &path, Some(json!({"state": "closed"})));
+    assert_eq!(r.status, 200, "{}", r.body);
+    commit(&git, &c, "carol3.txt");
+    git.fails(&c, &["push", &fork_url, "topic"]);
+
+    // A "reverse" MR (from the parent into the fork) gives the fork's
+    // writers nothing upstream.
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/bob/demo/merge-requests",
+        Some(json!({"source_repo": "alice/demo", "source_branch": "main",
+                    "target_branch": "other", "title": "Reverse"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    git.ok(&b, &["switch", "-q", "main"]);
+    commit(&git, &b, "bob-upstream.txt");
+    git.fails(&b, &["push", &http_url(&s, &bob, "alice/demo"), "main"]);
+}

@@ -22,6 +22,7 @@ pub mod issues;
 pub mod jobs;
 pub mod keys;
 pub mod labels;
+pub mod maintainer_edits;
 pub mod maintenance;
 pub mod merge;
 pub mod merge_requests;

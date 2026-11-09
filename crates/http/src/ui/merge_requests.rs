@@ -718,6 +718,14 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             "deleted the source branch, which closed this".to_owned(),
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
+        "maintainer_edits_allowed" => (
+            "pencil",
+            "allowed edits by maintainers of this repository".to_owned(),
+        ),
+        "maintainer_edits_disallowed" => (
+            "pencil",
+            "stopped allowing edits by maintainers of this repository".to_owned(),
+        ),
         "source_published" => (
             "eye",
             format!(

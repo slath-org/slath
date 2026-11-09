@@ -661,3 +661,56 @@ pub async fn held_back(
     .map(MergeRequestId::from_uuid)
     .collect())
 }
+
+/// An open merge request from a repository into another one that allows
+/// edits by maintainers.
+#[derive(Debug, Clone)]
+pub struct EditableSource {
+    pub id: MergeRequestId,
+    pub target: RepoId,
+    pub source_ref: Vec<u8>,
+    pub author: Option<slath_core::ids::UserId>,
+}
+
+/// Open merge requests from `source` into other repositories that allow
+/// edits by maintainers.
+pub async fn maintainer_editable(
+    exec: impl PgExecutor<'_>,
+    source: RepoId,
+) -> Result<Vec<EditableSource>, DbError> {
+    let rows = sqlx::query!(
+        "SELECT id, repo_id, source_ref, author_id FROM merge_requests
+          WHERE source_repo_id = $1 AND repo_id <> $1 AND state = 'open'
+            AND allow_maintainer_edits ORDER BY number",
+        source.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| EditableSource {
+            id: MergeRequestId::from_uuid(r.id),
+            target: RepoId::from_uuid(r.repo_id),
+            source_ref: r.source_ref,
+            author: r.author_id.map(slath_core::ids::UserId::from_uuid),
+        })
+        .collect())
+}
+
+/// Sets whether a merge request allows edits by maintainers.
+pub async fn set_allow_maintainer_edits(
+    exec: impl PgExecutor<'_>,
+    id: MergeRequestId,
+    allow: bool,
+) -> Result<bool, DbError> {
+    Ok(sqlx::query!(
+        "UPDATE merge_requests SET allow_maintainer_edits = $2, updated_at = now()
+          WHERE id = $1 AND allow_maintainer_edits <> $2",
+        id.as_uuid(),
+        allow
+    )
+    .execute(exec)
+    .await?
+    .rows_affected()
+        > 0)
+}

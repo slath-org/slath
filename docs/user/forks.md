@@ -96,3 +96,18 @@ the merge request takes it over, even if your fork has push protection
 off. If it finds a possible secret, the merge request stays at its
 previous revision and shows what was found. Remove the secret and push
 again, or ask a writer of the original to allow it if it isn't one.
+
+### Edits by maintainers
+
+A merge request from a fork allows edits by maintainers unless you turn
+it off (`"allow_maintainer_edits": false` when you open it, or later with
+`PATCH` on the merge request). While it's open, anyone who can write to
+the original can then push to your merge request's branch in your fork,
+for example to fix a typo before merging. They can only update that one
+branch: they can't delete it, push other branches or tags, or change
+anything once the merge request is closed or merged. Only someone who
+can push to your fork can change the setting, and each such push is
+recorded in the original's audit log.
+
+The right only goes from the original to forks of it: a merge request
+from the original into your fork gives you no access to the original.

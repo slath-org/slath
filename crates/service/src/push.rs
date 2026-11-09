@@ -144,8 +144,11 @@ impl Services {
     }
 
     /// Authorizes a Git transport request: reading needs `repo.read`,
-    /// pushing `repo.push`. Renamed repositories are followed for subjects
-    /// who can read them. Everything else is "not found".
+    /// pushing `repo.push`, or on a fork, the right to edit a merge
+    /// request's branch as a maintainer of its target (pre-receive then
+    /// limits the push to such branches). Renamed repositories are
+    /// followed for subjects who can read them. Everything else is "not
+    /// found".
     pub async fn transport_access(
         &self,
         subject: &Subject,
@@ -162,7 +165,23 @@ impl Services {
             Resolved::Moved { namespace, name } => (namespace, name),
             Resolved::Repo(a) => (a.repo.namespace, a.repo.name),
         };
-        self.repo_access(subject, &ns, &name, action).await
+        match self.repo_access(subject, &ns, &name, action).await {
+            Err(e @ ServiceError::Forbidden) if write => {
+                let a = self
+                    .repo_access(subject, &ns, &name, Action::RepoRead)
+                    .await?;
+                if self
+                    .maintainer_edit_grants(subject, a.repo.id)
+                    .await?
+                    .is_empty()
+                {
+                    Err(e)
+                } else {
+                    Ok(a)
+                }
+            }
+            r => r,
+        }
     }
 
     /// The pre-receive policy, for all updates of one push (all or nothing):
@@ -219,6 +238,23 @@ impl Services {
             None => Vec::new(),
         };
         let role = access.as_ref().and_then(|a| a.ctx.role);
+        // Without push permission, only edits by maintainers (rule 3a).
+        let edit_grants = match &access {
+            Some(a) if !can(Action::RepoPush) => {
+                match self.maintainer_edit_grants(&grant.subject, a.repo.id).await {
+                    Ok(g) => g,
+                    Err(e) => {
+                        tracing::error!(error = %e, "pre-receive: checking maintainer edits failed");
+                        v.denied.push(DenyReason::NoPermission);
+                        v.messages
+                            .push("slath: push rejected: internal error, try again".to_owned());
+                        return v;
+                    }
+                }
+            }
+            _ => Vec::new(),
+        };
+        let mut edits: Vec<serde_json::Value> = Vec::new();
         let mut bypassed: Vec<String> = Vec::new();
         for u in updates {
             let shown = String::from_utf8_lossy(&u.name).into_owned();
@@ -261,11 +297,29 @@ impl Services {
                 continue;
             }
             if !can(Action::RepoPush) {
-                deny(
-                    DenyReason::NoPermission,
-                    "you don't have permission to push to this repository",
-                );
-                continue;
+                let allowed = (!is_tag && !is_zero(&u.new))
+                    .then(|| edit_grants.iter().find(|(r, _)| r.as_slice() == bytes))
+                    .flatten();
+                match allowed {
+                    Some((_, mr)) => edits.push(serde_json::json!({
+                        "ref": shown,
+                        "merge_request": mr.to_string(),
+                    })),
+                    None if edit_grants.is_empty() => {
+                        deny(
+                            DenyReason::NoPermission,
+                            "you don't have permission to push to this repository",
+                        );
+                        continue;
+                    }
+                    None => {
+                        deny(
+                            DenyReason::NoPermission,
+                            "as a maintainer of the target, you can only update the branch of an open merge request that allows edits by maintainers (no deletion, no other refs)",
+                        );
+                        continue;
+                    }
+                }
             }
             if is_tag && !is_zero(&u.old) && !can(Action::TagMoveOrDelete) {
                 deny(
@@ -354,6 +408,15 @@ impl Services {
                 "protection.bypass",
                 crate::audit::Target::repo(*grant.repo_id.as_uuid()),
                 serde_json::json!({"refs": bypassed}),
+            )
+            .await;
+        }
+        if v.denied.is_empty() && !edits.is_empty() {
+            self.audit(
+                &grant.subject,
+                "push.maintainer_edit",
+                crate::audit::Target::repo(*grant.repo_id.as_uuid()),
+                serde_json::json!({"refs": edits}),
             )
             .await;
         }
