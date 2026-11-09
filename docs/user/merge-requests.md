@@ -183,6 +183,12 @@ are unchanged (marked "from revision N"). If they changed, the thread is
 **outdated**: it stays in the conversation and on the revision it was made
 on, but never sits on a line it wasn't written about.
 
+In the conversation, each thread shows the code it's about, its replies,
+and whether it's outdated or resolved. **Reply** sends an answer right
+away; **Add to my review** keeps it pending. **All**, **Unresolved**, and
+**Mine** above the timeline narrow the conversation to open threads or to
+what you wrote.
+
 The API has `GET …/merge-requests/{n}/threads` (with each thread's current
 position), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
 `pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`

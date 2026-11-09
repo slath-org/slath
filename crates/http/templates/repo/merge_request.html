@@ -25,7 +25,16 @@
 {%- endif %}
 <div class="issue-layout">
 <div class="issue-main">
-<p class="timeline-jump"><a href="#timeline-end">Jump to newest</a></p>
+<div class="timeline-tools">
+  <nav class="segmented" aria-label="Show in the conversation">
+    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}"{% if show == "all" %} aria-current="page"{% endif %}>All</a>
+    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=unresolved"{% if show == "unresolved" %} aria-current="page"{% endif %}>Unresolved <span class="count">{{ unresolved }}</span></a>
+    {%- if ctx.user.is_some() %}
+    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=mine"{% if show == "mine" %} aria-current="page"{% endif %}>Mine</a>
+    {%- endif %}
+  </nav>
+  <a href="#timeline-end">Jump to newest</a>
+</div>
 <ol class="timeline">
   <li class="timeline-comment">
     <article aria-label="Description">
@@ -38,6 +47,58 @@
   <li class="since-marker" id="since"><span>New since your review</span></li>
   {%- endif %}
   {%- match item %}
+  {%- when TimelineView::Thread with (t) %}
+  <li class="timeline-comment timeline-thread{% if t.resolved %} thread-resolved{% endif %}" id="thread-{{ t.id }}">
+    <article aria-label="Thread{% if let Some(l) = t.location %} on {{ l }}{% endif %}">
+      <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}{% if let Some(l) = t.location %}<code>{{ l }}</code>{% else %}On the merge request{% endif %}
+        <span class="text-secondary">revision {{ t.revision }}</span>
+        {%- if t.outdated %} <span class="badge">Outdated</span>{% endif %}
+        {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
+        {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% endif %}
+      </header>
+      {%- if !t.snippet.is_empty() %}
+      <div class="code-wrap" tabindex="0" role="region" aria-label="Code{% if let Some(l) = t.location %} at {{ l }}{% endif %}">
+      <table class="code-view diff-table thread-snippet">
+        <tbody>
+        {%- for line in t.snippet %}
+          <tr{% if line.anchored %} class="snippet-anchor"{% endif %}><td class="line-no">{{ line.no }}</td><td><code>{{ line.text }}</code></td></tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+      </div>
+      {%- endif %}
+      <ol class="thread-comments">
+      {%- for c in t.comments %}
+        <li>
+          <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
+          <div class="markdown" hx-ignore>{{ c.html }}</div>
+        </li>
+      {%- endfor %}
+      </ol>
+      {%- if h.perms.comment && !t.resolved %}
+      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/comments" class="form thread-reply" novalidate>
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
+        <div class="field">
+          <label for="reply-{{ t.id }}">Reply</label>
+          <textarea id="reply-{{ t.id }}" name="body" rows="2" autocomplete="off"></textarea>
+        </div>
+        <div class="button-row">
+          <button type="submit" class="button">Reply</button>
+          <button type="submit" name="mode" value="pending" class="button button-quiet">Add to my review</button>
+        </div>
+      </form>
+      {%- endif %}
+      {%- if t.can_resolve %}
+      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/resolve" class="inline-form thread-resolve">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
+        <input type="hidden" name="resolved" value="{% if t.resolved %}false{% else %}true{% endif %}">
+        <button type="submit" class="button button-quiet">{% if t.resolved %}Reopen thread{% else %}Resolve thread{% endif %}</button>
+      </form>
+      {%- endif %}
+    </article>
+  </li>
   {%- when TimelineView::Comment with (c) %}
   <li class="timeline-comment" id="comment-{{ c.id }}">
     <article aria-label="Comment by {{ c.author_text }}">
@@ -141,6 +202,9 @@
 {%- if can_review %}
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviews" class="form form-wide review-form" id="review-form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- if pending > 0 %}
+  <p class="notice">You have {{ pending }} pending comment{% if pending != 1 %}s{% endif %}; submitting the review sends {% if pending == 1 %}it{% else %}them{% endif %} along.</p>
+  {%- endif %}
   <fieldset class="field">
     <legend>Review revision {{ h.mr.revisions }}</legend>
     <div class="radio"><input id="verdict-comment" type="radio" name="verdict" value="comment" checked><label for="verdict-comment">Comment</label></div>

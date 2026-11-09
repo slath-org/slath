@@ -597,7 +597,41 @@ struct ReviewItem {
     stale: bool,
 }
 
+/// One line of a thread's code snippet: number, text, part of the anchor.
+struct SnippetLine {
+    no: String,
+    text: String,
+    anchored: bool,
+}
+
+struct ThreadCommentView {
+    author: String,
+    bot: bool,
+    html: MarkupHtml,
+    pending: bool,
+    created: Time,
+}
+
+/// A review thread in the conversation.
+struct ThreadItem {
+    id: String,
+    /// "g.txt, line 5"; `None` for a thread on the whole merge request.
+    location: Option<String>,
+    outdated: bool,
+    /// Carried from this earlier revision.
+    from: Option<i32>,
+    revision: i32,
+    snippet: Vec<SnippetLine>,
+    resolved: bool,
+    resolved_by: Option<String>,
+    comments: Vec<ThreadCommentView>,
+    can_resolve: bool,
+    /// The viewer started it or wrote in it.
+    mine: bool,
+}
+
 enum TimelineView {
+    Thread(ThreadItem),
     Comment(CommentView),
     Event(EventView),
     Revision(RevisionView),
@@ -1019,6 +1053,11 @@ struct MrPage {
     jj_checkout: String,
     /// Where the "New since your review" divider goes in the timeline.
     since_at: Option<usize>,
+    /// `all`, `unresolved`, or `mine` (Weave: SegmentedFilter).
+    show: &'static str,
+    unresolved: usize,
+    /// The viewer's comments waiting for their review.
+    pending: usize,
     /// The viewer may review, and approve (not the author).
     can_review: bool,
     can_approve: bool,
@@ -1084,13 +1123,122 @@ fn sh(word: &str) -> String {
     }
 }
 
+fn snippet(anchor: &slath_db::mr_threads::Anchor) -> Vec<SnippetLine> {
+    let get = |k: &str| -> Vec<String> {
+        anchor
+            .context
+            .get(k)
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let (before, lines, after) = (get("before"), get("lines"), get("after"));
+    let start = i64::from(anchor.line_start.unwrap_or(1));
+    let first = start - i64::try_from(before.len()).unwrap_or(0);
+    before
+        .into_iter()
+        .map(|t| (t, false))
+        .chain(lines.into_iter().map(|t| (t, true)))
+        .chain(after.into_iter().map(|t| (t, false)))
+        .enumerate()
+        .map(|(i, (text, anchored))| SnippetLine {
+            no: (first + i64::try_from(i).unwrap_or(0)).to_string(),
+            text: slath_markup::reveal_bidi(&text).into_owned(),
+            anchored,
+        })
+        .collect()
+}
+
+async fn thread_item(
+    state: &AppState,
+    subject: &Subject,
+    a: &RepoAccess,
+    m: &MergeRequest,
+    rc: &RefContext,
+    t: slath_service::mr_threads::ThreadView,
+) -> Result<ThreadItem, AppError> {
+    use slath_service::mr_threads::Position;
+    let me = match subject {
+        Subject::User { id, .. } => Some(*id),
+        _ => None,
+    };
+    let anchor = &t.thread.anchor;
+    let location = anchor.path.as_ref().map(|p| {
+        let side = if anchor.side.as_deref() == Some("old") {
+            " (removed)"
+        } else {
+            ""
+        };
+        match (anchor.line_start, anchor.line_end) {
+            (Some(s), Some(e)) if e > s => format!("{p}, lines {s}–{e}{side}"),
+            (Some(s), _) => format!("{p}, line {s}{side}"),
+            _ => p.clone(),
+        }
+    });
+    let mut comments = Vec::new();
+    for c in &t.comments {
+        let html = state
+            .services
+            .render_markdown(subject, Some(rc), &c.body)
+            .await?;
+        comments.push(ThreadCommentView {
+            author: c
+                .author
+                .clone()
+                .unwrap_or_else(|| "A deleted user".to_owned()),
+            bot: c.author_bot,
+            html: MarkupHtml::from_markup(html),
+            pending: c.pending,
+            created: c.created_at.into(),
+        });
+    }
+    let mine =
+        me.is_some() && (t.thread.author_id == me || t.comments.iter().any(|c| c.author_id == me));
+    let can_resolve = me.is_some()
+        && a.can(subject, Action::MrComment)
+        && (m.author_id == me || t.thread.author_id == me || a.can(subject, Action::RepoPush));
+    Ok(ThreadItem {
+        id: t.thread.id.to_string(),
+        outdated: t.position == Position::Outdated,
+        from: match &t.position {
+            Position::Current { from, .. } => *from,
+            _ => None,
+        },
+        revision: t.thread.revision_seq,
+        snippet: snippet(anchor),
+        location,
+        resolved: t.thread.resolved_at.is_some(),
+        resolved_by: t.thread.resolved_by.clone(),
+        comments,
+        can_resolve,
+        mine,
+    })
+}
+
 async fn mr_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    mr: (&str, &str, i32),
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
+    mr_page_showing(state, ctx, subject, mr, message, errors, "all").await
+}
+
+/// The conversation, narrowed by `show` (`all`, `unresolved`, `mine`).
+async fn mr_page_showing(
     state: &AppState,
     ctx: PageCtx,
     subject: &Subject,
     (ns, repo, number): (&str, &str, i32),
     message: Option<&'static str>,
     errors: Vec<FieldError>,
+    show: &'static str,
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(subject, ns, repo, number).await?;
     let rc = RefContext {
@@ -1139,6 +1287,11 @@ async fn mr_page(
                 html: MarkupHtml::from_markup(html),
             })),
             MrTimelineItem::Comment(TimelineItem::Event(..)) => {}
+            MrTimelineItem::Thread(t) => {
+                timeline.push(TimelineView::Thread(
+                    thread_item(state, subject, &a, &m, &rc, t).await?,
+                ));
+            }
             MrTimelineItem::Review(v) => {
                 let body_html = state
                     .services
@@ -1198,6 +1351,22 @@ async fn mr_page(
             })),
         }
     }
+    let unresolved = timeline
+        .iter()
+        .filter(|t| matches!(t, TimelineView::Thread(x) if !x.resolved))
+        .count();
+    let my_name = ctx.user.as_ref().map(|u| u.name.clone());
+    if show != "all" {
+        since_at = None;
+        timeline.retain(|t| match (show, t) {
+            ("unresolved", TimelineView::Thread(x)) => !x.resolved,
+            ("mine", TimelineView::Thread(x)) => x.mine,
+            ("mine", TimelineView::Comment(c)) => Some(&c.author_text) == my_name.as_ref(),
+            ("mine", TimelineView::Review(r)) => Some(&r.reviewer) == my_name.as_ref(),
+            _ => false,
+        });
+    }
+    let pending = state.services.pending_comments(subject, &m).await?;
     let timeline = fold_events(timeline, &mut since_at);
     let (assignees, requested, labels, milestone) = state.services.mr_details(&m).await?;
     // Each reviewer's state: their current verdict, else the request.
@@ -1291,6 +1460,9 @@ async fn mr_page(
         body_html: MarkupHtml::from_markup(body_html),
         timeline,
         since_at,
+        show,
+        unresolved,
+        pending,
         can_review,
         can_approve,
         since_review,
@@ -1312,6 +1484,8 @@ async fn mr_page(
 #[derive(Deserialize, Default)]
 struct StatusQuery {
     status: Option<String>,
+    /// `unresolved` or `mine` narrow the conversation.
+    show: Option<String>,
 }
 
 async fn view(
@@ -1328,13 +1502,19 @@ async fn view(
         Some("merged") => Some("Merged."),
         _ => None,
     };
-    mr_page(
+    let show = match q.show.as_deref() {
+        Some("unresolved") => "unresolved",
+        Some("mine") => "mine",
+        _ => "all",
+    };
+    mr_page_showing(
         &state,
         ctx,
         &session.subject(),
         (&ns, &repo, number(&n)?),
         message,
         Vec::new(),
+        show,
     )
     .await
 }
@@ -2201,6 +2381,83 @@ async fn review_requests(
     Ok(render(&ReviewRequestsPage { ctx, rows }))
 }
 
+#[derive(Deserialize)]
+struct ReplyForm {
+    #[serde(default)]
+    body: String,
+    /// `pending` adds it to the review instead of sending it now.
+    #[serde(default)]
+    mode: String,
+    /// Where to go afterwards (a page of this merge request).
+    #[serde(default)]
+    back: String,
+}
+
+/// `back` if it's a page of this merge request, else its conversation.
+fn back_to(ns: &str, repo: &str, n: i32, back: &str, anchor: &str) -> String {
+    let base = mr_url(ns, repo, n, "");
+    let target = if back.starts_with(&base) && !back.contains("//") && !back.contains('#') {
+        back.to_owned()
+    } else {
+        base
+    };
+    format!("{target}{anchor}")
+}
+
+async fn thread_reply(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n, id)): Path<(String, String, String, String)>,
+    Form(f): Form<ReplyForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let id = comment_id(&id)?;
+    match state
+        .services
+        .reply(
+            &s.subject,
+            (&ns, &repo, n),
+            id,
+            &f.body,
+            f.mode == "pending",
+        )
+        .await
+    {
+        Ok(_) => Ok(
+            Redirect::to(&back_to(&ns, &repo, n, &f.back, &format!("#thread-{id}")))
+                .into_response(),
+        ),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
+struct ResolveForm {
+    #[serde(default)]
+    resolved: String,
+    #[serde(default)]
+    back: String,
+}
+
+async fn thread_resolve(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n, id)): Path<(String, String, String, String)>,
+    Form(f): Form<ResolveForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let id = comment_id(&id)?;
+    state
+        .services
+        .set_thread_resolved(&s.subject, (&ns, &repo, n), id, f.resolved == "true")
+        .await?;
+    Ok(Redirect::to(&back_to(&ns, &repo, n, &f.back, &format!("#thread-{id}"))).into_response())
+}
+
 fn comment_id(s: &str) -> Result<uuid::Uuid, AppError> {
     s.parse().map_err(|_| AppError::not_found())
 }
@@ -2376,6 +2633,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/reviews",
             Access::Resource,
             post(review),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/threads/{id}/comments",
+            Access::Resource,
+            post(thread_reply),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/threads/{id}/resolve",
+            Access::Resource,
+            post(thread_resolve),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/merge",

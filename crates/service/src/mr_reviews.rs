@@ -125,6 +125,7 @@ pub fn item_time(
         }
         I::Revision { revision, .. } => Some((revision.created_at, revision.pushed_by.clone())),
         I::Review(v) => Some((v.review.created_at, v.review.reviewer.clone())),
+        I::Thread(t) => Some((t.thread.created_at, t.thread.author.clone())),
     }
 }
 

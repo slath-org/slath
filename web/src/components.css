@@ -1201,6 +1201,56 @@ fieldset.field {
   gap: var(--space-1);
   font-size: var(--text-sm);
 }
+.timeline-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.segmented {
+  display: inline-flex;
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.segmented a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  padding: 0 var(--space-3);
+  color: var(--text);
+  text-decoration: none;
+}
+.segmented a + a {
+  border-inline-start: var(--border-width) solid var(--control-border);
+}
+.segmented a[aria-current="page"] {
+  background: var(--surface-subtle);
+  font-weight: var(--weight-semibold);
+}
+.thread-snippet .snippet-anchor {
+  background: var(--selection);
+}
+.thread-comments {
+  list-style: none;
+  padding: 0 var(--space-3);
+  margin: var(--space-2) 0;
+}
+.thread-comments > li + li {
+  border-block-start: var(--border-width) solid var(--border);
+}
+.thread-comment-head {
+  margin: var(--space-2) 0 0;
+}
+.timeline-thread .markdown {
+  padding: var(--space-1) 0;
+}
+.thread-reply,
+.thread-resolve {
+  padding: 0 var(--space-3) var(--space-3);
+}
 .evidence-chip {
   display: inline-block;
   padding: 0 var(--space-2);

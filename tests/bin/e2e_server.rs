@@ -93,6 +93,14 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         );
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
+    // A thread on the second revision's line 1 of review.md.
+    let r = api.api(
+        "POST",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}/threads"),
+        Some(&token),
+        Some(&serde_json::json!({"body": "Is this the final wording?", "path": "review.md", "line_start": 1})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();

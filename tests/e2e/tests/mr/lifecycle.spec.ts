@@ -163,3 +163,24 @@ test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Review requests");
   await expectAccessible(page);
 });
+
+test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  const thread = page.getByRole("article", { name: "Thread on review.md, line 1" });
+  await expect(thread).toContainText("Is this the final wording?");
+  await expect(thread.getByRole("region", { name: "Code at review.md, line 1" })).toContainText("Second draft.");
+  await expectAccessible(page);
+  // The filter narrows the conversation to unresolved threads.
+  await tapOrClick(page, page.getByRole("navigation", { name: "Show in the conversation" }).getByRole("link", { name: /Unresolved/ }));
+  await expect(page).toHaveURL(/show=unresolved/);
+  await expect(page.getByRole("article", { name: "Thread on review.md, line 1" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Description" })).toBeVisible();
+  await expectAccessible(page);
+  // A reply lands in the thread.
+  const text = `Reply from ${testInfo.project.name}`;
+  await page.getByLabel("Reply").first().fill(text);
+  await tapOrClick(page, page.getByRole("button", { name: "Reply", exact: true }).first());
+  await expect(page.getByRole("article", { name: "Thread on review.md, line 1" })).toContainText(text);
+});
