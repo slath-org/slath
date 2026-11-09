@@ -14,6 +14,8 @@
 #   e2e-hover     browser tests never hover (no hover-only affordances)
 #   commit-scan   server code that writes Git objects also runs push
 #                 protection's scanner (`scan_rules`)
+#   secret-literal no complete token-shaped strings or private keys in the
+#                 tree (code hosts reject such pushes; split test samples)
 #
 # Usage: scripts/guards.sh [ROOT]   (ROOT defaults to the repository root)
 # Exceptions: scripts/guards-allowlist.txt, one `<guard> <path>  # reason` per line.
@@ -151,6 +153,12 @@ while IFS= read -r f; do
         fail commit-scan "$f writes Git objects without push protection's scanner (scan_rules)"
     fi
 done < <(server_sources)
+
+# --- secret-literal ------------------------------------------------------------
+# Rules and the allowlist check live in check_secrets.py.
+if ! python3 "$GUARD_DIR/check_secrets.py" "$ROOT"; then
+    fail secret-literal "token-shaped strings or private keys in the tree (see above)"
+fi
 
 # --- e2e-hover -----------------------------------------------------------------
 while IFS= read -r f; do

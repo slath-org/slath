@@ -54,6 +54,12 @@ expect() {
 }
 
 expect clean pass "" ":"
+expect secret-literal-token fail secret-literal \
+    "printf 'const T: &str = \"%s%s\";\\n' ghp _Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2 > web/src/t.txt"
+expect secret-literal-key fail secret-literal \
+    "printf -- '-----BEGIN OPENSSH PRIVATE%sKEY-----\\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAE\\n' ' ' > web/src/k.txt"
+expect secret-literal-split-and-placeholders pass "" \
+    "printf 'joined(&[\"ghp\", \"_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2\"]) ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx AKIAIOSFODNN7EXAMPLE\\n' > web/src/ok.txt"
 expect commit-writer-without-scan fail commit-scan \
     "printf '%s\\nfn f() { run([\"commit-tree\"]); }\\n' \"\$HDR\" > crates/http/src/edit.rs"
 expect commit-writer-with-scan pass "" \

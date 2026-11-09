@@ -361,6 +361,14 @@ pub fn is_binary(data: &[u8]) -> bool {
     data[..data.len().min(8000)].contains(&0)
 }
 
+/// Joins the parts of a test sample. Token-shaped samples are kept split in
+/// the source so that no complete one appears in the repository, where the
+/// secret scanners of code hosts would flag it.
+#[must_use]
+pub fn joined(parts: &[&str]) -> String {
+    parts.concat()
+}
+
 /// One positive sample per built-in rule, for tests: none of them is a
 /// real credential.
 #[must_use]
@@ -370,20 +378,68 @@ pub fn samples() -> Vec<(&'static str, String)> {
         "q7Rt2LmX9vKp4Zs8Hd1Nw6Bc3Fy5Jg0Ta2Qe7Ui9Ok4",
     )
     .unwrap_or_default();
+    let key = "OPENSSH PRIVATE KEY";
     vec![
         ("slath-token", format!("SLATH_TOKEN={slath}\n")),
-        ("private-key", "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n-----END OPENSSH PRIVATE KEY-----\n".into()),
-        ("github-token", "token: ghp_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2\n".into()),
-        ("github-fine-grained-token", "github_pat_11ABCDEFG0aZq3Rt7Lm2Xv_9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2Qe7Ui9Ok4Pl6Mn1Bv8Cx3Zd5Fs7Gh2Jk4L\n".into()),
-        ("gitlab-token", "GITLAB=glpat-Zq3Rt7Lm2Xv9Kp4Ws8Hd\n".into()),
-        ("aws-access-key-id", "aws_access_key_id = AKIA2ZQ3RT7LM2XV6KP4\n".into()),
-        ("slack-token", "SLACK=xoxb-12345678901-Zq3Rt7Lm2Xv9Kp4Ws8\n".into()),
-        ("stripe-secret-key", "stripe: sk_live_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6C\n".into()),
-        ("google-api-key", "key=AIzaSyZq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0\n".into()),
-        ("npm-token", "//registry.npmjs.org/:_authToken=npm_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2\n".into()),
-        ("pypi-token", "password = pypi-AgEIcHlwaS5vcmcZq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2Qe7Ui9Ok4Pl6Mn1\n".into()),
-        ("url-credentials", "remote = https://deploy:Zq3Rt7Lm2Xv9@git.internal.example.net/app.git\n".into()),
-        ("generic-assignment", "db_password = \"Zq3Rt7Lm2Xv9Kp4W\"\n".into()),
+        (
+            "private-key",
+            format!(
+                "-----BEGIN {key}-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n-----END {key}-----\n"
+            ),
+        ),
+        (
+            "github-token",
+            joined(&["token: ghp", "_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2\n"]),
+        ),
+        (
+            "github-fine-grained-token",
+            joined(&[
+                "github",
+                "_pat_11ABCDEFG0aZq3Rt7Lm2Xv_9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2Qe7Ui9Ok4Pl6Mn1Bv8Cx3Zd5Fs7Gh2Jk4L\n",
+            ]),
+        ),
+        (
+            "gitlab-token",
+            joined(&["GITLAB=glpat", "-Zq3Rt7Lm2Xv9Kp4Ws8Hd\n"]),
+        ),
+        (
+            "aws-access-key-id",
+            joined(&["aws_access_key_id = AK", "IA2ZQ3RT7LM2XV6KP4\n"]),
+        ),
+        (
+            "slack-token",
+            joined(&["SLACK=xo", "xb-12345678901-Zq3Rt7Lm2Xv9Kp4Ws8\n"]),
+        ),
+        (
+            "stripe-secret-key",
+            joined(&["stripe: sk", "_live_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6C\n"]),
+        ),
+        (
+            "google-api-key",
+            joined(&["key=AI", "zaSyZq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0\n"]),
+        ),
+        (
+            "npm-token",
+            joined(&[
+                "//registry.npmjs.org/:_authToken=npm",
+                "_Zq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2\n",
+            ]),
+        ),
+        (
+            "pypi-token",
+            joined(&[
+                "password = pypi",
+                "-AgEIcHlwaS5vcmcZq3Rt7Lm2Xv9Kp4Ws8Hd1Nb6Cf3Jy5Gu0Ta2Qe7Ui9Ok4Pl6Mn1\n",
+            ]),
+        ),
+        (
+            "url-credentials",
+            "remote = https://deploy:Zq3Rt7Lm2Xv9@git.internal.example.net/app.git\n".into(),
+        ),
+        (
+            "generic-assignment",
+            "db_password = \"Zq3Rt7Lm2Xv9Kp4W\"\n".into(),
+        ),
     ]
 }
 
@@ -434,14 +490,15 @@ mod tests {
 
     #[test]
     fn findings_locate_and_redact() {
-        let text = "a\nb = 1\nexport KEY=ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8 # ci\n";
+        let token = joined(&["ghp", "_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"]);
+        let text = format!("a\nb = 1\nexport KEY={token} # ci\n");
         let f = &RuleSet::built_in().scan(text.as_bytes())[0];
         assert_eq!((f.line, f.column), (3, 12));
         assert_eq!(f.excerpt, "export KEY=ghp_… # ci");
         assert!(!f.excerpt.contains("A1b2"));
         assert_eq!(f.fingerprint.len(), 32);
         // Same secret elsewhere: same fingerprint.
-        let g = &RuleSet::built_in().scan(b"ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8")[0];
+        let g = &RuleSet::built_in().scan(token.as_bytes())[0];
         assert_eq!(f.fingerprint, g.fingerprint);
     }
 
@@ -454,10 +511,8 @@ mod tests {
             tier: Tier::Block,
         };
         let set = RuleSet::new(&["github-token".into()], std::slice::from_ref(&custom)).unwrap();
-        assert!(
-            set.scan(b"ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8")
-                .is_empty()
-        );
+        let token = joined(&["ghp", "_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"]);
+        assert!(set.scan(token.as_bytes()).is_empty());
         assert_eq!(set.scan(b"key acme_0123456789abcdef")[0].rule, "acme-key");
         assert!(RuleSet::new(&["nope".into()], &[]).is_err());
         let dup = CustomRule {

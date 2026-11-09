@@ -69,6 +69,10 @@ check, the helper script tests, and the static guards.
   processes, and server code never runs a shell.
 - Templates don't use the `|safe` filter, and pages load no resources from
   third-party URLs.
+- No complete token-shaped string (a GitHub, AWS, Slack, … credential) or
+  private key is committed, not even as a test sample: code hosts reject
+  such pushes. Keep samples split (`secret_scan::joined(&["ghp", "_…"])`)
+  and store test keys encoded.
 
 ### Commits
 

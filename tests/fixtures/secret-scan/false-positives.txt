@@ -12,7 +12,7 @@ GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 token = "ghp_<your token here>"
 glpat-xxxxxxxxxxxxxxxxxxxx
 SLACK_WEBHOOK=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
-stripe.api_key = "sk_test_4eC39HqLyjWDarjtT1zdp7dc"
+stripe.api_key = "sk_test_xxxxxxxxxxxxxxxxxxxxxxxx"
 DATABASE_URL=postgres://slath:slath@localhost:5432/slath
 DATABASE_URL=postgres://user:password@localhost/db
 url = "postgres://slath:${SLATH_DB_PASSWORD}@postgres/slath"
