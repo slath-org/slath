@@ -188,10 +188,22 @@ fn conf_review_06_fork_merge_requests_with_git() {
     );
     assert_eq!(r.status, 422, "{}", r.body);
 
-    // Each fork push makes a revision.
+    // Each fork push makes a revision; the push links to the merge request
+    // in the original.
     git.ok(&b, &["switch", "-q", "topic"]);
     let second = commit(&git, &b, "b.txt");
-    git.ok(&b, &["push", "-q", "origin", "topic"]);
+    let out = git
+        .cmd(&b)
+        .args(["push", "origin", "topic"])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert!(err.contains(&format!("alice/demo!{n} for topic")), "{err}");
+    assert!(
+        err.contains(&format!("/alice/demo/merge-requests/{n}")),
+        "{err}"
+    );
     eventually(&s, "no second revision", || {
         let m = api(
             &s,

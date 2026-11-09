@@ -1373,14 +1373,28 @@ impl Services {
                 .join(&format!("/{}/{}", r.namespace, r.name));
             match slath_db::merge_requests::open_by_source(&self.pool, repo, &u.name).await {
                 Ok(open) if !open.is_empty() => {
-                    for (id, _, n) in open {
-                        let url = format!("{base}/merge-requests/{n}");
+                    for (id, target, n) in open {
+                        // A fork's merge requests live in their target.
+                        let (url, label) = if target == repo {
+                            (format!("{base}/merge-requests/{n}"), format!("!{n}"))
+                        } else {
+                            match slath_db::repos::get(&self.pool, target).await {
+                                Ok(Some(t)) => (
+                                    self.config.server.public_url.join(&format!(
+                                        "/{}/{}/merge-requests/{n}",
+                                        t.namespace, t.name
+                                    )),
+                                    format!("{}/{}!{n}", t.namespace, t.name),
+                                ),
+                                _ => continue,
+                            }
+                        };
                         out.extend(
                             self.push_feedback(
                                 id,
                                 pusher,
                                 &u.new,
-                                &format!("!{n} for {branch}"),
+                                &format!("{label} for {branch}"),
                                 &url,
                             )
                             .await,
