@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_id AS \"id!\" FROM mr_reviewers\n            WHERE mr_id = $1 AND user_id IS NOT NULL AND state = 'requested'\n           UNION SELECT tm.user_id FROM mr_reviewers r JOIN team_members tm ON tm.team_id = r.team_id\n            WHERE r.mr_id = $1 AND r.state = 'requested'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cb63f7d59113c0eb1a1a48617896912d3f2380602bc7fae9e688642f16b58ec8"
+}

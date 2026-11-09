@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Notifications about issues (merge requests later): subscriptions, the
+//! Notifications about issues and merge requests: subscriptions, the
 //! inbox, and email.
 //!
 //! An action queues one `notify.fanout` job. The job decides who hears
 //! about it: people taking part in the thread (author, commenters,
-//! assignees), people mentioned in the new text (directly or through a
-//! team), and those watching the thread or the repository. The actor never
-//! notifies themselves, and ignoring a thread silences it completely;
-//! ignoring a repository leaves only mentions and assignments. Read access
+//! assignees, and for merge requests reviewers), people mentioned in the
+//! new text (directly or through a team), people asked to review, and
+//! those watching the thread or the repository. The actor never notifies
+//! themselves, and ignoring a thread silences it completely; ignoring a
+//! repository leaves only what's aimed at them (mentions, assignments,
+//! review requests). A draft merge request asks no one to review. Read access
 //! is checked for every recipient when the job runs, again when the email
 //! is sent, and again when the inbox is shown, so someone who lost access
 //! hears nothing more and no longer sees older rows.
@@ -16,9 +18,10 @@
 use std::collections::HashMap;
 
 use slath_core::authz::{Action, Credential, Subject};
-use slath_core::ids::{RepoId, UserId};
+use slath_core::ids::{MergeRequestId, RepoId, UserId};
 use slath_db::issues::Issue;
 use slath_db::jobs::LeasedJob;
+use slath_db::merge_requests::MergeRequest;
 use slath_db::notifications::Notification;
 use slath_db::worker::JobError;
 use slath_markup::refs::{Ref, RefContext};
@@ -58,15 +61,58 @@ impl Activity {
     }
 }
 
+/// What happened to a merge request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MrActivity {
+    Opened,
+    Closed,
+    Reopened,
+    Merged,
+    /// No longer a draft.
+    Ready,
+    /// A comment in the conversation.
+    Commented(uuid::Uuid),
+    /// A published comment in a review thread.
+    ThreadComment(uuid::Uuid),
+    /// A submitted review.
+    Reviewed(uuid::Uuid),
+    /// People were asked to review.
+    ReviewRequested(Vec<UserId>),
+    /// A new revision was pushed.
+    Revision(i32),
+}
+
+impl MrActivity {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Opened => "opened",
+            Self::Closed => "closed",
+            Self::Reopened => "reopened",
+            Self::Merged => "merged",
+            Self::Ready => "ready",
+            Self::Commented(_) => "commented",
+            Self::ThreadComment(_) => "thread_comment",
+            Self::Reviewed(_) => "reviewed",
+            Self::ReviewRequested(_) => "review_requested",
+            Self::Revision(_) => "revision",
+        }
+    }
+}
+
 /// Why someone hears about something, strongest first.
-const REASONS: [&str; 6] = [
+const REASONS: [&str; 8] = [
     "assigned",
+    "review_requested",
     "mentioned",
+    "mr_ready",
     "author",
     "commented",
     "state_change",
     "watching",
 ];
+
+/// Reasons aimed at the recipient, which get through an ignored repository.
+const AIMED: [&str; 4] = ["assigned", "review_requested", "mentioned", "mr_ready"];
 
 fn stronger(a: &str, b: &str) -> bool {
     let pos = |r: &str| {
@@ -76,6 +122,59 @@ fn stronger(a: &str, b: &str) -> bool {
             .unwrap_or(REASONS.len())
     };
     pos(a) < pos(b)
+}
+
+/// Who hears about an action, each with their strongest reason.
+#[derive(Default)]
+struct Recipients(HashMap<UserId, &'static str>);
+
+impl Recipients {
+    fn add(&mut self, u: UserId, reason: &'static str) {
+        let e = self.0.entry(u).or_insert(reason);
+        if stronger(reason, e) {
+            *e = reason;
+        }
+    }
+}
+
+/// The thread a fan-out delivers about.
+struct Delivery<'a> {
+    repo: &'a slath_db::repos::Repo,
+    /// `issue` or `merge_request`.
+    kind: &'static str,
+    id: uuid::Uuid,
+    /// The page under the repository, like `issues/4`.
+    path: String,
+    /// The email subject after `[ns/repo]`.
+    subject: String,
+    actor: Option<UserId>,
+}
+
+fn payload_uuid(p: &serde_json::Value, k: &str) -> Option<uuid::Uuid> {
+    p.get(k)
+        .and_then(serde_json::Value::as_str)
+        .and_then(|s| s.parse().ok())
+}
+
+fn payload_users(p: &serde_json::Value, k: &str) -> Vec<UserId> {
+    p.get(k)
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_str()?.parse().ok())
+        .map(UserId::from_uuid)
+        .collect()
+}
+
+fn retry(e: slath_db::DbError) -> JobError {
+    JobError::Retry(e.to_string())
+}
+
+fn actor_of(subject: &Subject) -> Option<String> {
+    match subject {
+        Subject::User { id, .. } => Some(id.to_string()),
+        _ => None,
+    }
 }
 
 /// How a viewer is subscribed to a repository or thread.
@@ -124,23 +223,55 @@ impl Services {
         issue: &Issue,
         what: Activity,
     ) {
-        let actor = match subject {
-            Subject::User { id, .. } => Some(id.to_string()),
-            _ => None,
-        };
         let (comment, assigned) = match &what {
             Activity::Commented(c) => (Some(c.to_string()), Vec::new()),
             Activity::Assigned(users) => (None, users.iter().map(ToString::to_string).collect()),
             _ => (None, Vec::new()),
         };
-        let payload = serde_json::json!({
+        self.queue_fanout(serde_json::json!({
             "repo_id": a.repo.id.to_string(),
             "issue_id": issue.id.to_string(),
-            "actor_id": actor,
+            "actor_id": actor_of(subject),
             "activity": what.name(),
             "comment_id": comment,
             "assigned": assigned,
-        });
+        }))
+        .await;
+    }
+
+    /// Queues the notifications about an action on a merge request, by
+    /// `actor` (`None`: the system). Like [`Self::notify_item`], it never
+    /// fails the action.
+    pub(crate) async fn notify_mr(
+        &self,
+        actor: Option<UserId>,
+        m: &MergeRequest,
+        what: MrActivity,
+    ) {
+        let (item, users, revision) = match &what {
+            MrActivity::Commented(c) | MrActivity::ThreadComment(c) | MrActivity::Reviewed(c) => {
+                (Some(c.to_string()), Vec::new(), None)
+            }
+            MrActivity::ReviewRequested(u) => {
+                (None, u.iter().map(ToString::to_string).collect(), None)
+            }
+            MrActivity::Revision(seq) => (None, Vec::new(), Some(*seq)),
+            _ => (None, Vec::new(), None),
+        };
+        self.queue_fanout(serde_json::json!({
+            "kind": "merge_request",
+            "repo_id": m.repo_id.to_string(),
+            "mr_id": m.id.to_string(),
+            "actor_id": actor.map(|a| a.to_string()),
+            "activity": what.name(),
+            "item_id": item,
+            "users": users,
+            "revision": revision,
+        }))
+        .await;
+    }
+
+    async fn queue_fanout(&self, payload: serde_json::Value) {
         let job = slath_db::jobs::NewJob::new("default", NOTIFY_FANOUT, payload)
             .dedupe_key(format!("{NOTIFY_FANOUT}:{}", uuid::Uuid::now_v7()));
         if let Err(e) = slath_db::jobs::enqueue(&self.pool, &job).await {
@@ -148,28 +279,39 @@ impl Services {
         }
     }
 
-    /// Whether a user can read the repository's issues right now.
-    pub(crate) async fn user_can_read_issues(&self, user: UserId, repo: RepoId) -> bool {
+    /// Whether a user can read the repository's issues (`kind` `issue`) or
+    /// merge requests (`merge_request`) right now.
+    pub(crate) async fn user_can_read(&self, user: UserId, repo: RepoId, kind: &str) -> bool {
         let Ok(Some(row)) = slath_db::users::get(&self.pool, user).await else {
             return false;
         };
         let them = user_subject(user, &row);
-        match self.repo_access_by_id(&them, repo, Action::RepoRead).await {
-            Ok(_) => slath_db::repos::issues_enabled(&self.pool, repo)
+        self.repo_access_by_id(&them, repo, Action::RepoRead)
+            .await
+            .is_ok()
+            && self.kind_enabled(repo, kind).await
+    }
+
+    /// Whether the repository has issues (`kind` `issue`) or merge requests
+    /// (`merge_request`) turned on.
+    async fn kind_enabled(&self, repo: RepoId, kind: &str) -> bool {
+        match kind {
+            "issue" => slath_db::repos::issues_enabled(&self.pool, repo)
                 .await
                 .unwrap_or(false),
-            Err(_) => false,
+            "merge_request" => slath_db::repos::mr_settings(&self.pool, repo)
+                .await
+                .is_ok_and(|s| s.0),
+            _ => false,
         }
     }
 
     /// The `notify.fanout` job.
     pub async fn run_fanout(&self, job: &LeasedJob) -> std::result::Result<(), JobError> {
-        let uuid_of = |k: &str| {
-            job.payload
-                .get(k)
-                .and_then(serde_json::Value::as_str)
-                .and_then(|s| s.parse::<uuid::Uuid>().ok())
-        };
+        if job.payload.get("kind").and_then(serde_json::Value::as_str) == Some("merge_request") {
+            return self.run_mr_fanout(job).await;
+        }
+        let uuid_of = |k: &str| payload_uuid(&job.payload, k);
         let bad = |k: &str| JobError::Permanent(format!("payload has no valid {k}"));
         let repo_id = RepoId::from_uuid(uuid_of("repo_id").ok_or_else(|| bad("repo_id"))?);
         let issue_id = uuid_of("issue_id").ok_or_else(|| bad("issue_id"))?;
@@ -179,7 +321,6 @@ impl Services {
             .get("activity")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("");
-        let retry = |e: slath_db::DbError| JobError::Retry(e.to_string());
 
         let Some(repo) = slath_db::repos::get(&self.pool, repo_id)
             .await
@@ -209,60 +350,31 @@ impl Services {
         if activity == "commented" && comment.is_none() {
             return Ok(());
         }
-        let ns = repo.namespace.clone();
         let ctx = RefContext {
-            ns: ns.clone(),
+            ns: repo.namespace.clone(),
             repo: repo.name.clone(),
         };
 
         // Who, and why (the strongest reason wins).
-        let mut who: HashMap<UserId, &'static str> = HashMap::new();
-        let mut add = |u: UserId, reason: &'static str| {
-            let e = who.entry(u).or_insert(reason);
-            if stronger(reason, e) {
-                *e = reason;
-            }
-        };
-        let watchers = slath_db::notifications::subscribers(
-            &self.pool,
-            "repo",
-            *repo_id.as_uuid(),
-            "watching",
-        )
-        .await
-        .map_err(retry)?;
-        for u in watchers {
-            add(u, "watching");
-        }
-        for u in slath_db::notifications::subscribers(&self.pool, "issue", issue.id, "watching")
+        let mut who = Recipients::default();
+        self.add_watchers(&mut who, repo_id, "issue", issue.id)
+            .await
+            .map_err(retry)?;
+        for u in slath_db::notifications::commenters(&self.pool, "issue", issue.id)
             .await
             .map_err(retry)?
         {
-            add(u, "watching");
-        }
-        for u in slath_db::notifications::commenters(&self.pool, issue.id)
-            .await
-            .map_err(retry)?
-        {
-            add(u, "commented");
+            who.add(u, "commented");
         }
         if let Some(a) = issue.author_id {
-            add(a, "author");
+            who.add(a, "author");
         }
         let assignees = slath_db::labels::assignees(&self.pool, &[issue.id])
             .await
             .map_err(retry)?;
-        let assigned_now: Vec<UserId> = job
-            .payload
-            .get("assigned")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|v| v.as_str()?.parse().ok())
-            .map(UserId::from_uuid)
-            .collect();
+        let assigned_now = payload_users(&job.payload, "assigned");
         for (_, u, _) in &assignees {
-            add(
+            who.add(
                 *u,
                 if assigned_now.contains(u) {
                     "assigned"
@@ -272,7 +384,7 @@ impl Services {
             );
         }
         for u in &assigned_now {
-            add(*u, "assigned");
+            who.add(*u, "assigned");
         }
         // Mentions in the new text.
         let text = match (&comment, activity) {
@@ -281,11 +393,281 @@ impl Services {
             _ => "",
         };
         for u in self.mentioned_users(text, &ctx).await.map_err(retry)? {
-            add(u, "mentioned");
+            who.add(u, "mentioned");
         }
 
+        let actor_name = self.actor_name(actor).await.map_err(retry)?;
+        let summary = match (activity, &comment) {
+            ("commented", Some(c)) => format!("{actor_name} commented:\n\n{}", c.body),
+            ("opened", _) => format!("{actor_name} opened this issue:\n\n{}", issue.body),
+            ("closed", _) => format!("{actor_name} closed this issue."),
+            ("reopened", _) => format!("{actor_name} reopened this issue."),
+            ("assigned", _) => format!("{actor_name} changed the assignees."),
+            _ => format!("{actor_name} updated this issue."),
+        };
+        let d = Delivery {
+            repo: &repo,
+            kind: "issue",
+            id: issue.id,
+            path: format!("issues/{}", issue.number),
+            subject: format!("{} (#{})", issue.title, issue.number),
+            actor,
+        };
+        self.deliver_notifications(&d, who, |_| summary.clone())
+            .await
+    }
+
+    /// The fan-out of an action on a merge request. Taking part means
+    /// writing in it (conversation, review threads, reviews), being
+    /// assigned, or being asked to review; a draft asks no one to review
+    /// yet, so its requested reviewers hear nothing until it's ready.
+    async fn run_mr_fanout(&self, job: &LeasedJob) -> std::result::Result<(), JobError> {
+        let uuid_of = |k: &str| payload_uuid(&job.payload, k);
+        let bad = |k: &str| JobError::Permanent(format!("payload has no valid {k}"));
+        let repo_id = RepoId::from_uuid(uuid_of("repo_id").ok_or_else(|| bad("repo_id"))?);
+        let mr_id = uuid_of("mr_id").ok_or_else(|| bad("mr_id"))?;
+        let actor = uuid_of("actor_id").map(UserId::from_uuid);
+        let activity = job
+            .payload
+            .get("activity")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let Some(repo) = slath_db::repos::get(&self.pool, repo_id)
+            .await
+            .map_err(retry)?
+        else {
+            return Ok(());
+        };
+        let Some(m) =
+            slath_db::merge_requests::get_by_id(&self.pool, MergeRequestId::from_uuid(mr_id))
+                .await
+                .map_err(retry)?
+                .filter(|m| m.repo_id == repo_id)
+        else {
+            return Ok(());
+        };
+        let actor_name = self.actor_name(actor).await.map_err(retry)?;
+        let item = uuid_of("item_id");
+
+        // What happened, in words, and the new text (for mentions).
+        let (summary, text) = match activity {
+            "opened" => (
+                format!(
+                    "{actor_name} opened this merge request:\n\n{}",
+                    m.description
+                ),
+                m.description.clone(),
+            ),
+            "closed" => (
+                format!("{actor_name} closed this merge request."),
+                String::new(),
+            ),
+            "reopened" => (
+                format!("{actor_name} reopened this merge request."),
+                String::new(),
+            ),
+            "merged" => (
+                format!(
+                    "{actor_name} merged this merge request into {}.",
+                    m.target_branch
+                ),
+                String::new(),
+            ),
+            "ready" => (
+                format!("{actor_name} marked this merge request ready for review."),
+                String::new(),
+            ),
+            "review_requested" => (
+                format!("{actor_name} asked you to review this merge request."),
+                String::new(),
+            ),
+            "revision" => {
+                let seq = job
+                    .payload
+                    .get("revision")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(i64::from(m.revisions));
+                (
+                    format!("{actor_name} pushed revision {seq}."),
+                    String::new(),
+                )
+            }
+            "commented" => {
+                let Some(c) = (match item {
+                    Some(c) => slath_db::issues::comment(&self.pool, c)
+                        .await
+                        .map_err(retry)?
+                        .filter(|c| c.deleted_at.is_none() && c.hidden_at.is_none()),
+                    None => None,
+                }) else {
+                    return Ok(());
+                };
+                (format!("{actor_name} commented:\n\n{}", c.body), c.body)
+            }
+            "thread_comment" => {
+                let comments = slath_db::mr_threads::comments(&self.pool, m.id)
+                    .await
+                    .map_err(retry)?;
+                let Some(c) = comments
+                    .into_iter()
+                    .find(|c| Some(c.id) == item && !c.pending && c.deleted_at.is_none())
+                else {
+                    return Ok(());
+                };
+                let path = slath_db::mr_threads::threads(&self.pool, m.id)
+                    .await
+                    .map_err(retry)?
+                    .into_iter()
+                    .find(|t| t.id == c.thread_id)
+                    .and_then(|t| t.anchor.path);
+                let on = path.map(|p| format!(" on {p}")).unwrap_or_default();
+                (format!("{actor_name} commented{on}:\n\n{}", c.body), c.body)
+            }
+            "reviewed" => {
+                let Some(r) = slath_db::mr_reviews::list(&self.pool, m.id)
+                    .await
+                    .map_err(retry)?
+                    .into_iter()
+                    .find(|r| Some(r.id) == item)
+                else {
+                    return Ok(());
+                };
+                let did = match r.verdict.as_str() {
+                    "approve" => "approved",
+                    "request_changes" => "requested changes",
+                    _ => "reviewed",
+                };
+                let body = if r.body.is_empty() {
+                    ".".to_owned()
+                } else {
+                    format!(":\n\n{}", r.body)
+                };
+                (format!("{actor_name} {did}{body}"), r.body)
+            }
+            _ => return Ok(()),
+        };
+
+        let mut who = Recipients::default();
+        if activity == "review_requested" {
+            // Only the people asked; never while it's a draft.
+            if !m.draft && m.state == "open" {
+                let asked = payload_users(&job.payload, "users");
+                let now = slath_db::notifications::requested_reviewers(&self.pool, m.id)
+                    .await
+                    .map_err(retry)?;
+                for u in asked.into_iter().filter(|u| now.contains(u)) {
+                    who.add(u, "review_requested");
+                }
+            }
+        } else {
+            self.add_watchers(&mut who, repo_id, "merge_request", *m.id.as_uuid())
+                .await
+                .map_err(retry)?;
+            for u in
+                slath_db::notifications::commenters(&self.pool, "merge_request", *m.id.as_uuid())
+                    .await
+                    .map_err(retry)?
+            {
+                who.add(u, "commented");
+            }
+            for u in slath_db::notifications::mr_participants(&self.pool, m.id)
+                .await
+                .map_err(retry)?
+            {
+                who.add(u, "commented");
+            }
+            if let Some(a) = m.author_id {
+                who.add(a, "author");
+            }
+            if matches!(activity, "opened" | "ready") && !m.draft {
+                let reason = if activity == "opened" {
+                    "review_requested"
+                } else {
+                    "mr_ready"
+                };
+                for u in slath_db::notifications::requested_reviewers(&self.pool, m.id)
+                    .await
+                    .map_err(retry)?
+                {
+                    who.add(u, reason);
+                }
+            }
+            let ctx = RefContext {
+                ns: repo.namespace.clone(),
+                repo: repo.name.clone(),
+            };
+            for u in self.mentioned_users(&text, &ctx).await.map_err(retry)? {
+                who.add(u, "mentioned");
+            }
+        }
+        let d = Delivery {
+            repo: &repo,
+            kind: "merge_request",
+            id: *m.id.as_uuid(),
+            path: format!("merge-requests/{}", m.number),
+            subject: format!("{} (!{})", m.title, m.number),
+            actor,
+        };
+        let opened = activity == "opened";
+        self.deliver_notifications(&d, who, |reason| match reason {
+            "review_requested" if opened => format!(
+                "{actor_name} asked you to review this merge request:\n\n{}",
+                m.description
+            ),
+            "mr_ready" => {
+                format!("{actor_name} marked this merge request ready; you're asked to review it.")
+            }
+            _ => summary.clone(),
+        })
+        .await
+    }
+
+    /// Adds who watches the repository or the thread.
+    async fn add_watchers(
+        &self,
+        who: &mut Recipients,
+        repo: RepoId,
+        kind: &str,
+        id: uuid::Uuid,
+    ) -> std::result::Result<(), slath_db::DbError> {
+        for u in
+            slath_db::notifications::subscribers(&self.pool, "repo", *repo.as_uuid(), "watching")
+                .await?
+        {
+            who.add(u, "watching");
+        }
+        for u in slath_db::notifications::subscribers(&self.pool, kind, id, "watching").await? {
+            who.add(u, "watching");
+        }
+        Ok(())
+    }
+
+    async fn actor_name(
+        &self,
+        actor: Option<UserId>,
+    ) -> std::result::Result<String, slath_db::DbError> {
+        Ok(match actor {
+            Some(a) => slath_db::notifications::recipient(&self.pool, a)
+                .await?
+                .map_or_else(|| "Someone".to_owned(), |r| r.name),
+            None => "Someone".to_owned(),
+        })
+    }
+
+    /// Bumps the inbox row of everyone in `who` and emails them, skipping
+    /// the actor, anyone ignoring the thread (or the repository, except for
+    /// reasons aimed at them), and anyone who can't read it now.
+    async fn deliver_notifications(
+        &self,
+        d: &Delivery<'_>,
+        who: Recipients,
+        summary: impl Fn(&str) -> String,
+    ) -> std::result::Result<(), JobError> {
+        let repo_id = d.repo.id;
+        let ns = &d.repo.namespace;
+        let name = &d.repo.name;
         let ignoring_thread =
-            slath_db::notifications::subscribers(&self.pool, "issue", issue.id, "ignoring")
+            slath_db::notifications::subscribers(&self.pool, d.kind, d.id, "ignoring")
                 .await
                 .map_err(retry)?;
         let ignoring_repo = slath_db::notifications::subscribers(
@@ -303,22 +685,15 @@ impl Services {
             .origin()
             .trim_end_matches('/')
             .to_owned();
-        let url = format!("{base}/{ns}/{}/issues/{}", repo.name, issue.number);
-        let actor_name = match actor {
-            Some(a) => slath_db::notifications::recipient(&self.pool, a)
-                .await
-                .map_err(retry)?
-                .map_or_else(|| "Someone".to_owned(), |r| r.name),
-            None => "Someone".to_owned(),
-        };
-        for (user, reason) in who {
-            if Some(user) == actor || ignoring_thread.contains(&user) {
+        let url = format!("{base}/{ns}/{name}/{}", d.path);
+        for (user, reason) in who.0 {
+            if Some(user) == d.actor || ignoring_thread.contains(&user) {
                 continue;
             }
-            if ignoring_repo.contains(&user) && !matches!(reason, "mentioned" | "assigned") {
+            if ignoring_repo.contains(&user) && !AIMED.contains(&reason) {
                 continue;
             }
-            if !self.user_can_read_issues(user, repo_id).await {
+            if !self.user_can_read(user, repo_id, d.kind).await {
                 continue;
             }
             let Some(r) = slath_db::notifications::recipient(&self.pool, user)
@@ -327,44 +702,37 @@ impl Services {
             else {
                 continue;
             };
-            slath_db::notifications::bump(&self.pool, user, repo_id, "issue", issue.id, reason)
+            slath_db::notifications::bump(&self.pool, user, repo_id, d.kind, d.id, reason)
                 .await
                 .map_err(retry)?;
             if !(self.email_enabled() && r.email_verified && r.email_notifications) {
                 continue;
             }
             let Some(to) = r.email else { continue };
-            let summary = match (activity, &comment) {
-                ("commented", Some(c)) => format!("{actor_name} commented:\n\n{}", c.body),
-                ("opened", _) => format!("{actor_name} opened this issue:\n\n{}", issue.body),
-                ("closed", _) => format!("{actor_name} closed this issue."),
-                ("reopened", _) => format!("{actor_name} reopened this issue."),
-                ("assigned", _) => format!("{actor_name} changed the assignees."),
-                _ => format!("{actor_name} updated this issue."),
-            };
             let unsubscribe = format!(
                 "{base}/-/unsubscribe/{}",
-                self.unsubscribe_token(user, "issue", issue.id)
+                self.unsubscribe_token(user, d.kind, d.id)
             );
             let text = format!(
-                "{summary}\n\n--\nView it on Slath: {url}\nYou are receiving this because of: {}.\nUnsubscribe from this thread: {unsubscribe}\n",
+                "{}\n\n--\nView it on Slath: {url}\nYou are receiving this because of: {}.\nUnsubscribe from this thread: {unsubscribe}\n",
+                summary(reason),
                 reason.replace('_', " ")
             );
             let email = Email {
                 to,
-                subject: format!("[{ns}/{}] {} (#{})", repo.name, issue.title, issue.number),
+                subject: format!("[{ns}/{name}] {}", d.subject),
                 text,
                 html: None,
-                thread: Some(format!("issue/{}", issue.id)),
+                thread: Some(format!("{}/{}", d.kind.replace('_', "-"), d.id)),
                 list_id: Some(format!(
-                    "{ns}/{}.{}",
-                    repo.name,
+                    "{ns}/{name}.{}",
                     self.config.server.public_url.host()
                 )),
                 unsubscribe: Some(unsubscribe),
                 read_check: Some(ReadCheck {
                     user: *user.as_uuid(),
                     repo: *repo_id.as_uuid(),
+                    merge_request: d.kind == "merge_request",
                 }),
             };
             if let Err(e) = self.queue_email(&email).await {
@@ -441,34 +809,41 @@ impl Services {
         }
         let user: UserId = u.parse().map_err(|_| ServiceError::NotFound)?;
         let subject: uuid::Uuid = s.parse().map_err(|_| ServiceError::NotFound)?;
-        if k != "issue" {
+        if k != "issue" && k != "merge_request" {
             return Err(ServiceError::NotFound);
         }
         Ok((user, k.to_owned(), subject))
     }
 
-    /// What an unsubscribe link refers to, as `ns/repo#n` (or `None` if the
-    /// recipient can no longer read it).
+    /// The repository and number of an issue or merge request.
+    async fn thread_number(&self, kind: &str, id: uuid::Uuid) -> Result<Option<(RepoId, i32)>> {
+        Ok(match kind {
+            "issue" => slath_db::notifications::issue_number(&self.pool, id).await?,
+            "merge_request" => slath_db::notifications::mr_number(&self.pool, id).await?,
+            _ => None,
+        })
+    }
+
+    /// What an unsubscribe link refers to, as `ns/repo#n` or `ns/repo!n`
+    /// (or `None` if the recipient can no longer read it).
     pub async fn unsubscribe_target(&self, token: &str) -> Result<Option<String>> {
-        let (user, _, subject) = self.check_unsubscribe(token)?;
-        let Some((repo, number)) =
-            slath_db::notifications::issue_number(&self.pool, subject).await?
-        else {
+        let (user, kind, subject) = self.check_unsubscribe(token)?;
+        let Some((repo, number)) = self.thread_number(&kind, subject).await? else {
             return Ok(None);
         };
-        if !self.user_can_read_issues(user, repo).await {
+        if !self.user_can_read(user, repo, &kind).await {
             return Ok(None);
         }
+        let mark = if kind == "issue" { '#' } else { '!' };
         let r = slath_db::repos::get(&self.pool, repo).await?;
-        Ok(r.map(|r| format!("{}/{}#{number}", r.namespace, r.name)))
+        Ok(r.map(|r| format!("{}/{}{mark}{number}", r.namespace, r.name)))
     }
 
     /// Follows an unsubscribe link: the user ignores the thread from now on.
     /// The signed token is the authorization; no session is needed.
     pub async fn unsubscribe(&self, token: &str) -> Result<()> {
         let (user, kind, subject) = self.check_unsubscribe(token)?;
-        let Some((repo, _)) = slath_db::notifications::issue_number(&self.pool, subject).await?
-        else {
+        let Some((repo, _)) = self.thread_number(&kind, subject).await? else {
             return Ok(());
         };
         slath_db::notifications::set_subscription(
@@ -555,7 +930,7 @@ impl Services {
             return true;
         }
         let pool = &self.pool;
-        if slath_db::notifications::commenters(pool, issue.id)
+        if slath_db::notifications::commenters(pool, "issue", issue.id)
             .await
             .is_ok_and(|c| c.contains(id))
         {
@@ -621,19 +996,24 @@ impl Services {
             else {
                 continue;
             };
-            if !slath_db::repos::issues_enabled(&self.pool, a.repo.id).await? {
-                continue;
-            }
-            let Some((_, number)) =
-                slath_db::notifications::issue_number(&self.pool, n.subject_id).await?
+            let Some((repo, number)) = self.thread_number(&n.subject_kind, n.subject_id).await?
             else {
                 continue;
             };
-            let Some((_, title, state)) =
+            if repo != a.repo.id || !self.kind_enabled(repo, &n.subject_kind).await {
+                continue;
+            }
+            let found = if n.subject_kind == "issue" {
                 slath_db::issues::titles(&self.pool, a.repo.id, &[number])
                     .await?
                     .pop()
-            else {
+                    .map(|(_, t, s)| (t, s))
+            } else {
+                slath_db::merge_requests::get(&self.pool, a.repo.id, number)
+                    .await?
+                    .map(|m| (m.title, m.state))
+            };
+            let Some((title, state)) = found else {
                 continue;
             };
             out.push(InboxItem {

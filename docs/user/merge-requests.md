@@ -298,3 +298,25 @@ The author and people who can triage close a merge request with **Close
 merge request**, or **Comment and close**. Deleting the source branch
 closes it too. **Restore branch and reopen** recreates the branch at its
 last revision; it needs write access to the repository.
+
+## Notifications
+
+Your notifications list merge requests next to issues, marked `!N`. You
+hear about a merge request when:
+
+- you're asked to review it (**Review requested**). A draft asks no one
+  yet: its requested reviewers hear about it once it's marked ready
+  (**Ready for your review**);
+- you opened it (**You opened it**), or took part: commented, reviewed,
+  wrote in a review thread, are assigned, or are a requested reviewer
+  (**You took part**);
+- someone mentions you, or a team you're in (**You were mentioned**);
+- you watch the merge request or the repository (**You're watching**).
+
+Taking part notifies you of new comments, submitted reviews, new
+revisions, readiness, merging, closing, and reopening. Comments of a
+review that isn't submitted yet stay quiet until it is. You never hear
+about what you did yourself, and someone who can no longer read the
+repository hears nothing more. Every email has an unsubscribe link for
+that merge request; ignoring a repository still lets review requests and
+mentions through.

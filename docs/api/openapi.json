@@ -7442,11 +7442,11 @@
           },
           "state": {
             "type": "string",
-            "description": "The issue's state."
+            "description": "The issue's state (`open` or `closed`) or the merge request's\n(`open`, `merged`, or `closed`)."
           },
           "subject_type": {
             "type": "string",
-            "description": "`issue` (merge requests later)."
+            "description": "`issue` or `merge_request`."
           },
           "title": {
             "type": "string"

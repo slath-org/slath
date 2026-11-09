@@ -18,6 +18,7 @@ use slath_git::browse::LogEntry;
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
+use crate::notifications::MrActivity;
 use crate::repos::RepoAccess;
 
 /// The job that records a new revision when a source branch moves.
@@ -432,9 +433,11 @@ impl Services {
             serde_json::json!({"number": number}),
         )
         .await;
-        slath_db::merge_requests::get_by_id(&self.pool, id)
+        let m = slath_db::merge_requests::get_by_id(&self.pool, id)
             .await?
-            .ok_or(ServiceError::NotFound)
+            .ok_or(ServiceError::NotFound)?;
+        self.notify_mr(Some(author), &m, MrActivity::Opened).await;
+        Ok(m)
     }
 
     /// The merge requests of a repository and their (open, merged, closed)
@@ -748,6 +751,14 @@ impl Services {
         if changed && open {
             self.sync_mr(m.id, subject_user(subject)).await?;
         }
+        if changed {
+            let what = if open {
+                MrActivity::Reopened
+            } else {
+                MrActivity::Closed
+            };
+            self.notify_mr(subject_user(subject), &m, what).await;
+        }
         Ok(())
     }
 
@@ -765,7 +776,8 @@ impl Services {
             return Err(ServiceError::Forbidden);
         }
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        if slath_db::merge_requests::set_draft(&mut *tx, m.id, draft).await? {
+        let changed = slath_db::merge_requests::set_draft(&mut *tx, m.id, draft).await?;
+        if changed {
             slath_db::issues::insert_event(
                 &mut *tx,
                 a.repo.id,
@@ -778,6 +790,13 @@ impl Services {
             .await?;
         }
         tx.commit().await.map_err(ServiceError::internal)?;
+        if changed && !draft {
+            let m = slath_db::merge_requests::get_by_id(&self.pool, m.id)
+                .await?
+                .ok_or(ServiceError::NotFound)?;
+            self.notify_mr(subject_user(subject), &m, MrActivity::Ready)
+                .await;
+        }
         Ok(())
     }
 
@@ -814,6 +833,8 @@ impl Services {
         )
         .await?;
         slath_db::merge_requests::touch(&self.pool, m.id).await?;
+        self.notify_mr(Some(author), &m, MrActivity::Commented(id))
+            .await;
         slath_db::issues::comment(&self.pool, id)
             .await?
             .ok_or(ServiceError::NotFound)
@@ -977,6 +998,10 @@ impl Services {
         if let Err(e) = self.note_revision(id, seq).await {
             tracing::warn!(error = %e, mr = %id, "noting the approvals of a revision failed");
         }
+        // The first revision comes with opening the merge request.
+        if seq > 1 {
+            self.notify_mr(pusher, &m, MrActivity::Revision(seq)).await;
+        }
         Ok(Some(seq))
     }
 
@@ -1020,7 +1045,8 @@ impl Services {
             {
                 if deleted {
                     let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-                    if slath_db::merge_requests::set_open(&mut *tx, id, false).await? {
+                    let closed = slath_db::merge_requests::set_open(&mut *tx, id, false).await?;
+                    if closed {
                         slath_db::issues::insert_event(
                             &mut *tx,
                             target_repo,
@@ -1033,6 +1059,11 @@ impl Services {
                         .await?;
                     }
                     tx.commit().await.map_err(ServiceError::internal)?;
+                    if closed
+                        && let Some(m) = slath_db::merge_requests::get_by_id(&self.pool, id).await?
+                    {
+                        self.notify_mr(pusher, &m, MrActivity::Closed).await;
+                    }
                 } else {
                     slath_db::jobs::enqueue(
                         &self.pool,

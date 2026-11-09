@@ -14,6 +14,7 @@ use slath_db::mr_reviews::{self as db, Review};
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
+use crate::notifications::MrActivity;
 use crate::protections::Effective;
 use crate::repos::RepoAccess;
 
@@ -248,10 +249,13 @@ impl Services {
         db::mark_reviewed(&mut *tx, m.id, *me).await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
-        db::list(&self.pool, m.id)
+        let review = db::list(&self.pool, m.id)
             .await?
             .pop()
-            .ok_or(ServiceError::NotFound)
+            .ok_or(ServiceError::NotFound)?;
+        self.notify_mr(Some(*me), &m, MrActivity::Reviewed(review.id))
+            .await;
+        Ok(review)
     }
 
     /// The reviews, with whether each still counts.
@@ -377,8 +381,10 @@ impl Services {
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let event = |kind: &'static str, who: String| (kind, serde_json::json!({"user": who}));
         let mut events = Vec::new();
+        let mut asked = Vec::new();
         for u in &users {
             if !before.iter().any(|b| b.user == Some(*u)) {
+                asked.push(*u);
                 slath_db::merge_requests::add_reviewer(&mut *tx, m.id, *u, *me).await?;
                 let name = slath_db::users::get(&self.pool, *u)
                     .await?
@@ -389,6 +395,13 @@ impl Services {
         }
         for (t, name) in &teams {
             if !before.iter().any(|b| b.team == Some(*t)) {
+                asked.extend(
+                    slath_db::teams::members(&self.pool, *t)
+                        .await?
+                        .into_iter()
+                        .map(|(u, _)| u)
+                        .filter(|u| m.author_id != Some(*u)),
+                );
                 db::request_team(&mut *tx, m.id, *t, *me).await?;
                 events.push(event("review_requested", name.clone()));
             }
@@ -414,6 +427,10 @@ impl Services {
             .await?;
         }
         tx.commit().await.map_err(ServiceError::internal)?;
+        if !asked.is_empty() {
+            self.notify_mr(Some(*me), &m, MrActivity::ReviewRequested(asked))
+                .await;
+        }
         Ok(())
     }
 

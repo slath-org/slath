@@ -52,6 +52,9 @@ pub struct Email {
 pub struct ReadCheck {
     pub user: uuid::Uuid,
     pub repo: uuid::Uuid,
+    /// About a merge request (else an issue).
+    #[serde(default)]
+    pub merge_request: bool,
 }
 
 /// Parameters of every email template.
@@ -169,9 +172,14 @@ impl Services {
             .map_err(|e| JobError::Permanent(format!("invalid message: {e}")))?;
         if let Some(c) = email.read_check
             && !self
-                .user_can_read_issues(
+                .user_can_read(
                     slath_core::ids::UserId::from_uuid(c.user),
                     slath_core::ids::RepoId::from_uuid(c.repo),
+                    if c.merge_request {
+                        "merge_request"
+                    } else {
+                        "issue"
+                    },
                 )
                 .await
         {

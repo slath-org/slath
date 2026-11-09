@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT DISTINCT author_id AS \"id!\" FROM comments\n            WHERE subject_kind = 'issue' AND subject_id = $1 AND author_id IS NOT NULL\n              AND deleted_at IS NULL",
+  "query": "SELECT DISTINCT author_id AS \"id!\" FROM comments\n            WHERE subject_kind = $1 AND subject_id = $2 AND author_id IS NOT NULL\n              AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,7 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Uuid"
       ]
     },
@@ -24,5 +25,5 @@
       true
     ]
   },
-  "hash": "cdb9bf725239c02a544eb7c524322ebc8f44333f399df152e29d6be1a11014cb"
+  "hash": "51434b96cb6ea502f229ea1679e1dcca656bdd1c2ebe8c89b66fc4970225f516"
 }

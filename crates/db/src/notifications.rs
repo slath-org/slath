@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Subscriptions and the notification inbox.
 
-use slath_core::ids::{RepoId, UserId};
+use slath_core::ids::{MergeRequestId, RepoId, UserId};
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 
@@ -95,16 +95,62 @@ pub async fn subscribers(
     .collect())
 }
 
-/// Authors of an issue's comments (not deleted).
+/// Authors of an issue's or merge request's conversation comments (not
+/// deleted).
 pub async fn commenters(
     exec: impl PgExecutor<'_>,
-    issue: uuid::Uuid,
+    kind: &str,
+    subject: uuid::Uuid,
 ) -> Result<Vec<UserId>, DbError> {
     Ok(sqlx::query_scalar!(
         r#"SELECT DISTINCT author_id AS "id!" FROM comments
-            WHERE subject_kind = 'issue' AND subject_id = $1 AND author_id IS NOT NULL
+            WHERE subject_kind = $1 AND subject_id = $2 AND author_id IS NOT NULL
               AND deleted_at IS NULL"#,
-        issue
+        kind,
+        subject
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(UserId::from_uuid)
+    .collect())
+}
+
+/// Everyone else taking part in a merge request: authors of published
+/// review comments, reviewers, assignees, and (unless it's a draft) the
+/// users asked to review it.
+pub async fn mr_participants(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+) -> Result<Vec<UserId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT c.author_id AS "id!" FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id
+            WHERE t.mr_id = $1 AND c.author_id IS NOT NULL AND NOT c.pending AND c.deleted_at IS NULL
+           UNION SELECT reviewer_id FROM mr_reviews WHERE mr_id = $1 AND reviewer_id IS NOT NULL
+           UNION SELECT user_id FROM mr_assignees WHERE mr_id = $1
+           UNION SELECT r.user_id FROM mr_reviewers r JOIN merge_requests m ON m.id = r.mr_id
+            WHERE r.mr_id = $1 AND r.user_id IS NOT NULL AND r.state <> 'removed' AND NOT m.draft"#,
+        mr.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(UserId::from_uuid)
+    .collect())
+}
+
+/// Users asked to review a merge request now, directly or as members of a
+/// requested team.
+pub async fn requested_reviewers(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+) -> Result<Vec<UserId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT user_id AS "id!" FROM mr_reviewers
+            WHERE mr_id = $1 AND user_id IS NOT NULL AND state = 'requested'
+           UNION SELECT tm.user_id FROM mr_reviewers r JOIN team_members tm ON tm.team_id = r.team_id
+            WHERE r.mr_id = $1 AND r.state = 'requested'"#,
+        mr.as_uuid()
     )
     .fetch_all(exec)
     .await?
@@ -275,6 +321,19 @@ pub async fn email_notifications(exec: impl PgExecutor<'_>, user: UserId) -> Res
 }
 
 /// An issue by ID, as `(repo, number)`.
+pub async fn mr_number(
+    exec: impl PgExecutor<'_>,
+    mr: uuid::Uuid,
+) -> Result<Option<(RepoId, i32)>, DbError> {
+    let r = sqlx::query!(
+        "SELECT repo_id, number FROM merge_requests WHERE id = $1",
+        mr
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map(|r| (RepoId::from_uuid(r.repo_id), r.number)))
+}
+
 pub async fn issue_number(
     exec: impl PgExecutor<'_>,
     issue: uuid::Uuid,

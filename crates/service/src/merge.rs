@@ -288,6 +288,8 @@ impl Services {
         if input.delete_source.unwrap_or(m.delete_source_on_merge) {
             self.delete_source(subject, &a, &m, &head).await;
         }
+        self.notify_mr(Some(user), &m, crate::notifications::MrActivity::Merged)
+            .await;
         self.audit(
             subject,
             "mr.merge",

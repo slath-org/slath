@@ -15,6 +15,7 @@ use slath_git::ObjectId;
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
+use crate::notifications::MrActivity;
 use crate::repos::RepoAccess;
 
 /// What starting a thread takes. Without `path`, a thread on the whole
@@ -131,9 +132,14 @@ impl Services {
         };
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = db::insert_thread(&mut *tx, m.id, seq, &anchor, author).await?;
-        db::insert_comment(&mut *tx, id, author, t.body.trim_end(), t.pending).await?;
+        let comment =
+            db::insert_comment(&mut *tx, id, author, t.body.trim_end(), t.pending).await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        if !t.pending {
+            self.notify_mr(Some(author), &m, MrActivity::ThreadComment(comment))
+                .await;
+        }
         self.mr_threads(subject, &a, &m)
             .await?
             .into_iter()
@@ -257,6 +263,10 @@ impl Services {
         self.check_body("body", body)?;
         let id = db::insert_comment(&self.pool, thread, author, body.trim_end(), pending).await?;
         slath_db::merge_requests::touch(&self.pool, m.id).await?;
+        if !pending {
+            self.notify_mr(Some(author), &m, MrActivity::ThreadComment(id))
+                .await;
+        }
         db::comments(&self.pool, m.id)
             .await?
             .into_iter()

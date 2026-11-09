@@ -22,6 +22,8 @@ use crate::routes::{Access, RouteExt};
 fn reason_text(r: &str) -> &'static str {
     match r {
         "assigned" => "Assigned to you",
+        "review_requested" => "Review requested",
+        "mr_ready" => "Ready for your review",
         "mentioned" => "You were mentioned",
         "author" => "You opened it",
         "commented" => "You took part",
@@ -33,23 +35,38 @@ fn reason_text(r: &str) -> &'static str {
 struct Row {
     id: String,
     href: String,
-    repo: String,
-    number: i32,
+    /// `ns/repo#n` or `ns/repo!n`.
+    reference: String,
     title: String,
-    open: bool,
+    /// The state icon and its words.
+    icon: &'static str,
+    state: &'static str,
     reason: &'static str,
     unread: bool,
     updated: Time,
 }
 
 fn row(i: InboxItem) -> Row {
+    let mr = i.notification.subject_kind == "merge_request";
+    let (icon, state) = match (mr, i.state.as_str()) {
+        (false, "open") => ("circle-dot", "open"),
+        (false, _) => ("circle-check", "closed"),
+        (true, "open") => ("git-pull-request", "open"),
+        (true, "merged") => ("git-merge", "merged"),
+        (true, _) => ("git-pull-request-closed", "closed"),
+    };
+    let (page, mark) = if mr {
+        ("merge-requests", '!')
+    } else {
+        ("issues", '#')
+    };
     Row {
         id: i.notification.id.to_string(),
-        href: format!("/{}/issues/{}", i.repo, i.number),
-        repo: i.repo,
-        number: i.number,
+        href: format!("/{}/{page}/{}", i.repo, i.number),
+        reference: format!("{}{mark}{}", i.repo, i.number),
         title: i.title,
-        open: i.state == "open",
+        icon,
+        state,
         reason: reason_text(&i.notification.reason),
         unread: i.notification.unread,
         updated: i.notification.updated_at.into(),
@@ -270,11 +287,12 @@ pub struct NotificationJson {
     pub id: String,
     /// `owner/repo`.
     pub repository: String,
-    /// `issue` (merge requests later).
+    /// `issue` or `merge_request`.
     pub subject_type: String,
     pub number: i32,
     pub title: String,
-    /// The issue's state.
+    /// The issue's state (`open` or `closed`) or the merge request's
+    /// (`open`, `merged`, or `closed`).
     pub state: String,
     /// Why you got it: `assigned`, `mentioned`, `author`, `commented`, `watching`, ….
     pub reason: String,
