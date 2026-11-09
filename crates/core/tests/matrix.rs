@@ -57,6 +57,7 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                 "active" => RepoState::Active,
                 "archived" => RepoState::Archived,
                 "deleting" => RepoState::Deleting,
+                "locked" => RepoState::Locked,
                 v => panic!("line {}: state {v}", i + 1),
             };
             let repo_id = RepoId::new();

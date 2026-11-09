@@ -451,6 +451,7 @@ impl Services {
             serde_json::json!({"visibility": slath_db::repos::visibility_str(v)}),
         )
         .await;
+        self.review_forks(a.repo.id).await;
         Ok(())
     }
 
@@ -638,6 +639,7 @@ impl Services {
         slath_db::repos::set_collaborator(&self.pool, a.repo.id, user, role).await?;
         let target = self.repo_target(&a.repo).await;
         self.audit(subject, "repo.collaborator.set", target, serde_json::json!({"username": username.trim(), "role": slath_db::repos::role_str(role)})).await;
+        self.review_forks(a.repo.id).await;
         Ok(())
     }
 
@@ -662,6 +664,7 @@ impl Services {
                 serde_json::json!({"username": username.trim()}),
             )
             .await;
+            self.review_forks(a.repo.id).await;
             Ok(())
         } else {
             Err(ServiceError::NotFound)

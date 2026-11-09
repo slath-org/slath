@@ -154,6 +154,7 @@ impl Services {
             serde_json::json!({"team": team.name}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
@@ -197,6 +198,7 @@ impl Services {
             serde_json::json!({"team": team.name, "username": username.trim()}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
@@ -226,6 +228,7 @@ impl Services {
             serde_json::json!({"team": team.name, "username": username.trim()}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
@@ -253,6 +256,7 @@ impl Services {
             serde_json::json!({"default_member_role": default_member_role, "require_mfa": require_mfa}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
@@ -318,6 +322,7 @@ impl Services {
             serde_json::json!({"team": t.name, "role": role.map(slath_db::repos::role_str)}),
         )
         .await;
+        self.review_forks(access.repo.id).await;
         Ok(())
     }
 }

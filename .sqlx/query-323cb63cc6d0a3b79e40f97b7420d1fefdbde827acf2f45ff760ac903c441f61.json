@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT p.id AS \"id!\" FROM repositories p\n            JOIN repositories f ON f.fork_parent_id = p.id\n           WHERE p.namespace_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "323cb63cc6d0a3b79e40f97b7420d1fefdbde827acf2f45ff760ac903c441f61"
+}

@@ -56,3 +56,14 @@ Only branches and tags. The fork doesn't depend on the original: it keeps
 working when the original is cleaned up or deleted. Commits that were only
 on branches the original deleted aren't copied, except those of recent
 large pushes until the fork's own maintenance removes them.
+
+## Losing access to the original
+
+A fork of a private (or internal) repository depends on your access to
+it. If you lose read access to the original, your fork is locked: nobody
+but site administrators can see or clone it. When you get access back,
+the fork is unlocked as it was. A fork that stays locked for the
+instance's retention period (7 days by default) is deleted. A fork of a
+public repository is never locked, even if the original later becomes
+private. For a fork in an organization, the access of whoever created it
+counts.

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET state = $2,\n             archived_reason = CASE WHEN $2 = 'archived' THEN 'user' ELSE NULL END,\n             deleted_at = CASE WHEN $2 IN ('deleting', 'locked') THEN now() ELSE NULL END,\n             updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "701590ac63dd02956f2de0117299794a694ce3d3e1cf3a29331c0d35018a3091"
+}

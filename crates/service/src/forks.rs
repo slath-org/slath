@@ -21,6 +21,9 @@ use crate::repos::{NewRepoInput, RepoAccess};
 
 /// The job that copies a fork's parent.
 pub const REPO_FORK: &str = "repo.fork";
+/// The job that locks (or unlocks) the forks of a repository whose owners
+/// lost (or regained) read access to it.
+pub const FORK_ACCESS_REVIEW: &str = "fork.access_review";
 
 /// Where to fork to.
 #[derive(Debug, Clone)]
@@ -434,6 +437,128 @@ impl Services {
         )
         .await;
         Ok(result)
+    }
+
+    /// Queues a review of the forks of `repo` after access to it changed.
+    /// Failing to queue is logged; it never fails the change itself.
+    pub(crate) async fn review_forks(&self, repo: RepoId) {
+        let job = slath_db::jobs::NewJob::new(
+            "default",
+            FORK_ACCESS_REVIEW,
+            serde_json::json!({"repo_id": repo.to_string()}),
+        )
+        .dedupe_key(format!(
+            "{FORK_ACCESS_REVIEW}:{repo}:{}",
+            uuid::Uuid::now_v7()
+        ));
+        if let Err(e) = slath_db::jobs::enqueue(&self.pool, &job).await {
+            tracing::warn!(error = %e, repo = %repo, "queueing a fork access review failed");
+        }
+    }
+
+    /// [`Self::review_forks`] for every repository of a namespace that has
+    /// forks (after a membership change).
+    pub(crate) async fn review_forks_in(&self, namespace: slath_core::ids::NamespaceId) {
+        match slath_db::forks::parents_in(&self.pool, namespace).await {
+            Ok(ids) => {
+                for id in ids {
+                    self.review_forks(id).await;
+                }
+            }
+            Err(e) => tracing::warn!(error = %e, "listing repositories with forks failed"),
+        }
+    }
+
+    /// [`Self::review_forks_in`] for an organization's repositories.
+    pub(crate) async fn review_org_forks(&self, org: slath_core::ids::OrgId) {
+        match slath_db::orgs::get(&self.pool, org).await {
+            Ok(Some(o)) => self.review_forks_in(o.namespace_id).await,
+            Ok(None) => {}
+            Err(e) => tracing::warn!(error = %e, "loading an organization failed"),
+        }
+    }
+
+    /// The `fork.access_review` job: a fork of a repository that wasn't
+    /// public when it was forked is locked when its owner (the forker, for
+    /// a fork in an organization) can no longer read the repository, and
+    /// unlocked when they can again. Locking a fork reviews its own forks.
+    pub async fn run_access_review(&self, job: &LeasedJob) -> std::result::Result<(), JobError> {
+        let parent: RepoId = job
+            .payload
+            .get("repo_id")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| JobError::Permanent("payload has no valid repo_id".to_owned()))?;
+        let retry = |e: slath_db::DbError| JobError::Retry(e.to_string());
+        let Some(p) = slath_db::repos::get(&self.pool, parent)
+            .await
+            .map_err(retry)?
+            .filter(|r| r.state != RepoState::Deleting)
+        else {
+            // A deleted parent leaves its forks as they are.
+            return Ok(());
+        };
+        for child in slath_db::forks::children(&self.pool, p.id, i64::MAX)
+            .await
+            .map_err(retry)?
+        {
+            let (Some(fork), Some(repo)) = (
+                slath_db::forks::get(&self.pool, child)
+                    .await
+                    .map_err(retry)?,
+                slath_db::repos::get(&self.pool, child)
+                    .await
+                    .map_err(retry)?,
+            ) else {
+                continue;
+            };
+            if fork.max_visibility == Visibility::Public {
+                continue;
+            }
+            let owner = match slath_db::orgs::resolve_namespace(&self.pool, &repo.namespace)
+                .await
+                .map_err(retry)?
+            {
+                Some((_, _, slath_db::orgs::NamespaceKind::User(u))) => Some(u),
+                _ => fork.requested_by,
+            };
+            let can_read = match owner {
+                Some(u) => match slath_db::users::get(&self.pool, u).await.map_err(retry)? {
+                    Some(row) => self
+                        .repo_access_by_id(
+                            &crate::notifications::user_subject(u, &row),
+                            p.id,
+                            Action::RepoRead,
+                        )
+                        .await
+                        .is_ok(),
+                    None => false,
+                },
+                None => false,
+            };
+            let to = match (repo.state, can_read) {
+                (RepoState::Locked, true) => RepoState::Active,
+                (RepoState::Active | RepoState::Archived, false) => RepoState::Locked,
+                _ => continue,
+            };
+            slath_db::repos::set_state(&self.pool, child, to)
+                .await
+                .map_err(retry)?;
+            let target = self.repo_target(&repo).await;
+            self.audit(
+                &Subject::System,
+                if to == RepoState::Locked {
+                    "repo.lock"
+                } else {
+                    "repo.unlock"
+                },
+                target,
+                serde_json::json!({"reason": "parent_access", "parent": format!("{}/{}", p.namespace, p.name)}),
+            )
+            .await;
+            self.review_forks(child).await;
+        }
+        Ok(())
     }
 
     /// The `repo.fork` job.

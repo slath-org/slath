@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM repositories WHERE state = 'deleting' AND deleted_at < $1 LIMIT 1000",
+  "query": "SELECT id FROM repositories WHERE state IN ('deleting', 'locked') AND deleted_at < $1 LIMIT 1000",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "cb336b97e9ea2d1c4d0d7172ed71d0f8d0c9d9782f3bf912cd7a7390a60b0110"
+  "hash": "4e3d3e47c1c4e765109fe69349dedfc50d72cea95044800a874d7a21ba047ab3"
 }

@@ -281,3 +281,60 @@ fn conf_git_10_forks_copy_branches_and_tags_and_stand_alone() {
     git.ok(clone.path(), &["clone", "-q", &fork_url, "."]);
     assert!(clone.path().join("README").exists());
 }
+
+#[test]
+fn conf_git_10_losing_access_to_the_parent_locks_the_fork() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let (alice, bob) = (token(&s, "alice"), token(&s, "bob"));
+    let collaborator = |method: &str| {
+        let r = api(
+            &s,
+            &alice,
+            method,
+            "/alice/demo/collaborators/bob",
+            (method == "PUT").then(|| json!({"role": "read"})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    };
+    collaborator("PUT");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let r = api(
+        &s,
+        &bob,
+        "POST",
+        "/alice/demo/forks",
+        Some(json!({"namespace": "bob"})),
+    );
+    assert_eq!(r.status, 202, "{}", r.body);
+    wait_done(&s, &bob, "/bob/demo/fork");
+
+    let status = || api(&s, &bob, "GET", "/bob/demo", None).status;
+    let wait_status = |want: u16| {
+        let start = std::time::Instant::now();
+        while status() != want {
+            assert!(start.elapsed().as_secs() < 30, "never {want}\n{}", s.log());
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    };
+    // Without access to the private original, the fork is gone for its
+    // owner (and for Git), until access returns.
+    collaborator("DELETE");
+    wait_status(404);
+    let fork_url = format!(
+        "http://git:{bob}@{}/bob/demo.git",
+        s.base().trim_start_matches("http://")
+    );
+    let c = tempfile::tempdir().unwrap();
+    git.fails(c.path(), &["clone", "-q", &fork_url, "."]);
+    collaborator("PUT");
+    wait_status(200);
+    git.ok(c.path(), &["clone", "-q", &fork_url, "."]);
+}

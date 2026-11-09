@@ -22,6 +22,8 @@ pub struct Fork {
     /// `queued`, `running`, `done`, or `failed`.
     pub state: String,
     pub error: Option<String>,
+    /// Who forked it.
+    pub requested_by: Option<UserId>,
     pub created_at: OffsetDateTime,
     pub finished_at: Option<OffsetDateTime>,
 }
@@ -69,7 +71,7 @@ pub async fn insert(
 pub async fn get(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Option<Fork>, DbError> {
     let r = sqlx::query!(
         "SELECT f.repo_id, r.fork_parent_id, f.default_branch_only, f.max_visibility, f.state, f.error,
-                f.created_at, f.finished_at
+                f.requested_by, f.created_at, f.finished_at
            FROM repo_forks f JOIN repositories r ON r.id = f.repo_id WHERE f.repo_id = $1",
         repo.as_uuid()
     )
@@ -82,6 +84,7 @@ pub async fn get(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Option<Fork>
         max_visibility: visibility(&r.max_visibility),
         state: r.state,
         error: r.error,
+        requested_by: r.requested_by.map(UserId::from_uuid),
         created_at: r.created_at,
         finished_at: r.finished_at,
     }))
@@ -118,6 +121,24 @@ pub async fn children(
           ORDER BY created_at DESC, id DESC LIMIT $2",
         parent.as_uuid(),
         limit
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(RepoId::from_uuid)
+    .collect())
+}
+
+/// Repositories in a namespace that have forks.
+pub async fn parents_in(
+    exec: impl PgExecutor<'_>,
+    namespace: slath_core::ids::NamespaceId,
+) -> Result<Vec<RepoId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT DISTINCT p.id AS "id!" FROM repositories p
+            JOIN repositories f ON f.fork_parent_id = p.id
+           WHERE p.namespace_id = $1"#,
+        namespace.as_uuid()
     )
     .fetch_all(exec)
     .await?

@@ -309,6 +309,7 @@ async fn repos(
                 RepoState::Active => "Active",
                 RepoState::Archived => "Archived",
                 RepoState::Deleting => "Deleted",
+                RepoState::Locked => "Locked (lost parent access)",
             },
             deleted: r.deleted_at.map(Into::into),
             size: r.size_bytes,

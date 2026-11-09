@@ -105,6 +105,10 @@ def rows():
         yield (action, "public", "active", "suspended", "admin", "session", "deny_hidden")
         yield (action, "private", "deleting", "user", "admin", "session", "deny_hidden")
         yield (action, "public", "deleting", "anon", "none", "session", "deny_hidden")
+        # A fork whose owner lost access to its private parent: hidden from
+        # everyone but site administrators (not in this table).
+        yield (action, "private", "locked", "user", "admin", "session", "deny_hidden")
+        yield (action, "public", "locked", "anon", "none", "session", "deny_hidden")
         # Tokens: the scope caps an admin's role.
         for scope in SCOPES:
             ok = implies(scope, SCOPE[action])

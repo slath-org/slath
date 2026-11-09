@@ -42,6 +42,7 @@ pub(crate) fn repo_state(s: &str) -> RepoState {
     match s {
         "active" => RepoState::Active,
         "archived" => RepoState::Archived,
+        "locked" => RepoState::Locked,
         _ => RepoState::Deleting,
     }
 }
@@ -294,11 +295,12 @@ pub async fn set_state(
         RepoState::Active => "active",
         RepoState::Archived => "archived",
         RepoState::Deleting => "deleting",
+        RepoState::Locked => "locked",
     };
     sqlx::query!(
         "UPDATE repositories SET state = $2,
              archived_reason = CASE WHEN $2 = 'archived' THEN 'user' ELSE NULL END,
-             deleted_at = CASE WHEN $2 = 'deleting' THEN now() ELSE NULL END,
+             deleted_at = CASE WHEN $2 IN ('deleting', 'locked') THEN now() ELSE NULL END,
              updated_at = now()
          WHERE id = $1",
         id.as_uuid(),
@@ -431,13 +433,13 @@ pub async fn remove_collaborator(
     Ok(r.rows_affected() > 0)
 }
 
-/// Repositories being deleted whose trash retention has passed.
+/// Repositories being deleted, and locked forks, whose retention has passed.
 pub async fn deleted_before(
     exec: impl PgExecutor<'_>,
     cutoff: OffsetDateTime,
 ) -> Result<Vec<RepoId>, DbError> {
     let rows = sqlx::query_scalar!(
-        "SELECT id FROM repositories WHERE state = 'deleting' AND deleted_at < $1 LIMIT 1000",
+        "SELECT id FROM repositories WHERE state IN ('deleting', 'locked') AND deleted_at < $1 LIMIT 1000",
         cutoff
     )
     .fetch_all(exec)

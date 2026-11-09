@@ -75,6 +75,13 @@ refused until `GET /api/v1/repos/{ns}/{repo}/fork` says `done`.
 - A fork can never be more visible than its parent was when it was
   forked: a fork of a private repository stays private, even after the
   parent is deleted.
+- When the person who made a fork of a non-public repository loses read
+  access to it (a removed collaborator, team, or organization membership,
+  or a visibility change), the fork is locked: only site administrators
+  see it, under **Administration → Repositories** as "Locked". It's
+  unlocked when access returns, and deleted after
+  `maintenance.deleted_repo_days` otherwise. Deleting the parent leaves
+  its forks alone.
 
 ## Branch protection
 

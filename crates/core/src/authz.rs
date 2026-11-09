@@ -42,6 +42,10 @@ pub enum RepoState {
     Archived,
     /// Being deleted: invisible to everyone.
     Deleting,
+    /// A fork whose owner lost access to its private parent: invisible to
+    /// everyone but site administrators, read-only, and deleted after the
+    /// retention period unless access returns.
+    Locked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -506,6 +510,20 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
     const HIDDEN: Decision = Decision::Deny { visible: false };
     if res.state == RepoState::Deleting {
         return HIDDEN;
+    }
+    if res.state == RepoState::Locked {
+        let admin = matches!(
+            subject,
+            Subject::System
+                | Subject::User {
+                    is_site_admin: true,
+                    state: UserState::Active,
+                    ..
+                }
+        );
+        if !admin || action != Action::RepoRead {
+            return HIDDEN;
+        }
     }
     let (role, signed_in, scopes) = match subject {
         Subject::System => return Decision::Allow,

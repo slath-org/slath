@@ -43,6 +43,8 @@ repo.read,private,archived,user,admin,session,allow
 repo.read,public,active,suspended,admin,session,deny_hidden
 repo.read,private,deleting,user,admin,session,deny_hidden
 repo.read,public,deleting,anon,none,session,deny_hidden
+repo.read,private,locked,user,admin,session,deny_hidden
+repo.read,public,locked,anon,none,session,deny_hidden
 repo.read,private,active,user,admin,token:repo:read,allow
 repo.read,private,active,user,admin,token:repo:write,allow
 repo.read,private,active,user,admin,token:issues:write,deny_visible
@@ -93,6 +95,8 @@ repo.fork,private,archived,user,admin,session,allow
 repo.fork,public,active,suspended,admin,session,deny_hidden
 repo.fork,private,deleting,user,admin,session,deny_hidden
 repo.fork,public,deleting,anon,none,session,deny_hidden
+repo.fork,private,locked,user,admin,session,deny_hidden
+repo.fork,public,locked,anon,none,session,deny_hidden
 repo.fork,private,active,user,admin,token:repo:read,deny_visible
 repo.fork,private,active,user,admin,token:repo:write,allow
 repo.fork,private,active,user,admin,token:issues:write,deny_visible
@@ -144,6 +148,8 @@ repo.push,private,archived,user,admin,session,deny_visible
 repo.push,public,active,suspended,admin,session,deny_hidden
 repo.push,private,deleting,user,admin,session,deny_hidden
 repo.push,public,deleting,anon,none,session,deny_hidden
+repo.push,private,locked,user,admin,session,deny_hidden
+repo.push,public,locked,anon,none,session,deny_hidden
 repo.push,private,active,user,admin,token:repo:read,deny_visible
 repo.push,private,active,user,admin,token:repo:write,allow
 repo.push,private,active,user,admin,token:issues:write,deny_visible
@@ -194,6 +200,8 @@ repo.push_protected,private,archived,user,admin,session,deny_visible
 repo.push_protected,public,active,suspended,admin,session,deny_hidden
 repo.push_protected,private,deleting,user,admin,session,deny_hidden
 repo.push_protected,public,deleting,anon,none,session,deny_hidden
+repo.push_protected,private,locked,user,admin,session,deny_hidden
+repo.push_protected,public,locked,anon,none,session,deny_hidden
 repo.push_protected,private,active,user,admin,token:repo:read,deny_visible
 repo.push_protected,private,active,user,admin,token:repo:write,allow
 repo.push_protected,private,active,user,admin,token:issues:write,deny_visible
@@ -244,6 +252,8 @@ repo.push_maintainer_edit,private,archived,user,admin,session,deny_visible
 repo.push_maintainer_edit,public,active,suspended,admin,session,deny_hidden
 repo.push_maintainer_edit,private,deleting,user,admin,session,deny_hidden
 repo.push_maintainer_edit,public,deleting,anon,none,session,deny_hidden
+repo.push_maintainer_edit,private,locked,user,admin,session,deny_hidden
+repo.push_maintainer_edit,public,locked,anon,none,session,deny_hidden
 repo.push_maintainer_edit,private,active,user,admin,token:repo:read,deny_visible
 repo.push_maintainer_edit,private,active,user,admin,token:repo:write,allow
 repo.push_maintainer_edit,private,active,user,admin,token:issues:write,deny_visible
@@ -294,6 +304,8 @@ tag.move_or_delete,private,archived,user,admin,session,deny_visible
 tag.move_or_delete,public,active,suspended,admin,session,deny_hidden
 tag.move_or_delete,private,deleting,user,admin,session,deny_hidden
 tag.move_or_delete,public,deleting,anon,none,session,deny_hidden
+tag.move_or_delete,private,locked,user,admin,session,deny_hidden
+tag.move_or_delete,public,locked,anon,none,session,deny_hidden
 tag.move_or_delete,private,active,user,admin,token:repo:read,deny_visible
 tag.move_or_delete,private,active,user,admin,token:repo:write,allow
 tag.move_or_delete,private,active,user,admin,token:issues:write,deny_visible
@@ -344,6 +356,8 @@ issue.create,private,archived,user,admin,session,deny_visible
 issue.create,public,active,suspended,admin,session,deny_hidden
 issue.create,private,deleting,user,admin,session,deny_hidden
 issue.create,public,deleting,anon,none,session,deny_hidden
+issue.create,private,locked,user,admin,session,deny_hidden
+issue.create,public,locked,anon,none,session,deny_hidden
 issue.create,private,active,user,admin,token:repo:read,deny_visible
 issue.create,private,active,user,admin,token:repo:write,deny_visible
 issue.create,private,active,user,admin,token:issues:write,allow
@@ -394,6 +408,8 @@ comment.create,private,archived,user,admin,session,deny_visible
 comment.create,public,active,suspended,admin,session,deny_hidden
 comment.create,private,deleting,user,admin,session,deny_hidden
 comment.create,public,deleting,anon,none,session,deny_hidden
+comment.create,private,locked,user,admin,session,deny_hidden
+comment.create,public,locked,anon,none,session,deny_hidden
 comment.create,private,active,user,admin,token:repo:read,deny_visible
 comment.create,private,active,user,admin,token:repo:write,deny_visible
 comment.create,private,active,user,admin,token:issues:write,allow
@@ -444,6 +460,8 @@ issue.edit_own,private,archived,user,admin,session,deny_visible
 issue.edit_own,public,active,suspended,admin,session,deny_hidden
 issue.edit_own,private,deleting,user,admin,session,deny_hidden
 issue.edit_own,public,deleting,anon,none,session,deny_hidden
+issue.edit_own,private,locked,user,admin,session,deny_hidden
+issue.edit_own,public,locked,anon,none,session,deny_hidden
 issue.edit_own,private,active,user,admin,token:repo:read,deny_visible
 issue.edit_own,private,active,user,admin,token:repo:write,deny_visible
 issue.edit_own,private,active,user,admin,token:issues:write,allow
@@ -494,6 +512,8 @@ comment.edit_own,private,archived,user,admin,session,deny_visible
 comment.edit_own,public,active,suspended,admin,session,deny_hidden
 comment.edit_own,private,deleting,user,admin,session,deny_hidden
 comment.edit_own,public,deleting,anon,none,session,deny_hidden
+comment.edit_own,private,locked,user,admin,session,deny_hidden
+comment.edit_own,public,locked,anon,none,session,deny_hidden
 comment.edit_own,private,active,user,admin,token:repo:read,deny_visible
 comment.edit_own,private,active,user,admin,token:repo:write,deny_visible
 comment.edit_own,private,active,user,admin,token:issues:write,allow
@@ -544,6 +564,8 @@ issue.triage,private,archived,user,admin,session,deny_visible
 issue.triage,public,active,suspended,admin,session,deny_hidden
 issue.triage,private,deleting,user,admin,session,deny_hidden
 issue.triage,public,deleting,anon,none,session,deny_hidden
+issue.triage,private,locked,user,admin,session,deny_hidden
+issue.triage,public,locked,anon,none,session,deny_hidden
 issue.triage,private,active,user,admin,token:repo:read,deny_visible
 issue.triage,private,active,user,admin,token:repo:write,deny_visible
 issue.triage,private,active,user,admin,token:issues:write,allow
@@ -594,6 +616,8 @@ comment.moderate,private,archived,user,admin,session,deny_visible
 comment.moderate,public,active,suspended,admin,session,deny_hidden
 comment.moderate,private,deleting,user,admin,session,deny_hidden
 comment.moderate,public,deleting,anon,none,session,deny_hidden
+comment.moderate,private,locked,user,admin,session,deny_hidden
+comment.moderate,public,locked,anon,none,session,deny_hidden
 comment.moderate,private,active,user,admin,token:repo:read,deny_visible
 comment.moderate,private,active,user,admin,token:repo:write,deny_visible
 comment.moderate,private,active,user,admin,token:issues:write,allow
@@ -644,6 +668,8 @@ mr.create,private,archived,user,admin,session,deny_visible
 mr.create,public,active,suspended,admin,session,deny_hidden
 mr.create,private,deleting,user,admin,session,deny_hidden
 mr.create,public,deleting,anon,none,session,deny_hidden
+mr.create,private,locked,user,admin,session,deny_hidden
+mr.create,public,locked,anon,none,session,deny_hidden
 mr.create,private,active,user,admin,token:repo:read,deny_visible
 mr.create,private,active,user,admin,token:repo:write,deny_visible
 mr.create,private,active,user,admin,token:issues:write,deny_visible
@@ -694,6 +720,8 @@ mr.comment,private,archived,user,admin,session,deny_visible
 mr.comment,public,active,suspended,admin,session,deny_hidden
 mr.comment,private,deleting,user,admin,session,deny_hidden
 mr.comment,public,deleting,anon,none,session,deny_hidden
+mr.comment,private,locked,user,admin,session,deny_hidden
+mr.comment,public,locked,anon,none,session,deny_hidden
 mr.comment,private,active,user,admin,token:repo:read,deny_visible
 mr.comment,private,active,user,admin,token:repo:write,deny_visible
 mr.comment,private,active,user,admin,token:issues:write,deny_visible
@@ -744,6 +772,8 @@ mr.review,private,archived,user,admin,session,deny_visible
 mr.review,public,active,suspended,admin,session,deny_hidden
 mr.review,private,deleting,user,admin,session,deny_hidden
 mr.review,public,deleting,anon,none,session,deny_hidden
+mr.review,private,locked,user,admin,session,deny_hidden
+mr.review,public,locked,anon,none,session,deny_hidden
 mr.review,private,active,user,admin,token:repo:read,deny_visible
 mr.review,private,active,user,admin,token:repo:write,deny_visible
 mr.review,private,active,user,admin,token:issues:write,deny_visible
@@ -794,6 +824,8 @@ mr.suggest,private,archived,user,admin,session,deny_visible
 mr.suggest,public,active,suspended,admin,session,deny_hidden
 mr.suggest,private,deleting,user,admin,session,deny_hidden
 mr.suggest,public,deleting,anon,none,session,deny_hidden
+mr.suggest,private,locked,user,admin,session,deny_hidden
+mr.suggest,public,locked,anon,none,session,deny_hidden
 mr.suggest,private,active,user,admin,token:repo:read,deny_visible
 mr.suggest,private,active,user,admin,token:repo:write,deny_visible
 mr.suggest,private,active,user,admin,token:issues:write,deny_visible
@@ -844,6 +876,8 @@ mr.edit_own,private,archived,user,admin,session,deny_visible
 mr.edit_own,public,active,suspended,admin,session,deny_hidden
 mr.edit_own,private,deleting,user,admin,session,deny_hidden
 mr.edit_own,public,deleting,anon,none,session,deny_hidden
+mr.edit_own,private,locked,user,admin,session,deny_hidden
+mr.edit_own,public,locked,anon,none,session,deny_hidden
 mr.edit_own,private,active,user,admin,token:repo:read,deny_visible
 mr.edit_own,private,active,user,admin,token:repo:write,deny_visible
 mr.edit_own,private,active,user,admin,token:issues:write,deny_visible
@@ -894,6 +928,8 @@ mr.triage,private,archived,user,admin,session,deny_visible
 mr.triage,public,active,suspended,admin,session,deny_hidden
 mr.triage,private,deleting,user,admin,session,deny_hidden
 mr.triage,public,deleting,anon,none,session,deny_hidden
+mr.triage,private,locked,user,admin,session,deny_hidden
+mr.triage,public,locked,anon,none,session,deny_hidden
 mr.triage,private,active,user,admin,token:repo:read,deny_visible
 mr.triage,private,active,user,admin,token:repo:write,deny_visible
 mr.triage,private,active,user,admin,token:issues:write,deny_visible
@@ -944,6 +980,8 @@ mr.approve,private,archived,user,admin,session,deny_visible
 mr.approve,public,active,suspended,admin,session,deny_hidden
 mr.approve,private,deleting,user,admin,session,deny_hidden
 mr.approve,public,deleting,anon,none,session,deny_hidden
+mr.approve,private,locked,user,admin,session,deny_hidden
+mr.approve,public,locked,anon,none,session,deny_hidden
 mr.approve,private,active,user,admin,token:repo:read,deny_visible
 mr.approve,private,active,user,admin,token:repo:write,deny_visible
 mr.approve,private,active,user,admin,token:issues:write,deny_visible
@@ -994,6 +1032,8 @@ mr.merge,private,archived,user,admin,session,deny_visible
 mr.merge,public,active,suspended,admin,session,deny_hidden
 mr.merge,private,deleting,user,admin,session,deny_hidden
 mr.merge,public,deleting,anon,none,session,deny_hidden
+mr.merge,private,locked,user,admin,session,deny_hidden
+mr.merge,public,locked,anon,none,session,deny_hidden
 mr.merge,private,active,user,admin,token:repo:read,deny_visible
 mr.merge,private,active,user,admin,token:repo:write,deny_visible
 mr.merge,private,active,user,admin,token:issues:write,deny_visible
@@ -1044,6 +1084,8 @@ mr.auto_merge,private,archived,user,admin,session,deny_visible
 mr.auto_merge,public,active,suspended,admin,session,deny_hidden
 mr.auto_merge,private,deleting,user,admin,session,deny_hidden
 mr.auto_merge,public,deleting,anon,none,session,deny_hidden
+mr.auto_merge,private,locked,user,admin,session,deny_hidden
+mr.auto_merge,public,locked,anon,none,session,deny_hidden
 mr.auto_merge,private,active,user,admin,token:repo:read,deny_visible
 mr.auto_merge,private,active,user,admin,token:repo:write,deny_visible
 mr.auto_merge,private,active,user,admin,token:issues:write,deny_visible
@@ -1094,6 +1136,8 @@ mr.update_branch,private,archived,user,admin,session,deny_visible
 mr.update_branch,public,active,suspended,admin,session,deny_hidden
 mr.update_branch,private,deleting,user,admin,session,deny_hidden
 mr.update_branch,public,deleting,anon,none,session,deny_hidden
+mr.update_branch,private,locked,user,admin,session,deny_hidden
+mr.update_branch,public,locked,anon,none,session,deny_hidden
 mr.update_branch,private,active,user,admin,token:repo:read,deny_visible
 mr.update_branch,private,active,user,admin,token:repo:write,deny_visible
 mr.update_branch,private,active,user,admin,token:issues:write,deny_visible
@@ -1144,6 +1188,8 @@ mr.apply_suggestion,private,archived,user,admin,session,deny_visible
 mr.apply_suggestion,public,active,suspended,admin,session,deny_hidden
 mr.apply_suggestion,private,deleting,user,admin,session,deny_hidden
 mr.apply_suggestion,public,deleting,anon,none,session,deny_hidden
+mr.apply_suggestion,private,locked,user,admin,session,deny_hidden
+mr.apply_suggestion,public,locked,anon,none,session,deny_hidden
 mr.apply_suggestion,private,active,user,admin,token:repo:read,deny_visible
 mr.apply_suggestion,private,active,user,admin,token:repo:write,deny_visible
 mr.apply_suggestion,private,active,user,admin,token:issues:write,deny_visible
@@ -1194,6 +1240,8 @@ status.write,private,archived,user,admin,session,deny_visible
 status.write,public,active,suspended,admin,session,deny_hidden
 status.write,private,deleting,user,admin,session,deny_hidden
 status.write,public,deleting,anon,none,session,deny_hidden
+status.write,private,locked,user,admin,session,deny_hidden
+status.write,public,locked,anon,none,session,deny_hidden
 status.write,private,active,user,admin,token:repo:read,deny_visible
 status.write,private,active,user,admin,token:repo:write,deny_visible
 status.write,private,active,user,admin,token:issues:write,deny_visible
@@ -1244,6 +1292,8 @@ ci.approve_external_run,private,archived,user,admin,session,deny_visible
 ci.approve_external_run,public,active,suspended,admin,session,deny_hidden
 ci.approve_external_run,private,deleting,user,admin,session,deny_hidden
 ci.approve_external_run,public,deleting,anon,none,session,deny_hidden
+ci.approve_external_run,private,locked,user,admin,session,deny_hidden
+ci.approve_external_run,public,locked,anon,none,session,deny_hidden
 ci.approve_external_run,private,active,user,admin,token:repo:read,deny_visible
 ci.approve_external_run,private,active,user,admin,token:repo:write,allow
 ci.approve_external_run,private,active,user,admin,token:issues:write,deny_visible
@@ -1294,6 +1344,8 @@ ci.rerun,private,archived,user,admin,session,deny_visible
 ci.rerun,public,active,suspended,admin,session,deny_hidden
 ci.rerun,private,deleting,user,admin,session,deny_hidden
 ci.rerun,public,deleting,anon,none,session,deny_hidden
+ci.rerun,private,locked,user,admin,session,deny_hidden
+ci.rerun,public,locked,anon,none,session,deny_hidden
 ci.rerun,private,active,user,admin,token:repo:read,deny_visible
 ci.rerun,private,active,user,admin,token:repo:write,allow
 ci.rerun,private,active,user,admin,token:issues:write,deny_visible
@@ -1344,6 +1396,8 @@ ci.cancel,private,archived,user,admin,session,deny_visible
 ci.cancel,public,active,suspended,admin,session,deny_hidden
 ci.cancel,private,deleting,user,admin,session,deny_hidden
 ci.cancel,public,deleting,anon,none,session,deny_hidden
+ci.cancel,private,locked,user,admin,session,deny_hidden
+ci.cancel,public,locked,anon,none,session,deny_hidden
 ci.cancel,private,active,user,admin,token:repo:read,deny_visible
 ci.cancel,private,active,user,admin,token:repo:write,allow
 ci.cancel,private,active,user,admin,token:issues:write,deny_visible
@@ -1394,6 +1448,8 @@ labels.manage,private,archived,user,admin,session,deny_visible
 labels.manage,public,active,suspended,admin,session,deny_hidden
 labels.manage,private,deleting,user,admin,session,deny_hidden
 labels.manage,public,deleting,anon,none,session,deny_hidden
+labels.manage,private,locked,user,admin,session,deny_hidden
+labels.manage,public,locked,anon,none,session,deny_hidden
 labels.manage,private,active,user,admin,token:repo:read,deny_visible
 labels.manage,private,active,user,admin,token:repo:write,deny_visible
 labels.manage,private,active,user,admin,token:issues:write,allow
@@ -1444,6 +1500,8 @@ milestones.manage,private,archived,user,admin,session,deny_visible
 milestones.manage,public,active,suspended,admin,session,deny_hidden
 milestones.manage,private,deleting,user,admin,session,deny_hidden
 milestones.manage,public,deleting,anon,none,session,deny_hidden
+milestones.manage,private,locked,user,admin,session,deny_hidden
+milestones.manage,public,locked,anon,none,session,deny_hidden
 milestones.manage,private,active,user,admin,token:repo:read,deny_visible
 milestones.manage,private,active,user,admin,token:repo:write,deny_visible
 milestones.manage,private,active,user,admin,token:issues:write,allow
@@ -1494,6 +1552,8 @@ protection.manage,private,archived,user,admin,session,deny_visible
 protection.manage,public,active,suspended,admin,session,deny_hidden
 protection.manage,private,deleting,user,admin,session,deny_hidden
 protection.manage,public,deleting,anon,none,session,deny_hidden
+protection.manage,private,locked,user,admin,session,deny_hidden
+protection.manage,public,locked,anon,none,session,deny_hidden
 protection.manage,private,active,user,admin,token:repo:read,deny_visible
 protection.manage,private,active,user,admin,token:repo:write,allow
 protection.manage,private,active,user,admin,token:issues:write,deny_visible
@@ -1544,6 +1604,8 @@ webhooks.manage,private,archived,user,admin,session,deny_visible
 webhooks.manage,public,active,suspended,admin,session,deny_hidden
 webhooks.manage,private,deleting,user,admin,session,deny_hidden
 webhooks.manage,public,deleting,anon,none,session,deny_hidden
+webhooks.manage,private,locked,user,admin,session,deny_hidden
+webhooks.manage,public,locked,anon,none,session,deny_hidden
 webhooks.manage,private,active,user,admin,token:repo:read,deny_visible
 webhooks.manage,private,active,user,admin,token:repo:write,allow
 webhooks.manage,private,active,user,admin,token:issues:write,deny_visible
@@ -1594,6 +1656,8 @@ secrets.manage,private,archived,user,admin,session,deny_visible
 secrets.manage,public,active,suspended,admin,session,deny_hidden
 secrets.manage,private,deleting,user,admin,session,deny_hidden
 secrets.manage,public,deleting,anon,none,session,deny_hidden
+secrets.manage,private,locked,user,admin,session,deny_hidden
+secrets.manage,public,locked,anon,none,session,deny_hidden
 secrets.manage,private,active,user,admin,token:repo:read,deny_visible
 secrets.manage,private,active,user,admin,token:repo:write,allow
 secrets.manage,private,active,user,admin,token:issues:write,deny_visible
@@ -1644,6 +1708,8 @@ collaborators.manage,private,archived,user,admin,session,deny_visible
 collaborators.manage,public,active,suspended,admin,session,deny_hidden
 collaborators.manage,private,deleting,user,admin,session,deny_hidden
 collaborators.manage,public,deleting,anon,none,session,deny_hidden
+collaborators.manage,private,locked,user,admin,session,deny_hidden
+collaborators.manage,public,locked,anon,none,session,deny_hidden
 collaborators.manage,private,active,user,admin,token:repo:read,deny_visible
 collaborators.manage,private,active,user,admin,token:repo:write,allow
 collaborators.manage,private,active,user,admin,token:issues:write,deny_visible
@@ -1694,6 +1760,8 @@ repo.settings,private,archived,user,admin,session,deny_visible
 repo.settings,public,active,suspended,admin,session,deny_hidden
 repo.settings,private,deleting,user,admin,session,deny_hidden
 repo.settings,public,deleting,anon,none,session,deny_hidden
+repo.settings,private,locked,user,admin,session,deny_hidden
+repo.settings,public,locked,anon,none,session,deny_hidden
 repo.settings,private,active,user,admin,token:repo:read,deny_visible
 repo.settings,private,active,user,admin,token:repo:write,allow
 repo.settings,private,active,user,admin,token:issues:write,deny_visible
@@ -1744,6 +1812,8 @@ repo.rename,private,archived,user,admin,session,deny_visible
 repo.rename,public,active,suspended,admin,session,deny_hidden
 repo.rename,private,deleting,user,admin,session,deny_hidden
 repo.rename,public,deleting,anon,none,session,deny_hidden
+repo.rename,private,locked,user,admin,session,deny_hidden
+repo.rename,public,locked,anon,none,session,deny_hidden
 repo.rename,private,active,user,admin,token:repo:read,deny_visible
 repo.rename,private,active,user,admin,token:repo:write,allow
 repo.rename,private,active,user,admin,token:issues:write,deny_visible
@@ -1794,6 +1864,8 @@ repo.archive,private,archived,user,admin,session,allow
 repo.archive,public,active,suspended,admin,session,deny_hidden
 repo.archive,private,deleting,user,admin,session,deny_hidden
 repo.archive,public,deleting,anon,none,session,deny_hidden
+repo.archive,private,locked,user,admin,session,deny_hidden
+repo.archive,public,locked,anon,none,session,deny_hidden
 repo.archive,private,active,user,admin,token:repo:read,deny_visible
 repo.archive,private,active,user,admin,token:repo:write,allow
 repo.archive,private,active,user,admin,token:issues:write,deny_visible
@@ -1844,6 +1916,8 @@ repo.delete,private,archived,user,admin,session,deny_visible
 repo.delete,public,active,suspended,admin,session,deny_hidden
 repo.delete,private,deleting,user,admin,session,deny_hidden
 repo.delete,public,deleting,anon,none,session,deny_hidden
+repo.delete,private,locked,user,admin,session,deny_hidden
+repo.delete,public,locked,anon,none,session,deny_hidden
 repo.delete,private,active,user,admin,token:repo:read,deny_visible
 repo.delete,private,active,user,admin,token:repo:write,allow
 repo.delete,private,active,user,admin,token:issues:write,deny_visible
@@ -1894,6 +1968,8 @@ repo.transfer,private,archived,user,admin,session,deny_visible
 repo.transfer,public,active,suspended,admin,session,deny_hidden
 repo.transfer,private,deleting,user,admin,session,deny_hidden
 repo.transfer,public,deleting,anon,none,session,deny_hidden
+repo.transfer,private,locked,user,admin,session,deny_hidden
+repo.transfer,public,locked,anon,none,session,deny_hidden
 repo.transfer,private,active,user,admin,token:repo:read,deny_visible
 repo.transfer,private,active,user,admin,token:repo:write,allow
 repo.transfer,private,active,user,admin,token:issues:write,deny_visible
@@ -1944,6 +2020,8 @@ repo.visibility,private,archived,user,admin,session,deny_visible
 repo.visibility,public,active,suspended,admin,session,deny_hidden
 repo.visibility,private,deleting,user,admin,session,deny_hidden
 repo.visibility,public,deleting,anon,none,session,deny_hidden
+repo.visibility,private,locked,user,admin,session,deny_hidden
+repo.visibility,public,locked,anon,none,session,deny_hidden
 repo.visibility,private,active,user,admin,token:repo:read,deny_visible
 repo.visibility,private,active,user,admin,token:repo:write,allow
 repo.visibility,private,active,user,admin,token:issues:write,deny_visible

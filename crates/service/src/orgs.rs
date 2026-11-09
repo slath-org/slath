@@ -192,6 +192,7 @@ impl Services {
             serde_json::json!({"username": username.trim(), "role": role.as_str()}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
@@ -233,6 +234,7 @@ impl Services {
             serde_json::json!({"username": username.trim()}),
         )
         .await;
+        self.review_org_forks(org).await;
         Ok(())
     }
 
