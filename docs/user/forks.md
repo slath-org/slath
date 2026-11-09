@@ -71,7 +71,13 @@ counts.
 ## Merge requests from a fork
 
 To propose your fork's changes to the original, open a merge request
-against the original with your fork as the source. Through the API:
+against the original with your fork as the source. When you push a
+branch to your fork, Git (or jj) prints a link to the original's compare
+page with your fork preselected; the fork's front page shows the same
+link in its "Recently pushed" banner, and **Contribute** next to
+"Forked from" opens the compare page too. There, **From** picks the
+repository (your forks of the network that you can push to) and
+**Merge** its branch. Through the API:
 
 ```text
 POST /api/v1/repos/<owner>/<repo>/merge-requests
@@ -88,8 +94,9 @@ as it is.
 If your fork is less visible than the original (a private fork of a
 public repository, for example), everyone who can read the original will
 be able to read the merge request's commits. Slath asks you to confirm
-that (`"publish_source": true` in the API) and notes it in the merge
-request's timeline.
+that (**Make these commits readable here** on the compare page,
+`"publish_source": true` in the API) and notes it in the merge request's
+timeline.
 
 The original's push protection checks every push to the branch before
 the merge request takes it over, even if your fork has push protection
@@ -100,8 +107,9 @@ again, or ask a writer of the original to allow it if it isn't one.
 ### Edits by maintainers
 
 A merge request from a fork allows edits by maintainers unless you turn
-it off (`"allow_maintainer_edits": false` when you open it, or later with
-`PATCH` on the merge request). While it's open, anyone who can write to
+it off: uncheck **Allow edits by maintainers** on the compare page, use
+**More → Stop allowing edits by maintainers** on the merge request, or
+send `"allow_maintainer_edits": false` through the API. While it's open, anyone who can write to
 the original can then push to your merge request's branch in your fork,
 for example to fix a typo before merging. They can only update that one
 branch: they can't delete it, push other branches or tags, or change

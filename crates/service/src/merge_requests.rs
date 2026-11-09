@@ -155,7 +155,7 @@ impl Services {
     /// The source repository `name` (`ns/name`) of a merge request into
     /// `a`, readable by the subject and in the same fork network; `None`
     /// when it's the target itself.
-    pub(crate) async fn mr_source(
+    pub async fn mr_source(
         &self,
         subject: &Subject,
         a: &RepoAccess,
@@ -184,6 +184,37 @@ impl Services {
             return Err(unknown());
         }
         Ok(Some(src))
+    }
+
+    /// The repositories of `a`'s fork network the subject can push to and
+    /// open merge requests from (`ns/name`), for the compare page.
+    pub async fn mr_source_choices(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+    ) -> Result<Vec<String>> {
+        let Some(me) = subject_user(subject) else {
+            return Ok(Vec::new());
+        };
+        let mut out = Vec::new();
+        for id in slath_db::forks::network_candidates(&self.pool, a.repo.id, me).await? {
+            if let Ok(r) = self.repo_access_by_id(subject, id, Action::RepoPush).await {
+                out.push(format!("{}/{}", r.repo.namespace, r.repo.name));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Whether the subject may turn edits by maintainers on or off: a fork
+    /// merge request, and push permission on its source.
+    pub async fn may_set_maintainer_edits(&self, subject: &Subject, m: &MergeRequest) -> bool {
+        match m.source_repo_id.filter(|s| *s != m.repo_id) {
+            Some(src) => self
+                .repo_access_by_id(subject, src, Action::RepoPush)
+                .await
+                .is_ok(),
+            None => false,
+        }
     }
 
     /// `ns/name` of a merge request's source repository (shown with the
@@ -1323,6 +1354,7 @@ impl Services {
         {
             return Vec::new();
         }
+        let parent = self.fork_mr_target(repo, pusher).await;
         let mut out = Vec::new();
         for u in updates {
             let Some(branch) = u.name.strip_prefix(b"refs/heads/") else {
@@ -1356,11 +1388,21 @@ impl Services {
                     }
                 }
                 Ok(_) => {
-                    let q = url::form_urlencoded::Serializer::new(String::new())
-                        .append_pair("source", branch)
-                        .finish();
+                    // From a fork, the merge request goes to the parent.
+                    let (target, mut q) = match &parent {
+                        Some(p) => {
+                            let mut q = url::form_urlencoded::Serializer::new(String::new());
+                            q.append_pair("source_repo", &format!("{}/{}", r.namespace, r.name));
+                            (self.config.server.public_url.join(&format!("/{p}")), q)
+                        }
+                        None => (
+                            base.clone(),
+                            url::form_urlencoded::Serializer::new(String::new()),
+                        ),
+                    };
+                    let q = q.append_pair("source", branch).finish();
                     out.push(format!("slath: Create a merge request for {branch}:"));
-                    out.push(format!("slath:   {base}/compare?{q}"));
+                    out.push(format!("slath:   {target}/compare?{q}"));
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "looking up merge requests for push hints failed")
@@ -1368,6 +1410,20 @@ impl Services {
             }
         }
         out
+    }
+
+    /// `ns/name` of a fork's parent that `user` can open merge requests in
+    /// from it, if any.
+    async fn fork_mr_target(&self, fork: RepoId, user: Option<UserId>) -> Option<String> {
+        let u = user?;
+        let user = slath_db::users::get(&self.pool, u).await.ok()??;
+        let s = crate::notifications::user_subject(u, &user);
+        let a = self
+            .repo_access_by_id(&s, fork, Action::RepoRead)
+            .await
+            .ok()?;
+        let f = self.fork_status(&s, &a).await.ok()??;
+        f.contribute.then_some(f.parent).flatten()
     }
 
     /// The (at most three) branches the viewer pushed most recently in the

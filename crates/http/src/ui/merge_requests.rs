@@ -248,6 +248,14 @@ async fn list(
 struct ComparePage {
     ctx: PageCtx,
     header: RepoHeader,
+    /// This repository (`ns/name`).
+    here: String,
+    /// Other repositories of the fork network to merge from.
+    source_repos: Vec<String>,
+    /// The chosen one; empty: this repository.
+    source_repo: String,
+    source_branches: Vec<String>,
+    /// This repository's branches (targets).
     branches: Vec<String>,
     source: String,
     target: String,
@@ -274,10 +282,14 @@ struct CompareView {
     nothing: bool,
     unrelated: bool,
     existing: Option<i32>,
+    /// A less visible fork: creating needs the confirmation.
+    publishes_source: bool,
 }
 
 #[derive(Deserialize, Default, Clone)]
 struct CompareQuery {
+    #[serde(default)]
+    source_repo: String,
     #[serde(default)]
     source: String,
     #[serde(default)]
@@ -286,6 +298,8 @@ struct CompareQuery {
 
 #[derive(Deserialize, Default, Clone)]
 struct CreateForm {
+    #[serde(default)]
+    source_repo: String,
     #[serde(default)]
     source_branch: String,
     #[serde(default)]
@@ -304,6 +318,10 @@ struct CreateForm {
     labels: String,
     #[serde(default)]
     milestone: String,
+    #[serde(default)]
+    allow_maintainer_edits: Option<String>,
+    #[serde(default)]
+    publish_source: Option<String>,
 }
 
 /// The prefilled title and description: a single commit's message, or the
@@ -328,6 +346,26 @@ fn prefill(c: &Compare) -> (String, String) {
     (title, c.template.clone().unwrap_or_default())
 }
 
+/// What the compare page compares: a branch of the source repository
+/// (`ns/name`, empty: this one) into a branch of this one.
+#[derive(Default)]
+struct CompareInput<'a> {
+    source_repo: &'a str,
+    source: &'a str,
+    target: &'a str,
+}
+
+async fn branch_names(state: &AppState, dir: &std::path::Path) -> Result<Vec<String>, AppError> {
+    Ok(
+        slath_git::browse::list_refs(&state.runner, dir, slath_git::browse::RefKind::Branch, 500)
+            .await
+            .map_err(|e| AppError::internal(&e))?
+            .into_iter()
+            .filter_map(|r| String::from_utf8(r.name).ok())
+            .collect(),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn compare_page(
     state: &AppState,
@@ -335,8 +373,7 @@ async fn compare_page(
     subject: &Subject,
     ns: &str,
     repo: &str,
-    source: &str,
-    target: &str,
+    input: CompareInput<'_>,
     form: Option<CreateForm>,
     mut errors: Vec<FieldError>,
     (dq, hx): (&DiffQuery, super::HxRequest),
@@ -349,33 +386,64 @@ async fn compare_page(
         return Err(AppError::not_found());
     }
     let git_dir = state.services.repo_path(a.repo.id);
-    let branches: Vec<String> = slath_git::browse::list_refs(
-        &state.runner,
-        &git_dir,
-        slath_git::browse::RefKind::Branch,
-        500,
-    )
-    .await
-    .map_err(|e| AppError::internal(&e))?
-    .into_iter()
-    .filter_map(|r| String::from_utf8(r.name).ok())
-    .collect();
-    let target = if target.trim().is_empty() {
+    let here = format!("{}/{}", a.repo.namespace, a.repo.name);
+    let mut source_repos = state.services.mr_source_choices(subject, &a).await?;
+    // A fork source the viewer can read (it may not be theirs) is offered too.
+    let wanted = input.source_repo.trim();
+    let source_repo = if wanted.is_empty() || wanted == here {
+        String::new()
+    } else {
+        wanted.to_owned()
+    };
+    let mut bad_source = false;
+    let src = if source_repo.is_empty() {
+        None
+    } else {
+        match (state.services)
+            .mr_source(subject, &a, Some(&source_repo))
+            .await
+        {
+            Ok(src) => src,
+            Err(ServiceError::Invalid(e)) => {
+                errors.extend(e);
+                bad_source = true;
+                None
+            }
+            Err(e) => return Err(e.into()),
+        }
+    };
+    if let Some(s) = &src {
+        let name = format!("{}/{}", s.repo.namespace, s.repo.name);
+        if !source_repos.contains(&name) {
+            source_repos.push(name);
+        }
+    }
+    let source_repo = src
+        .as_ref()
+        .map(|s| format!("{}/{}", s.repo.namespace, s.repo.name))
+        .unwrap_or_default();
+    let branches = branch_names(state, &git_dir).await?;
+    let src_dir = src.as_ref().map(|s| state.services.repo_path(s.repo.id));
+    let source_branches = match &src_dir {
+        Some(d) => branch_names(state, d).await?,
+        None => branches.clone(),
+    };
+    let target = if input.target.trim().is_empty() {
         a.repo.default_branch.clone()
     } else {
-        target.trim().to_owned()
+        input.target.trim().to_owned()
     };
-    let source = source.trim().to_owned();
+    let source = input.source.trim().to_owned();
     let mut cmp = None;
     let mut form = form;
-    if !source.is_empty() {
+    if !source.is_empty() && !bad_source {
         match state
             .services
             .compare(
                 subject,
                 ns,
                 repo,
-                (None, &source),
+                (Some(&source_repo), &source),
                 Some(&target),
                 dq.git_options(&ctx),
             )
@@ -383,16 +451,24 @@ async fn compare_page(
         {
             Ok((_, c)) => {
                 let limits = &state.config.limits;
-                let generated = super::diff::generated(
-                    &state.runner,
-                    &git_dir,
-                    &c.source_head,
-                    &c.diff,
-                    limits,
-                )
-                .await;
+                // A fork's commits are read in place.
+                let runner = match &src_dir {
+                    Some(d) => state
+                        .runner
+                        .reading_objects_of(d)
+                        .map_err(|e| AppError::internal(&e))?,
+                    None => state.runner.clone(),
+                };
+                let generated =
+                    super::diff::generated(&runner, &git_dir, &c.source_head, &c.diff, limits)
+                        .await;
+                let repo_param = if source_repo.is_empty() {
+                    String::new()
+                } else {
+                    format!("source_repo={}&", enc(&source_repo))
+                };
                 let href = format!(
-                    "/{ns}/{repo}/compare?source={}&target={}",
+                    "/{ns}/{repo}/compare?{repo_param}source={}&target={}",
                     enc(&source),
                     enc(&target)
                 );
@@ -402,6 +478,7 @@ async fn compare_page(
                     form = Some(CreateForm {
                         title,
                         description,
+                        allow_maintainer_edits: Some("1".to_owned()),
                         ..CreateForm::default()
                     });
                 }
@@ -413,6 +490,7 @@ async fn compare_page(
                     diff,
                     too_big: c.diff_truncated,
                     existing: c.existing,
+                    publishes_source: c.publishes_source,
                 });
             }
             Err(ServiceError::Invalid(e)) => errors.extend(e),
@@ -425,14 +503,22 @@ async fn compare_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let can_create = match &src {
+        Some(s) => a.can(subject, Action::MrCreateFork) && s.can(subject, Action::RepoPush),
+        None => a.can(subject, Action::MrCreate) && a.can(subject, Action::RepoPush),
+    };
     let page = ComparePage {
         header: RepoHeader::load(state, &a, subject, TAB).await,
-        can_create: a.can(subject, Action::MrCreate) && a.can(subject, Action::RepoPush),
+        can_create,
         milestones: ms
             .into_iter()
             .filter(|m| m.state == "open")
             .map(|m| m.title)
             .collect(),
+        here,
+        source_repos,
+        source_repo,
+        source_branches,
         branches,
         source,
         target,
@@ -464,8 +550,11 @@ async fn compare(
         &session.subject(),
         &ns,
         &repo,
-        &q.source,
-        &q.target,
+        CompareInput {
+            source_repo: &q.source_repo,
+            source: &q.source,
+            target: &q.target,
+        },
         None,
         Vec::new(),
         (&dq, hx),
@@ -481,6 +570,10 @@ async fn create(
     Form(f): Form<CreateForm>,
 ) -> Result<Response, AppError> {
     let new = NewMr {
+        source_repo: f.source_repo.clone(),
+        allow_maintainer_edits: (!f.source_repo.trim().is_empty())
+            .then_some(f.allow_maintainer_edits.is_some()),
+        publish_source: f.publish_source.is_some(),
         source_branch: f.source_branch.clone(),
         target_branch: f.target_branch.clone(),
         title: f.title.clone(),
@@ -495,15 +588,22 @@ async fn create(
     match state.services.create_mr(&s.subject, &ns, &repo, &new).await {
         Ok(m) => Ok(Redirect::to(&mr_url(&ns, &repo, m.number, "")).into_response()),
         Err(ServiceError::Invalid(errors)) => {
-            let (source, target) = (f.source_branch.clone(), f.target_branch.clone());
+            let (source_repo, source, target) = (
+                f.source_repo.clone(),
+                f.source_branch.clone(),
+                f.target_branch.clone(),
+            );
             compare_page(
                 &state,
                 ctx,
                 &s.subject,
                 &ns,
                 &repo,
-                &source,
-                &target,
+                CompareInput {
+                    source_repo: &source_repo,
+                    source: &source,
+                    target: &target,
+                },
                 Some(f),
                 errors,
                 (&DiffQuery::default(), super::HxRequest::default()),
@@ -851,6 +951,10 @@ struct MrHeading {
     card: Card,
     /// A fork source head push protection held back.
     held: Option<HeldView>,
+    /// `ns/name` of a fork source.
+    source_repo: Option<String>,
+    /// The viewer may turn edits by maintainers on or off.
+    can_set_edits: bool,
 }
 
 /// A held-back fork source on the merge request page.
@@ -1090,7 +1194,15 @@ async fn heading(
             })
             .collect(),
     });
+    let source_repo = match m.source_repo_id {
+        Some(id) if id != m.repo_id => state.services.mr_source_name(&m).await?,
+        _ => None,
+    };
+    let can_set_edits =
+        m.state == "open" && state.services.may_set_maintainer_edits(subject, &m).await;
     Ok(MrHeading {
+        source_repo,
+        can_set_edits,
         held,
         card,
         perms,
@@ -2439,6 +2551,26 @@ async fn set_draft(
     Ok(Redirect::to(&mr_url(&ns, &repo, n, "")).into_response())
 }
 
+#[derive(Deserialize)]
+struct EditsForm {
+    #[serde(default)]
+    allow: String,
+}
+
+async fn set_maintainer_edits(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<EditsForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    state
+        .services
+        .set_maintainer_edits(&s.subject, &ns, &repo, n, f.allow == "true")
+        .await?;
+    Ok(Redirect::to(&mr_url(&ns, &repo, n, "")).into_response())
+}
+
 async fn restore(
     State(state): State<AppState>,
     ctx: PageCtx,
@@ -2890,6 +3022,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/draft",
             Access::Resource,
             post(set_draft),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/maintainer-edits",
+            Access::Resource,
+            post(set_maintainer_edits),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/restore",

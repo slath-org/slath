@@ -22,7 +22,7 @@
   {%- endif %}
   </div>
   {%- if let Some(f) = header.fork %}
-  <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}</p>
+  <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}{% if f.contribute %}{% if let Some(p) = f.parent %} · <a href="/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}">Contribute</a>{% endif %}{% endif %}</p>
   {%- endif %}
   {%- if let Some(c) = header.fork_compare %}
   {% include "repo/fork_compare.html" %}
@@ -67,6 +67,6 @@
 {%- for b in header.recent_pushes %}
 <div class="notice recent-push" role="note">
   <p>You pushed to <a href="/{{ header.namespace }}/{{ header.name }}/tree/{{ b|urlencode }}"><code><bdi>{{ b }}</bdi></code></a> recently.</p>
-  <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/compare?source={{ b|urlencode }}">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</a>
+  <a class="button button-primary" href="{% if let Some(p) = header.contribute_to() %}/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}&amp;{% else %}/{{ header.namespace }}/{{ header.name }}/compare?{% endif %}source={{ b|urlencode }}">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</a>
 </div>
 {%- endfor %}

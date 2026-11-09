@@ -3,7 +3,7 @@
   {%- if h.perms.edit %}
   <a class="button button-icon" title="Edit merge request" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit merge request</span></a>
   {%- endif %}
-  {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close) %}
+  {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}
   <details class="menu header-actions">
     <summary class="button">More<span class="visually-hidden"> actions</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
     <div class="menu-panel">
@@ -12,6 +12,13 @@
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
         <input type="hidden" name="draft" value="{% if h.mr.draft %}false{% else %}true{% endif %}">
         <button type="submit" class="button button-quiet menu-item">{% if h.mr.draft %}Mark as ready{% else %}Mark as draft{% endif %}</button>
+      </form>
+      {%- endif %}
+      {%- if h.can_set_edits %}
+      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/maintainer-edits">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <input type="hidden" name="allow" value="{% if h.mr.allow_maintainer_edits %}false{% else %}true{% endif %}">
+        <button type="submit" class="button button-quiet menu-item">{% if h.mr.allow_maintainer_edits %}Stop allowing edits by maintainers{% else %}Allow edits by maintainers{% endif %}</button>
       </form>
       {%- endif %}
       {%- if h.perms.close %}
@@ -35,7 +42,7 @@
 </div>
 <p class="issue-status">
   <span class="state-label state-{{ h.state }}">{% call m::icon(ctx, h.icon) %}{% endcall %}{{ h.state_text }}</span>
-  <span class="text-secondary">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code class="branch-name"><bdi>{{ h.source }}</bdi></code> into <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> · opened <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span>
+  <span class="text-secondary">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code class="branch-name"><bdi>{% if let Some(r) = h.source_repo %}{{ r }}:{% endif %}{{ h.source }}</bdi></code> into <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> · opened <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span>
 </p>
 {%- if let Some(held) = h.held %}
 <div class="notice held-source" role="note">

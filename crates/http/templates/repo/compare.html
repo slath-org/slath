@@ -5,13 +5,27 @@
 <h1>{% if cmp.is_some() && can_create %}New merge request{% else %}Compare branches{% endif %}</h1>
 {% include "settings/errors.html" %}
 <form method="get" action="/{{ header.namespace }}/{{ header.name }}/compare" class="form filter-form" aria-label="Branches to compare">
+  {%- if !source_repos.is_empty() %}
+  <div class="field">
+    <label for="source_repo">From</label>
+    <select id="source_repo" name="source_repo"{% if self.error("source_repo").is_some() %} aria-invalid="true" aria-describedby="source_repo-error"{% endif %}>
+      <option value=""{% if source_repo.is_empty() %} selected{% endif %}>{{ here }}</option>
+      {%- for r in source_repos %}
+      <option value="{{ r }}"{% if r.as_str() == source_repo.as_str() %} selected{% endif %}>{{ r }}</option>
+      {%- endfor %}
+    </select>
+    {%- if let Some(e) = self.error("source_repo") %}
+    <p id="source_repo-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  {%- endif %}
   <div class="field">
     <label for="source_branch">Merge</label>
     <select id="source_branch" name="source"{% if self.error("source_branch").is_some() %} aria-invalid="true" aria-describedby="source_branch-error"{% endif %}>
       {%- if source.is_empty() %}
       <option value="" selected>Choose a branch</option>
       {%- endif %}
-      {%- for b in branches %}
+      {%- for b in source_branches %}
       <option value="{{ b }}"{% if b.as_str() == source.as_str() %} selected{% endif %}>{{ b }}</option>
       {%- endfor %}
     </select>
@@ -44,6 +58,7 @@
 {%- if can_create %}
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form form-wide" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="source_repo" value="{{ source_repo }}">
   <input type="hidden" name="source_branch" value="{{ source }}">
   <input type="hidden" name="target_branch" value="{{ target }}">
   <div class="field">
@@ -102,6 +117,17 @@
   {%- endif %}
   <div class="checkbox"><input id="draft" type="checkbox" name="draft" value="1"{% if form.draft.is_some() %} checked{% endif %} aria-describedby="draft-hint"><label for="draft">Create as draft</label></div>
   <p id="draft-hint" class="hint">A draft can't be merged, and no reviews are requested until you mark it as ready.</p>
+  {%- if !source_repo.is_empty() %}
+  <div class="checkbox"><input id="allow_maintainer_edits" type="checkbox" name="allow_maintainer_edits" value="1"{% if form.allow_maintainer_edits.is_some() %} checked{% endif %} aria-describedby="allow_maintainer_edits-hint"><label for="allow_maintainer_edits">Allow edits by maintainers</label></div>
+  <p id="allow_maintainer_edits-hint" class="hint">People who can write to {{ here }} can push to <code class="branch-name"><bdi>{{ source }}</bdi></code> in {{ source_repo }} while this merge request is open.</p>
+  {%- endif %}
+  {%- if c.publishes_source %}
+  <div class="checkbox"><input id="publish_source" type="checkbox" name="publish_source" value="1"{% if form.publish_source.is_some() %} checked{% endif %} aria-describedby="publish_source-hint{% if self.error("publish_source").is_some() %} publish_source-error{% endif %}"{% if self.error("publish_source").is_some() %} aria-invalid="true"{% endif %}><label for="publish_source">Make these commits readable here</label></div>
+  <p id="publish_source-hint" class="hint">{{ source_repo }} is less visible than {{ here }}. Everyone who can read {{ here }} will be able to read this merge request's commits.</p>
+  {%- if let Some(e) = self.error("publish_source") %}
+  <p id="publish_source-error" class="field-error">{{ e }}</p>
+  {%- endif %}
+  {%- endif %}
   <div class="button-row"><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</button></div>
 </form>
 {%- else if ctx.user.is_none() %}

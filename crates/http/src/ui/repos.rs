@@ -128,6 +128,15 @@ pub struct ImportView {
 }
 
 impl RepoHeader {
+    /// The parent a merge request from this fork goes to, if the viewer
+    /// can open one there.
+    pub fn contribute_to(&self) -> Option<&str> {
+        self.fork
+            .as_ref()
+            .filter(|f| f.contribute)
+            .and_then(|f| f.parent.as_deref())
+    }
+
     #[must_use]
     pub fn new(a: &RepoAccess, subject: &Subject, tab: &'static str) -> Self {
         Self {

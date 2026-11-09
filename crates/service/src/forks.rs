@@ -107,6 +107,8 @@ pub struct ForkView {
     pub error: Option<String>,
     /// The most it may be seen by.
     pub max_visibility: Visibility,
+    /// The viewer can open merge requests from this fork into the parent.
+    pub contribute: bool,
 }
 
 impl Services {
@@ -196,13 +198,19 @@ impl Services {
         let Some(f) = slath_db::forks::get(&self.pool, a.repo.id).await? else {
             return Ok(None);
         };
+        let mut contribute = false;
         let (parent, parent_deleted) = match f.parent_id {
             None => (None, true),
             Some(p) => match self.repo_access_by_id(subject, p, Action::RepoRead).await {
-                Ok(pa) => (
-                    Some(format!("{}/{}", pa.repo.namespace, pa.repo.name)),
-                    false,
-                ),
+                Ok(pa) => {
+                    contribute = a.can(subject, Action::RepoPush)
+                        && pa.can(subject, Action::MrCreateFork)
+                        && self.mrs_enabled(&pa).await;
+                    (
+                        Some(format!("{}/{}", pa.repo.namespace, pa.repo.name)),
+                        false,
+                    )
+                }
                 Err(_) => (
                     None,
                     slath_db::repos::get(&self.pool, p)
@@ -217,6 +225,7 @@ impl Services {
             state: f.state,
             error: f.error,
             max_visibility: f.max_visibility,
+            contribute,
         }))
     }
 

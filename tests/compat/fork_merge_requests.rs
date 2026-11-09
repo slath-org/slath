@@ -522,3 +522,159 @@ fn conf_review_06_maintainer_edits() {
     commit(&git, &b, "bob-upstream.txt");
     git.fails(&b, &["push", &http_url(&s, &bob, "alice/demo"), "main"]);
 }
+
+#[test]
+fn conf_review_06_fork_merge_requests_in_the_ui() {
+    use slath_tests::http::submit;
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let (alice, bob) = (token(&s, "alice"), token(&s, "bob"));
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("alice");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let r = api(
+        &s,
+        &alice,
+        "PATCH",
+        "/alice/demo",
+        Some(json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+    fork(
+        &s,
+        &bob,
+        json!({"namespace": "bob", "name": "hidden", "visibility": "private"}),
+        "/bob/hidden/fork",
+    );
+    let mut web = s.login("bob", PASSWORD);
+    let home = web.get("/bob/demo");
+    assert!(
+        home.body
+            .contains("href=\"/alice/demo/compare?source_repo=bob%2Fdemo\">Contribute</a>"),
+        "{}",
+        home.body
+    );
+
+    // A push to the fork links to a merge request into the original.
+    let b = d.path().join("bob");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(&s, &bob, "bob/demo"), "bob"],
+    );
+    git.ok(&b, &["config", "user.name", "Bob"]);
+    git.ok(&b, &["config", "user.email", "bob@example.org"]);
+    git.ok(&b, &["switch", "-q", "-c", "topic"]);
+    commit(&git, &b, "a.txt");
+    let out = git
+        .cmd(&b)
+        .args(["push", "origin", "topic"])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert!(
+        err.contains("/alice/demo/compare?source_repo=bob%2Fdemo&source=topic"),
+        "{err}"
+    );
+    let banner = web.get("/bob/demo");
+    assert!(
+        banner
+            .body
+            .contains("/alice/demo/compare?source_repo=bob%2Fdemo&amp;source=topic"),
+        "{}",
+        banner.body
+    );
+
+    // The compare page picks the fork and offers edits by maintainers.
+    let page = "/alice/demo/compare?source_repo=bob%2Fdemo&source=topic";
+    let p = web.get(page);
+    assert_eq!(p.status, 200, "{}", p.body);
+    assert!(
+        p.body.contains("<option value=\"bob/demo\" selected>"),
+        "{}",
+        p.body
+    );
+    assert!(p.body.contains("Allow edits by maintainers"), "{}", p.body);
+    assert!(!p.body.contains("Make these commits readable here"));
+    let r = submit(
+        &mut web,
+        page,
+        "/alice/demo/merge-requests",
+        &[
+            ("source_repo", "bob/demo"),
+            ("source_branch", "topic"),
+            ("target_branch", "main"),
+            ("title", "Add a"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let mr = r.headers["location"].clone();
+    let m = web.get(&mr);
+    assert!(m.body.contains("bob/demo:topic"), "{}", m.body);
+    assert!(m.body.contains("Allow edits by maintainers"), "{}", m.body);
+    let n = mr.rsplit('/').next().unwrap();
+    assert_eq!(
+        api(
+            &s,
+            &bob,
+            "GET",
+            &format!("/alice/demo/merge-requests/{n}"),
+            None
+        )
+        .json()["allow_maintainer_edits"],
+        false,
+        "the box was left unchecked"
+    );
+    let r = submit(
+        &mut web,
+        &mr,
+        &format!("{mr}/maintainer-edits"),
+        &[("allow", "true")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(
+        web.get(&mr)
+            .body
+            .contains("Stop allowing edits by maintainers")
+    );
+
+    // A private fork needs the confirmation.
+    let h = d.path().join("hidden");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(&s, &bob, "bob/hidden"), "hidden"],
+    );
+    git.ok(&h, &["config", "user.name", "Bob"]);
+    git.ok(&h, &["config", "user.email", "bob@example.org"]);
+    git.ok(&h, &["switch", "-q", "-c", "secret-topic"]);
+    commit(&git, &h, "b.txt");
+    git.ok(&h, &["push", "-q", "origin", "secret-topic"]);
+    let page = "/alice/demo/compare?source_repo=bob%2Fhidden&source=secret-topic";
+    let p = web.get(page);
+    assert!(
+        p.body.contains("Make these commits readable here"),
+        "{}",
+        p.body
+    );
+    let fields = [
+        ("source_repo", "bob/hidden"),
+        ("source_branch", "secret-topic"),
+        ("target_branch", "main"),
+        ("title", "Add b"),
+        ("allow_maintainer_edits", "1"),
+    ];
+    let r = submit(&mut web, page, "/alice/demo/merge-requests", &fields);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("publish_source-error"), "{}", r.body);
+    let mut confirmed = fields.to_vec();
+    confirmed.push(("publish_source", "1"));
+    let r = submit(&mut web, page, "/alice/demo/merge-requests", &confirmed);
+    assert_eq!(r.status, 303, "{}", r.body);
+    let m = web.get(&r.headers["location"]);
+    assert!(m.body.contains("become readable here"), "{}", m.body);
+}

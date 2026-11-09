@@ -37,6 +37,9 @@ You can also pick the branches yourself under **Merge requests → New merge
 request**, or open a merge request through the API (`POST
 /api/v1/repos/{namespace}/{repo}/merge-requests`).
 
+To merge a branch of your fork into the original, see
+[Merge requests from a fork](forks.md#merge-requests-from-a-fork).
+
 Only one merge request can be open for the same source and target.
 Merge requests share their numbers with issues: `/{namespace}/{repo}/12`
 leads to issue 12 or merge request 12, whichever it is.

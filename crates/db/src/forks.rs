@@ -183,3 +183,32 @@ pub async fn is_upstream(
     .fetch_one(exec)
     .await?)
 }
+
+/// Repositories of `repo`'s fork network (other than `repo`) that `user`
+/// may be able to push to: in their namespace, in an organization they
+/// belong to, or where they're a collaborator. Callers still authorize.
+pub async fn network_candidates(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    user: UserId,
+) -> Result<Vec<RepoId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT r.id FROM repositories x
+           JOIN repositories r ON r.fork_network_id = x.fork_network_id AND r.id <> x.id
+           JOIN namespaces n ON n.id = r.namespace_id
+          WHERE x.id = $1 AND r.state = 'active'
+            AND (r.namespace_id = (SELECT namespace_id FROM users WHERE id = $2)
+                 OR EXISTS (SELECT 1 FROM organizations o JOIN org_members m ON m.org_id = o.id
+                             WHERE o.namespace_id = r.namespace_id AND m.user_id = $2)
+                 OR EXISTS (SELECT 1 FROM repo_collaborators c
+                             WHERE c.repo_id = r.id AND c.user_id = $2))
+          ORDER BY n.name, r.name",
+        repo.as_uuid(),
+        user.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(RepoId::from_uuid)
+    .collect())
+}
