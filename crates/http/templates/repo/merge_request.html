@@ -5,6 +5,9 @@
 <div class="issue">
 {% let mr_tab = "conversation" %}
 {% include "repo/mr_heading.html" %}
+<div class="with-sidebar mr-layout">
+{% include "repo/mr_nav.html" %}
+<div class="sidebar-content">
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
@@ -26,12 +29,14 @@
 <div class="issue-layout">
 <div class="issue-main">
 <div class="timeline-tools">
-  <nav class="segmented" aria-label="Show in the conversation">
-    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}"{% if show == "all" %} aria-current="page"{% endif %}>All</a>
-    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=unresolved"{% if show == "unresolved" %} aria-current="page"{% endif %}>Unresolved <span class="count">{{ unresolved }}</span></a>
-    {%- if ctx.user.is_some() %}
-    <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=mine"{% if show == "mine" %} aria-current="page"{% endif %}>Mine</a>
-    {%- endif %}
+  <nav class="tabs" aria-label="Show in the conversation">
+    <ul>
+      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}"{% if show == "all" %} aria-current="page"{% endif %}>All</a></li>
+      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=unresolved"{% if show == "unresolved" %} aria-current="page"{% endif %}>Unresolved <span class="count">{{ unresolved }}</span></a></li>
+      {%- if ctx.user.is_some() %}
+      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=mine"{% if show == "mine" %} aria-current="page"{% endif %}>Mine</a></li>
+      {%- endif %}
+    </ul>
   </nav>
   <a href="#timeline-end">Jump to newest</a>
 </div>
@@ -250,15 +255,6 @@
 {%- endif %}
 </div>
 <aside class="issue-sidebar" aria-label="Merge request details">
-  <section aria-labelledby="side-checkout" class="checkout">
-    <h2 id="side-checkout" class="sidebar-heading">Check out</h2>
-    <p class="text-secondary">With Git:</p>
-    <pre><code id="checkout-git">{{ git_checkout }}</code></pre>
-    <button type="button" class="button" data-copy="checkout-git" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy Git commands</button>
-    <p class="text-secondary">With jj:</p>
-    <pre><code id="checkout-jj">{{ jj_checkout }}</code></pre>
-    <button type="button" class="button" data-copy="checkout-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button>
-  </section>
   <section aria-labelledby="side-checks">
     <h2 id="side-checks" class="sidebar-heading">Checks</h2>
     {%- if statuses.is_empty() %}
@@ -322,6 +318,8 @@
     <p{% if milestone.is_none() %} class="text-secondary"{% endif %}>{% if let Some(m) = milestone %}{{ m }}{% else %}None{% endif %}</p>
   </section>
 </aside>
+</div>
+</div>
 </div>
 </div>
 {% endblock %}

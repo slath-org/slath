@@ -5,6 +5,9 @@
 <div class="issue">
 {% let mr_tab = "commits" %}
 {% include "repo/mr_heading.html" %}
+<div class="with-sidebar mr-layout">
+{% include "repo/mr_nav.html" %}
+<div class="sidebar-content">
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
@@ -70,5 +73,7 @@
 {%- endfor %}
 </ul>
 {%- endif %}
+</div>
+</div>
 </div>
 {% endblock %}

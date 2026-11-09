@@ -955,6 +955,9 @@ struct MrHeading {
     source_repo: Option<String>,
     /// The viewer may turn edits by maintainers on or off.
     can_set_edits: bool,
+    /// Copy-paste commands that check the merge request out.
+    git_checkout: String,
+    jj_checkout: String,
 }
 
 /// A held-back fork source on the merge request page.
@@ -1200,7 +1203,31 @@ async fn heading(
     };
     let can_set_edits =
         m.state == "open" && state.services.may_set_maintainer_edits(subject, &m).await;
+    let n = m.number;
+    let branch = m.source_branch();
+    let git_checkout =
+        format!("git fetch origin refs/merge-requests/{n}/head && git switch --detach FETCH_HEAD");
+    // jj fetches branches only: a fork's branch comes from the fork.
+    let jj_checkout = match &source_repo {
+        Some(r) => {
+            let remote = r.split('/').next().unwrap_or("fork").to_owned();
+            format!(
+                "jj git remote add {rm} {url} && jj git fetch --remote {rm} --branch {b} && jj new {at}",
+                rm = sh(&remote),
+                url = sh(&state.config.server.public_url.join(&format!("/{r}.git"))),
+                b = sh(&branch),
+                at = sh(&format!("{branch}@{remote}"))
+            )
+        }
+        None => format!(
+            "jj git fetch --remote origin --branch {b} && jj new {r}",
+            b = sh(&branch),
+            r = sh(&format!("{branch}@origin"))
+        ),
+    };
     Ok(MrHeading {
+        git_checkout,
+        jj_checkout,
         source_repo,
         can_set_edits,
         held,
@@ -1232,8 +1259,6 @@ struct MrPage {
     reviewers: Vec<(String, String)>,
     labels: Vec<slath_db::labels::Label>,
     milestone: Option<String>,
-    git_checkout: String,
-    jj_checkout: String,
     /// Where the "New since your review" divider goes in the timeline.
     since_at: Option<usize>,
     /// `all`, `unresolved`, or `mine` (Weave: SegmentedFilter).
@@ -1625,18 +1650,8 @@ async fn mr_page_showing(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
-    let n = m.number;
-    let source = m.source_branch();
     let mut res = render(&MrPage {
         header: RepoHeader::load(state, &a, subject, TAB).await,
-        git_checkout: format!(
-            "git fetch origin refs/merge-requests/{n}/head && git switch --detach FETCH_HEAD"
-        ),
-        jj_checkout: format!(
-            "jj git fetch --remote origin --branch {b} && jj new {r}",
-            b = sh(&source),
-            r = sh(&format!("{source}@origin"))
-        ),
         can_request: open && state.services.mr_perms(subject, &a, &m).edit,
         h,
         body_empty: body_html.trim().is_empty(),

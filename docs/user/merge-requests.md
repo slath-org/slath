@@ -59,7 +59,7 @@ branch contains merge commits. The timeline says so at the revision.
 
 Slath tracks each commit of a merge request as a **change**, so reviews
 can follow a commit through rebases, amends, and rewrites. The
-**Commits** tab shows each commit's change ID. It uses jj's format: for
+**Commits** page (in the merge request's menu on the left) shows each commit's change ID. It uses jj's format: for
 commits made with jj, it's the ID `jj log` shows; for commits made with
 Git, it's the ID jj would give that commit. Nobody needs hooks, trailers,
 or any client configuration.
@@ -94,13 +94,13 @@ If recording the revision takes longer than a few seconds, the push only
 prints the link, and the merge request updates a moment later.
 
 If two equally similar changes could fit, the commit becomes a new change
-and the Commits tab says which ones it may continue. The timeline sums up
+and the Commits page says which ones it may continue. The timeline sums up
 each push, for example "rebased onto main, 2 changes modified, 1 added".
 
 **Unresolved commits** block merging: a commit whose header and trailer
 name different changes, or two commits with the same ID. The author, or
 anyone who can push the source branch, picks a change for each of them on
-the Commits tab. The choice is kept for the next pushes.
+the Commits page. The choice is kept for the next pushes.
 
 Each change ID links to the change's page. It lists the change's versions
 and how each was matched (by its ID, by an identical patch, by similar
@@ -118,7 +118,7 @@ revisions with `git range-diff`. That's marked **heuristic**: it pairs
 commits by similarity and may pair them differently than the change IDs.
 The tree diff between both revisions is one link away.
 
-On the same tab you can also **split** a commit off into a new change,
+On the same page you can also **split** a commit off into a new change,
 when it was matched wrongly, or attach a new change to one that was
 removed. Both are recorded in the timeline and the audit log, and can be
 undone the same way.
@@ -186,7 +186,7 @@ are unchanged (marked "from revision N"). If they changed, the thread is
 **outdated**: it stays in the conversation and on the revision it was made
 on, but never sits on a line it wasn't written about.
 
-On the **Changes** tab, select a line number to open a comment form under
+On the **Changes** page, select a line number to open a comment form under
 that line; set the last line to comment on a range. It works without
 JavaScript and with touch. Threads show under the lines they're about,
 with a link to answer in the conversation. **Mark viewed** collapses a
@@ -280,8 +280,9 @@ Diffs look the same on commits, the compare page, and merge requests:
 
 ## Checking out a merge request
 
-The merge request page shows commands to copy. With Git, the current
-revision is always at `refs/merge-requests/<n>/head`:
+**Check out** next to the merge request's title shows commands to copy,
+each with a copy button. With Git, the current revision is always at
+`refs/merge-requests/<n>/head`:
 
 ```sh
 git fetch origin refs/merge-requests/12/head && git switch --detach FETCH_HEAD
@@ -293,6 +294,13 @@ With jj, fetch the source branch:
 
 ```sh
 jj git fetch --remote origin --branch my-topic && jj new my-topic@origin
+```
+
+For a merge request from a fork, the jj command first adds the fork as a
+remote, since its branch lives there:
+
+```sh
+jj git remote add bob https://slath.example/bob/demo.git && jj git fetch --remote bob --branch my-topic && jj new my-topic@bob
 ```
 
 ## Closing and reopening

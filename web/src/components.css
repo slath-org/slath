@@ -1293,28 +1293,6 @@ fieldset.field {
   justify-content: space-between;
   gap: var(--space-3);
 }
-.segmented {
-  display: inline-flex;
-  border: var(--border-width) solid var(--control-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.segmented a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: var(--target-min);
-  padding: 0 var(--space-3);
-  color: var(--text);
-  text-decoration: none;
-}
-.segmented a + a {
-  border-inline-start: var(--border-width) solid var(--control-border);
-}
-.segmented a[aria-current="page"] {
-  background: var(--surface-subtle);
-  font-weight: var(--weight-semibold);
-}
 .diff-thread-row > td {
   padding: var(--space-2) var(--space-3);
   background: var(--surface-subtle);
@@ -1401,8 +1379,32 @@ fieldset.field {
 .review-form {
   margin-block-end: var(--space-4);
 }
-.checkout pre {
-  margin: var(--space-2) 0 var(--space-3);
+.issue-heading .checkout-menu {
+  margin-inline-start: auto;
+}
+.checkout-panel {
+  width: min(36rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.checkout-label {
+  margin: 0 0 var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.checkout-label ~ .checkout-label {
+  margin-top: var(--space-3);
+}
+/* A command block with its copy button on the end side. */
+.code-with-button {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.code-with-button pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
 }
 .commit-list {
   list-style: none;
@@ -1506,6 +1508,13 @@ a.label-chip:hover {
 @media (min-width: 60rem) {
   .issue-layout {
     grid-template-columns: minmax(0, 1fr) 16rem;
+  }
+}
+/* Merge requests: the page menu takes the start side, so the details
+   column needs a wider screen. */
+@media (min-width: 60rem) and (max-width: 79.99rem) {
+  .mr-layout .issue-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .issue-main {

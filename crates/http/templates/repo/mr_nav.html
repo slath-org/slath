@@ -1,0 +1,7 @@
+<nav class="sidebar" aria-label="Merge request">
+  <ul>
+    <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}"{% if mr_tab == "conversation" %} aria-current="page"{% endif %}>Conversation <span class="count">{{ h.mr.comments }}</span></a></li>
+    <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/commits"{% if mr_tab == "commits" %} aria-current="page"{% endif %}>Commits</a></li>
+    <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes"{% if mr_tab == "changes" %} aria-current="page"{% endif %}>Changes</a></li>
+  </ul>
+</nav>

@@ -86,15 +86,19 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Review fixture");
   const n = new URL(page.url()).pathname.split("/").pop();
 
-  // 5. Checkout commands for Git (the merge request ref) and jj, with copy buttons.
+  // 5. Checkout commands for Git (the merge request ref) and jj, with copy
+  // buttons, in the Check out menu.
+  await tapOrClick(page, page.locator(".checkout-menu > summary"));
+  await expect(page.locator("#checkout-git")).toBeVisible();
   await expect(page.locator("#checkout-git")).toHaveText(
     `git fetch origin refs/merge-requests/${n}/head && git switch --detach FETCH_HEAD`,
   );
   await expect(page.locator("#checkout-jj")).toHaveText(
     "jj git fetch --remote origin --branch review && jj new review@origin",
   );
-  await expect(page.getByRole("button", { name: "Copy Git commands" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Copy jj commands" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy the Git commands" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy the jj commands" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // 8. Both revisions in the timeline, the second with "Compare with previous".
   await expect(page.locator("#revision-1")).toContainText("opened revision 1 with 1 commit");
