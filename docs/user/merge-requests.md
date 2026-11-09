@@ -9,8 +9,6 @@ A merge request asks to merge a branch into another branch of the same
 repository, usually the default branch. It works the same whether you use
 Git or jj, and it needs no hooks or client configuration.
 
-Line comments come in a later release.
-
 ## Opening a merge request
 
 Push a branch. Git (or jj) prints a link:
@@ -168,6 +166,27 @@ look like a review.
 
 **More** next to the title marks a merge request as draft or ready, and
 closes or reopens it.
+
+## Comments on lines
+
+A **thread** starts on one line or a range of lines of a revision's diff,
+on either side (the new text, or the old text a change removed), or on the
+merge request as a whole. Others answer in it, and the merge request's
+author, the thread's author, or anyone who can push resolves it. Branch
+protection can require every thread to be resolved before merging.
+
+Comments can wait in your **pending review**: only you see them until you
+submit the review, and then they appear together.
+
+When a new revision comes in, a thread moves along with its lines if they
+are unchanged (marked "from revision N"). If they changed, the thread is
+**outdated**: it stays in the conversation and on the revision it was made
+on, but never sits on a line it wasn't written about.
+
+The API has `GET …/merge-requests/{n}/threads` (with each thread's current
+position), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
+`pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`
+with `{"resolved": true}`.
 
 ## Merging
 

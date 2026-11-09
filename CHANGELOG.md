@@ -21,6 +21,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request timeline sums up each push, such as "rebased onto main, 2 changes modified, 1 added".
 - A push to a merge request's branch lists each change as unchanged, updated, inferred, new, or removed, for Git and jj alike; past `[limits] push_feedback_timeout`, only the link.
 - Diffs have a file tree, a split view on wide screens, and an option to ignore whitespace; signed-in users' choices are remembered.
+- Review threads on lines of a diff (either side) or on the whole merge request, with replies, resolving, and pending comments sent with the review.
+- Threads move with their lines when a new revision leaves them unchanged and are marked outdated otherwise; resolved threads can be required for merging.
 - Merge request pages open with a readiness card: a headline, the reason, and your one next step; each requirement shows as done, waiting, or blocking.
 - Returning reviewers see how much is new since their review, marked in the timeline; metadata changes fold into one line, and bot comments are marked as claims.
 - Draft, ready, close, and reopen moved to a menu next to the merge request's title; commits show their check results.

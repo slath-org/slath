@@ -16,6 +16,7 @@ pub mod diff;
 pub mod error;
 pub mod import;
 pub mod ipc;
+pub mod linemap;
 pub mod merge;
 pub mod object;
 pub mod refs;

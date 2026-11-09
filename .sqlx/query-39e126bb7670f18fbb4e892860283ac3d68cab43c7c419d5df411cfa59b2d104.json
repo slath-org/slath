@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_viewed_files (mr_id, user_id, path, blob_oid) VALUES ($1, $2, $3, $4)\n                 ON CONFLICT (mr_id, user_id, path) DO UPDATE SET blob_oid = EXCLUDED.blob_oid",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39e126bb7670f18fbb4e892860283ac3d68cab43c7c419d5df411cfa59b2d104"
+}

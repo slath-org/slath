@@ -1,0 +1,186 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,\n                  rn.name::text AS resolved_by, t.created_at\n           FROM mr_threads t\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "revision_seq",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "revision_seq"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "old_oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "old_oid"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "new_oid",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "new_oid"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "side",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "side"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "line_start",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "line_start"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "line_end",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "line_end"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "line_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "line_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "context",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "context"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "author_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "author",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "resolved_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "resolved_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "resolved_by",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      null,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "2825adb19c61aac300e4eabdb4ce5ae321fa4ecf5ffadad17df568dc75edbaf0"
+}

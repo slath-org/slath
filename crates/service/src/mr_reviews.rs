@@ -223,7 +223,8 @@ impl Services {
                 "You can't approve or request changes on your own merge request.",
             ));
         }
-        if verdict == Verdict::Comment && body.trim().is_empty() {
+        let pending = self.pending_comments(subject, &m).await?;
+        if verdict == Verdict::Comment && body.trim().is_empty() && pending == 0 {
             return Err(ServiceError::invalid(
                 "body",
                 "required",
@@ -241,6 +242,8 @@ impl Services {
             body.trim(),
         )
         .await?;
+        // The review publishes the reviewer's pending comments with it.
+        slath_db::mr_threads::publish_pending(&mut *tx, m.id, *me).await?;
         db::mark_reviewed(&mut *tx, m.id, *me).await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
@@ -530,7 +533,16 @@ impl Services {
         }
         reqs.extend(self.check_requirements(m, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
-            reqs.push(met("threads", "No threads are unresolved."));
+            let open = self.unresolved_threads(m).await?;
+            reqs.push(if open == 0 {
+                met("threads", "No threads are unresolved.")
+            } else {
+                unmet(
+                    "threads",
+                    format!("{} unresolved.", plural(open, "thread is", "threads are")),
+                    "Resolve them, or answer and let their authors resolve them",
+                )
+            });
         }
         if m.state == "open" {
             let files = self.mr_conflicts(m).await?;
