@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.repo_id = $1 AND m.number = $2",
+  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.repo_id = $1\n             AND ($2::text IS NULL OR m.state = $2)\n             AND ($3::uuid IS NULL OR m.author_id = $3)\n             AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $4))\n             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($5)) = cardinality($5)\n             AND ($6::uuid IS NULL OR m.milestone_id = $6)\n           ORDER BY CASE WHEN $7 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC\n           OFFSET $8 LIMIT $9",
   "describe": {
     "columns": [
       {
@@ -187,6 +187,17 @@
       },
       {
         "ordinal": 17,
+        "name": "source_findings",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "source_findings"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -197,7 +208,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -208,19 +219,19 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "comments!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "head_oid",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "revisions!",
         "type_info": "Int4",
         "origin": "Expression"
@@ -229,7 +240,14 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Int4"
+        "Text",
+        "Uuid",
+        "Uuid",
+        "UuidArray",
+        "Uuid",
+        "Bool",
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
@@ -250,6 +268,7 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       null,
@@ -257,5 +276,5 @@
       null
     ]
   },
-  "hash": "c641793bc982ea62c7b54182e9f53655759c1a7f5168a0a74953d47455f1e26b"
+  "hash": "f31c8553cf128b3ead94f58b1979cc76718c2a71217856fdb8dfb2b88285a4aa"
 }

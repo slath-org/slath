@@ -841,6 +841,26 @@ struct MrHeading {
     can_push: bool,
     /// The readiness card: what to decide, and the viewer's next step.
     card: Card,
+    /// A fork source head push protection held back.
+    held: Option<HeldView>,
+}
+
+/// A held-back fork source on the merge request page.
+struct HeldView {
+    head: String,
+    /// The viewer may allow findings.
+    may_allow: bool,
+    incomplete: Option<String>,
+    findings: Vec<HeldFindingView>,
+}
+
+struct HeldFindingView {
+    place: String,
+    description: String,
+    rule: String,
+    excerpt: String,
+    /// The allowance page for this finding, if the viewer may allow it.
+    allow: Option<String>,
 }
 
 /// The one primary action of a merge request page, for this viewer.
@@ -1031,7 +1051,39 @@ async fn heading(
         .filter(|n| *n > 0);
     let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
     let card = card(&m, mb, &viewer, since, &base);
+    let may_allow = a.can(subject, Action::RepoPush)
+        && (a.can(subject, Action::RepoSettings)
+            || !state.services.allowances_need_admin(a.repo.id).await?);
+    let held = slath_service::push_protection::HeldSource::of(&m).map(|h| HeldView {
+        head: short(&h.head).to_owned(),
+        may_allow,
+        incomplete: h.incomplete,
+        findings: h
+            .findings
+            .into_iter()
+            .map(|f| HeldFindingView {
+                place: match (&f.path, f.place.as_str()) {
+                    (Some(p), _) => format!("{p} line {} in commit {}", f.line, short(&f.object)),
+                    (None, "tag_message") => format!("message of tag {}", short(&f.object)),
+                    _ => format!("message of commit {}", short(&f.object)),
+                },
+                allow: may_allow.then(|| {
+                    format!(
+                        "/{}/{}/-/secret-scan/allow?fingerprint={}&rule={}",
+                        a.repo.namespace,
+                        a.repo.name,
+                        f.fingerprint,
+                        enc(&f.rule)
+                    )
+                }),
+                description: f.description,
+                rule: f.rule,
+                excerpt: f.excerpt,
+            })
+            .collect(),
+    });
     Ok(MrHeading {
+        held,
         card,
         perms,
         source: m.source_branch(),

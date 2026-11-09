@@ -73,6 +73,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A fork of a private repository is locked when its creator loses access to the original, unlocked when access returns, and deleted after the retention period.
 - Open merge requests from a fork through the API: the original receives only that branch's history, gets a revision per push, and merges it like any other.
 - A merge request from a less visible fork needs the author's confirmation that its commits become readable in the original; the timeline records it.
+- Pushes to a fork's merge request branch meet the original's push protection before the original takes them over; findings show on the merge request with allow links.
 
 ### Changed
 

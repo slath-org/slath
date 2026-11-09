@@ -88,6 +88,9 @@ pub struct MergeRequest {
     /// Head of the current (highest) revision, if any.
     pub head_oid: Option<String>,
     pub revisions: i32,
+    /// Fork MRs: what push protection found in a source head that wasn't
+    /// fetched (see `service::push_protection::BlockedSource`).
+    pub source_findings: Option<serde_json::Value>,
 }
 
 impl MergeRequest {
@@ -124,6 +127,7 @@ macro_rules! to_mr {
             comments: $r.comments,
             head_oid: $r.head_oid,
             revisions: $r.revisions,
+            source_findings: $r.source_findings,
         }
     };
 }
@@ -191,7 +195,7 @@ pub async fn get(
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
                   m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
-                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at,
+                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
                      AND c.deleted_at IS NULL) AS "comments!",
@@ -216,7 +220,7 @@ pub async fn get_by_id(
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
                   m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
-                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at,
+                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
                      AND c.deleted_at IS NULL) AS "comments!",
@@ -244,7 +248,7 @@ pub async fn list(
     let rows = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
                   m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
-                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at,
+                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
                      AND c.deleted_at IS NULL) AS "comments!",
@@ -621,4 +625,39 @@ pub async fn open_by_target(
     .fetch_all(exec)
     .await?;
     Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}
+
+/// Records (or, with `None`, clears) what push protection found in a fork
+/// MR's source head.
+pub async fn set_source_findings(
+    exec: impl PgExecutor<'_>,
+    id: MergeRequestId,
+    findings: Option<&serde_json::Value>,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE merge_requests SET source_findings = $2 WHERE id = $1",
+        id.as_uuid(),
+        findings
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Open merge requests into `repo` whose source head push protection held
+/// back.
+pub async fn held_back(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT id FROM merge_requests
+          WHERE repo_id = $1 AND state = 'open' AND source_findings IS NOT NULL",
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(MergeRequestId::from_uuid)
+    .collect())
 }

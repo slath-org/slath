@@ -53,6 +53,70 @@ pub struct Links {
     pub accept: Option<String>,
 }
 
+/// A blocking finding in a fork MR's source head, as the merge request
+/// shows it: redacted like everywhere else (rule, place, the excerpt cut to
+/// four characters, the fingerprint).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HeldFinding {
+    pub rule: String,
+    pub description: String,
+    /// `file`, `commit_message`, or `tag_message`.
+    pub place: String,
+    /// The commit (or tag object) it's in.
+    pub object: String,
+    pub path: Option<String>,
+    pub line: usize,
+    pub excerpt: String,
+    pub fingerprint: String,
+}
+
+/// A fork MR's source head that the target's push protection held back:
+/// it wasn't fetched, and the merge request keeps its previous revision.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HeldSource {
+    pub head: String,
+    /// The scan couldn't finish (a limit, a timeout, an error).
+    pub incomplete: Option<String>,
+    pub findings: Vec<HeldFinding>,
+}
+
+impl HeldSource {
+    fn new(head: &ObjectId, report: &ScanReport) -> Self {
+        Self {
+            head: head.to_string(),
+            incomplete: report.incomplete.clone(),
+            findings: report
+                .blocking()
+                .map(|f| {
+                    let (place, object, path) = match &f.place {
+                        Place::File { commit, path } => ("file", commit, Some(path.clone())),
+                        Place::CommitMessage { commit } => ("commit_message", commit, None),
+                        Place::TagMessage { tag } => ("tag_message", tag, None),
+                    };
+                    HeldFinding {
+                        rule: f.finding.rule.clone(),
+                        description: f.finding.description.clone(),
+                        place: place.to_owned(),
+                        object: object.clone(),
+                        path,
+                        line: f.finding.line,
+                        excerpt: f.finding.excerpt.clone(),
+                        fingerprint: f.finding.fingerprint.clone(),
+                    }
+                })
+                .collect(),
+        }
+    }
+
+    /// The record stored with a merge request, if it can be read.
+    #[must_use]
+    pub fn of(m: &slath_db::merge_requests::MergeRequest) -> Option<Self> {
+        m.source_findings
+            .as_ref()
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+    }
+}
+
 impl ScanReport {
     pub fn blocking(&self) -> impl Iterator<Item = &PushFinding> {
         self.findings
@@ -104,6 +168,77 @@ impl Services {
         Ok(())
     }
 
+    /// Push protection for a fork MR's fetch (D-53): scans what fetching
+    /// `head` from `source` would add to the target, with the target's
+    /// mode, allowlist, and allowances. In `block` mode, blocking findings
+    /// or an incomplete scan hold the head back: it's recorded on the merge
+    /// request and `false` is returned. A head that passes clears the
+    /// record.
+    pub(crate) async fn admit_fetch(
+        &self,
+        m: &slath_db::merge_requests::MergeRequest,
+        source: &Path,
+        head: &ObjectId,
+    ) -> Result<bool> {
+        let mode = self.push_protection_mode(m.repo_id).await?;
+        let mut held = None;
+        if mode != ScanMode::Off {
+            let mut report = self
+                .scan_fetch(m.repo_id, std::slice::from_ref(head), source)
+                .await;
+            let target = slath_db::repos::get(&self.pool, m.repo_id)
+                .await?
+                .ok_or(ServiceError::NotFound)?;
+            self.apply_allowances(m.repo_id, &target.default_branch, &mut report)
+                .await?;
+            if mode == ScanMode::Block
+                && (report.incomplete.is_some() || report.blocking().next().is_some())
+            {
+                held = Some(HeldSource::new(head, &report));
+            }
+        }
+        let value = held
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(ServiceError::internal)?;
+        if value != m.source_findings {
+            slath_db::merge_requests::set_source_findings(&self.pool, m.id, value.as_ref()).await?;
+        }
+        if let Some(h) = &held {
+            tracing::info!(
+                mr = %m.id,
+                head = %h.head,
+                findings = h.findings.len(),
+                incomplete = h.incomplete.is_some(),
+                "push protection held back a fork merge request's source"
+            );
+        }
+        Ok(held.is_none())
+    }
+
+    /// After an allowance in `repo`: fetches again the sources of its merge
+    /// requests that push protection held back.
+    async fn retry_held_back(&self, repo: RepoId) {
+        let ids = match slath_db::merge_requests::held_back(&self.pool, repo).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::warn!(error = %e, "listing held-back merge requests failed");
+                return;
+            }
+        };
+        for id in ids {
+            let job = slath_db::jobs::NewJob::new(
+                "default",
+                crate::merge_requests::MR_FETCH,
+                serde_json::json!({"mr_id": id.to_string(), "pusher": null}),
+            );
+            if let Err(e) = slath_db::jobs::enqueue(&self.pool, &job).await {
+                tracing::warn!(error = %e, mr = %id, "queueing mr.fetch failed");
+            }
+        }
+    }
+
     /// True if only repository administrators may allow findings.
     pub async fn allowances_need_admin(&self, repo: RepoId) -> Result<bool> {
         Ok(slath_db::repos::secret_allowance_role(&self.pool, repo).await? == "admin")
@@ -116,8 +251,39 @@ impl Services {
         tips: &[ObjectId],
         quarantine: Option<&Path>,
     ) -> ScanReport {
+        self.scan_bounded(&self.runner, repo, tips, quarantine)
+            .await
+    }
+
+    /// Scans what fetching `tips` from the repository at `source` would add
+    /// to `repo`, reading `source`'s objects in place (nothing is fetched).
+    pub async fn scan_fetch(&self, repo: RepoId, tips: &[ObjectId], source: &Path) -> ScanReport {
+        match self.runner.reading_objects_of(source) {
+            Ok(r) => self.scan_bounded(&r, repo, tips, None).await,
+            Err(e) => {
+                tracing::warn!(error = %e, repo = %repo, "secret scan failed");
+                ScanReport {
+                    incomplete: Some("the secret scan failed; try again".into()),
+                    ..ScanReport::default()
+                }
+            }
+        }
+    }
+
+    async fn scan_bounded(
+        &self,
+        runner: &slath_git::Runner,
+        repo: RepoId,
+        tips: &[ObjectId],
+        quarantine: Option<&Path>,
+    ) -> ScanReport {
         let timeout = self.config.limits.secret_scan_timeout.get();
-        match tokio::time::timeout(timeout, self.scan_inner(repo, tips, quarantine, false)).await {
+        match tokio::time::timeout(
+            timeout,
+            self.scan_inner(runner, repo, tips, quarantine, false),
+        )
+        .await
+        {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
                 tracing::warn!(error = %e, repo = %repo, "secret scan failed");
@@ -160,9 +326,12 @@ impl Services {
         tips.sort();
         tips.dedup();
         let timeout = self.config.limits.import_timeout.get();
-        let report = tokio::time::timeout(timeout, self.scan_inner(repo, &tips, None, true))
-            .await
-            .map_err(|_| ServiceError::internal("the import's secret scan timed out"))??;
+        let report = tokio::time::timeout(
+            timeout,
+            self.scan_inner(&self.runner, repo, &tips, None, true),
+        )
+        .await
+        .map_err(|_| ServiceError::internal("the import's secret scan timed out"))??;
         let n = report.findings.len();
         slath_db::imports::set_secret_findings(
             &self.pool,
@@ -178,6 +347,7 @@ impl Services {
 
     async fn scan_inner(
         &self,
+        runner: &slath_git::Runner,
         repo: RepoId,
         tips: &[ObjectId],
         quarantine: Option<&Path>,
@@ -185,11 +355,10 @@ impl Services {
     ) -> Result<ScanReport> {
         let started = Instant::now();
         let dir = self.repo_path(repo);
-        let content =
-            slath_git::scan::new_content(&self.runner, &dir, quarantine, tips, everything)
-                .await
-                .map_err(ServiceError::internal)?;
-        let mut reader = ObjectReader::open_in(&self.runner, &dir, quarantine)
+        let content = slath_git::scan::new_content(runner, &dir, quarantine, tips, everything)
+            .await
+            .map_err(ServiceError::internal)?;
+        let mut reader = ObjectReader::open_in(runner, &dir, quarantine)
             .await
             .map_err(ServiceError::internal)?;
         let file_max = self.config.limits.secret_scan_file_max_bytes.get();
@@ -499,6 +668,7 @@ impl Services {
             serde_json::json!({"fingerprint": fingerprint, "rule": rule, "days": days, "reason": reason}),
         )
         .await;
+        self.retry_held_back(a.repo.id).await;
         Ok(())
     }
 

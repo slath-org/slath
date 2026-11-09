@@ -6661,6 +6661,77 @@
           }
         }
       },
+      "HeldFinding": {
+        "type": "object",
+        "description": "A possible secret, redacted: the excerpt keeps four characters of it.",
+        "required": [
+          "rule",
+          "description",
+          "place",
+          "object",
+          "line",
+          "excerpt",
+          "fingerprint"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "object": {
+            "type": "string",
+            "description": "The commit or tag object it's in."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "place": {
+            "type": "string",
+            "description": "`file`, `commit_message`, or `tag_message`."
+          },
+          "rule": {
+            "type": "string"
+          }
+        }
+      },
+      "HeldSource": {
+        "type": "object",
+        "required": [
+          "head",
+          "findings"
+        ],
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeldFinding"
+            }
+          },
+          "head": {
+            "type": "string",
+            "description": "The source head that wasn't fetched."
+          },
+          "incomplete": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the scan couldn't finish, if it couldn't."
+          }
+        }
+      },
       "ImportReport": {
         "type": "object",
         "description": "The state and result of an import.",
@@ -7162,6 +7233,17 @@
               "null"
             ],
             "description": "Head commit of the current revision."
+          },
+          "held_source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HeldSource",
+                "description": "Fork merge requests: a source head this repository's push protection\nheld back. It isn't fetched, and the merge request keeps its previous\nrevision until the findings are removed or allowed."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "merged_at": {
             "type": [

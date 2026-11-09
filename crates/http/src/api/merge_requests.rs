@@ -46,6 +46,10 @@ pub struct MergeRequest {
     /// Fork merge requests: writers of this repository may push to the
     /// source branch while the merge request is open.
     pub allow_maintainer_edits: bool,
+    /// Fork merge requests: a source head this repository's push protection
+    /// held back. It isn't fetched, and the merge request keeps its previous
+    /// revision until the findings are removed or allowed.
+    pub held_source: Option<HeldSource>,
     /// Head commit of the current revision.
     pub head_oid: Option<String>,
     /// Number of revisions (pushes that changed the source).
@@ -57,12 +61,58 @@ pub struct MergeRequest {
     pub merged_at: Option<String>,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct HeldSource {
+    /// The source head that wasn't fetched.
+    pub head: String,
+    /// Why the scan couldn't finish, if it couldn't.
+    pub incomplete: Option<String>,
+    pub findings: Vec<HeldFinding>,
+}
+
+/// A possible secret, redacted: the excerpt keeps four characters of it.
+#[derive(Serialize, ToSchema)]
+pub struct HeldFinding {
+    pub rule: String,
+    pub description: String,
+    /// `file`, `commit_message`, or `tag_message`.
+    pub place: String,
+    /// The commit or tag object it's in.
+    pub object: String,
+    pub path: Option<String>,
+    pub line: usize,
+    pub excerpt: String,
+    pub fingerprint: String,
+}
+
+fn held_json(h: slath_service::push_protection::HeldSource) -> HeldSource {
+    HeldSource {
+        head: h.head,
+        incomplete: h.incomplete,
+        findings: h
+            .findings
+            .into_iter()
+            .map(|f| HeldFinding {
+                rule: f.rule,
+                description: f.description,
+                place: f.place,
+                object: f.object,
+                path: f.path,
+                line: f.line,
+                excerpt: f.excerpt,
+                fingerprint: f.fingerprint,
+            })
+            .collect(),
+    }
+}
+
 fn mr_json(
     m: slath_db::merge_requests::MergeRequest,
     html: String,
     source_repo: Option<String>,
 ) -> MergeRequest {
     MergeRequest {
+        held_source: slath_service::push_protection::HeldSource::of(&m).map(held_json),
         source_repo,
         allow_maintainer_edits: m.allow_maintainer_edits,
         source_branch: m.source_branch(),

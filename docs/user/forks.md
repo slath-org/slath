@@ -90,3 +90,9 @@ public repository, for example), everyone who can read the original will
 be able to read the merge request's commits. Slath asks you to confirm
 that (`"publish_source": true` in the API) and notes it in the merge
 request's timeline.
+
+The original's push protection checks every push to the branch before
+the merge request takes it over, even if your fork has push protection
+off. If it finds a possible secret, the merge request stays at its
+previous revision and shows what was found. Remove the secret and push
+again, or ask a writer of the original to allow it if it isn't one.

@@ -275,3 +275,113 @@ fn conf_review_06_less_visible_sources_need_confirmation() {
     );
     assert_eq!(ev, "source_published bob/hidden");
 }
+
+#[test]
+fn conf_review_06_fork_content_meets_the_targets_push_protection() {
+    use slath_core::secret_scan::samples;
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let (alice, bob) = (token(&s, "alice"), token(&s, "bob"));
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("alice");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let r = api(
+        &s,
+        &alice,
+        "PATCH",
+        "/alice/demo",
+        Some(json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+    // The fork doesn't protect itself; the target still does.
+    s.db.execute(
+        "UPDATE repositories r SET push_protection = 'off' FROM namespaces n \
+          WHERE n.id = r.namespace_id AND n.name = 'bob'",
+    );
+    let b = d.path().join("bob");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(&s, &bob, "bob/demo"), "bob"],
+    );
+    git.ok(&b, &["config", "user.name", "Bob"]);
+    git.ok(&b, &["config", "user.email", "bob@example.org"]);
+    git.ok(&b, &["switch", "-q", "-c", "topic"]);
+    let first = commit(&git, &b, "a.txt");
+    git.ok(&b, &["push", "-q", "origin", "topic"]);
+    let r = api(
+        &s,
+        &bob,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_repo": "bob/demo", "source_branch": "topic", "title": "Add a"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let path = format!("/alice/demo/merge-requests/{n}");
+
+    let (_, key) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "private-key")
+        .unwrap();
+    std::fs::write(b.join("key.pem"), key).unwrap();
+    git.ok(&b, &["add", "."]);
+    git.ok(&b, &["commit", "-q", "-m", "Add a key"]);
+    let secret = git.ok(&b, &["rev-parse", "HEAD"]).trim().to_owned();
+    git.ok(&b, &["push", "-q", "origin", "topic"]);
+    let mut held = Value::Null;
+    eventually(&s, "the source wasn't held back", || {
+        held = api(&s, &bob, "GET", &path, None).json();
+        !held["held_source"].is_null()
+    });
+    assert_eq!(held["revisions"], 1, "{held}");
+    assert_eq!(held["head_oid"], first.as_str(), "{held}");
+    let h = &held["held_source"];
+    assert_eq!(h["head"], secret.as_str(), "{held}");
+    let f = &h["findings"][0];
+    assert_eq!(f["rule"], "private-key", "{held}");
+    assert_eq!(f["path"], "key.pem", "{held}");
+    assert!(
+        f["excerpt"].as_str().unwrap().len() < 80,
+        "only a redacted excerpt: {held}"
+    );
+    let parent = s.repo_path(&DEMO);
+    assert!(
+        !has_object(&git, &parent, &secret),
+        "a held-back head isn't fetched"
+    );
+
+    // The page names the findings; only target writers get allow links.
+    let fp = f["fingerprint"].as_str().unwrap().to_owned();
+    let mut bob_web = s.login("bob", PASSWORD);
+    let page = bob_web.get(&format!("/alice/demo/merge-requests/{n}"));
+    assert!(page.body.contains("wasn't taken over"), "{}", page.body);
+    assert!(!page.body.contains(&fp), "{}", page.body);
+    let mut alice_web = s.login("alice", PASSWORD);
+    let page = alice_web.get(&format!("/alice/demo/merge-requests/{n}"));
+    let link = format!("/alice/demo/-/secret-scan/allow?fingerprint={fp}&#38;rule=private-key");
+    assert!(page.body.contains(&link), "{}", page.body);
+
+    // Allowing it fetches the held-back head.
+    let r = slath_tests::http::submit(
+        &mut alice_web,
+        &link.replace("&#38;", "&"),
+        "/alice/demo/-/secret-scan/allow",
+        &[
+            ("fingerprint", &fp),
+            ("rule", "private-key"),
+            ("days", "1"),
+            ("reason", "test fixture"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    eventually(&s, "the held-back head wasn't fetched", || {
+        let m = api(&s, &bob, "GET", &path, None).json();
+        m["revisions"] == 2 && m["held_source"].is_null() && m["head_oid"] == secret.as_str()
+    });
+    assert!(has_object(&git, &parent, &secret));
+}

@@ -1124,7 +1124,9 @@ impl Services {
 
     /// A fork MR's source head, fetched into the target as
     /// `refs/slath/mr/<id>/incoming` (only that commit's history comes
-    /// along). `None` when the source branch or repository is gone.
+    /// along) once the target's push protection admits it; a head held
+    /// back leaves the previously fetched one. `None` when the source
+    /// branch or repository is gone, or nothing was admitted yet.
     async fn fetch_mr_source(
         &self,
         m: &MergeRequest,
@@ -1143,23 +1145,25 @@ impl Services {
             return Ok(None);
         };
         let dir = self.repo_path(m.repo_id);
+        let src_dir = self.repo_path(source_repo);
         let incoming = slath_git::refs::mr_incoming(m.id);
-        if slath_git::refs::read(&self.runner, &dir, &incoming)
-            .await
-            .map_err(ServiceError::internal)?
-            .as_ref()
-            != Some(&head)
-        {
-            slath_git::forks::fetch_commit(
-                &self.runner,
-                &dir,
-                &self.repo_path(source_repo),
-                &head,
-                &incoming,
-            )
+        let current = slath_git::refs::read(&self.runner, &dir, &incoming)
             .await
             .map_err(ServiceError::internal)?;
+        if current.as_ref() == Some(&head) {
+            // Back at a head that was admitted: nothing is held back.
+            if m.source_findings.is_some() {
+                slath_db::merge_requests::set_source_findings(&self.pool, m.id, None).await?;
+            }
+            return Ok(Some(head));
         }
+        // The target's push protection decides before anything is copied.
+        if !self.admit_fetch(m, &src_dir, &head).await? {
+            return Ok(current);
+        }
+        slath_git::forks::fetch_commit(&self.runner, &dir, &src_dir, &head, &incoming)
+            .await
+            .map_err(ServiceError::internal)?;
         Ok(Some(head))
     }
 

@@ -27,6 +27,15 @@ Only what a push adds to the repository: the files of the new commits
 (binary files are skipped), the new commit messages, and new annotated tag
 messages. Content the repository already has is never scanned again.
 
+Merge requests from forks are scanned with the target repository's
+settings, whatever the fork's own mode is. Before Slath takes over a new
+push to the fork's branch, it checks what that push would add to the
+target, and nothing is copied until the check passes. A blocking finding
+holds the push back: the merge request keeps its previous revision and
+lists the findings (redacted), with allow links for the target's writers.
+An allowance in the target, or a new push without the secret, brings the
+merge request up to date. The target's allowlist applies as for a push.
+
 Repositories imported from another server are scanned after the import,
 but only reported: the history exists elsewhere already. The repository's
 front page tells its administrators how many possible secrets were found,

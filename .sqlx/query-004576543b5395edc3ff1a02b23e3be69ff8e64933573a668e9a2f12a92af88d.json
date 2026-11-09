@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.id = $1",
+  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.id = $1",
   "describe": {
     "columns": [
       {
@@ -187,6 +187,17 @@
       },
       {
         "ordinal": 17,
+        "name": "source_findings",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "source_findings"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -197,7 +208,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -208,19 +219,19 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "comments!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "head_oid",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "revisions!",
         "type_info": "Int4",
         "origin": "Expression"
@@ -249,6 +260,7 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       null,
@@ -256,5 +268,5 @@
       null
     ]
   },
-  "hash": "668fbc210d691775b12de3e6e06174a593a2cf647b5bf09bdc03d53e1cdfea5b"
+  "hash": "004576543b5395edc3ff1a02b23e3be69ff8e64933573a668e9a2f12a92af88d"
 }
