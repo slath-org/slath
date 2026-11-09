@@ -515,7 +515,8 @@ impl Services {
     }
 
     /// Deletes the source branch after a merge, if the merger can push it
-    /// and it isn't protected from deletion. Failures only cost the delete.
+    /// and it isn't protected from deletion. A fork's branch is its owner's
+    /// and stays. Failures only cost the delete.
     async fn delete_source(
         &self,
         subject: &Subject,
@@ -523,7 +524,7 @@ impl Services {
         m: &MergeRequest,
         head: &ObjectId,
     ) {
-        if !a.can(subject, Action::RepoPush) {
+        if m.source_repo_id != Some(a.repo.id) || !a.can(subject, Action::RepoPush) {
             return;
         }
         let Some(branch) = m.source_ref.strip_prefix(b"refs/heads/") else {

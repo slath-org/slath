@@ -38,8 +38,14 @@ pub struct MergeRequest {
     pub draft: bool,
     /// `None` for deleted accounts.
     pub author: Option<String>,
+    /// `ns/name` of the source repository: this repository or a fork in
+    /// its network. `None` once that fork is deleted.
+    pub source_repo: Option<String>,
     pub source_branch: String,
     pub target_branch: String,
+    /// Fork merge requests: writers of this repository may push to the
+    /// source branch while the merge request is open.
+    pub allow_maintainer_edits: bool,
     /// Head commit of the current revision.
     pub head_oid: Option<String>,
     /// Number of revisions (pushes that changed the source).
@@ -51,8 +57,14 @@ pub struct MergeRequest {
     pub merged_at: Option<String>,
 }
 
-fn mr_json(m: slath_db::merge_requests::MergeRequest, html: String) -> MergeRequest {
+fn mr_json(
+    m: slath_db::merge_requests::MergeRequest,
+    html: String,
+    source_repo: Option<String>,
+) -> MergeRequest {
     MergeRequest {
+        source_repo,
+        allow_maintainer_edits: m.allow_maintainer_edits,
         source_branch: m.source_branch(),
         number: m.number,
         title: m.title,
@@ -87,7 +99,8 @@ async fn render(
         .services
         .render_markdown(s, Some(&ctx), &m.description)
         .await?;
-    Ok(mr_json(m, html))
+    let source = state.services.mr_source_name(&m).await?;
+    Ok(mr_json(m, html, source))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -152,6 +165,10 @@ pub async fn list_mrs(
 
 #[derive(Deserialize, ToSchema)]
 pub struct NewMergeRequest {
+    /// `ns/name` of a repository in this repository's fork network that
+    /// you can push to. Default: this repository.
+    #[serde(default)]
+    pub source_repo: String,
     #[serde(default)]
     pub source_branch: String,
     /// Default: the repository's default branch.
@@ -175,9 +192,18 @@ pub struct NewMergeRequest {
     pub milestone: Option<String>,
     /// Default: the repository's setting.
     pub delete_source_on_merge: Option<bool>,
+    /// Fork merge requests: let writers of this repository push to the
+    /// source branch while the merge request is open. Default: true.
+    pub allow_maintainer_edits: Option<bool>,
+    /// Required when the source repository is less visible than this one:
+    /// confirms that its commits become readable to this repository's
+    /// readers.
+    #[serde(default)]
+    pub publish_source: bool,
 }
 
-/// Opens a merge request from a branch of this repository.
+/// Opens a merge request from a branch of this repository or of a fork in
+/// its network.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = NewMergeRequest,
     responses((status = 201, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_mr(
@@ -193,6 +219,9 @@ pub async fn create_mr(
             &ns,
             &repo,
             &NewMr {
+                source_repo: b.source_repo,
+                allow_maintainer_edits: b.allow_maintainer_edits,
+                publish_source: b.publish_source,
                 source_branch: b.source_branch,
                 target_branch: b.target_branch.unwrap_or_default(),
                 title: b.title,

@@ -71,6 +71,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Fork from the repository header: choose the owner, name, and visibility, or copy only the default branch. Forks show where they came from, and each repository lists its forks.
 - Forks show how far their default branch is ahead of or behind the original's, and Sync fork brings it forward (or, after confirming, discards the fork's own commits).
 - A fork of a private repository is locked when its creator loses access to the original, unlocked when access returns, and deleted after the retention period.
+- Open merge requests from a fork through the API: the original receives only that branch's history, gets a revision per push, and merges it like any other.
+- A merge request from a less visible fork needs the author's confirmation that its commits become readable in the original; the timeline records it.
 
 ### Changed
 

@@ -30,6 +30,8 @@ TABLE = {
     "issue.triage": (N, N, Y, Y, Y),
     "comment.moderate": (N, N, N, Y, Y),
     "mr.create": (N, N, Y, Y, Y),
+    # From a fork in the same network; push on the source is checked there.
+    "mr.create_fork": (N, Y, Y, Y, Y),
     "mr.comment": (N, Y, Y, Y, Y),
     "mr.review": (N, Y, Y, Y, Y),
     "mr.suggest": (N, Y, Y, Y, Y),

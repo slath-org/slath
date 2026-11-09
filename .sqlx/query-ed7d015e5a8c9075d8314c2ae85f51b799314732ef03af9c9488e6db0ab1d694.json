@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (SELECT 1 FROM repositories x JOIN repositories y\n                            ON y.fork_network_id = x.fork_network_id\n                          WHERE x.id = $1 AND y.id = $2) AS \"same!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "same!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ed7d015e5a8c9075d8314c2ae85f51b799314732ef03af9c9488e6db0ab1d694"
+}

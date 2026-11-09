@@ -3223,7 +3223,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Opens a merge request from a branch of this repository.",
+        "summary": "Opens a merge request from a branch of this repository or of a fork in\nits network.",
         "operationId": "create_mr",
         "parameters": [
           {
@@ -7114,12 +7114,17 @@
           "draft",
           "source_branch",
           "target_branch",
+          "allow_maintainer_edits",
           "revisions",
           "comments",
           "created_at",
           "updated_at"
         ],
         "properties": {
+          "allow_maintainer_edits": {
+            "type": "boolean",
+            "description": "Fork merge requests: writers of this repository may push to the\nsource branch while the merge request is open."
+          },
           "author": {
             "type": [
               "string",
@@ -7175,6 +7180,13 @@
           },
           "source_branch": {
             "type": "string"
+          },
+          "source_repo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`ns/name` of the source repository: this repository or a fork in\nits network. `None` once that fork is deleted."
           },
           "state": {
             "type": "string",
@@ -7515,6 +7527,13 @@
       "NewMergeRequest": {
         "type": "object",
         "properties": {
+          "allow_maintainer_edits": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Fork merge requests: let writers of this repository push to the\nsource branch while the merge request is open. Default: true."
+          },
           "assignees": {
             "type": "array",
             "items": {
@@ -7549,6 +7568,10 @@
             ],
             "description": "Milestone title."
           },
+          "publish_source": {
+            "type": "boolean",
+            "description": "Required when the source repository is less visible than this one:\nconfirms that its commits become readable to this repository's\nreaders."
+          },
           "reviewers": {
             "type": "array",
             "items": {
@@ -7558,6 +7581,10 @@
           },
           "source_branch": {
             "type": "string"
+          },
+          "source_repo": {
+            "type": "string",
+            "description": "`ns/name` of a repository in this repository's fork network that\nyou can push to. Default: this repository."
           },
           "target_branch": {
             "type": [

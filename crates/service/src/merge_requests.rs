@@ -4,9 +4,11 @@
 //! (comments, events, revisions), closing and reopening, draft and ready,
 //! and the revisions a push to the source creates (`mr.sync`).
 //!
-//! An MR's source is a branch of the same repository; merge requests from
-//! forks follow with cross-repository support. Numbers are shared with
-//! issues. Permissions follow the matrix (spec/04): `mr.create` opens,
+//! An MR's source is a branch of the same repository or of another
+//! repository in its fork network. A fork's branch reaches the target only
+//! through `mr.fetch`, which copies exactly the source's history into the
+//! reserved ref `refs/slath/mr/<id>/incoming`; until an MR exists the
+//! target holds nothing of the fork. Numbers are shared with issues. Permissions follow the matrix (spec/04): `mr.create` opens,
 //! authors edit and close their own, `mr.triage` edits and closes any.
 
 use slath_core::authz::{Action, Subject};
@@ -23,6 +25,9 @@ use crate::repos::RepoAccess;
 
 /// The job that records a new revision when a source branch moves.
 pub const MR_SYNC: &str = "mr.sync";
+/// The job that fetches a fork's source branch into the target and then
+/// records the revision like `mr.sync`.
+pub const MR_FETCH: &str = "mr.fetch";
 /// Longest title in characters.
 const MAX_TITLE: usize = 256;
 /// The template a repository can provide for new descriptions.
@@ -56,6 +61,11 @@ pub enum MrTimelineItem {
 /// A compare of a source branch against a target branch.
 #[derive(Debug, Clone)]
 pub struct Compare {
+    /// `ns/name` of the source repository when it isn't the target.
+    pub source_repo: Option<String>,
+    /// The source is less visible than the target: opening the MR makes
+    /// its commits readable there and needs the author's confirmation.
+    pub publishes_source: bool,
     pub source_branch: String,
     pub target_branch: String,
     pub source_head: ObjectId,
@@ -77,6 +87,9 @@ pub struct Compare {
 /// What creating a merge request takes.
 #[derive(Debug, Clone, Default)]
 pub struct NewMr {
+    /// `ns/name` of a repository in the target's fork network; empty: the
+    /// target itself.
+    pub source_repo: String,
     pub source_branch: String,
     pub target_branch: String,
     pub title: String,
@@ -88,6 +101,12 @@ pub struct NewMr {
     pub milestone: Option<String>,
     /// `None`: the repository's default.
     pub delete_source_on_merge: Option<bool>,
+    /// Fork MRs: whoever can write to the target may push to the source
+    /// branch while the MR is open. `None`: allowed.
+    pub allow_maintainer_edits: Option<bool>,
+    /// The author confirms that a less visible source's commits become
+    /// readable to the target's readers.
+    pub publish_source: bool,
 }
 
 fn subject_user(subject: &Subject) -> Option<UserId> {
@@ -133,24 +152,73 @@ impl Services {
         Ok(a)
     }
 
+    /// The source repository `name` (`ns/name`) of a merge request into
+    /// `a`, readable by the subject and in the same fork network; `None`
+    /// when it's the target itself.
+    pub(crate) async fn mr_source(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        name: Option<&str>,
+    ) -> Result<Option<RepoAccess>> {
+        let Some(name) = name.map(str::trim).filter(|n| !n.is_empty()) else {
+            return Ok(None);
+        };
+        let unknown = || {
+            ServiceError::invalid(
+                "source_repo",
+                "unknown",
+                "Choose a repository in this repository's fork network.",
+            )
+        };
+        let (ns, repo) = name.split_once('/').ok_or_else(unknown)?;
+        let src = match self.repo_access(subject, ns, repo, Action::RepoRead).await {
+            Ok(src) => src,
+            Err(ServiceError::NotFound | ServiceError::Forbidden) => return Err(unknown()),
+            Err(e) => return Err(e),
+        };
+        if src.repo.id == a.repo.id {
+            return Ok(None);
+        }
+        if !slath_db::forks::same_network(&self.pool, src.repo.id, a.repo.id).await? {
+            return Err(unknown());
+        }
+        Ok(Some(src))
+    }
+
+    /// `ns/name` of a merge request's source repository (shown with the
+    /// MR to everyone who can read it: opening the MR published its
+    /// branch), or `None` once the source is deleted.
+    pub async fn mr_source_name(&self, m: &MergeRequest) -> Result<Option<String>> {
+        let Some(id) = m.source_repo_id else {
+            return Ok(None);
+        };
+        Ok(slath_db::repos::get(&self.pool, id)
+            .await?
+            .map(|r| format!("{}/{}", r.namespace, r.name)))
+    }
+
     async fn branch_head(&self, repo: RepoId, name: &RefName) -> Result<Option<ObjectId>> {
         slath_git::refs::read(&self.runner, &self.repo_path(repo), name)
             .await
             .map_err(ServiceError::internal)
     }
 
-    /// The compare of `source` against `target` (default: the default
-    /// branch), as the compare page and the create form show it.
+    /// The compare of `source` (a branch of `source_repo`, default: this
+    /// repository) against `target` (default: the default branch), as the
+    /// compare page and the create form show it.
     pub async fn compare(
         &self,
         subject: &Subject,
         ns: &str,
         repo: &str,
-        source: &str,
+        (source_repo, source): (Option<&str>, &str),
         target: Option<&str>,
         opts: slath_git::browse::DiffOptions,
     ) -> Result<(RepoAccess, Compare)> {
         let a = self.mrs_access(subject, ns, repo, Action::RepoRead).await?;
+        let src = self.mr_source(subject, &a, source_repo).await?;
+        let src_id = src.as_ref().map_or(a.repo.id, |s| s.repo.id);
         let target = target
             .map(str::trim)
             .filter(|t| !t.is_empty())
@@ -160,7 +228,7 @@ impl Services {
         let source_ref = branch_ref("source_branch", &source)?;
         let target_ref = branch_ref("target_branch", &target)?;
         let source_head = self
-            .branch_head(a.repo.id, &source_ref)
+            .branch_head(src_id, &source_ref)
             .await?
             .ok_or_else(|| {
                 ServiceError::invalid("source_branch", "missing", "This branch doesn't exist.")
@@ -172,26 +240,29 @@ impl Services {
                 ServiceError::invalid("target_branch", "missing", "This branch doesn't exist.")
             })?;
         let dir = self.repo_path(a.repo.id);
-        let merge_base =
-            slath_git::browse::merge_base(&self.runner, &dir, &target_head, &source_head)
+        // A fork's objects are read in place; nothing is copied before an
+        // MR exists.
+        let runner = match &src {
+            Some(s) => self
+                .runner
+                .reading_objects_of(&self.repo_path(s.repo.id))
+                .map_err(ServiceError::internal)?,
+            None => self.runner.clone(),
+        };
+        let merge_base = slath_git::browse::merge_base(&runner, &dir, &target_head, &source_head)
+            .await
+            .map_err(ServiceError::internal)?;
+        let max = self.config.limits.review_max_commits;
+        let mut commits =
+            slath_git::browse::log_range(&runner, &dir, Some(&target_head), &source_head, max + 1)
                 .await
                 .map_err(ServiceError::internal)?;
-        let max = self.config.limits.review_max_commits;
-        let mut commits = slath_git::browse::log_range(
-            &self.runner,
-            &dir,
-            Some(&target_head),
-            &source_head,
-            max + 1,
-        )
-        .await
-        .map_err(ServiceError::internal)?;
         let more_commits = commits.len() > max;
         if more_commits {
             commits.remove(0);
         }
         let (diff, diff_truncated) = slath_git::browse::diff(
-            &self.runner,
+            &runner,
             &dir,
             merge_base.as_ref(),
             &source_head,
@@ -202,7 +273,7 @@ impl Services {
         .map_err(ServiceError::internal)?;
         let mut existing = None;
         for (id, target_repo, n) in
-            slath_db::merge_requests::open_by_source(&self.pool, a.repo.id, source_ref.as_bytes())
+            slath_db::merge_requests::open_by_source(&self.pool, src_id, source_ref.as_bytes())
                 .await?
         {
             if target_repo == a.repo.id
@@ -214,9 +285,14 @@ impl Services {
             }
         }
         let template = self.mr_template(&a, &target_head).await;
+        let publishes_source = src.as_ref().is_some_and(|s| {
+            crate::forks::rank(s.repo.visibility) < crate::forks::rank(a.repo.visibility)
+        });
         Ok((
             a,
             Compare {
+                publishes_source,
+                source_repo: src.map(|s| format!("{}/{}", s.repo.namespace, s.repo.name)),
                 source_branch: source,
                 target_branch: target,
                 source_head,
@@ -296,9 +372,12 @@ impl Services {
         Ok(out)
     }
 
-    /// Opens a merge request from a branch of the same repository. Only one
-    /// open MR is allowed per source and target; numbers are shared with
-    /// issues. The first revision is recorded right away.
+    /// Opens a merge request from a branch of the same repository or of a
+    /// repository in its fork network that the author can push to. Only
+    /// one open MR is allowed per source and target; numbers are shared
+    /// with issues. A source less visible than the target needs
+    /// `publish_source`, which the timeline records. The first revision
+    /// is recorded right away (for a fork, after fetching its branch).
     pub async fn create_mr(
         &self,
         subject: &Subject,
@@ -306,7 +385,14 @@ impl Services {
         repo: &str,
         m: &NewMr,
     ) -> Result<MergeRequest> {
-        let a = self.mrs_access(subject, ns, repo, Action::MrCreate).await?;
+        let a = self.mrs_access(subject, ns, repo, Action::RepoRead).await?;
+        let src = self.mr_source(subject, &a, Some(&m.source_repo)).await?;
+        let action = if src.is_some() {
+            Action::MrCreateFork
+        } else {
+            Action::MrCreate
+        };
+        self.authorize(subject, &a, action)?;
         self.require_confirmed(subject).await?;
         let author = subject_user(subject).ok_or(ServiceError::Unauthenticated)?;
         let title = check_title(&m.title)?;
@@ -317,7 +403,7 @@ impl Services {
             t => t.to_owned(),
         };
         let target_ref = branch_ref("target_branch", &target)?;
-        if source_ref == target_ref {
+        if src.is_none() && source_ref == target_ref {
             return Err(ServiceError::invalid(
                 "source_branch",
                 "same",
@@ -325,14 +411,25 @@ impl Services {
             ));
         }
         // The author must be able to push the source (it's their work).
-        if !a.can(subject, Action::RepoPush) {
+        if !src.as_ref().unwrap_or(&a).can(subject, Action::RepoPush) {
             return Err(ServiceError::invalid(
                 "source_branch",
                 "forbidden",
                 "You can only open merge requests from branches you can push to; fork the repository first.",
             ));
         }
-        if self.branch_head(a.repo.id, &source_ref).await?.is_none() {
+        let src_id = src.as_ref().map_or(a.repo.id, |s| s.repo.id);
+        let published = src.as_ref().filter(|s| {
+            crate::forks::rank(s.repo.visibility) < crate::forks::rank(a.repo.visibility)
+        });
+        if published.is_some() && !m.publish_source {
+            return Err(ServiceError::invalid(
+                "publish_source",
+                "required",
+                "The source repository is less visible than this one: everyone who can read this repository will be able to read the merge request's commits. Confirm that to continue.",
+            ));
+        }
+        if self.branch_head(src_id, &source_ref).await?.is_none() {
             return Err(ServiceError::invalid(
                 "source_branch",
                 "missing",
@@ -396,9 +493,9 @@ impl Services {
                 description: &m.description,
                 draft: m.draft,
                 target_branch: &target,
-                source_repo: a.repo.id,
+                source_repo: src_id,
                 source_ref: source_ref.as_bytes(),
-                allow_maintainer_edits: true,
+                allow_maintainer_edits: m.allow_maintainer_edits.unwrap_or(true),
                 delete_source_on_merge: m.delete_source_on_merge.unwrap_or(delete_default),
                 milestone,
             },
@@ -412,6 +509,21 @@ impl Services {
             ),
             e => e.into(),
         })?;
+        if let Some(p) = published {
+            slath_db::issues::insert_event(
+                &mut *tx,
+                a.repo.id,
+                "merge_request",
+                *id.as_uuid(),
+                Some(author),
+                "source_published",
+                &serde_json::json!({
+                    "source": format!("{}/{}", p.repo.namespace, p.repo.name),
+                    "visibility": p.repo.visibility,
+                }),
+            )
+            .await?;
+        }
         for u in &assignees {
             slath_db::merge_requests::add_assignee(&mut *tx, id, *u).await?;
         }
@@ -430,7 +542,7 @@ impl Services {
             "mr.create",
             crate::audit::Target::new("merge_request", Some(*id.as_uuid()))
                 .in_repo(*a.repo.id.as_uuid()),
-            serde_json::json!({"number": number}),
+            serde_json::json!({"number": number, "source_repo": src.map(|s| s.repo.id.to_string())}),
         )
         .await;
         let m = slath_db::merge_requests::get_by_id(&self.pool, id)
@@ -917,7 +1029,12 @@ impl Services {
         };
         let source = RefName::parse(m.source_ref.clone())
             .map_err(|_| ServiceError::internal("bad source ref"))?;
-        let Some(head) = self.branch_head(source_repo, &source).await? else {
+        let head = if source_repo == m.repo_id {
+            self.branch_head(source_repo, &source).await?
+        } else {
+            self.fetch_mr_source(&m, source_repo, &source).await?
+        };
+        let Some(head) = head else {
             return Ok(None);
         };
         if m.head_oid.as_deref() == Some(head.as_str()) {
@@ -1005,8 +1122,50 @@ impl Services {
         Ok(Some(seq))
     }
 
+    /// A fork MR's source head, fetched into the target as
+    /// `refs/slath/mr/<id>/incoming` (only that commit's history comes
+    /// along). `None` when the source branch or repository is gone.
+    async fn fetch_mr_source(
+        &self,
+        m: &MergeRequest,
+        source_repo: RepoId,
+        source: &RefName,
+    ) -> Result<Option<ObjectId>> {
+        match slath_db::repos::get(&self.pool, source_repo).await? {
+            Some(r)
+                if matches!(
+                    r.state,
+                    slath_core::authz::RepoState::Active | slath_core::authz::RepoState::Archived
+                ) => {}
+            _ => return Ok(None),
+        }
+        let Some(head) = self.branch_head(source_repo, source).await? else {
+            return Ok(None);
+        };
+        let dir = self.repo_path(m.repo_id);
+        let incoming = slath_git::refs::mr_incoming(m.id);
+        if slath_git::refs::read(&self.runner, &dir, &incoming)
+            .await
+            .map_err(ServiceError::internal)?
+            .as_ref()
+            != Some(&head)
+        {
+            slath_git::forks::fetch_commit(
+                &self.runner,
+                &dir,
+                &self.repo_path(source_repo),
+                &head,
+                &incoming,
+            )
+            .await
+            .map_err(ServiceError::internal)?;
+        }
+        Ok(Some(head))
+    }
+
     /// Follow-up of a push (`ref.updated`): a moved source creates a
-    /// revision (job `mr.sync`), a deleted one closes its merge requests.
+    /// revision (job `mr.sync`, or `mr.fetch` when the target is another
+    /// repository), a deleted one closes its merge requests.
     pub(crate) async fn mrs_after_push(
         &self,
         repo: RepoId,
@@ -1065,17 +1224,22 @@ impl Services {
                         self.notify_mr(pusher, &m, MrActivity::Closed).await;
                     }
                 } else {
+                    let kind = if target_repo == repo {
+                        MR_SYNC
+                    } else {
+                        MR_FETCH
+                    };
                     slath_db::jobs::enqueue(
                         &self.pool,
                         &slath_db::jobs::NewJob::new(
                             "default",
-                            MR_SYNC,
+                            kind,
                             serde_json::json!({
                                 "mr_id": id.to_string(),
                                 "pusher": pusher.map(|p| p.to_string()),
                             }),
                         )
-                        .dedupe_key(format!("{MR_SYNC}:{id}:{}", u.new)),
+                        .dedupe_key(format!("{kind}:{id}:{}", u.new)),
                     )
                     .await?;
                 }
@@ -1113,7 +1277,8 @@ impl Services {
             .map_err(|e| JobError::Retry(e.to_string()))
     }
 
-    /// The `mr.sync` job.
+    /// The `mr.sync` and `mr.fetch` jobs (`sync_mr` fetches a fork's
+    /// source itself).
     pub(crate) async fn run_mr_sync(
         &self,
         job: &slath_db::jobs::LeasedJob,

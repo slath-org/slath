@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH RECURSIVE up (id, depth) AS (\n               SELECT fork_parent_id, 1 FROM repositories WHERE id = $2\n               UNION ALL\n               SELECT r.fork_parent_id, up.depth + 1 FROM repositories r JOIN up ON r.id = up.id\n                WHERE up.depth < 1000)\n           SELECT EXISTS (SELECT 1 FROM up WHERE id = $1) AS \"up!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "up!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "22b71063950be4e433d85b3e470f6b47e88071f7694ba463cae90f227219e6bb"
+}

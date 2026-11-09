@@ -73,6 +73,9 @@ impl RunnerConfig {
 pub struct Runner {
     cfg: Arc<RunnerConfig>,
     sem: Arc<Semaphore>,
+    /// Another repository's `objects` directory every command also reads
+    /// ([`Runner::reading_objects_of`]).
+    alternate: Option<Arc<OsString>>,
 }
 
 /// What a process is for; selects the hooks and protocol configuration.
@@ -95,6 +98,20 @@ impl Runner {
         Ok(Self {
             cfg: Arc::new(cfg),
             sem: Arc::new(Semaphore::new(permits)),
+            alternate: None,
+        })
+    }
+
+    /// A runner (sharing this one's limits) whose commands also read the
+    /// objects of the repository at `other`, for comparing a fork's branch
+    /// with another repository of its network without copying anything.
+    /// Only for commands that read: anything written could depend on
+    /// objects the repository doesn't have.
+    pub fn reading_objects_of(&self, other: &Path) -> Result<Self, GitError> {
+        let objects = std::fs::canonicalize(other.join("objects"))?;
+        Ok(Self {
+            alternate: Some(Arc::new(objects.into_os_string())),
+            ..self.clone()
         })
     }
 
@@ -162,12 +179,18 @@ impl Invocation {
     fn new(runner: Runner, git_dir: Option<PathBuf>, mode: Mode) -> Self {
         let timeout = runner.cfg.read_timeout;
         let max_output = runner.cfg.max_output_bytes;
+        let env = runner
+            .alternate
+            .as_ref()
+            .map(|o| ("GIT_ALTERNATE_OBJECT_DIRECTORIES", OsString::clone(o)))
+            .into_iter()
+            .collect();
         Self {
             runner,
             git_dir,
             mode,
             args: Vec::new(),
-            env: Vec::new(),
+            env,
             stdin: None,
             timeout,
             max_output,

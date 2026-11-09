@@ -52,6 +52,13 @@ impl Services {
                 async move { s.run_mr_sync(&job).await }
             }
         })
+        .handle(crate::merge_requests::MR_FETCH, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.run_mr_sync(&job).await }
+            }
+        })
         .handle(crate::email::EMAIL_SEND, {
             let s = self.clone();
             move |job: LeasedJob| {

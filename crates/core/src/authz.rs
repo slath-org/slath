@@ -207,6 +207,9 @@ pub enum Action {
     IssueTriage,
     CommentModerate,
     MrCreate,
+    /// Opening a merge request from a fork in the same network: signed in
+    /// and `read` on the target (push on the source is checked there).
+    MrCreateFork,
     MrComment,
     MrReview,
     MrSuggest,
@@ -250,6 +253,7 @@ impl Action {
         Self::IssueTriage,
         Self::CommentModerate,
         Self::MrCreate,
+        Self::MrCreateFork,
         Self::MrComment,
         Self::MrReview,
         Self::MrSuggest,
@@ -294,6 +298,7 @@ impl Action {
             Self::IssueTriage => "issue.triage",
             Self::CommentModerate => "comment.moderate",
             Self::MrCreate => "mr.create",
+            Self::MrCreateFork => "mr.create_fork",
             Self::MrComment => "mr.comment",
             Self::MrReview => "mr.review",
             Self::MrSuggest => "mr.suggest",
@@ -421,6 +426,7 @@ impl Action {
             | A::CommentCreate
             | A::IssueEditOwn
             | A::CommentEditOwn
+            | A::MrCreateFork
             | A::MrComment
             | A::MrReview
             | A::MrSuggest
@@ -471,6 +477,7 @@ impl Action {
             | A::LabelsManage
             | A::MilestonesManage => Scope::IssuesWrite,
             A::MrCreate
+            | A::MrCreateFork
             | A::MrComment
             | A::MrReview
             | A::MrSuggest

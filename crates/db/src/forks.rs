@@ -146,3 +146,40 @@ pub async fn parents_in(
     .map(RepoId::from_uuid)
     .collect())
 }
+
+/// Whether two repositories belong to the same fork network.
+pub async fn same_network(
+    exec: impl PgExecutor<'_>,
+    a: RepoId,
+    b: RepoId,
+) -> Result<bool, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM repositories x JOIN repositories y
+                            ON y.fork_network_id = x.fork_network_id
+                          WHERE x.id = $1 AND y.id = $2) AS "same!""#,
+        a.as_uuid(),
+        b.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}
+
+/// Whether `upstream` is a (direct or indirect) parent of `fork`.
+pub async fn is_upstream(
+    exec: impl PgExecutor<'_>,
+    upstream: RepoId,
+    fork: RepoId,
+) -> Result<bool, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"WITH RECURSIVE up (id, depth) AS (
+               SELECT fork_parent_id, 1 FROM repositories WHERE id = $2
+               UNION ALL
+               SELECT r.fork_parent_id, up.depth + 1 FROM repositories r JOIN up ON r.id = up.id
+                WHERE up.depth < 1000)
+           SELECT EXISTS (SELECT 1 FROM up WHERE id = $1) AS "up!""#,
+        upstream.as_uuid(),
+        fork.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}

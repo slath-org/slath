@@ -67,3 +67,26 @@ instance's retention period (7 days by default) is deleted. A fork of a
 public repository is never locked, even if the original later becomes
 private. For a fork in an organization, the access of whoever created it
 counts.
+
+## Merge requests from a fork
+
+To propose your fork's changes to the original, open a merge request
+against the original with your fork as the source. Through the API:
+
+```text
+POST /api/v1/repos/<owner>/<repo>/merge-requests
+{"source_repo": "<you>/<fork>", "source_branch": "my-topic", "title": "…"}
+```
+
+The source can be any repository of the same fork network that you can
+push to. The original receives only the history of that branch, never
+your fork's other branches; until you open the merge request it holds
+nothing of your fork. Each push to the branch adds a revision, and the
+merge request merges like any other. Merging leaves your fork's branch
+as it is.
+
+If your fork is less visible than the original (a private fork of a
+public repository, for example), everyone who can read the original will
+be able to read the merge request's commits. Slath asks you to confirm
+that (`"publish_source": true` in the API) and notes it in the merge
+request's timeline.

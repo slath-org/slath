@@ -107,3 +107,35 @@ pub async fn is_ancestor(
         }),
     }
 }
+
+/// Fetches exactly `tip` (and its history) of `source` into `target` as
+/// `dest`, a reserved ref. Nothing else of `source` comes along: no tags,
+/// no other branches. Protocol v2 serves any object by ID, so the commit
+/// needn't be a ref tip when the fetch runs.
+pub async fn fetch_commit(
+    runner: &Runner,
+    target: &Path,
+    source: &Path,
+    tip: &ObjectId,
+    dest: &RefName,
+) -> Result<(), GitError> {
+    let mut spec = format!("+{}:", tip.as_str()).into_bytes();
+    spec.extend_from_slice(dest.as_bytes());
+    runner
+        .repo(target)
+        .config("protocol.file.allow", "always")
+        .config("protocol.version", "2")
+        .args([
+            "fetch",
+            "--quiet",
+            "--no-tags",
+            "--no-write-fetch-head",
+            "--",
+        ])
+        .arg(source)
+        .arg_bytes(&spec)
+        .timeout(std::time::Duration::from_secs(3600))
+        .run()
+        .await?;
+    Ok(())
+}

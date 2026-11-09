@@ -375,7 +375,7 @@ async fn compare_page(
                 subject,
                 ns,
                 repo,
-                &source,
+                (None, &source),
                 Some(&target),
                 dq.git_options(&ctx),
             )
@@ -490,7 +490,7 @@ async fn create(
         assignees: names(&f.assignees),
         labels: names(&f.labels),
         milestone: Some(f.milestone.clone()),
-        delete_source_on_merge: None,
+        ..NewMr::default()
     };
     match state.services.create_mr(&s.subject, &ns, &repo, &new).await {
         Ok(m) => Ok(Redirect::to(&mr_url(&ns, &repo, m.number, "")).into_response()),
@@ -718,6 +718,14 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             "deleted the source branch, which closed this".to_owned(),
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
+        "source_published" => (
+            "eye",
+            format!(
+                "confirmed that the commits of {}, a {} repository, become readable here",
+                str_of("source"),
+                str_of("visibility")
+            ),
+        ),
         "review_requested" => ("eye", format!("requested a review from {}", str_of("user"))),
         "review_request_removed" => (
             "user",
@@ -982,15 +990,18 @@ async fn heading(
     m: MergeRequest,
 ) -> Result<MrHeading, AppError> {
     let (icon, st, text) = state_view(&m);
-    let source_exists = slath_git::refs::read(
-        &state.runner,
-        &state.services.repo_path(a.repo.id),
-        &slath_git::args::RefName::parse(m.source_ref.clone())
-            .map_err(|_| AppError::not_found())?,
-    )
-    .await
-    .map_err(|e| AppError::internal(&e))?
-    .is_some();
+    let source_exists = match m.source_repo_id {
+        Some(src) => slath_git::refs::read(
+            &state.runner,
+            &state.services.repo_path(src),
+            &slath_git::args::RefName::parse(m.source_ref.clone())
+                .map_err(|_| AppError::not_found())?,
+        )
+        .await
+        .map_err(|e| AppError::internal(&e))?
+        .is_some(),
+        None => false,
+    };
     let perms = state.services.mr_perms(subject, a, &m);
     let me = match subject {
         Subject::User { id, .. } => Some(*id),
