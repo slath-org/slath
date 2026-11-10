@@ -210,7 +210,6 @@ impl Services {
         }
 
         let dir = self.repo_path(a.repo.id);
-        let mut tree = head.clone();
         for (path, edits) in &mut files {
             edits.sort_by_key(|e| e.start);
             if edits.windows(2).any(|p| p[1].start <= p[0].end) {
@@ -218,23 +217,8 @@ impl Services {
                     "Two suggestions change the same lines of {path}; apply them one at a time."
                 )));
             }
-            let blob = self
-                .runner
-                .repo(&dir)
-                .args(["cat-file", "blob"])
-                .arg(format!("{}:{path}", head.as_str()))
-                .run()
-                .await
-                .map_err(internal)?
-                .stdout;
-            let content = splice(&blob, edits).ok_or_else(|| {
-                ServiceError::Conflict(format!("A suggestion no longer fits {path}."))
-            })?;
-            tree = merge::replace_file(&self.runner, &dir, &tree, path.as_bytes(), content)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| ServiceError::Conflict(format!("{path} isn't a file anymore.")))?;
         }
+        let tree = self.tree_with(&dir, &head, &files).await?;
         let all: Vec<&Edit> = files.values().flatten().collect();
         let new = match mode {
             ApplyMode::Commit => {
@@ -242,11 +226,8 @@ impl Services {
                     .await?
             }
             ApplyMode::Fold => {
-                return Err(ServiceError::invalid(
-                    "mode",
-                    "unavailable",
-                    "Folding suggestions into their change isn't available yet.",
-                ));
+                self.fold_suggestions(&m, &dir, &head, &tree, &files, *user)
+                    .await?
             }
         };
         if let Some(why) = self
@@ -302,6 +283,253 @@ impl Services {
             .ok_or(ServiceError::NotFound)
     }
 
+    /// The tree of `head` with `files`' edits (each file's sorted and
+    /// disjoint) applied.
+    async fn tree_with(
+        &self,
+        dir: &std::path::Path,
+        head: &ObjectId,
+        files: &BTreeMap<String, Vec<Edit>>,
+    ) -> Result<ObjectId> {
+        let mut tree = head.clone();
+        for (path, edits) in files {
+            let blob = self
+                .runner
+                .repo(dir)
+                .args(["cat-file", "blob"])
+                .arg(format!("{}:{path}", head.as_str()))
+                .run()
+                .await
+                .map_err(internal)?
+                .stdout;
+            let content = splice(&blob, edits).ok_or_else(|| {
+                ServiceError::Conflict(format!("A suggestion no longer fits {path}."))
+            })?;
+            tree = merge::replace_file(&self.runner, dir, &tree, path.as_bytes(), content)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| ServiceError::Conflict(format!("{path} isn't a file anymore.")))?;
+        }
+        Ok(tree)
+    }
+
+    /// The commit of the stack that last changed `path`'s lines
+    /// `start..=end` at `head`, if exactly one commit after `base` did.
+    async fn introduced_by(
+        &self,
+        dir: &std::path::Path,
+        (base, head): (Option<&str>, &ObjectId),
+        e: &Edit,
+        path: &str,
+    ) -> Result<Option<ObjectId>> {
+        let range = match base {
+            Some(b) => format!("{b}..{}", head.as_str()),
+            None => head.as_str().to_owned(),
+        };
+        let out = self
+            .runner
+            .repo(dir)
+            .args(["blame", "--porcelain", "-L"])
+            .arg(format!("{},{}", e.start, e.end))
+            .args([range.as_str(), "--"])
+            .arg(path)
+            .run()
+            .await
+            .map_err(internal)?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut commits: Vec<&str> = Vec::new();
+        let mut boundary = false;
+        for line in text.lines() {
+            let mut words = line.split(' ');
+            match (words.next(), words.next()) {
+                (Some(oid), Some(n))
+                    if oid.len() == 40
+                        && oid.bytes().all(|b| b.is_ascii_hexdigit())
+                        && n.bytes().all(|b| b.is_ascii_digit()) =>
+                {
+                    if !commits.contains(&oid) {
+                        commits.push(oid);
+                    }
+                }
+                (Some("boundary"), None) => boundary = true,
+                _ => {}
+            }
+        }
+        Ok(match commits.as_slice() {
+            [one] if !boundary => Some(ObjectId::parse(one).map_err(internal)?),
+            _ => None,
+        })
+    }
+
+    /// Folds each suggestion into the commit that introduced its lines and
+    /// rebases the commits after it, keeping their authors, messages, and
+    /// change IDs (D-38); the committer is the applier, and a folded
+    /// commit gains a `Co-authored-by` trailer per suggester. The result
+    /// must equal applying them on top (`all`), or nothing is written.
+    async fn fold_suggestions(
+        &self,
+        m: &MergeRequest,
+        dir: &std::path::Path,
+        head: &ObjectId,
+        all: &ObjectId,
+        files: &BTreeMap<String, Vec<Edit>>,
+        applier: slath_core::ids::UserId,
+    ) -> Result<ObjectId> {
+        let refuse = |why: &str| {
+            ServiceError::Conflict(format!(
+                "The suggestions can't be folded into their change: {why}; apply them as a new commit instead."
+            ))
+        };
+        let (base, _) = self.revision_diff(m, m.revisions).await?;
+        let base_oid = base
+            .as_deref()
+            .map(ObjectId::parse)
+            .transpose()
+            .map_err(internal)?;
+        let max = self.config.limits.review_max_commits;
+        let stack =
+            slath_git::browse::log_range(&self.runner, dir, base_oid.as_ref(), head, max + 1)
+                .await
+                .map_err(internal)?;
+        if stack.len() > max || stack.iter().any(|c| c.parents.len() > 1) {
+            return Err(refuse("the branch has merge commits or too many commits"));
+        }
+        // The edits for each commit, as a tree from `head` with only them.
+        let mut by_commit: BTreeMap<String, BTreeMap<String, Vec<Edit>>> = BTreeMap::new();
+        for (path, edits) in files {
+            for e in edits {
+                let Some(c) = self
+                    .introduced_by(dir, (base.as_deref(), head), e, path)
+                    .await?
+                else {
+                    return Err(refuse(&format!(
+                        "lines {}–{} of {path} don't come from one change of this merge request",
+                        e.start, e.end
+                    )));
+                };
+                by_commit
+                    .entry(c.as_str().to_owned())
+                    .or_default()
+                    .entry(path.clone())
+                    .or_default()
+                    .push(e.clone());
+            }
+        }
+        let mut fixes: BTreeMap<String, (ObjectId, Vec<slath_core::ids::UserId>)> = BTreeMap::new();
+        for (c, files) in &by_commit {
+            let tree = self.tree_with(dir, head, files).await?;
+            let mut who = Vec::new();
+            for e in files.values().flatten() {
+                if let Some(u) = e.suggester
+                    && !who.contains(&u)
+                {
+                    who.push(u);
+                }
+            }
+            fixes.insert(c.clone(), (tree, who));
+        }
+        let head_tree = ObjectId::parse(
+            self.runner
+                .repo(dir)
+                .args(["rev-parse", "--verify"])
+                .arg(format!("{}^{{tree}}", head.as_str()))
+                .run()
+                .await
+                .map_err(internal)?
+                .stdout
+                .trim_ascii(),
+        )
+        .map_err(internal)?;
+        let ids = self.change_ids(m).await?;
+        let committer = self.identity_of(applier).await?;
+        let mut reader = slath_git::ObjectReader::open(&self.runner, dir)
+            .await
+            .map_err(internal)?;
+        let mut onto: Option<ObjectId> = None;
+        for c in &stack {
+            let raw = reader.read_raw_commit(&c.oid).await.map_err(internal)?;
+            let parent = c.parents.first();
+            let unchanged_base = onto.is_none() || onto.as_ref() == parent;
+            let fix = fixes.get(c.oid.as_str());
+            if unchanged_base && fix.is_none() {
+                // Before the first fold, commits stay as they are.
+                onto = Some(c.oid.clone());
+                continue;
+            }
+            let mut tree = if unchanged_base {
+                ObjectId::parse(raw.tree().unwrap_or_default()).map_err(internal)?
+            } else {
+                let o = onto.clone().ok_or_else(|| internal("no base"))?;
+                match merge::merge_trees(&self.runner, dir, parent, &o, &c.oid)
+                    .await
+                    .map_err(internal)?
+                {
+                    merge::TreeMerge::Clean(t) => t,
+                    merge::TreeMerge::Conflicts(f) => {
+                        return Err(refuse(&format!(
+                            "a later commit conflicts in {}",
+                            f.join(", ")
+                        )));
+                    }
+                }
+            };
+            let mut message_extra = String::new();
+            if let Some((fix_tree, who)) = fix {
+                tree =
+                    match merge::merge_trees(&self.runner, dir, Some(&head_tree), &tree, fix_tree)
+                        .await
+                        .map_err(internal)?
+                    {
+                        merge::TreeMerge::Clean(t) => t,
+                        merge::TreeMerge::Conflicts(f) => {
+                            return Err(refuse(&format!(
+                                "the change conflicts in {}",
+                                f.join(", ")
+                            )));
+                        }
+                    };
+                for u in who {
+                    let id = self.identity_of(*u).await?;
+                    let id = id.rsplitn(3, ' ').nth(2).unwrap_or(&id).to_owned();
+                    message_extra.push_str(&format!("Co-authored-by: {id}\n"));
+                }
+            }
+            let parents: Vec<ObjectId> = match &onto {
+                Some(o) => vec![o.clone()],
+                None => parent.cloned().into_iter().collect(),
+            };
+            let mut new = merge::rewrite(
+                &raw,
+                &tree,
+                &parents,
+                &committer,
+                ids.get(c.oid.as_str()).map(String::as_str),
+            );
+            if !message_extra.is_empty() {
+                new.message = with_trailers(&new.message, &message_extra);
+            }
+            onto = Some(
+                merge::write_commit(&self.runner, dir, &new)
+                    .await
+                    .map_err(internal)?,
+            );
+        }
+        let result = onto.ok_or_else(|| refuse("the merge request has no commits"))?;
+        let result_tree = self
+            .runner
+            .repo(dir)
+            .args(["rev-parse", "--verify"])
+            .arg(format!("{}^{{tree}}", result.as_str()))
+            .run()
+            .await
+            .map_err(internal)?
+            .stdout;
+        if result_tree.trim_ascii() != all.as_str().as_bytes() {
+            return Err(refuse("the result would differ from applying them on top"));
+        }
+        Ok(result)
+    }
+
     /// The commit on top of `head` with the applied suggestions: authored
     /// by the suggester (the applier when several people suggested),
     /// committed by the applier, with a `Co-authored-by` trailer for every
@@ -355,9 +583,38 @@ impl Services {
     }
 }
 
+/// `message` with `trailers` (lines ending in `\n`) appended: to its
+/// trailer block if it ends with one, else as a new paragraph.
+fn with_trailers(message: &[u8], trailers: &str) -> Vec<u8> {
+    let text = String::from_utf8_lossy(message);
+    let body = text.trim_end_matches('\n');
+    let last = body.rsplit('\n').next().unwrap_or("");
+    let in_trailers = body.contains("\n\n")
+        && last.split_once(": ").is_some_and(|(k, _)| {
+            !k.is_empty() && k.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        });
+    let mut out = body.to_owned();
+    out.push_str(if in_trailers { "\n" } else { "\n\n" });
+    out.push_str(trailers);
+    out.into_bytes()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Edit, splice};
+    use super::{Edit, splice, with_trailers};
+
+    #[test]
+    fn trailers_join_the_trailer_block() {
+        let t = "Co-authored-by: B <b@x>\n";
+        assert_eq!(
+            with_trailers(b"Fix\n", t),
+            b"Fix\n\nCo-authored-by: B <b@x>\n"
+        );
+        assert_eq!(
+            with_trailers(b"Fix\n\nBody.\n\nSigned-off-by: A <a@x>\n", t),
+            b"Fix\n\nBody.\n\nSigned-off-by: A <a@x>\nCo-authored-by: B <b@x>\n"
+        );
+    }
 
     fn edit(start: usize, end: usize, text: &str) -> Edit {
         Edit {

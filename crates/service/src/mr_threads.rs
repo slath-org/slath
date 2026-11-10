@@ -88,7 +88,11 @@ fn oid(s: &str) -> Result<ObjectId> {
 impl Services {
     /// The diff of a revision: its merge base (or the empty tree's absence)
     /// and head.
-    async fn revision_diff(&self, m: &MergeRequest, seq: i32) -> Result<(Option<String>, String)> {
+    pub(crate) async fn revision_diff(
+        &self,
+        m: &MergeRequest,
+        seq: i32,
+    ) -> Result<(Option<String>, String)> {
         let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
         let r = revs
             .iter()

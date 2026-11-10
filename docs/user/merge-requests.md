@@ -218,12 +218,26 @@ let total = items.len();
 ````
 
 People who can push to the branch, and the merge request's author,
-apply suggestions on the server, one at a time or several together. They
-become a new commit on top of the branch: its author is whoever made the
-suggestion (the person applying when several people did), its committer
-the person applying, and its message ends with a `Co-authored-by` line
-for each suggester. The new commit is a revision like any push, and the
-threads of applied suggestions are resolved.
+apply suggestions on the server, one at a time or several together, in
+one of two ways, the same for Git and jj users:
+
+- **As a new commit** on top of the branch: its author is whoever made
+  the suggestion (the person applying when several people did), its
+  committer the person applying, and its message ends with a
+  `Co-authored-by` line for each suggester.
+- **Folded into its change**: the commit that introduced the lines gets
+  the fix, with a `Co-authored-by` line for each suggester, and the
+  commits after it are rebased onto it. Every change keeps its ID,
+  authors and messages stay, and the person applying becomes their
+  committer. It works only when the suggested lines come from one commit
+  of the merge request and nothing later conflicts; the result is always
+  the same as applying on top. A branch that blocks force pushes takes
+  only new commits.
+
+Either way the result is a revision like any push, and the threads of
+applied suggestions are resolved. After a fold, `jj git fetch` shows the
+same changes with the fix; with Git, reset your branch to the new one
+(`git pull --rebase`) before you push again.
 
 A suggestion can be applied only while its lines are unchanged since it
 was made; once they changed, it's outdated. Suggestions changing the
@@ -232,7 +246,8 @@ through the repository's push protection. The branch's protection
 applies as for a push.
 
 The API applies them with `POST …/merge-requests/{n}/suggestions/apply`
-and `{"comments": ["<comment id>", …], "expected_head_oid": "<head>"}`.
+and `{"comments": ["<comment id>", …], "mode": "commit", "expected_head_oid": "<head>"}`
+(`"mode": "fold"` to fold).
 
 ## Merging
 

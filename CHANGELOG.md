@@ -90,6 +90,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Deploy keys: per-repository SSH keys, read-only or allowed to push, that reach only their own repository; managed by repository admins through the API.
 - Repository settings have a Deploy keys page to add keys, allow pushing, see when each was last used, and remove them.
 - Suggestions: a suggestion block in a line comment can be applied through the API, alone or with others, as a commit by the suggester with a Co-authored-by trailer.
+- Suggestions can also be folded into the change that introduced their lines; later commits are rebased and every change keeps its ID, for Git and jj alike.
 
 ### Changed
 

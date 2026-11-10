@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
 
 use crate::fork_merge_requests::{api, eventually, token};
+use crate::jj::{Jj, jj_binaries};
 
 pub(crate) fn write(git: &GitClient, w: &Path, file: &str, text: &str, msg: &str) -> String {
     std::fs::write(w.join(file), text).unwrap();
@@ -223,5 +224,204 @@ fn conf_review_09_suggestions_apply_as_a_commit_with_author_and_trailer() {
         "{}",
         r.body
     );
+    git.ok(&repo, &["fsck", "--strict", "--no-dangling"]);
+}
+
+fn change_ids(s: &TestServer, t: &str, n: i64) -> Vec<String> {
+    api(
+        s,
+        t,
+        "GET",
+        &format!("/alice/demo/merge-requests/{n}/stack"),
+        None,
+    )
+    .json()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["change_id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn open_mr(s: &TestServer, t: &str, branch: &str) -> (i64, String) {
+    let r = api(
+        s,
+        t,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_branch": branch, "title": branch})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    eventually(s, "no first revision", || mr(s, t, n)["revisions"] == 1);
+    (n, mr(s, t, n)["head_oid"].as_str().unwrap().to_owned())
+}
+
+#[test]
+fn conf_review_09_folded_suggestions_keep_every_change_for_git_and_jj() {
+    let s = TestServer::start();
+    s.create_user("carol", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let carol = token(&s, "carol");
+    let r = api(
+        &s,
+        &alice,
+        "PUT",
+        "/alice/demo/collaborators/carol",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let url = s.url(&DEMO);
+    let repo = s.repo_path(&DEMO);
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    write(&git, &w, "README", "demo\n", "init");
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    // A Git-made stack of two commits, on two branches.
+    git.ok(&w, &["switch", "-q", "-c", "fold"]);
+    write(&git, &w, "a.txt", "one\ntwo\nthree\n", "Add a");
+    std::fs::write(w.join("b.txt"), "bee\n").unwrap();
+    write(
+        &git,
+        &w,
+        "a.txt",
+        "one\ntwo\nthree\nfour\n",
+        "Add b, extend a",
+    );
+    git.ok(&w, &["push", "-q", &url, "fold", "fold:on-top"]);
+    let (fold, head) = open_mr(&s, &alice, "fold");
+    let (top, _) = open_mr(&s, &alice, "on-top");
+    let ids = change_ids(&s, &alice, fold);
+    let suggestion = "```suggestion\nTWO\n```";
+
+    // Lines from both commits can't be folded.
+    let both = suggest(&s, &carol, fold, "a.txt", (3, 4), "```suggestion\nx\n```");
+    let r = apply(
+        &s,
+        &alice,
+        fold,
+        json!({"comments": [both], "mode": "fold"}),
+    );
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(r.body.contains("don't come from one change"), "{}", r.body);
+
+    // Folded: "Add a" gets the fix, "Add b" is rebased, IDs stay.
+    let c = suggest(&s, &carol, fold, "a.txt", (2, 2), suggestion);
+    let r = apply(
+        &s,
+        &alice,
+        fold,
+        json!({"comments": [c], "mode": "fold", "expected_head_oid": head}),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    eventually(&s, "no second revision", || {
+        mr(&s, &alice, fold)["revisions"] == 2
+    });
+    assert_eq!(
+        change_ids(&s, &alice, fold),
+        ids,
+        "every change keeps its ID"
+    );
+    let show = |rev: &str, what: &str| {
+        git.ok(&repo, &["show", "-s", &format!("--format={what}"), rev])
+            .trim()
+            .to_owned()
+    };
+    assert_eq!(
+        git.ok(&repo, &["show", "fold~1:a.txt"]),
+        "one\nTWO\nthree\n"
+    );
+    assert_eq!(show("fold~1", "%s"), "Add a");
+    assert!(show("fold~1", "%B").contains("\n\nCo-authored-by: carol <carol@users.noreply."));
+    assert!(show("fold~1", "%cn").starts_with("alice"));
+    assert_eq!(
+        show("fold~1", "%an"),
+        git.ok(&w, &["show", "-s", "--format=%an", "HEAD~1"]).trim()
+    );
+    assert_eq!(show("fold", "%s"), "Add b, extend a");
+    assert_eq!(
+        git.ok(&repo, &["rev-parse", "fold~2"]),
+        git.ok(&repo, &["rev-parse", "main"])
+    );
+    // The same suggestion as a commit on top gives the same tree.
+    let c = suggest(&s, &carol, top, "a.txt", (2, 2), suggestion);
+    let r = apply(&s, &alice, top, json!({"comments": [c]}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(
+        git.ok(&repo, &["rev-parse", "fold^{tree}"]),
+        git.ok(&repo, &["rev-parse", "on-top^{tree}"])
+    );
+
+    // A branch that blocks force pushes takes a new commit, not a fold.
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/alice/demo/protections",
+        Some(json!({"pattern": "fold", "block_force_push": true, "push_role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let c = suggest(&s, &carol, fold, "a.txt", (1, 1), "```suggestion\nONE\n```");
+    let r = apply(&s, &alice, fold, json!({"comments": [c], "mode": "fold"}));
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(r.body.contains("force pushes"), "{}", r.body);
+
+    // A jj-made stack: jj sees the same changes after fetching.
+    for (version, bin) in jj_binaries() {
+        let v = version.replace(['.', ' '], "-");
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join(format!("jj-{v}"));
+        jj.ok(d.path(), &["git", "clone", &url, j.to_str().unwrap()]);
+        let topic = format!("jj-fold-{v}");
+        jj.ok(&j, &["new", "main@origin", "-m", "Add j"]);
+        std::fs::write(j.join(format!("{topic}.txt")), "jay\nkay\n").unwrap();
+        jj.ok(&j, &["new", "-m", "Add k"]);
+        std::fs::write(j.join(format!("{topic}-k.txt")), "kay\n").unwrap();
+        jj.ok(&j, &["bookmark", "create", &topic, "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &topic]);
+        let first = jj.show(&j, &format!("{topic}-"), "change_id");
+        let second = jj.show(&j, &topic, "change_id");
+        let (n, head) = open_mr(&s, &alice, &topic);
+        let c = suggest(
+            &s,
+            &carol,
+            n,
+            &format!("{topic}.txt"),
+            (1, 1),
+            "```suggestion\nJAY\n```",
+        );
+        let r = apply(
+            &s,
+            &alice,
+            n,
+            json!({"comments": [c], "mode": "fold", "expected_head_oid": head}),
+        );
+        assert_eq!(r.status, 200, "{version}: {}", r.body);
+        jj.ok(&j, &["git", "fetch"]);
+        let rev = format!("{topic}@origin");
+        assert_eq!(jj.show(&j, &rev, "change_id"), second, "{version}");
+        assert_eq!(
+            jj.show(&j, &format!("{rev}-"), "change_id"),
+            first,
+            "{version}"
+        );
+        assert_eq!(
+            jj.ok(
+                &j,
+                &[
+                    "file",
+                    "show",
+                    "-r",
+                    &format!("{rev}-"),
+                    &format!("{topic}.txt")
+                ]
+            ),
+            "JAY\nkay\n",
+            "{version}"
+        );
+    }
     git.ok(&repo, &["fsck", "--strict", "--no-dangling"]);
 }
