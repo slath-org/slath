@@ -199,6 +199,129 @@ pub fn new_commit(
     RawCommit::new(headers, msg)
 }
 
+/// A tree entry as `git ls-tree -z` prints it: mode, type, object, name.
+struct TreeEntry {
+    mode: Vec<u8>,
+    kind: Vec<u8>,
+    oid: Vec<u8>,
+    name: Vec<u8>,
+}
+
+async fn read_tree(
+    runner: &Runner,
+    git_dir: &Path,
+    tree: &str,
+) -> Result<Vec<TreeEntry>, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args(["ls-tree", "-z", "--end-of-options", tree])
+        .run()
+        .await?;
+    let mut entries = Vec::new();
+    for rec in out.stdout.split(|&b| b == 0).filter(|r| !r.is_empty()) {
+        let tab = rec
+            .iter()
+            .position(|&b| b == b'\t')
+            .ok_or(GitError::Protocol("ls-tree output"))?;
+        let mut meta = rec[..tab].splitn(3, |&b| b == b' ');
+        let (Some(mode), Some(kind), Some(oid)) = (meta.next(), meta.next(), meta.next()) else {
+            return Err(GitError::Protocol("ls-tree output"));
+        };
+        entries.push(TreeEntry {
+            mode: mode.to_vec(),
+            kind: kind.to_vec(),
+            oid: oid.to_vec(),
+            name: rec[tab + 1..].to_vec(),
+        });
+    }
+    Ok(entries)
+}
+
+async fn write_tree(
+    runner: &Runner,
+    git_dir: &Path,
+    entries: &[TreeEntry],
+) -> Result<ObjectId, GitError> {
+    let mut input = Vec::new();
+    for e in entries {
+        input.extend_from_slice(&e.mode);
+        input.push(b' ');
+        input.extend_from_slice(&e.kind);
+        input.push(b' ');
+        input.extend_from_slice(&e.oid);
+        input.push(b'\t');
+        input.extend_from_slice(&e.name);
+        input.push(0);
+    }
+    let out = runner
+        .repo(git_dir)
+        .args(["mktree", "-z"])
+        .stdin(input)
+        .run()
+        .await?;
+    ObjectId::parse(out.stdout.trim_ascii()).map_err(|_| GitError::Protocol("mktree output"))
+}
+
+/// The tree of `commit` with the regular file at `path` replaced by
+/// `content` (its mode kept), without a worktree or index. `None` if
+/// there's no regular file at `path`.
+pub async fn replace_file(
+    runner: &Runner,
+    git_dir: &Path,
+    commit: &ObjectId,
+    path: &[u8],
+    content: Vec<u8>,
+) -> Result<Option<ObjectId>, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args(["hash-object", "-t", "blob", "-w", "--stdin"])
+        .stdin(content)
+        .run()
+        .await?;
+    let blob = out.stdout.trim_ascii().to_vec();
+    let parts: Vec<&[u8]> = path.split(|&b| b == b'/').collect();
+    if parts
+        .iter()
+        .any(|p| p.is_empty() || *p == b"." || *p == b"..")
+    {
+        return Ok(None);
+    }
+    // The trees along the path, root first.
+    let mut trees = vec![format!("{}^{{tree}}", commit.as_str())];
+    let mut levels = Vec::new();
+    for (i, part) in parts.iter().enumerate() {
+        let entries = read_tree(runner, git_dir, &trees[i]).await?;
+        let Some(pos) = entries.iter().position(|e| e.name == *part) else {
+            return Ok(None);
+        };
+        let last = i + 1 == parts.len();
+        let e = &entries[pos];
+        if last {
+            if e.kind != b"blob" || !(e.mode == b"100644" || e.mode == b"100755") {
+                return Ok(None);
+            }
+        } else if e.kind != b"tree" {
+            return Ok(None);
+        } else {
+            trees.push(String::from_utf8_lossy(&e.oid).into_owned());
+        }
+        levels.push((entries, pos));
+    }
+    // Rewrite bottom-up: each level points at the new object below it.
+    let mut new = blob;
+    for (mut entries, pos) in levels.into_iter().rev() {
+        entries[pos].oid = new;
+        new = write_tree(runner, git_dir, &entries)
+            .await?
+            .as_str()
+            .as_bytes()
+            .to_vec();
+    }
+    ObjectId::parse(&new)
+        .map(Some)
+        .map_err(|_| GitError::Protocol("mktree output"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
