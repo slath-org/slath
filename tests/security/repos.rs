@@ -314,6 +314,25 @@ fn archived_repositories_show_a_notice() {
 }
 
 #[test]
+fn the_description_shows_on_every_repository_page() {
+    let (_s, mut a) = setup();
+    create_repo(&mut a, "alice", "proj", "public");
+    let shown = r#"<p class="repo-description text-secondary">Tools &#38; more</p>"#;
+    assert!(!a.get("/alice/proj").body.contains("repo-description"));
+    let r = submit(
+        &mut a,
+        "/alice/proj/settings/general",
+        "/alice/proj/settings/general",
+        &[("description", "Tools & more"), ("default_branch", "main")],
+    );
+    assert_eq!(r.status, 303);
+    for page in ["", "/issues", "/commits", "/branches", "/settings/general"] {
+        let body = a.get(&format!("/alice/proj{page}")).body;
+        assert_eq!(body.matches(shown).count(), 1, "{page}");
+    }
+}
+
+#[test]
 fn org_members_create_repositories_in_their_org() {
     let (s, mut a) = setup();
     submit(
