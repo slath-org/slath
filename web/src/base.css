@@ -133,13 +133,14 @@ pre {
   background: var(--surface);
   border-bottom: var(--border-width) solid var(--border);
 }
+/* The global bar spans the window: its start lines up with the side
+   menu's entries (the menu's padding plus an entry's), and its end keeps
+   the same distance from the edge. */
 .site-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
-  max-width: var(--content-max);
-  margin: 0 auto;
   padding: var(--space-2) var(--space-4);
   min-height: var(--row-height);
 }

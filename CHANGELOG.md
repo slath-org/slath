@@ -104,6 +104,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Fork is offered only where you can fork to: not into the original's own owner, so your own repositories need an organization to fork into.
 - A README's file name sits above its box, so it doesn't read as part of the file.
 - The Clone and Check out menus say what they're for, and checkout commands sit in bordered fields to copy, like clone URLs.
+- The top bar spans the window: the logo lines up with the side menu's entries, and the icons on the right keep the same distance from the edge.
 
 ### Removed
 
