@@ -303,6 +303,16 @@ remote, since its branch lives there:
 jj git remote add bob https://slath.example/bob/demo.git && jj git fetch --remote bob --branch my-topic && jj new my-topic@bob
 ```
 
+## References
+
+Issues and merge requests share numbers, so `#N` (or `owner/repo#N` for
+another repository) in a description or comment links to whichever it
+is, showing its title and state on hover. The issue or merge request you
+mention shows "mentioned this in" with a link back, once for each place
+that mentions it. You see that line only if you can read where the
+mention was written, and mentions of something you can't read stay plain
+text.
+
 ## Closing and reopening
 
 The author and people who can triage close a merge request with **Close

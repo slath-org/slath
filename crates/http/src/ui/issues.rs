@@ -302,7 +302,10 @@ enum TimelineView {
     Event(EventView),
 }
 
-fn event_view(e: slath_db::issues::Event, source: Option<String>) -> Option<EventView> {
+fn event_view(
+    e: slath_db::issues::Event,
+    source: Option<slath_service::cross_refs::RefSource>,
+) -> Option<EventView> {
     let str_of = |k: &str| {
         e.data
             .get(k)
@@ -339,12 +342,11 @@ fn event_view(e: slath_db::issues::Event, source: Option<String>) -> Option<Even
         ),
         "referenced" => {
             let s = source?;
-            let (path, n) = s.rsplit_once('#')?;
             (
                 "link",
                 "mentioned this in".to_owned(),
-                Some(format!("/{path}/issues/{n}")),
-                s,
+                Some(s.path()),
+                s.label(),
             )
         }
         "labeled" => (

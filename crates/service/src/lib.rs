@@ -14,6 +14,7 @@ pub mod audit;
 pub mod avatars;
 pub mod bgmigrations;
 pub mod blobs;
+pub mod cross_refs;
 pub mod email;
 pub mod error;
 pub mod forks;

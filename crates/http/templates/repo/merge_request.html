@@ -135,7 +135,7 @@
     </article>
   </li>
   {%- when TimelineView::Event with (e) %}
-  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
   {%- when TimelineView::Review with (r) %}
   <li class="timeline-comment timeline-review" id="review-{{ r.id }}">
     <article aria-label="Review by {{ r.reviewer }}">
@@ -151,7 +151,7 @@
       <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{{ summary }}</span></summary>
       <ul class="plain-list">
       {%- for e in events %}
-        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
       {%- endfor %}
       </ul>
     </details>

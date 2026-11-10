@@ -634,6 +634,8 @@ struct EventView {
     icon: &'static str,
     actor: String,
     text: String,
+    /// What the event points at (a reference's source).
+    link: Option<(String, String)>,
     created: Time,
     /// Metadata (labels, assignees, milestones, review requests): folded
     /// with its neighbours (Weave: EventGroup).
@@ -921,6 +923,7 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             .actor
             .unwrap_or_else(|| if system { "Slath" } else { "A deleted user" }.to_owned()),
         text,
+        link: None,
         created: e.created_at.into(),
     })
 }
@@ -1530,6 +1533,14 @@ async fn mr_page_showing(
                     timeline.push(TimelineView::Event(v));
                 }
             }
+            MrTimelineItem::Referenced(e, src) => timeline.push(TimelineView::Event(EventView {
+                icon: "link",
+                actor: e.actor.unwrap_or_else(|| "A deleted user".to_owned()),
+                text: "mentioned this in".to_owned(),
+                link: Some((src.path(), src.label())),
+                created: e.created_at.into(),
+                quiet: false,
+            })),
             MrTimelineItem::Revision {
                 revision: r,
                 previous_head,

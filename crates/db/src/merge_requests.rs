@@ -574,6 +574,26 @@ pub async fn add_label(
     Ok(())
 }
 
+/// `(number, title, state)` of merge requests by number (reference
+/// rendering).
+pub async fn titles(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    numbers: &[i32],
+) -> Result<Vec<(i32, String, String)>, DbError> {
+    let rows = sqlx::query!(
+        "SELECT number, title, state FROM merge_requests WHERE repo_id = $1 AND number = ANY($2)",
+        repo.as_uuid(),
+        numbers
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.number, r.title, r.state))
+        .collect())
+}
+
 /// Marks a merge request merged.
 pub async fn set_merged(
     exec: impl PgExecutor<'_>,

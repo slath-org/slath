@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 
 use slath_core::authz::{self, Action, Subject};
-use slath_core::ids::{RepoId, UserId};
+use slath_core::ids::UserId;
 use slath_db::issues::{Comment, Issue};
 use slath_markup::refs::{Ref, RefContext, Resolved};
 
@@ -48,7 +48,19 @@ pub enum TimelineItem {
         /// The viewer may edit or delete it.
         own: bool,
     },
-    Event(slath_db::issues::Event, Option<String>),
+    /// With what a `referenced` event points back at, for viewers who
+    /// can read it.
+    Event(
+        slath_db::issues::Event,
+        Option<crate::cross_refs::RefSource>,
+    ),
+}
+
+fn issue_from(issue: &Issue) -> crate::cross_refs::RefFrom {
+    crate::cross_refs::RefFrom {
+        kind: "issue",
+        number: issue.number,
+    }
 }
 
 fn subject_user(subject: &Subject) -> Option<UserId> {
@@ -144,7 +156,8 @@ impl Services {
         let issue = slath_db::issues::get(&self.pool, a.repo.id, number)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        self.record_references(subject, &a, &issue, body).await;
+        self.record_references(subject, &a, issue_from(&issue), body)
+            .await;
         self.issue_created(subject, &a, &issue).await;
         Ok(issue)
     }
@@ -223,24 +236,10 @@ impl Services {
             // A reference is shown only to those who can read its source.
             let mut source = None;
             if e.kind == "referenced" {
-                let repo = e
-                    .data
-                    .get("repo_id")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok());
-                let Some(repo_id) = repo else { continue };
-                let Ok(src) = self
-                    .repo_access_by_id(subject, RepoId::from_uuid(repo_id), Action::RepoRead)
-                    .await
-                else {
+                source = self.event_source(subject, &e.data).await;
+                if source.is_none() {
                     continue;
-                };
-                let n = e
-                    .data
-                    .get("number")
-                    .and_then(serde_json::Value::as_i64)
-                    .unwrap_or(0);
-                source = Some(format!("{}/{}#{n}", src.repo.namespace, src.repo.name));
+                }
             }
             items.push((e.created_at, TimelineItem::Event(e, source)));
         }
@@ -280,7 +279,8 @@ impl Services {
         }
         tx.commit().await.map_err(ServiceError::internal)?;
         if body != issue.body {
-            self.record_references(subject, &a, &issue, body).await;
+            self.record_references(subject, &a, issue_from(&issue), body)
+                .await;
         }
         Ok(())
     }
@@ -369,7 +369,8 @@ impl Services {
         )
         .await?;
         slath_db::issues::touch(&self.pool, issue.id).await?;
-        self.record_references(subject, &a, &issue, body).await;
+        self.record_references(subject, &a, issue_from(&issue), body)
+            .await;
         self.notify_item(
             subject,
             &a,
@@ -505,57 +506,6 @@ impl Services {
         Ok(())
     }
 
-    /// Records `referenced` events in the issues a text refers to (other
-    /// than `issue` itself) that the actor can read.
-    async fn record_references(
-        &self,
-        subject: &Subject,
-        a: &RepoAccess,
-        issue: &Issue,
-        body: &str,
-    ) {
-        let ctx = RefContext {
-            ns: a.repo.namespace.clone(),
-            repo: a.repo.name.clone(),
-        };
-        let html = slath_markup::render_with_refs(
-            body,
-            slath_markup::MarkdownOptions::default(),
-            Some(&ctx),
-        );
-        for r in slath_markup::refs::references(&html) {
-            let Ref::Item { ns, repo, number } = r else {
-                continue;
-            };
-            let Ok(number) = i32::try_from(number) else {
-                continue;
-            };
-            let Ok(target) = self
-                .issues_access(subject, &ns, &repo, Action::RepoRead)
-                .await
-            else {
-                continue;
-            };
-            if target.repo.id == a.repo.id && number == issue.number {
-                continue;
-            }
-            let Ok(Some(t)) = slath_db::issues::get(&self.pool, target.repo.id, number).await
-            else {
-                continue;
-            };
-            let _ = slath_db::issues::insert_event(
-                &self.pool,
-                target.repo.id,
-                "issue",
-                t.id,
-                subject_user(subject),
-                "referenced",
-                &serde_json::json!({"repo_id": a.repo.id.to_string(), "number": issue.number}),
-            )
-            .await;
-        }
-    }
-
     /// Markdown for one viewer: the cached render with references resolved
     /// against what the viewer can read. Inaccessible references become
     /// plain text, revealing neither existence nor title.
@@ -620,17 +570,37 @@ impl Services {
             let res = match r {
                 Ref::Item { number, .. } => {
                     let n = i32::try_from(*number).unwrap_or(0);
-                    let enabled = slath_db::repos::issues_enabled(&self.pool, a.repo.id).await?;
-                    match slath_db::issues::titles(&self.pool, a.repo.id, &[n])
-                        .await?
-                        .pop()
-                    {
-                        Some((_, title, state)) if enabled => Resolved::Link {
+                    let issue = if slath_db::repos::issues_enabled(&self.pool, a.repo.id).await? {
+                        slath_db::issues::titles(&self.pool, a.repo.id, &[n])
+                            .await?
+                            .pop()
+                    } else {
+                        None
+                    };
+                    // Issues and merge requests share numbers.
+                    let mr = if issue.is_none() && self.mrs_enabled(a).await {
+                        slath_db::merge_requests::titles(&self.pool, a.repo.id, &[n])
+                            .await?
+                            .pop()
+                    } else {
+                        None
+                    };
+                    match (issue, mr) {
+                        (Some((_, title, state)), _) => Resolved::Link {
                             href: format!("{base}/issues/{n}"),
                             title: Some(format!("{title} ({state})")),
                             state: Some(if state == "open" { "open" } else { "closed" }),
                         },
-                        _ => Resolved::Text,
+                        (None, Some((_, title, state))) => Resolved::Link {
+                            href: format!("{base}/merge-requests/{n}"),
+                            title: Some(format!("{title} ({state})")),
+                            state: Some(match state.as_str() {
+                                "open" => "open",
+                                "merged" => "merged",
+                                _ => "closed",
+                            }),
+                        },
+                        (None, None) => Resolved::Text,
                     }
                 }
                 Ref::Commit { sha, .. } => {

@@ -49,6 +49,8 @@ pub struct MrPerms {
 pub enum MrTimelineItem {
     Comment(crate::issues::TimelineItem),
     Event(slath_db::issues::Event),
+    /// A `referenced` event and its source, which the viewer can read.
+    Referenced(slath_db::issues::Event, crate::cross_refs::RefSource),
     Revision {
         revision: Revision,
         /// The previous revision's head, for "compare with previous".
@@ -134,6 +136,13 @@ fn check_title(title: &str) -> Result<String> {
 fn branch_ref(field: &str, name: &str) -> Result<RefName> {
     RefName::branch(name.trim().as_bytes())
         .map_err(|_| ServiceError::invalid(field, "invalid", "Choose an existing branch."))
+}
+
+fn mr_from(m: &MergeRequest) -> crate::cross_refs::RefFrom {
+    crate::cross_refs::RefFrom {
+        kind: "merge_request",
+        number: m.number,
+    }
 }
 
 impl Services {
@@ -579,6 +588,8 @@ impl Services {
         let m = slath_db::merge_requests::get_by_id(&self.pool, id)
             .await?
             .ok_or(ServiceError::NotFound)?;
+        self.record_references(subject, &a, mr_from(&m), &m.description)
+            .await;
         self.notify_mr(Some(author), &m, MrActivity::Opened).await;
         Ok(m)
     }
@@ -774,7 +785,14 @@ impl Services {
             ));
         }
         for e in slath_db::issues::events(&self.pool, "merge_request", *m.id.as_uuid()).await? {
-            if e.kind == "revision" || e.kind == "referenced" {
+            if e.kind == "revision" {
+                continue;
+            }
+            if e.kind == "referenced" {
+                // Shown only to those who can read its source.
+                if let Some(src) = self.event_source(subject, &e.data).await {
+                    items.push((e.created_at, MrTimelineItem::Referenced(e, src)));
+                }
                 continue;
             }
             items.push((e.created_at, MrTimelineItem::Event(e)));
@@ -832,6 +850,10 @@ impl Services {
             .await?;
         }
         tx.commit().await.map_err(ServiceError::internal)?;
+        if description != m.description {
+            self.record_references(subject, &a, mr_from(&m), description)
+                .await;
+        }
         Ok(())
     }
 
@@ -976,6 +998,7 @@ impl Services {
         )
         .await?;
         slath_db::merge_requests::touch(&self.pool, m.id).await?;
+        self.record_references(subject, &a, mr_from(&m), body).await;
         self.notify_mr(Some(author), &m, MrActivity::Commented(id))
             .await;
         slath_db::issues::comment(&self.pool, id)

@@ -77,6 +77,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Writers of the original can push to an open fork merge request's branch unless its author turns edits by maintainers off; each such push is audited.
 - The compare page can merge from a fork, with Allow edits by maintainers and the confirmation for less visible forks; forks link to it from Contribute, pushes, and the banner.
 - Fork merge requests show their source as owner/repository:branch, and the More menu turns edits by maintainers on or off.
+- `#n` links to merge requests as well as issues, with their state, and issues and merge requests show where they were mentioned, once per source.
 
 ### Changed
 

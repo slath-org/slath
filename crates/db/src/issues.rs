@@ -418,6 +418,28 @@ pub async fn insert_event(
     Ok(())
 }
 
+/// Whether the subject already has an event of `kind` whose data contains
+/// `data`.
+pub async fn has_event(
+    exec: impl PgExecutor<'_>,
+    kind_of_subject: &str,
+    subject: uuid::Uuid,
+    kind: &str,
+    data: &Value,
+) -> Result<bool, DbError> {
+    let found = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM timeline_events
+             WHERE subject_kind = $1 AND subject_id = $2 AND kind = $3 AND data @> $4) AS "found!""#,
+        kind_of_subject,
+        subject,
+        kind,
+        data
+    )
+    .fetch_one(exec)
+    .await?;
+    Ok(found)
+}
+
 pub async fn events(
     exec: impl PgExecutor<'_>,
     kind: &str,
