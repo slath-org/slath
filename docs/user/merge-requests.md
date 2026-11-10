@@ -374,8 +374,13 @@ Diffs look the same on commits, the compare page, and merge requests:
 ## Checking out a merge request
 
 **Check out** next to the merge request's title shows commands to copy,
-each with a copy button. With Git, the current revision is always at
-`refs/merge-requests/<n>/head`:
+each with a copy button, for Git or for jj. Slath shows your tool's: the
+one you chose under **Settings → Appearance → Commands for**, or, set to
+automatic, the one your recent pushes came from (jj writes a change ID
+into every commit, Git doesn't). Until it knows, you choose on the page
+and your browser remembers it. Only commands differ; every page looks the
+same whichever tool made the commits. With Git, the current revision is
+always at `refs/merge-requests/<n>/head`:
 
 ```sh
 git fetch origin refs/merge-requests/12/head && git switch --detach FETCH_HEAD

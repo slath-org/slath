@@ -985,8 +985,25 @@ struct AppearancePage<'a> {
     density: &'a str,
     code_font_size: i16,
     sizes: std::ops::RangeInclusive<i16>,
+    /// `auto`, `git`, or `jj`, and what the pushes came from.
+    tool: &'static str,
+    detected: Option<&'static str>,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
+}
+
+/// The viewer's tool setting for the form: (`auto`/`git`/`jj`, detected).
+async fn tool_setting(
+    state: &AppState,
+    session: &slath_service::sessions::Session,
+) -> Result<(&'static str, Option<&'static str>), AppError> {
+    use slath_service::tools::Tool;
+    let p = state.services.tool_pref(&session.subject).await?;
+    let name = |t: Tool| match t {
+        Tool::Git => "Git",
+        Tool::Jj => "jj",
+    };
+    Ok((p.setting.map_or("auto", Tool::as_str), p.detected.map(name)))
 }
 
 impl AppearancePage<'_> {
@@ -996,20 +1013,24 @@ impl AppearancePage<'_> {
 }
 
 async fn appearance(
+    State(state): State<AppState>,
     ctx: PageCtx,
     RequireSession(session): RequireSession,
     Query(q): Query<StatusQuery>,
-) -> Response {
-    render(&AppearancePage {
+) -> Result<Response, AppError> {
+    let (tool, detected) = tool_setting(&state, &session).await?;
+    Ok(render(&AppearancePage {
         ctx,
         tab: "appearance",
         theme: &session.row.theme,
         density: &session.row.density,
         code_font_size: session.row.code_font_size,
         sizes: 12..=20,
+        tool,
+        detected,
         message: status_message(q.status.as_deref()),
         errors: Vec::new(),
-    })
+    }))
 }
 
 #[derive(Deserialize)]
@@ -1020,6 +1041,8 @@ struct AppearanceForm {
     density: String,
     #[serde(default)]
     code_font_size: Option<String>,
+    #[serde(default)]
+    tool: String,
 }
 
 async fn appearance_save(
@@ -1033,11 +1056,15 @@ async fn appearance_save(
         .as_deref()
         .and_then(|v| v.parse::<i16>().ok())
         .unwrap_or(0);
-    match state
+    let saved = match state
         .services
         .update_appearance(&session, &f.theme, &f.density, size)
         .await
     {
+        Ok(()) => state.services.set_vcs_tool(&session.subject, &f.tool).await,
+        e => e,
+    };
+    match saved {
         Ok(()) => Ok(appearance_cookies(
             &state,
             &f.theme,
@@ -1046,6 +1073,7 @@ async fn appearance_save(
         )),
         Err(e) => {
             let errors = field_errors(e)?;
+            let (tool, detected) = tool_setting(&state, &session).await?;
             let mut res = render(&AppearancePage {
                 ctx,
                 tab: "appearance",
@@ -1053,6 +1081,8 @@ async fn appearance_save(
                 density: &session.row.density,
                 code_font_size: session.row.code_font_size,
                 sizes: 12..=20,
+                tool,
+                detected,
                 message: None,
                 errors,
             });

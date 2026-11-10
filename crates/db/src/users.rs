@@ -345,3 +345,50 @@ pub async fn set_appearance(
     .await?;
     Ok(())
 }
+
+/// A user's tool setting (`git`, `jj`, or `None` for automatic) and the
+/// tool their recent pushes came from.
+pub async fn vcs_tools(
+    exec: impl PgExecutor<'_>,
+    user: UserId,
+) -> Result<(Option<String>, Option<String>), DbError> {
+    let r = sqlx::query!(
+        "SELECT vcs_tool, pushed_tool FROM users WHERE id = $1",
+        user.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map_or((None, None), |r| (r.vcs_tool, r.pushed_tool)))
+}
+
+/// Sets a user's tool (`None`: automatic).
+pub async fn set_vcs_tool(
+    exec: impl PgExecutor<'_>,
+    user: UserId,
+    tool: Option<&str>,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET vcs_tool = $2 WHERE id = $1",
+        user.as_uuid(),
+        tool
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Records the tool a user's latest push came from.
+pub async fn set_pushed_tool(
+    exec: impl PgExecutor<'_>,
+    user: UserId,
+    tool: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET pushed_tool = $2 WHERE id = $1 AND pushed_tool IS DISTINCT FROM $2",
+        user.as_uuid(),
+        tool
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET pushed_tool = $2 WHERE id = $1 AND pushed_tool IS DISTINCT FROM $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5ebbc30a9bc3848490a05ac676ceceee54ea89ac962419965b97d4444829174d"
+}

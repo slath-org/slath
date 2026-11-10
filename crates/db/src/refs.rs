@@ -156,3 +156,15 @@ pub async fn recent_branch_pushes(
     .await?;
     Ok(rows.into_iter().map(|r| r.name).collect())
 }
+
+/// How a push arrived: `http`, `ssh`, `internal`, or `reconcile`.
+pub async fn push_transport(
+    exec: impl PgExecutor<'_>,
+    push: uuid::Uuid,
+) -> Result<Option<String>, DbError> {
+    Ok(
+        sqlx::query_scalar!("SELECT transport FROM push_events WHERE id = $1", push)
+            .fetch_optional(exec)
+            .await?,
+    )
+}

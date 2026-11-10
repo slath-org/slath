@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT vcs_tool, pushed_tool FROM users WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "vcs_tool",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "vcs_tool"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "pushed_tool",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "pushed_tool"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "9aa77f6096005d78db3bfb2af3ac21c0d0317f350c8df1dd0d2117e58a79a1d9"
+}

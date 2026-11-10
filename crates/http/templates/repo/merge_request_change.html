@@ -38,7 +38,7 @@
 {%- if kind == "exact" %}
 <div class="notice" role="note"><p><strong>Exact:</strong> versions {{ f.number }} and {{ shown.number }} have the same parent, so this is exactly what changed.</p></div>
 {%- else if kind == "patches" %}
-<div class="notice" role="note"><p><strong>Diff of patches:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so their patches are compared with <code>git range-diff</code>.{% if let Some(o) = other_href %} <a href="{{ o }}">Show the tree diff, including the rebase</a>{% endif %}</p></div>
+<div class="notice" role="note"><p><strong>Diff of patches:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so their patches are compared one by one (a range diff).{% if let Some(o) = other_href %} <a href="{{ o }}">Show the tree diff, including the rebase</a>{% endif %}</p></div>
 {%- else if kind == "tree" %}
 <div class="notice" role="note"><p><strong>Tree diff, including the rebase:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so this includes what the rebase brought in.{% if let Some(o) = other_href %} <a href="{{ o }}">Show the diff of patches</a>{% endif %}</p></div>
 {%- endif %}

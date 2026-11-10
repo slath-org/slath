@@ -1005,6 +1005,31 @@ struct MrHeading {
     /// Copy-paste commands that check the merge request out.
     git_checkout: String,
     jj_checkout: String,
+    /// Whose commands to show first.
+    tool: ToolChoice,
+}
+
+/// The viewer's tool for command blocks: preselected when known (setting
+/// or recent pushes), else nothing is and the browser remembers a pick.
+#[derive(Clone, Copy)]
+struct ToolChoice {
+    git: bool,
+    jj: bool,
+}
+
+impl ToolChoice {
+    fn known(&self) -> bool {
+        self.git || self.jj
+    }
+}
+
+async fn tool_choice(state: &AppState, subject: &Subject) -> Result<ToolChoice, AppError> {
+    use slath_service::tools::Tool;
+    let t = state.services.tool_pref(subject).await?.effective();
+    Ok(ToolChoice {
+        git: t == Some(Tool::Git),
+        jj: t == Some(Tool::Jj),
+    })
 }
 
 /// A held-back fork source on the merge request page.
@@ -1282,6 +1307,7 @@ async fn heading(
         ),
     };
     Ok(MrHeading {
+        tool: tool_choice(state, subject).await?,
         git_checkout,
         jj_checkout,
         source_repo,

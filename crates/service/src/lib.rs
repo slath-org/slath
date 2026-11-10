@@ -54,6 +54,7 @@ pub mod statuses;
 pub mod suggestions;
 pub mod teams;
 pub mod tokens;
+pub mod tools;
 pub mod update_branch;
 pub mod updates;
 

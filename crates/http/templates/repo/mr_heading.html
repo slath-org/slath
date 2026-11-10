@@ -9,9 +9,9 @@
       <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
       <div class="choice">
         <fieldset class="choice-options">
-          <legend class="visually-hidden">Check out with</legend>
-          <div class="radio"><input id="checkout-tool-git" type="radio" name="checkout-tool" value="git" data-remember="tool" checked><label for="checkout-tool-git">Git</label></div>
-          <div class="radio"><input id="checkout-tool-jj" type="radio" name="checkout-tool" value="jj" data-remember="tool"><label for="checkout-tool-jj">jj</label></div>
+          <legend>Commands for</legend>
+          <div class="radio"><input id="checkout-tool-git" type="radio" name="checkout-tool" value="git"{% if h.tool.git %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-git">Git</label></div>
+          <div class="radio"><input id="checkout-tool-jj" type="radio" name="checkout-tool" value="jj"{% if h.tool.jj %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-jj">jj</label></div>
         </fieldset>
         <div class="choice-panel">{% call m::copy_field(ctx, "checkout-git", "Git commands", h.git_checkout, "Copy the Git commands") %}{% endcall %}</div>
         <div class="choice-panel">{% call m::copy_field(ctx, "checkout-jj", "jj commands", h.jj_checkout, "Copy the jj commands") %}{% endcall %}</div>
