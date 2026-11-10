@@ -6,7 +6,9 @@
 Code hosts scan pushes for credentials and stop them, even when they are
 test samples. Samples are therefore kept split in the source (see
 `secret_scan::joined`) and test keys encoded, so no full one is committed.
-Placeholders (all `x`, or containing `EXAMPLE`) are fine.
+Placeholders (all `x`, or containing `EXAMPLE`) are fine, except for rules
+marked strict: hosts flag those shapes even when the body is a placeholder
+(GitHub stops `sk_test_` followed by 24 `x`), so they must be split too.
 
 Usage: check_secrets.py ROOT   Exit status 1 on violations. Exceptions:
 `secret-literal <path>  # reason` in scripts/guards-allowlist.txt.
@@ -24,12 +26,15 @@ RULES = [
     ("AWS access key", r"\bAKIA([0-9A-Z]{16})\b"),
     ("Slack token", r"\bxox[baprs]-([0-9]{6,}-[A-Za-z0-9-]+)"),
     ("Stripe live key", r"\b[sr]k_live_([0-9A-Za-z]{20,})"),
+    ("Stripe test key", r"\b[sr]k_test_([0-9A-Za-z]{20,})"),
     ("Google API key", r"\bAIza([0-9A-Za-z_-]{35})"),
     ("npm token", r"\bnpm_([A-Za-z0-9]{36})"),
     ("PyPI token", r"\bpypi-(AgE[A-Za-z0-9_-]{30,})"),
     # A key header followed by key material (a real newline or an escaped one).
     ("private key", r"-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\n|\\n)([A-Za-z0-9+/=]{20,})"),
 ]
+# Rules whose placeholders code hosts reject as well.
+STRICT = {"Stripe live key", "Stripe test key"}
 PRUNE = {".git", "target", "node_modules", "dist"}
 MAX_BYTES = 2 * 1024 * 1024
 
@@ -72,7 +77,7 @@ def main(argv: list[str]) -> int:
         rel = f.relative_to(root).as_posix()
         for name, rx in rules:
             for m in rx.finditer(text):
-                if placeholder(m.group(1)) or allowed(root, rel):
+                if (placeholder(m.group(1)) and name not in STRICT) or allowed(root, rel):
                     continue
                 line = text.count("\n", 0, m.start()) + 1
                 print(f"{rel}:{line}: complete {name} in the tree; split it (secret_scan::joined) or encode it",

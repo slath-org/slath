@@ -7,7 +7,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use slath_core::secret_scan::{RuleSet, Tier, samples};
+use slath_core::secret_scan::{RuleSet, Tier, joined, samples};
 
 fn root() -> &'static Path {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
@@ -24,8 +24,12 @@ fn blocking(text: &[u8]) -> Vec<String> {
 
 #[test]
 fn conf_sec_08_the_false_positive_corpus_has_no_block_findings() {
-    let corpus =
+    let mut corpus =
         std::fs::read(root().join("tests/fixtures/secret-scan/false-positives.txt")).unwrap();
+    // Placeholders that code hosts reject even so (GitHub stops this one),
+    // joined here so the tree never holds them whole.
+    let stripe = joined(&["sk_", "test_", &"x".repeat(24)]);
+    corpus.extend_from_slice(format!("stripe.api_key = \"{stripe}\"\n").as_bytes());
     assert_eq!(blocking(&corpus), Vec::<String>::new());
 }
 
