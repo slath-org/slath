@@ -4721,6 +4721,116 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/suggestions/apply": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Applies suggestions to the source branch (`mr.apply_suggestion`, or\nthe merge request's author; writing the branch needs push on the source\nor edits by maintainers). 409 when one is outdated, two overlap, or the\nbranch moved or is protected.",
+        "operationId": "apply_suggestions",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplySuggestionsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write",
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads": {
       "get": {
         "tags": [
@@ -6721,6 +6831,30 @@
   },
   "components": {
     "schemas": {
+      "ApplySuggestionsBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of published line comments with a ```` ```suggestion ```` block."
+          },
+          "expected_head_oid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The head you saw; if the merge request moved on, 409."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`commit` (default): a new commit on top; `fold`: into the change\nthat introduced the lines."
+          }
+        }
+      },
       "AttachmentJson": {
         "type": "object",
         "description": "An uploaded attachment.",

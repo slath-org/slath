@@ -21,5 +21,6 @@ mod mergeability;
 mod oidc_providers;
 mod reserved_refs;
 mod reviews;
+mod suggestions;
 mod threads;
 mod update_branch;

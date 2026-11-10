@@ -51,6 +51,7 @@ pub mod secrets;
 pub mod sessions;
 pub mod settings;
 pub mod statuses;
+pub mod suggestions;
 pub mod teams;
 pub mod tokens;
 pub mod update_branch;

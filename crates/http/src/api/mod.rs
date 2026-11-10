@@ -164,7 +164,7 @@ impl utoipa::Modify for SecurityAddon {
         merge_requests::list_mr_comments, merge_requests::create_mr_comment,
         merge_requests::get_stack, merge_requests::bind_change,
         merge_requests::list_reviews, merge_requests::create_review, merge_requests::put_reviewers,
-        merge_requests::get_mergeability, merge_requests::merge, merge_requests::update_branch, merge_requests::put_auto_merge, merge_requests::delete_auto_merge, merge_requests::get_ledger,
+        merge_requests::get_mergeability, merge_requests::merge, merge_requests::update_branch, merge_requests::put_auto_merge, merge_requests::apply_suggestions, merge_requests::delete_auto_merge, merge_requests::get_ledger,
         statuses::create_status, statuses::list_statuses,
         mr_threads::list_threads, mr_threads::create_thread, mr_threads::reply, mr_threads::update_thread,
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,

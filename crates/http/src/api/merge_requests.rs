@@ -776,6 +776,52 @@ pub async fn merge(
 
 /// Every field is optional in the JSON so that authorization runs first.
 #[derive(Deserialize, ToSchema)]
+pub struct ApplySuggestionsBody {
+    /// IDs of published line comments with a ```` ```suggestion ```` block.
+    #[serde(default)]
+    pub comments: Vec<String>,
+    /// `commit` (default): a new commit on top; `fold`: into the change
+    /// that introduced the lines.
+    #[serde(default)]
+    pub mode: String,
+    /// The head you saw; if the merge request moved on, 409.
+    #[serde(default)]
+    pub expected_head_oid: Option<String>,
+}
+
+/// Applies suggestions to the source branch (`mr.apply_suggestion`, or
+/// the merge request's author; writing the branch needs push on the source
+/// or edits by maintainers). 409 when one is outdated, two overlap, or the
+/// branch moved or is protected.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/suggestions/apply", tag = "merge requests", security(("token" = ["mrs:write", "repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = ApplySuggestionsBody,
+    responses((status = 200, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn apply_suggestions(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<ApplySuggestionsBody>,
+) -> Result<Json<MergeRequest>, AppError> {
+    let ids: Vec<uuid::Uuid> = b
+        .comments
+        .iter()
+        .map(|c| c.parse().map_err(|_| AppError::not_found()))
+        .collect::<Result<_, _>>()?;
+    let mode = slath_service::suggestions::ApplyMode::parse(&b.mode)?;
+    let m = state
+        .services
+        .apply_suggestions(
+            &s,
+            (&ns, &repo, number),
+            &ids,
+            mode,
+            b.expected_head_oid.as_deref(),
+        )
+        .await?;
+    Ok(Json(render(&state, &s, &ns, &repo, m).await?))
+}
+
+/// Every field is optional in the JSON so that authorization runs first.
+#[derive(Deserialize, ToSchema)]
 pub struct AutoMergeBody {
     /// Default: the repository's default strategy.
     #[serde(default)]
@@ -936,6 +982,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
             Access::Resource,
             axum::routing::post(merge),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/suggestions/apply",
+            Access::Resource,
+            axum::routing::post(apply_suggestions),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/auto-merge",

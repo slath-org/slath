@@ -64,7 +64,12 @@ impl Services {
         let Subject::User { id, .. } = subject else {
             return Err(ServiceError::Unauthenticated);
         };
-        let u = slath_db::users::get(&self.pool, *id)
+        self.identity_of(*id).await
+    }
+
+    /// The commit identity of a user (see [`Self::identity`]).
+    pub(crate) async fn identity_of(&self, id: slath_core::ids::UserId) -> Result<String> {
+        let u = slath_db::users::get(&self.pool, id)
             .await?
             .ok_or(ServiceError::NotFound)?;
         let name: String = u
@@ -358,7 +363,6 @@ impl Services {
     }
 
     /// The commit the target moves to.
-    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn build(
         &self,

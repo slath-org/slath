@@ -204,6 +204,36 @@ position), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
 `pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`
 with `{"resolved": true}`.
 
+## Suggestions
+
+In a comment on lines of the new side, a `suggestion` block proposes the
+text that replaces them (an empty block deletes them):
+
+````text
+Shorter:
+
+```suggestion
+let total = items.len();
+```
+````
+
+People who can push to the branch, and the merge request's author,
+apply suggestions on the server, one at a time or several together. They
+become a new commit on top of the branch: its author is whoever made the
+suggestion (the person applying when several people did), its committer
+the person applying, and its message ends with a `Co-authored-by` line
+for each suggester. The new commit is a revision like any push, and the
+threads of applied suggestions are resolved.
+
+A suggestion can be applied only while its lines are unchanged since it
+was made; once they changed, it's outdated. Suggestions changing the
+same lines can't be applied together, and what a suggestion adds goes
+through the repository's push protection. The branch's protection
+applies as for a push.
+
+The API applies them with `POST …/merge-requests/{n}/suggestions/apply`
+and `{"comments": ["<comment id>", …], "expected_head_oid": "<head>"}`.
+
 ## Merging
 
 When every requirement is met, the readiness card offers **Merge** to
