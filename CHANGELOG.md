@@ -123,6 +123,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- On narrow screens, pages with tables, the profile and organization avatar forms, and the editor's suggestions no longer make the page scroll sideways.
 - Menus that open near the edge of a narrow screen move inside it instead of running off the side.
 - Two merges of the same merge request at once can no longer both land; the second one stops with a conflict.
 - Labels of choices with a bold name, such as visibility and push protection, wrap as one sentence instead of splitting into columns.

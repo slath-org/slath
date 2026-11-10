@@ -48,6 +48,14 @@ export async function expectAccessible(page: Page, include?: string): Promise<vo
   expect(
     violations.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`),
   ).toEqual([]);
+  // The page itself never scrolls sideways; wide content scrolls in its
+  // own region (WCAG 1.4.10 reflow).
+  if (!include) {
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, "the page scrolls horizontally").toBeLessThanOrEqual(0);
+  }
 }
 
 /**

@@ -97,7 +97,9 @@ export function attachCombobox(mode: Mode, wrapper: HTMLElement, repo: string, i
     const c = mode.caretRect();
     if (!c) return;
     const a = mode.anchor.getBoundingClientRect();
-    list.style.left = `${Math.max(0, c.left - a.left)}px`;
+    // At the caret, but never past the editor's end (narrow screens).
+    const max = Math.max(0, a.width - list.offsetWidth);
+    list.style.left = `${Math.min(Math.max(0, c.left - a.left), max)}px`;
     list.style.top = `${c.bottom - a.top + 4}px`;
   };
 

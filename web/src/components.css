@@ -363,6 +363,9 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
 
 /* Tables */
 .table-wrap {
+  /* The containing block of visually hidden labels in cells, so they
+     scroll with the table instead of widening the page. */
+  position: relative;
   overflow-x: auto;
   margin: 0 0 var(--space-4);
 }
@@ -398,9 +401,16 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
 }
 .profile-avatar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   margin: 0 0 var(--space-4);
+}
+/* The form may shrink below its content (a browser's file picker can be
+   wide) and moves under the image on narrow screens. */
+.profile-avatar > .form {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 .profile-avatar img {
   border-radius: var(--radius-md);
