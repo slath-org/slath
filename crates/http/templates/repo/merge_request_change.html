@@ -5,9 +5,7 @@
 <div class="issue">
 {% let mr_tab = "commits" %}
 {% include "repo/mr_heading.html" %}
-<div class="with-sidebar mr-layout">
 {% include "repo/mr_nav.html" %}
-<div class="sidebar-content">
 <h2>Change <code title="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
 <div class="table-wrap" tabindex="0" role="region" aria-label="Versions">
 <table class="table change-versions">
@@ -60,7 +58,5 @@
 {%- if let Some(diff) = diff %}
 {% include "repo/diff_files.html" %}
 {%- endif %}
-</div>
-</div>
 </div>
 {% endblock %}

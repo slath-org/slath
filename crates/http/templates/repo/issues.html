@@ -2,10 +2,8 @@
 {% block title %}Issues · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
 {% include "repo/header.html" %}
-<div class="with-sidebar">
 {% let section = "issues" %}
 {% include "repo/issues_nav.html" %}
-<div class="sidebar-content">
 <div class="page-heading">
   <h1>Issues</h1>
   <a class="button" href="/-/search?type=issues&amp;repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}">{% call m::icon(ctx, "search") %}{% endcall %}Search issues</a>
@@ -89,6 +87,4 @@
 {%- if let Some(n) = next %}
 <p><a class="button" href="{{ n }}">Next page</a></p>
 {%- endif %}
-</div>
-</div>
 {% endblock %}

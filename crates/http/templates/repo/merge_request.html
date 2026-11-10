@@ -5,9 +5,7 @@
 <div class="issue">
 {% let mr_tab = "conversation" %}
 {% include "repo/mr_heading.html" %}
-<div class="with-sidebar mr-layout">
 {% include "repo/mr_nav.html" %}
-<div class="sidebar-content">
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
 {%- endif %}
@@ -318,8 +316,6 @@
     <p{% if milestone.is_none() %} class="text-secondary"{% endif %}>{% if let Some(m) = milestone %}{{ m }}{% else %}None{% endif %}</p>
   </section>
 </aside>
-</div>
-</div>
 </div>
 </div>
 {% endblock %}

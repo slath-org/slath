@@ -340,43 +340,6 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
 }
 
 
-/* Sidebar layout (settings, admin) */
-.with-sidebar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-5);
-  align-items: flex-start;
-}
-.sidebar {
-  flex: 0 0 12rem;
-}
-.sidebar ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.sidebar a {
-  display: flex;
-  align-items: center;
-  min-height: max(var(--row-height), var(--target-min));
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  text-decoration: none;
-}
-.sidebar a:hover {
-  background: var(--surface-subtle);
-}
-.sidebar a[aria-current="page"] {
-  background: var(--selection);
-  font-weight: var(--weight-semibold);
-  box-shadow: inset calc(var(--space-1) - 1px) 0 0 var(--accent);
-}
-.sidebar-content {
-  flex: 1 1 20rem;
-  min-width: 0;
-}
-
 /* Tables */
 .table-wrap {
   overflow-x: auto;
@@ -1633,16 +1596,11 @@ a.label-chip:hover {
   display: grid;
   gap: var(--space-5);
 }
-@media (min-width: 60rem) {
+/* The details column needs room next to the conversation, which depends on
+   the side menu as much as on the screen. */
+@container page (min-width: 56rem) {
   .issue-layout {
     grid-template-columns: minmax(0, 1fr) 16rem;
-  }
-}
-/* Merge requests: the page menu takes the start side, so the details
-   column needs a wider screen. */
-@media (min-width: 60rem) and (max-width: 79.99rem) {
-  .mr-layout .issue-layout {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 .issue-main {

@@ -138,7 +138,7 @@ test("repository_watch_toggle", async ({ page }) => {
   }
   // Issues, Labels, and Milestones are a side menu, like settings sections.
   const sections = page.getByRole("navigation", { name: "Issues" });
-  await expect(sections).toHaveClass(/sidebar/);
+  await expect(sections).toHaveClass(/tabs/);
   await expect(sections.getByRole("link", { name: "Labels" })).toHaveAttribute("aria-current", "page");
   // The top bar shows the avatar, named and titled with the user name.
   const me = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true });

@@ -2,10 +2,8 @@
 {% block title %}Access · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
 {% include "repo/header.html" %}
-<div class="with-sidebar">
 {% let section = "access" %}
 {% include "repo/settings_nav.html" %}
-<div class="sidebar-content">
 <h1>Access</h1>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -105,6 +103,4 @@
   <div><button type="submit" class="button">Save team access</button></div>
 </form>
 {%- endif %}
-</div>
-</div>
 {% endblock %}

@@ -4,9 +4,7 @@
 {% include "repo/header.html" %}
 {% let mr_tab = "changes" %}
 {% include "repo/mr_heading.html" %}
-<div class="with-sidebar mr-layout">
 {% include "repo/mr_nav.html" %}
-<div class="sidebar-content">
 {%- if let Some(s) = since %}
 <div class="notice" role="note"><p>Changes from revision {{ s }} to revision {{ current }}. If the branch was rebased, this includes changes from the target. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes">Show all changes</a></p></div>
 {%- endif %}
@@ -14,6 +12,4 @@
 <div class="notice" role="note"><p>This diff is too large to show.</p></div>
 {%- endif %}
 {% include "repo/diff_files.html" %}
-</div>
-</div>
 {% endblock %}

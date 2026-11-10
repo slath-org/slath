@@ -97,7 +97,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A side menu on the left shows where you are (a repository, an organization, your settings, administration, or your work) and its areas.
 - The side menu collapses with the button at the start of the top bar, and the choice is remembered; on narrow screens it opens as a drawer.
 - Repository pages: Code, Issues, Merge requests, and Settings are in the side menu; Files, Commits, Branches, Tags, and Forks are tabs under Code.
-- Merge request pages have a menu on the left for Conversation, Commits, and Changes; All, Unresolved, and Mine are tabs.
+- Issues, Labels, and Milestones, the repository settings sections, and a merge request's Conversation, Commits, and Changes are tabs.
 - Merge request checkout commands are in a Check out menu next to the title, with icon copy buttons.
 
 ### Removed

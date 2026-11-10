@@ -208,7 +208,7 @@ async function smallTargets(page: Page): Promise<string[]> {
     const coarse = matchMedia("(pointer: coarse)").matches;
     const min = coarse ? 44 : 24;
     const selector =
-      "a.button, button, summary, select, input:not([type=hidden]), .menu-item, .tabs a, .sidebar a, .app-sidebar a, .sidebar-toggle, .crumbs a, .nav-end a, .site-name, .file-list a";
+      "a.button, button, summary, select, input:not([type=hidden]), .menu-item, .tabs a, .app-sidebar a, .sidebar-toggle, .crumbs a, .nav-end a, .site-name, .file-list a";
     const out: string[] = [];
     for (const el of document.querySelectorAll<HTMLElement>(selector)) {
       const style = getComputedStyle(el);

@@ -117,30 +117,18 @@
 
 <section aria-labelledby="nav-heading">
   <h2 id="nav-heading">Navigation levels, breadcrumbs, badges</h2>
-  <p class="text-secondary">Context header (breadcrumb, visibility, and context-wide actions at the right), area tabs, and a side menu for the sections of one area.</p>
+  <p class="text-secondary">The side menu on the start side of this page names the context and lists its areas; the button at the start of the global bar collapses it, and on narrow screens opens it. Under the context header, tabs lead to the sections of one area.</p>
   <div class="repo-header">
     <div class="repo-title-row">
       <p class="repo-title"><a href="#nav-heading">alice</a> / <a href="#nav-heading"><strong>proj</strong></a> <span class="badge">Private</span></p>
       <div class="repo-actions"><button type="button" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button></div>
     </div>
-    <nav class="tabs" aria-label="Example tabs">
-      <ul>
-        <li><a href="#nav-heading">Code</a></li>
-        <li><a href="#nav-heading" aria-current="page">Issues</a></li>
-        <li><a href="#nav-heading">Settings</a></li>
-      </ul>
-    </nav>
   </div>
-  <div class="with-sidebar">
-    <nav class="sidebar" aria-label="Example side menu">
-      <ul>
-        <li><a href="#nav-heading">Issues</a></li>
-        <li><a href="#nav-heading" aria-current="page">Labels</a></li>
-        <li><a href="#nav-heading">Milestones</a></li>
-      </ul>
-    </nav>
-    <div class="sidebar-content"><p class="text-secondary">The section's content.</p></div>
-  </div>
+  {%- call m::tabs("Example tabs") %}
+  {%- call m::tab("#nav-heading", "Issues", false, "") %}{% endcall %}
+  {%- call m::tab("#nav-heading", "Labels", true, "") %}{% endcall %}
+  {%- call m::tab("#nav-heading", "Milestones", false, "3") %}{% endcall %}
+  {%- endcall %}
   <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#nav-heading">alice</a></li><li><a href="#nav-heading">proj</a></li><li>src</li></ol></nav>
   <p><span class="badge">Admin</span> <span class="badge">Archived</span></p>
 </section>

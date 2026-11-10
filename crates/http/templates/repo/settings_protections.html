@@ -2,10 +2,8 @@
 {% block title %}Branch protection · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
 {% include "repo/header.html" %}
-<div class="with-sidebar">
 {% let section = "protections" %}
 {% include "repo/settings_nav.html" %}
-<div class="sidebar-content">
 <h1>Branch protection</h1>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -97,6 +95,4 @@
   </fieldset>
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>
-</div>
-</div>
 {% endblock %}

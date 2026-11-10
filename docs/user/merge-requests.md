@@ -59,7 +59,7 @@ branch contains merge commits. The timeline says so at the revision.
 
 Slath tracks each commit of a merge request as a **change**, so reviews
 can follow a commit through rebases, amends, and rewrites. The
-**Commits** page (in the merge request's menu on the left) shows each commit's change ID. It uses jj's format: for
+**Commits** tab of a merge request shows each commit's change ID. It uses jj's format: for
 commits made with jj, it's the ID `jj log` shows; for commits made with
 Git, it's the ID jj would give that commit. Nobody needs hooks, trailers,
 or any client configuration.

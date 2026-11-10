@@ -1,7 +1,6 @@
-<nav class="sidebar" aria-label="Issues">
-  <ul>
-    <li><a href="/{{ header.namespace }}/{{ header.name }}/issues"{% if section == "issues" %} aria-current="page"{% endif %}>Issues</a></li>
-    <li><a href="/{{ header.namespace }}/{{ header.name }}/labels"{% if section == "labels" %} aria-current="page"{% endif %}>Labels</a></li>
-    <li><a href="/{{ header.namespace }}/{{ header.name }}/milestones"{% if section == "milestones" %} aria-current="page"{% endif %}>Milestones</a></li>
-  </ul>
-</nav>
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+{%- call m::tabs("Issues") %}
+{%- call m::tab(base ~ "/issues", "Issues", section == "issues", "") %}{% endcall %}
+{%- call m::tab(base ~ "/labels", "Labels", section == "labels", "") %}{% endcall %}
+{%- call m::tab(base ~ "/milestones", "Milestones", section == "milestones", "") %}{% endcall %}
+{%- endcall %}

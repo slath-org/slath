@@ -2,10 +2,8 @@
 {% block title %}Milestones · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
 {% include "repo/header.html" %}
-<div class="with-sidebar">
 {% let section = "milestones" %}
 {% include "repo/issues_nav.html" %}
-<div class="sidebar-content">
 <h1>Milestones</h1>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -81,6 +79,4 @@
   </div>
 </form>
 {%- endif %}
-</div>
-</div>
 {% endblock %}
