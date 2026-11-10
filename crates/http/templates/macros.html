@@ -21,6 +21,18 @@
 {%- macro evidence(kind) -%}
 <span class="evidence-chip">{{ kind }}</span>
 {%- endmacro -%}
+{#- Links and GET forms inside the page frame load the next page without
+    reloading it: htmx fetches the same URL and swaps the frame (the side
+    menu and the page), so every URL still loads on its own. The settings
+    live in the hx-boost value, so they apply only to boosted links and
+    forms, never to elements with their own hx-get. Elements with
+    swap_region instead swap only the region with that id, from the same
+    full page: a view menu, a filter form, or a "Next page" link replaces
+    the list but leaves the rest of the page. A failed region load keeps
+    the region and shows a toast; a failed page load shows the error page. -#}
+{%- macro swap_region(ctx, id) -%}
+hx-boost:inherited="target:#{{ id }} select:#{{ id }} swap:outerHTML selectOOB:'#site-header:outerMorph'" hx-status:4xx:inherited="swap:none" hx-status:5xx:inherited="swap:none" hx-nonce="{{ ctx.nonce }}"
+{%- endmacro -%}
 {#- Navigation. Every page uses the same levels, each in one form:
     1. side_menu: the context (a repository, an organization, your settings,
        administration, or your work) and its areas, on the start side. It
@@ -59,10 +71,10 @@
 {%- endmacro -%}
 {#- Views of one list as a menu; the button names the view shown. The body
     is its view_item calls. -#}
-{%- macro view_menu(ctx, label, current) -%}
+{%- macro view_menu(ctx, label, current, region) -%}
 <details class="menu view-menu">
-  <summary class="button"><span class="view-menu-label">{{ label }}:</span> {{ current }}{% call icon(ctx, "chevron-down") %}{% endcall %}</summary>
-  <ul class="menu-panel" aria-label="{{ label }}">
+  <summary class="button" data-focus-target><span class="view-menu-label">{{ label }}:</span> {{ current }}{% call icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <ul class="menu-panel" aria-label="{{ label }}"{% if !region.is_empty() %} {% call swap_region(ctx, region) %}{% endcall %}{% endif %}>
 {{ caller() }}
   </ul>
 </details>

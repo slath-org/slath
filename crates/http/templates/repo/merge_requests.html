@@ -8,9 +8,10 @@
   <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/compare">New merge request</a>
   {%- endif %}
 </div>
+<div id="list-view">
 <details class="issue-filters"{% if filtered %} open{% endif %}>
   <summary>Filter{% if filtered %} (active){% endif %}</summary>
-  <form method="get" action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form filter-form">
+  <form method="get" {% call m::swap_region(ctx, "list-view") %}{% endcall %} action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form filter-form">
     <input type="hidden" name="state" value="{{ state }}">
     <div class="field">
       <label for="f-labels">Labels</label>
@@ -49,7 +50,7 @@
     </div>
   </form>
 </details>
-{%- call m::view_menu(ctx, "State", state|capitalize) %}
+{%- call m::view_menu(ctx, "State", state|capitalize, "list-view") %}
 {%- call m::view_item("?state=open" ~ query, "Open", state == "open", open.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=merged" ~ query, "Merged", state == "merged", merged.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=closed" ~ query, "Closed", state == "closed", closed.to_string()) %}{% endcall %}
@@ -82,6 +83,7 @@
 </ul>
 {%- endif %}
 {%- if let Some(n) = next %}
-<p><a class="button" href="{{ n }}">Next page</a></p>
+<p {% call m::swap_region(ctx, "list-view") %}{% endcall %}><a class="button" href="{{ n }}">Next page</a></p>
 {%- endif %}
+</div>
 {% endblock %}

@@ -19,7 +19,7 @@
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
-<header class="site-header">
+<header class="site-header" id="site-header">
   <nav class="site-nav" aria-label="Main">
     <a class="nav-icon sidebar-toggle" href="#app-sidebar" aria-controls="app-sidebar" data-sidebar-toggle title="Side menu">{% call m::icon(ctx, "panel-left") %}{% endcall %}<span class="visually-hidden">Side menu</span></a>
     <a class="site-name" href="/"><img class="logo logo-light" src="{{ ctx.logo.light_url }}" alt="" width="24" height="24"><img class="logo logo-dark" src="{{ ctx.logo.dark_url }}" alt="" width="24" height="24">Slath</a>
@@ -63,7 +63,7 @@
     </div>
   </nav>
 </header>
-<div class="app-frame">
+<div class="app-frame" id="app-frame" hx-boost:inherited="target:#app-frame select:#app-frame swap:outerHTML selectOOB:'#site-header:outerMorph'" {% call m::hx(ctx.nonce) %}{% endcall %}>
 {% block sidebar %}{% endblock %}
 <div class="app-main">
 <main id="main" tabindex="-1">

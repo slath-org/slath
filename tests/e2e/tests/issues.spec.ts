@@ -7,6 +7,8 @@ test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo");
   await tapOrClick(page, (await sideMenu(page, "Repository")).getByRole("link", { name: "Issues" }));
+  // Links swap the page without a reload, so wait for the new address.
+  await expect(page).toHaveURL(/\/alice\/demo\/issues$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Issues");
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("link", { name: "New issue" }));

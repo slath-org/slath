@@ -249,17 +249,29 @@ fn assert_inert(body: &str, what: &str) {
     for bad in UNESCAPED {
         assert!(!body.contains(bad), "{what}: found {bad:?}");
     }
-    // Text and attribute values may mention htmx; no tag may carry an htmx
-    // or event-handler attribute.
+    // Text and attribute values may mention htmx. No tag may carry an
+    // event-handler attribute, and htmx attributes only on tags the server
+    // stamped with this response's nonce (the page frame, its navigation),
+    // which user content can't know.
+    let stamp = page_nonce(body).map(|n| format!("hx-nonce=\"{n}\""));
     for tag in body.split('<').skip(1) {
         let tag = tag.split('>').next().unwrap_or("");
+        let stamped = stamp.as_deref().is_some_and(|s| tag.contains(s));
         for name in attribute_names(tag) {
             assert!(
-                !(name.starts_with("hx-") && name != "hx-ignore") && !name.starts_with("on"),
+                !(name.starts_with("hx-") && name != "hx-ignore" && !stamped)
+                    && !name.starts_with("on"),
                 "{what}: attribute {name} in <{tag}>"
             );
         }
     }
+}
+
+/// The response's CSP nonce, from the page's script tag.
+fn page_nonce(body: &str) -> Option<&str> {
+    let script = body.split("<script ").nth(1)?;
+    let rest = script.split_once(" nonce=\"")?.1;
+    rest.split('"').next()
 }
 
 /// The attribute names of a tag's inside (`a href="x" class=y`), skipping

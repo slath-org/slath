@@ -117,9 +117,9 @@ async function run(form: HTMLFormElement): Promise<void> {
   form.requestSubmit();
 }
 
-export function installPasskeys(): void {
-  if (!window.PublicKeyCredential || !navigator.credentials) return;
-  for (const form of document.querySelectorAll<HTMLFormElement>("form[data-passkey]")) {
+function enhance(): void {
+  for (const form of document.querySelectorAll<HTMLFormElement>("form[data-passkey]:not([data-passkey-on])")) {
+    form.dataset.passkeyOn = "";
     form.hidden = false;
     form.addEventListener("submit", (evt) => {
       if (form.dataset.passkeyReady === "1") return;
@@ -128,4 +128,11 @@ export function installPasskeys(): void {
       void run(form);
     });
   }
+}
+
+export function installPasskeys(): void {
+  if (!window.PublicKeyCredential || !navigator.credentials) return;
+  enhance();
+  // Pages loaded by navigation inside the frame.
+  document.addEventListener("htmx:after:swap", enhance);
 }

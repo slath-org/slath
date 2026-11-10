@@ -23,8 +23,8 @@
     <details class="menu download-menu">
       <summary class="button">Download{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
       <div class="menu-panel">
-        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.tar.gz">tar.gz archive</a>
-        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.zip">zip archive</a>
+        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.tar.gz" download>tar.gz archive</a>
+        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.zip" download>zip archive</a>
       </div>
     </details>
     {%- if let Some((https_url, ssh_url)) = reference.clone %}

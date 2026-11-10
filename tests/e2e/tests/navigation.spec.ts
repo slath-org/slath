@@ -72,3 +72,42 @@ test("conf_a11y_04_views_of_a_list_are_a_menu", async ({ page }) => {
   await expect(page).toHaveURL(/state=closed/);
   await expect(page.locator("summary", { hasText: "State:" })).toContainText("Closed");
 });
+
+test("ux_nav_01_links_swap_the_page_and_views_swap_the_list", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo");
+  // A marker on window survives only if the page isn't reloaded.
+  await page.evaluate(() => ((window as unknown as { kept: boolean }).kept = true));
+  const kept = () => page.evaluate(() => (window as unknown as { kept?: boolean }).kept === true);
+
+  // An area of the side menu: the URL, the title, and the menu's current
+  // entry change; the page isn't reloaded.
+  const menu = page.getByRole("navigation", { name: "Repository", exact: true });
+  if (test.info().project.use.hasTouch) await tapOrClick(page, page.getByRole("button", { name: "Side menu" }));
+  await tapOrClick(page, menu.getByRole("link", { name: "Issues" }));
+  await expect(page).toHaveURL(/\/alice\/demo\/issues$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Issues");
+  await expect(page).toHaveTitle(/^Issues · alice\/demo/);
+  // On narrow screens the drawer closes, so look at the markup.
+  await expect(page.locator('#app-sidebar a[aria-current="page"]')).toHaveText("Issues");
+  if (test.info().project.use.hasTouch) await expect(menu).toBeHidden();
+  expect(await kept()).toBe(true);
+
+  // A view of the list swaps only the list: the heading stays the same node.
+  await page.locator("h1").evaluate((h) => ((h as unknown as { kept: boolean }).kept = true));
+  await tapOrClick(page, page.locator("summary", { hasText: "State:" }));
+  await tapOrClick(page, page.getByRole("list", { name: "State" }).getByRole("link", { name: /^Closed/ }));
+  await expect(page).toHaveURL(/\/alice\/demo\/issues\?state=closed/);
+  await expect(page.locator("summary", { hasText: "State:" })).toContainText("Closed");
+  await expect(page.locator("summary", { hasText: "State:" })).toBeFocused();
+  expect(await page.locator("h1").evaluate((h) => (h as unknown as { kept?: boolean }).kept === true)).toBe(true);
+  expect(await kept()).toBe(true);
+  await expectAccessible(page);
+
+  // The URLs are real: reloading gives the same view, and Back returns.
+  await page.reload();
+  await expect(page.locator("summary", { hasText: "State:" })).toContainText("Closed");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/alice\/demo\/issues$/);
+  await expect(page.locator("summary", { hasText: "State:" })).toContainText("Open");
+});

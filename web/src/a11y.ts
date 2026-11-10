@@ -23,8 +23,11 @@ export function installA11ySwaps(): void {
     hadFocus = t.contains(document.activeElement);
   });
   document.addEventListener("htmx:after:swap", (evt) => {
-    const t = target(evt);
-    if (!t) return;
+    const old = target(evt);
+    if (!old) return;
+    // An outerHTML swap replaces the target: continue with its successor.
+    const t = (!old.isConnected && old.id ? document.getElementById(old.id) : null) ?? old;
+    old.removeAttribute("aria-busy");
     t.removeAttribute("aria-busy");
     if (!hadFocus || (document.activeElement && document.activeElement !== document.body)) return;
     // The focused element was replaced: move focus to the new error summary,
@@ -33,7 +36,7 @@ export function installA11ySwaps(): void {
       t.querySelector<HTMLElement>("[data-error-summary]") ??
       t.querySelector<HTMLElement>("h1, h2, h3, [data-focus-target]") ??
       t;
-    if (!next.hasAttribute("tabindex") && !next.matches("a[href], button, input, select, textarea")) {
+    if (!next.hasAttribute("tabindex") && !next.matches("a[href], button, input, select, textarea, summary")) {
       next.setAttribute("tabindex", "-1");
     }
     next.focus();

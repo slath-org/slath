@@ -19,6 +19,8 @@ test("conf_a11y_04_fork_a_repository", async ({ page }) => {
   const fork = `${org}/demo`;
   await page.goto("/alice/demo");
   await tapOrClick(page, page.getByRole("link", { name: "Fork", exact: true }));
+  // Links swap the page without a reload, so wait for the new address.
+  await expect(page).toHaveURL(/\/alice\/demo\/fork$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Fork this repository");
   await expect(page.getByLabel("Owner").locator("option", { hasText: /^alice$/ })).toHaveCount(0);
   await expect(page.getByLabel(/^Public\./)).toHaveCount(0);

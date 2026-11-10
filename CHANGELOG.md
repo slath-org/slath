@@ -105,6 +105,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A README's file name sits above its box, so it doesn't read as part of the file.
 - The Clone and Check out menus say what they're for, and checkout commands sit in bordered fields to copy, like clone URLs.
 - The top bar spans the window: the logo lines up with the side menu's entries, and the icons on the right keep the same distance from the edge.
+- Moving between pages no longer reloads the whole window: links swap the page next to the top bar, and every address can still be reloaded and shared.
+- Choosing a list view such as Closed, filtering, or paging replaces only the list.
 
 ### Removed
 

@@ -26,9 +26,10 @@
 {%- endif %}
 <div class="issue-layout">
 <div class="issue-main">
+<div id="timeline-view">
 <div class="timeline-tools">
   {%- let here = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
-  {%- call m::view_menu(ctx, "Show", show|capitalize) %}
+  {%- call m::view_menu(ctx, "Show", show|capitalize, "timeline-view") %}
   {%- call m::view_item(here, "All", show == "all", "") %}{% endcall %}
   {%- call m::view_item(here ~ "?show=unresolved", "Unresolved", show == "unresolved", unresolved.to_string()) %}{% endcall %}
   {%- if ctx.user.is_some() %}
@@ -159,6 +160,7 @@
   {%- endfor %}
 </ol>
 <span id="timeline-end"></span>
+</div>
 <div class="merge-area">
 {% let card_top = false %}
 {% let card_id = "merge-box" %}

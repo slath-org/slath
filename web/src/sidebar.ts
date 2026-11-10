@@ -64,19 +64,25 @@ function toggle(menu: HTMLElement): void {
 }
 
 export function installSidebar(): void {
-  const menu = sidebar();
-  if (!menu) {
-    for (const t of toggles()) t.hidden = true;
-    return;
-  }
-  for (const t of toggles()) t.setAttribute("role", "button");
-  sync(menu);
+  const update = () => {
+    const menu = sidebar();
+    for (const t of toggles()) {
+      t.hidden = !menu;
+      t.setAttribute("role", "button");
+    }
+    if (menu) sync(menu);
+  };
+  update();
+  // Navigation inside the frame replaces the menu (or removes it).
+  document.addEventListener("htmx:after:swap", update);
   matchMedia(WIDE).addEventListener("change", () => {
-    menu.removeAttribute("data-open");
-    sync(menu);
+    sidebar()?.removeAttribute("data-open");
+    update();
   });
   document.addEventListener("click", (evt) => {
+    const menu = sidebar();
     const target = evt.target instanceof Element ? evt.target : null;
+    if (!menu) return;
     if (target?.closest("[data-sidebar-toggle]")) {
       evt.preventDefault();
       toggle(menu);
@@ -86,6 +92,8 @@ export function installSidebar(): void {
     }
   });
   document.addEventListener("keydown", (evt) => {
+    const menu = sidebar();
+    if (!menu) return;
     if (evt.key === "Escape" && !wide() && drawerOpen(menu)) {
       closeDrawer(menu, menu.contains(document.activeElement));
     } else if (evt.key === " " && document.activeElement?.matches("[data-sidebar-toggle]")) {
@@ -95,7 +103,8 @@ export function installSidebar(): void {
     }
   });
   document.addEventListener("pointerdown", (evt) => {
-    if (wide() || !drawerOpen(menu) || !(evt.target instanceof Element)) return;
+    const menu = sidebar();
+    if (!menu || wide() || !drawerOpen(menu) || !(evt.target instanceof Element)) return;
     if (!menu.contains(evt.target) && !evt.target.closest("[data-sidebar-toggle]")) closeDrawer(menu, false);
   });
 }

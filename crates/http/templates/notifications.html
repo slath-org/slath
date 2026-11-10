@@ -12,7 +12,8 @@
   {%- endif %}
 </div>
 {%- let view %}{% if all %}All{% else %}Unread{% endif %}{% endlet %}
-{%- call m::view_menu(ctx, "Show", view) %}
+<div id="list-view">
+{%- call m::view_menu(ctx, "Show", view, "list-view") %}
 {%- call m::view_item("/-/notifications", "Unread", !all, "") %}{% endcall %}
 {%- call m::view_item("/-/notifications?all=true", "All", all, "") %}{% endcall %}
 {%- endcall %}
@@ -40,6 +41,7 @@
 </ul>
 {%- endif %}
 {%- if let Some(n) = next %}
-<p><a class="button" href="{{ n }}">Next page</a></p>
+<p {% call m::swap_region(ctx, "list-view") %}{% endcall %}><a class="button" href="{{ n }}">Next page</a></p>
 {%- endif %}
+</div>
 {% endblock %}

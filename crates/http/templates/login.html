@@ -44,7 +44,7 @@
 </form>
 {%- endif %}
 {%- for (key, name) in providers %}
-<p><a class="button" href="/-/login/oidc/{{ key }}?next={{ next|urlencode }}">Sign in with {{ name }}</a></p>
+<p><a class="button" hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/login/oidc/{{ key }}?next={{ next|urlencode }}">Sign in with {{ name }}</a></p>
 {%- endfor %}
 {%- if can_reset %}
 <p><a href="/-/password/reset">Forgot your password?</a></p>

@@ -6,7 +6,7 @@
 import { t } from "./i18n/en";
 
 interface ErrorDetail {
-  ctx?: { response?: { status?: number }; sourceElement?: Element };
+  ctx?: { response?: { status?: number }; sourceElement?: Element; target?: Element | null };
 }
 
 function region(): HTMLElement | null {
@@ -53,6 +53,9 @@ export function installErrorToasts(): void {
       return;
     }
     const source = detail?.ctx?.sourceElement;
+    // A failed page load inside the frame swaps in the error page, which
+    // says what went wrong; a toast would repeat it.
+    if (status && detail?.ctx?.target?.id === "app-frame") return;
     const retry =
       source instanceof HTMLElement && source.isConnected
         ? () => (window as unknown as { htmx: { trigger(e: Element, n: string): void } }).htmx.trigger(source, "click")
