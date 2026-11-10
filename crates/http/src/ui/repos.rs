@@ -106,7 +106,9 @@ pub struct RepoHeader {
     pub recent_pushes: Vec<String>,
     /// What it's a fork of, and whether the copy is done.
     pub fork: Option<slath_service::forks::ForkView>,
-    /// The viewer may fork it.
+    /// The repository's one-line description, under its name.
+    pub description: Option<String>,
+    /// The viewer may fork it somewhere other than its own namespace.
     pub can_fork: bool,
     /// A fork's default branch next to the parent's (front page only).
     pub fork_compare: Option<slath_service::forks::BranchCompare>,
@@ -163,7 +165,8 @@ impl RepoHeader {
             import: None,
             recent_pushes: Vec::new(),
             fork: None,
-            can_fork: !matches!(subject, Subject::Anonymous) && a.can(subject, Action::RepoFork),
+            description: a.repo.description.clone().filter(|d| !d.trim().is_empty()),
+            can_fork: false,
             fork_compare: None,
             can_sync: a.can(subject, Action::RepoPush),
         }
@@ -181,6 +184,10 @@ impl RepoHeader {
         match state.services.fork_status(subject, a).await {
             Ok(f) => header.fork = f,
             Err(e) => tracing::warn!(error = %e, "looking up the fork's parent failed"),
+        }
+        match state.services.fork_targets(subject, a).await {
+            Ok(t) => header.can_fork = !t.is_empty(),
+            Err(e) => tracing::warn!(error = %e, "looking up where the viewer can fork to failed"),
         }
         if !matches!(subject, Subject::Anonymous) {
             use slath_service::notifications::Subscription;
@@ -375,7 +382,6 @@ async fn create_repo(
 struct RepoHome {
     ctx: PageCtx,
     header: RepoHeader,
-    description: Option<String>,
     https_url: String,
     ssh_url: String,
     empty: bool,
@@ -429,7 +435,6 @@ pub async fn repo_home(
             .await
             .with_recent_pushes(&state, &a, &subject)
             .await,
-        description: a.repo.description.clone(),
         can_push: a.can(&subject, Action::RepoPush),
         default_branch: a.repo.default_branch.clone(),
         ctx,

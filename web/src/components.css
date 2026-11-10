@@ -434,10 +434,11 @@ fieldset.field {
   min-height: var(--target-min);
   padding-block: var(--space-1);
 }
+/* Plain text flow: a label's <strong> or hint wraps with the rest of the
+   sentence instead of becoming a column of its own. */
 .checkbox label,
 .radio label {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   min-height: var(--target-min);
   min-width: var(--target-min);
 }
@@ -563,6 +564,9 @@ fieldset.field {
   gap: var(--space-1);
   margin: 0;
 }
+.repo-description {
+  margin: 0 0 var(--space-3);
+}
 .repo-title .badge {
   margin-inline-start: var(--space-3);
 }
@@ -646,12 +650,20 @@ fieldset.field {
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
 }
-.clone-panel {
+/* A menu of labelled fields to copy (Clone, Check out). */
+.copy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   width: min(28rem, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-3);
 }
-.clone-panel .field:last-child {
-  margin-bottom: 0;
+.copy-panel-wide {
+  width: min(44rem, calc(100vw - 2 * var(--space-4)));
+}
+.menu-hint {
+  margin: 0;
+  font-size: var(--text-sm);
 }
 .input-with-button {
   display: flex;
@@ -707,6 +719,18 @@ fieldset.field {
 }
 .readme {
   margin-top: var(--space-5);
+}
+/* The file name labels the box below it; it sits outside the box so it
+   isn't read as the first line of the file. */
+.readme .readme-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-heading);
+}
+.readme-body {
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
@@ -1493,30 +1517,6 @@ fieldset.field {
 }
 .issue-heading .checkout-menu {
   margin-inline-start: auto;
-}
-.checkout-panel {
-  width: min(36rem, calc(100vw - 2 * var(--space-4)));
-  padding: var(--space-3);
-}
-.checkout-label {
-  margin: 0 0 var(--space-1);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-}
-.checkout-label ~ .checkout-label {
-  margin-top: var(--space-3);
-}
-/* A command block with its copy button on the end side. */
-.code-with-button {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-.code-with-button pre {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  overflow-x: auto;
 }
 .commit-list {
   list-style: none;

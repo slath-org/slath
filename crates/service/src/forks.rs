@@ -246,6 +246,28 @@ impl Services {
         Ok(out)
     }
 
+    /// Where the subject may fork a repository to: their own namespace and
+    /// their organizations', without the repository's own namespace (a copy
+    /// next to the original isn't worth offering; a branch does the job).
+    /// Empty if they may not fork it at all.
+    pub async fn fork_targets(&self, subject: &Subject, a: &RepoAccess) -> Result<Vec<String>> {
+        let Subject::User { id, .. } = subject else {
+            return Ok(Vec::new());
+        };
+        if !a.can(subject, Action::RepoFork) {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        if let Some(u) = slath_db::users::get(&self.pool, *id).await? {
+            out.push(u.name);
+        }
+        for (org, _) in slath_db::orgs::for_user(&self.pool, *id).await? {
+            out.push(org);
+        }
+        out.retain(|n| *n != a.repo.namespace);
+        Ok(out)
+    }
+
     /// The most a repository may be seen by: its cap if it's a fork.
     pub async fn max_visibility(&self, a: &RepoAccess) -> Result<Visibility> {
         Ok(slath_db::forks::get(&self.pool, a.repo.id)

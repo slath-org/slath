@@ -71,3 +71,15 @@
 {%- macro view_item(href, label, current, count) -%}
 <li><a class="menu-item" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ label }}{% if !count.is_empty() %} <span class="count">{{ count }}</span>{% endif %}</a></li>
 {%- endmacro -%}
+{#- A labelled read-only text to copy (clone URLs, checkout commands): a
+    bordered field that selects as one piece, with a copy button the copy
+    script reveals. -#}
+{%- macro copy_field(ctx, id, label, value, copy_label) -%}
+<div class="field copy-field">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="input-with-button">
+    <input id="{{ id }}" type="text" value="{{ value }}" readonly spellcheck="false" autocomplete="off">
+    <button type="button" class="button button-icon" data-copy="{{ id }}" title="{{ copy_label }}" hidden>{% call icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">{{ copy_label }}</span></button>
+  </div>
+</div>
+{%- endmacro -%}

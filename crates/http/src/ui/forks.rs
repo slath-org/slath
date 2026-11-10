@@ -12,7 +12,7 @@ use slath_core::authz::{Action, Visibility};
 use slath_service::forks::{BranchCompare, ForkInput, Synced};
 use slath_service::{FieldError, ServiceError};
 
-use super::repos::{RepoHeader, creatable_namespaces, parse_visibility, visibility_name};
+use super::repos::{RepoHeader, parse_visibility, visibility_name};
 use super::settings::error_for;
 use super::{PageCtx, Time, render};
 use crate::AppState;
@@ -62,10 +62,11 @@ async fn fork_page(
         .repo_access(&s.subject, &ns, &repo, Action::RepoFork)
         .await?;
     let forks = state.services.list_forks(&s.subject, &a).await?.len();
+    let namespaces = state.services.fork_targets(&s.subject, &a).await?;
     Ok(render(&ForkPage {
         header: RepoHeader::load(&state, &a, &s.subject, "fork").await,
-        namespaces: creatable_namespaces(&state, &s).await?,
-        selected: s.row.user_name.clone(),
+        selected: namespaces.first().cloned().unwrap_or_default(),
+        namespaces,
         name: a.repo.name.clone(),
         visibility: visibility_name(a.repo.visibility),
         max_visibility: visibility_rank(a.repo.visibility),
@@ -120,7 +121,7 @@ async fn fork_submit(
             let forks = state.services.list_forks(&s.subject, &a).await?.len();
             let mut res = render(&ForkPage {
                 header: RepoHeader::load(&state, &a, &s.subject, "fork").await,
-                namespaces: creatable_namespaces(&state, &s).await?,
+                namespaces: state.services.fork_targets(&s.subject, &a).await?,
                 selected: f.namespace,
                 name: f.name,
                 visibility: visibility_name(visibility.unwrap_or(a.repo.visibility)),

@@ -11,11 +11,14 @@ back with a merge request.
 
 ## Forking
 
-**Fork** in the repository header (shown when you're signed in and the
-repository allows forks) opens the fork form:
+**Fork** in the repository header (shown when you're signed in, the
+repository allows forks, and you have somewhere to fork it to) opens the
+fork form:
 
 - **Owner**: your account or an organization where you can create
-  repositories.
+  repositories, except the original's own owner. To change a repository
+  in your own account, push a branch to it instead; you can fork it only
+  into an organization.
 - **Name**: the original's name unless you change it. If you already have
   a repository with that name, the form suggests a free one.
 - **Who can see this repository**: the original's visibility at most. A

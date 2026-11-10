@@ -1,19 +1,8 @@
 <details class="menu clone-menu">
   <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-  <div class="menu-panel clone-panel">
-    <div class="field">
-      <label for="clone-https">HTTPS</label>
-      <div class="input-with-button">
-        <input id="clone-https" type="text" value="{{ https_url }}" readonly spellcheck="false">
-        <button type="button" class="button button-icon" data-copy="clone-https" title="Copy the HTTPS URL" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the HTTPS URL</span></button>
-      </div>
-    </div>
-    <div class="field">
-      <label for="clone-ssh">SSH</label>
-      <div class="input-with-button">
-        <input id="clone-ssh" type="text" value="{{ ssh_url }}" readonly spellcheck="false">
-        <button type="button" class="button button-icon" data-copy="clone-ssh" title="Copy the SSH URL" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the SSH URL</span></button>
-      </div>
-    </div>
+  <div class="menu-panel copy-panel">
+    <p class="menu-hint text-secondary">Copy a URL to clone this repository with Git or jj.</p>
+    {% call m::copy_field(ctx, "clone-https", "HTTPS", https_url, "Copy the HTTPS URL") %}{% endcall %}
+    {% call m::copy_field(ctx, "clone-ssh", "SSH", ssh_url, "Copy the SSH URL") %}{% endcall %}
   </div>
 </details>

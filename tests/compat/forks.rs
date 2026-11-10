@@ -338,3 +338,63 @@ fn conf_git_10_losing_access_to_the_parent_locks_the_fork() {
     wait_status(200);
     git.ok(c.path(), &["clone", "-q", &fork_url, "."]);
 }
+
+/// The Fork button and form offer only somewhere other than the
+/// repository's own namespace: a copy next to the original isn't a fork.
+#[test]
+fn conf_git_10_fork_is_offered_only_to_another_namespace() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice_token = {
+        let mut c = s.login("alice", PASSWORD);
+        slath_tests::http::create_token(&mut c, "alice", &["repo:write", "user:write"])
+    };
+    let r = api(
+        &s,
+        &alice_token,
+        "PUT",
+        "/alice/demo/collaborators/bob",
+        Some(json!({"role": "read"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let fork_link = "href=\"/alice/demo/fork\"";
+
+    // alice owns alice/demo and has no organization: nowhere to fork to.
+    let mut alice = s.login("alice", PASSWORD);
+    let home = alice.get("/alice/demo");
+    assert_eq!(home.status, 200);
+    assert!(!home.body.contains(fork_link), "{}", home.body);
+    let form = alice.get("/alice/demo/fork");
+    assert_eq!(form.status, 200);
+    assert!(!form.body.contains("Create fork"), "{}", form.body);
+
+    // bob can read it and fork it into his own namespace.
+    let mut bob = s.login("bob", PASSWORD);
+    let home = bob.get("/alice/demo");
+    assert!(home.body.contains(fork_link), "{}", home.body);
+    let form = bob.get("/alice/demo/fork");
+    assert!(form.body.contains("<option value=\"bob\""), "{}", form.body);
+
+    // With an organization, alice can fork into it, but not next to the
+    // original.
+    let r = s.client().api(
+        "POST",
+        "/api/v1/orgs",
+        Some(&alice_token),
+        Some(&json!({"name": "team"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let home = alice.get("/alice/demo");
+    assert!(home.body.contains(fork_link), "{}", home.body);
+    let form = alice.get("/alice/demo/fork");
+    assert!(
+        form.body.contains("<option value=\"team\""),
+        "{}",
+        form.body
+    );
+    assert!(
+        !form.body.contains("<option value=\"alice\""),
+        "{}",
+        form.body
+    );
+}

@@ -26,6 +26,9 @@
   </div>
   {%- endif %}
   </div>
+  {%- if let Some(d) = header.description %}
+  <p class="repo-description text-secondary">{{ d }}</p>
+  {%- endif %}
 </div>
 {%- if header.area() == "code" %}
 {%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}

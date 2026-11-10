@@ -5,6 +5,9 @@
 <div class="narrow">
 <h1>Fork this repository</h1>
 <p>A fork is your own copy of the branches and tags, to change freely and offer back with a merge request.{% if forks > 0 %} <a href="/{{ header.namespace }}/{{ header.name }}/forks">{{ forks }} existing fork{% if forks != 1 %}s{% endif %}</a>.{% endif %}</p>
+{%- if namespaces.is_empty() %}
+<p>It's already in your namespace, and you aren't in an organization to fork it into. To change it, push a branch and open a merge request.</p>
+{%- else %}
 {% include "settings/errors.html" %}
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/fork" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -32,5 +35,6 @@
   </div>
   <div><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-fork") %}{% endcall %}Create fork</button></div>
 </form>
+{%- endif %}
 </div>
 {% endblock %}

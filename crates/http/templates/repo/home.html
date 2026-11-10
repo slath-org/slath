@@ -3,9 +3,6 @@
 {% block content %}
 {% include "repo/header.html" %}
 <h1 class="visually-hidden">{{ header.namespace }}/{{ header.name }}</h1>
-{%- if let Some(d) = description %}
-<p>{{ d }}</p>
-{%- endif %}
 <div class="repo-toolbar">
   <div class="repo-toolbar-end">
 {% include "repo/clone.html" %}

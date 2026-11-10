@@ -90,10 +90,10 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   // buttons, in the Check out menu.
   await tapOrClick(page, page.locator(".checkout-menu > summary"));
   await expect(page.locator("#checkout-git")).toBeVisible();
-  await expect(page.locator("#checkout-git")).toHaveText(
+  await expect(page.locator("#checkout-git")).toHaveValue(
     `git fetch origin refs/merge-requests/${n}/head && git switch --detach FETCH_HEAD`,
   );
-  await expect(page.locator("#checkout-jj")).toHaveText(
+  await expect(page.locator("#checkout-jj")).toHaveValue(
     "jj git fetch --remote origin --branch review && jj new review@origin",
   );
   await expect(page.getByRole("button", { name: "Copy the Git commands" })).toBeVisible();

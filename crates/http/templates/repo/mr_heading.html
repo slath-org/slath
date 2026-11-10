@@ -5,17 +5,10 @@
   {%- endif %}
   <details class="menu checkout-menu header-actions">
     <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-    <div class="menu-panel checkout-panel">
-      <p class="checkout-label">With Git</p>
-      <div class="code-with-button">
-        <pre><code id="checkout-git">{{ h.git_checkout }}</code></pre>
-        <button type="button" class="button button-icon" data-copy="checkout-git" title="Copy the Git commands" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the Git commands</span></button>
-      </div>
-      <p class="checkout-label">With jj</p>
-      <div class="code-with-button">
-        <pre><code id="checkout-jj">{{ h.jj_checkout }}</code></pre>
-        <button type="button" class="button button-icon" data-copy="checkout-jj" title="Copy the jj commands" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">Copy the jj commands</span></button>
-      </div>
+    <div class="menu-panel copy-panel copy-panel-wide">
+      <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
+      {% call m::copy_field(ctx, "checkout-git", "With Git", h.git_checkout, "Copy the Git commands") %}{% endcall %}
+      {% call m::copy_field(ctx, "checkout-jj", "With jj", h.jj_checkout, "Copy the jj commands") %}{% endcall %}
     </div>
   </details>
   {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}

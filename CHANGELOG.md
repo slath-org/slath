@@ -100,6 +100,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Issues, Labels, and Milestones, the repository settings sections, and a merge request's Conversation, Commits, and Changes are tabs.
 - Open, Closed, and All on issue and merge request lists, All and Unread in notifications, and All, Unresolved, and Mine in a merge request are a menu.
 - Merge request checkout commands are in a Check out menu next to the title, with icon copy buttons.
+- The repository description shows under the repository name on every repository page, above the tabs.
+- Fork is offered only where you can fork to: not into the original's own owner, so your own repositories need an organization to fork into.
+- A README's file name sits above its box, so it doesn't read as part of the file.
+- The Clone and Check out menus say what they're for, and checkout commands sit in bordered fields to copy, like clone URLs.
 
 ### Removed
 
@@ -107,6 +111,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Labels of choices with a bold name, such as visibility and push protection, wrap as one sentence instead of splitting into columns.
 - The jj checkout command for a merge request from a fork fetches the branch from the fork.
 - The administration Upgrades page has a proper browser tab title.
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.

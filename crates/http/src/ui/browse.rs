@@ -259,7 +259,6 @@ struct TreePage {
     entries: Vec<EntryView>,
     readme: Option<Readme>,
     commits_href: String,
-    description: Option<String>,
 }
 
 /// A README rendered below the tree.
@@ -370,11 +369,6 @@ async fn tree_page(
         entries: entry_views(a, &r, &entries),
         readme,
         commits_href: link(a, "commits", &r, r.path.as_bytes()),
-        description: if home {
-            a.repo.description.clone()
-        } else {
-            None
-        },
         ctx,
     }))
 }
