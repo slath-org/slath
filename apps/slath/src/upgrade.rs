@@ -85,11 +85,13 @@ impl Preflight {
     }
 }
 
-/// Simulated crash for tests: `SLATH_UPGRADE_FAULT=<step>` aborts the
-/// process at that step, like a kill would.
+/// Simulated crash for tests: `SLATH_UPGRADE_FAULT=<step>` kills the
+/// process at that step with SIGKILL, like a kill would (and, unlike an
+/// abort, without leaving a core dump behind).
 fn fault_point(step: &str) {
     if std::env::var("SLATH_UPGRADE_FAULT").is_ok_and(|s| s == step) {
         eprintln!("slath: simulated crash at {step}");
+        let _ = nix::sys::signal::raise(nix::sys::signal::Signal::SIGKILL);
         std::process::abort();
     }
 }
