@@ -16,6 +16,7 @@ mod jj;
 mod ledger;
 mod merge;
 mod merge_requests;
+mod mergeability;
 mod oidc_providers;
 mod reserved_refs;
 mod reviews;
