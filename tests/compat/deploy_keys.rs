@@ -230,3 +230,52 @@ fn conf_rbac_01_deploy_keys_reach_their_repository_only() {
         .unwrap();
     assert_eq!(audit, 3);
 }
+
+#[test]
+fn conf_rbac_01_deploy_keys_in_the_repository_settings() {
+    let s = TestServer::start_with(&[DEMO, OTHER]);
+    let keys = tempfile::tempdir().unwrap();
+    let (_, public) = sshd::keygen(keys.path(), "ci@build");
+    let page = "/alice/demo/settings/keys";
+    // Only admins see the page.
+    assert_eq!(s.login("bob", PASSWORD).get(page).status, 404);
+    let mut alice = s.login("alice", PASSWORD);
+    let body = alice.get(page).body;
+    assert!(
+        body.contains("This repository has no deploy keys."),
+        "{body}"
+    );
+    let r = slath_tests::http::submit(
+        &mut alice,
+        page,
+        page,
+        &[("key", "ssh-ed25519 nonsense"), ("title", "")],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("aria-invalid=\"true\""), "{}", r.body);
+    let r = slath_tests::http::submit(
+        &mut alice,
+        page,
+        page,
+        &[("key", &public), ("title", ""), ("can_push", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let body = alice.get(&format!("{page}?status=key-added")).body;
+    assert!(body.contains("Deploy key added."), "{body}");
+    assert!(body.contains("<td>ci@build</td>"), "{body}");
+    assert!(body.contains("Read and push"), "{body}");
+    assert!(body.contains("by alice"), "{body}");
+    let id = body
+        .split("/alice/demo/settings/keys/")
+        .nth(1)
+        .and_then(|rest| rest.split('/').next())
+        .unwrap()
+        .to_owned();
+    let r = slath_tests::http::submit(&mut alice, page, &format!("{page}/{id}/delete"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    let body = alice.get(page).body;
+    assert!(
+        body.contains("This repository has no deploy keys."),
+        "{body}"
+    );
+}

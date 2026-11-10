@@ -15,7 +15,7 @@ test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) 
   await tapOrClick(page, (await sideMenu(page, "Repository")).getByRole("link", { name: "Settings" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("General");
   await expectAccessible(page);
-  for (const section of ["Access", "Branch protection", "Danger zone"]) {
+  for (const section of ["Access", "Deploy keys", "Branch protection", "Danger zone"]) {
     await tapOrClick(page, page.getByRole("navigation", { name: "Repository settings" }).getByRole("link", { name: section }));
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(section);
     await expectAccessible(page);

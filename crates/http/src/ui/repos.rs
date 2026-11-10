@@ -496,6 +496,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "rule-saved" => "Protection rule saved.",
         "rule-removed" => "Protection rule removed.",
         "team-removed" => "Team access removed.",
+        "key-added" => "Deploy key added.",
+        "key-removed" => "Deploy key removed.",
         _ => return None,
     })
 }
@@ -919,6 +921,157 @@ async fn remove_collaborator(
     .into_response())
 }
 
+struct DeployKeyView {
+    id: String,
+    title: String,
+    key_type: String,
+    fingerprint: String,
+    can_push: bool,
+    added_by: String,
+    created: super::Time,
+    last_used: Option<super::Time>,
+}
+
+#[derive(Template)]
+#[template(path = "repo/settings_keys.html")]
+struct DeployKeysSettings<'a> {
+    ctx: PageCtx,
+    header: RepoHeader,
+    keys: Vec<DeployKeyView>,
+    message: Option<&'a str>,
+    errors: Vec<FieldError>,
+    title: String,
+    key: String,
+    can_push: bool,
+}
+
+impl DeployKeysSettings<'_> {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+#[derive(Deserialize)]
+struct DeployKeyForm {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    key: String,
+    can_push: Option<String>,
+}
+
+async fn deploy_keys_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    a: &RepoAccess,
+    message: Option<&str>,
+    errors: Vec<FieldError>,
+    form: DeployKeyForm,
+) -> Result<Response, AppError> {
+    let (_, keys) = state
+        .services
+        .deploy_keys(subject, &a.repo.namespace, &a.repo.name)
+        .await?;
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&DeployKeysSettings {
+        ctx,
+        header: RepoHeader::load(state, a, subject, "settings").await,
+        keys: keys
+            .into_iter()
+            .map(|k| DeployKeyView {
+                id: k.id.to_string(),
+                title: k.title,
+                key_type: k.key_type,
+                fingerprint: k.fingerprint,
+                can_push: k.can_push,
+                added_by: k.added_by.unwrap_or_else(|| "A deleted user".to_owned()),
+                created: k.created_at.into(),
+                last_used: k.last_used_at.map(Into::into),
+            })
+            .collect(),
+        message,
+        errors,
+        title: form.title,
+        key: form.key,
+        can_push: form.can_push.is_some(),
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+async fn settings_keys_page(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let a = settings_access(&state, &subject, &ns, &repo).await?;
+    let empty = DeployKeyForm {
+        title: String::new(),
+        key: String::new(),
+        can_push: None,
+    };
+    deploy_keys_page(
+        &state,
+        ctx,
+        &subject,
+        &a,
+        status_message(q.status.as_deref()),
+        Vec::new(),
+        empty,
+    )
+    .await
+}
+
+async fn add_deploy_key(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(s): Sudo,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<DeployKeyForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    match state
+        .services
+        .add_deploy_key(
+            &s.subject,
+            true,
+            (&a.repo.namespace, &a.repo.name),
+            &f.title,
+            &f.key,
+            f.can_push.is_some(),
+        )
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&repo_url(&a, "/settings/keys?status=key-added")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            deploy_keys_page(&state, ctx, &s.subject, &a, None, errors, f).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn remove_deploy_key(
+    State(state): State<AppState>,
+    Sudo(s): Sudo,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .remove_deploy_key(&s.subject, true, (&a.repo.namespace, &a.repo.name), id)
+        .await?;
+    Ok(Redirect::to(&repo_url(&a, "/settings/keys?status=key-removed")).into_response())
+}
+
 #[derive(Template)]
 #[template(path = "repo/settings_protections.html")]
 struct ProtectionsSettings<'a> {
@@ -1260,6 +1413,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/access/{user}/remove",
             Access::Resource,
             post(remove_collaborator),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/keys",
+            Access::Resource,
+            get(settings_keys_page).post(add_deploy_key),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/keys/{id}/delete",
+            Access::Resource,
+            post(remove_deploy_key),
         )
         .route_as(
             "/{ns}/{repo}/settings/protections",

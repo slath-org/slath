@@ -136,7 +136,8 @@ maintain role). Changes to rules are recorded in the audit log.
 
 A deploy key is an SSH key of one repository, for a machine rather than a
 person: a build server that clones, or a deployment that pushes. Admins of
-the repository add them; with a token, use `repo:write`:
+the repository add them under **Settings → Deploy keys** (in sudo mode) or
+through the API with a `repo:write` token:
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" -d '{"key": "ssh-ed25519 AAAA… deploy@ci", "can_push": false}' \

@@ -1,0 +1,70 @@
+{% extends "repo/layout.html" %}
+{% block title %}Deploy keys · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+{% include "repo/header.html" %}
+{% let section = "keys" %}
+{% include "repo/settings_nav.html" %}
+<h1>Deploy keys</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% include "settings/errors.html" %}
+<p>A deploy key lets a machine, such as a build server or a deployment, clone this repository over SSH, and push to it if you allow that. It reaches no other repository, not even forks of this one.</p>
+{%- if keys.is_empty() %}
+<p class="text-secondary empty-state">This repository has no deploy keys.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="keys-caption">
+<table class="table">
+  <caption id="keys-caption" class="visually-hidden">Deploy keys</caption>
+  <thead>
+    <tr><th scope="col">Title</th><th scope="col">Fingerprint</th><th scope="col">Access</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+  {%- for k in keys %}
+    <tr>
+      <td>{{ k.title }}</td>
+      <td><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
+      <td>{% if k.can_push %}Read and push{% else %}Read only{% endif %}</td>
+      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time> <span class="text-secondary">by {{ k.added_by }}</span></td>
+      <td>{% if let Some(u) = k.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
+      <td>
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/keys/{{ k.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> {{ k.title }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h2>Add a deploy key</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/keys" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="key">Public key</label>
+    <textarea id="key" name="key" rows="4" required spellcheck="false" autocapitalize="none" aria-describedby="key-hint{% if self.error("key").is_some() %} key-error{% endif %}"
+      {%- if self.error("key").is_some() %} aria-invalid="true"{% endif %}>{{ key }}</textarea>
+    <p id="key-hint" class="hint">The contents of the machine's <code>.pub</code> file. Use a key that no person or other repository uses; Ed25519 and ECDSA keys and RSA keys of at least 3072 bits are accepted.</p>
+    {%- if let Some(e) = self.error("key") %}
+    <p id="key-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ title }}" maxlength="100" aria-describedby="title-hint{% if self.error("title").is_some() %} title-error{% endif %}"
+      {%- if self.error("title").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="title-hint" class="hint">Optional. Defaults to the key's comment.</p>
+    {%- if let Some(e) = self.error("title") %}
+    <p id="title-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <div class="checkbox"><input id="can_push" type="checkbox" name="can_push" value="1" aria-describedby="can-push-hint"{% if can_push %} checked{% endif %}><label for="can_push">Allow pushing</label></div>
+    <p id="can-push-hint" class="hint">It pushes like someone with write access: branch protection applies, and it can't move or delete tags.</p>
+  </div>
+  <div><button type="submit" class="button button-primary">Add deploy key</button></div>
+</form>
+{% endblock %}

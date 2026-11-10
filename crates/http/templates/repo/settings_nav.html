@@ -2,6 +2,7 @@
 {%- call m::tabs("Repository settings") %}
 {%- call m::tab(base ~ "/general", "General", section == "general", "") %}{% endcall %}
 {%- call m::tab(base ~ "/access", "Access", section == "access", "") %}{% endcall %}
+{%- call m::tab(base ~ "/keys", "Deploy keys", section == "keys", "") %}{% endcall %}
 {%- call m::tab(base ~ "/protections", "Branch protection", section == "protections", "") %}{% endcall %}
 {%- call m::tab(base ~ "/danger", "Danger zone", section == "danger", "") %}{% endcall %}
 {%- endcall %}
