@@ -119,6 +119,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Menus that open near the edge of a narrow screen move inside it instead of running off the side.
 - Two merges of the same merge request at once can no longer both land; the second one stops with a conflict.
 - Labels of choices with a bold name, such as visibility and push protection, wrap as one sentence instead of splitting into columns.
 - The jj checkout command for a merge request from a fork fetches the branch from the fork.
