@@ -202,6 +202,15 @@ impl Services {
         let ids = self.change_ids(&m).await?;
         let mut tx = self.pool.begin().await.map_err(internal)?;
         slath_db::merge_requests::lock_target(&mut *tx, a.repo.id, &m.target_branch).await?;
+        // Another merge may have finished while this one waited for the lock.
+        match slath_db::merge_requests::get_by_id(&mut *tx, m.id).await? {
+            Some(now) if now.state == "open" && now.head_oid == m.head_oid => {}
+            _ => {
+                return Err(ServiceError::Conflict(
+                    "The merge request changed while merging; reload it.".into(),
+                ));
+            }
+        }
         let mut landed = None;
         // Signed commits a rebase rewrote: (original, new).
         let mut signatures: Vec<(String, String)> = Vec::new();
