@@ -711,6 +711,8 @@ struct ThreadCommentView {
     author: String,
     bot: bool,
     html: MarkupHtml,
+    /// Nothing besides the suggestion.
+    html_empty: bool,
     pending: bool,
     created: Time,
     suggestion: Option<SuggestionView>,
@@ -1473,9 +1475,16 @@ async fn thread_item(
         .unwrap_or_default();
     let mut comments = Vec::new();
     for c in &t.comments {
+        // The suggestion block shows as its own card, so the comment's text
+        // goes without it.
+        let shown = anchor
+            .path
+            .as_ref()
+            .and_then(|_| slath_markup::suggestion::without_suggestion(&c.body))
+            .unwrap_or_else(|| c.body.clone());
         let html = state
             .services
-            .render_markdown(subject, Some(rc), &c.body)
+            .render_markdown(subject, Some(rc), &shown)
             .await?;
         let suggestion = anchor
             .path
@@ -1500,6 +1509,7 @@ async fn thread_item(
             });
         comments.push(ThreadCommentView {
             id: c.id.to_string(),
+            html_empty: html.trim().is_empty(),
             suggestion,
             author: c
                 .author

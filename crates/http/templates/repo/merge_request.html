@@ -74,7 +74,9 @@
       {%- for c in t.comments %}
         <li>
           <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
+          {%- if !c.html_empty %}
           <div class="markdown" hx-ignore>{{ c.html }}</div>
+          {%- endif %}
           {%- if let Some(sg) = c.suggestion %}
           <div class="suggestion">
             <p class="suggestion-title">Suggested change</p>
