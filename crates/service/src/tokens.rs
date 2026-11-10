@@ -237,6 +237,8 @@ pub fn user_with_scope(subject: &Subject, scope: Scope) -> Result<UserId> {
             Credential::Token { .. } => Err(ServiceError::Forbidden),
         },
         Subject::User { .. } | Subject::Anonymous => Err(ServiceError::Unauthenticated),
+        // A deploy key belongs to a repository, not to an account.
+        Subject::DeployKey { .. } => Err(ServiceError::Forbidden),
         Subject::System => Err(ServiceError::NotFound),
     }
 }

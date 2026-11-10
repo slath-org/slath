@@ -188,6 +188,13 @@ pub enum Subject {
     },
     /// Slath itself (jobs, reconciler, migrations). Never derived from a request.
     System,
+    /// A repository's deploy key (Git over SSH): reads that one repository
+    /// and, with `write`, pushes to it. Nothing else, anywhere.
+    DeployKey {
+        id: crate::ids::SshKeyId,
+        repo_id: crate::ids::RepoId,
+        write: bool,
+    },
 }
 
 /// Every action that `check` decides on. The string form (`repo.read`) is used
@@ -535,6 +542,17 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
     let (role, signed_in, scopes) = match subject {
         Subject::System => return Decision::Allow,
         Subject::Anonymous => (None, false, None),
+        Subject::DeployKey { repo_id, write, .. } => {
+            // Other repositories, forks included, don't exist for it.
+            if *repo_id != res.repo_id {
+                return HIDDEN;
+            }
+            if !matches!(action, Action::RepoRead | Action::RepoPush) {
+                return Decision::Deny { visible: true };
+            }
+            let role = if *write { Role::Write } else { Role::Read };
+            (Some(role), true, None)
+        }
         Subject::User {
             state, credential, ..
         } => {
