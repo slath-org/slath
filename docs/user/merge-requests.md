@@ -234,8 +234,12 @@ one of two ways, the same for Git and jj users:
   the same as applying on top. A branch that blocks force pushes takes
   only new commits.
 
-Either way the result is a revision like any push, and the threads of
-applied suggestions are resolved. After a fold, `jj git fetch` shows the
+In the conversation, each suggestion shows the lines it replaces and its
+text. **Apply suggestion** applies it right away; **Add to batch** collects
+several, which **Apply batch** in the merge box applies together. The
+merge box also chooses between a new commit and folding. Either way the
+result is a revision like any push, and the threads of applied
+suggestions are resolved. After a fold, `jj git fetch` shows the
 same changes with the fix; with Git, reset your branch to the new one
 (`git pull --rebase`) before you push again.
 

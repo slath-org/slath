@@ -75,6 +75,31 @@
         <li>
           <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
           <div class="markdown" hx-ignore>{{ c.html }}</div>
+          {%- if let Some(sg) = c.suggestion %}
+          <div class="suggestion">
+            <p class="suggestion-title">Suggested change</p>
+            <div class="code-wrap" tabindex="0" role="region" aria-label="Suggested change">
+            <table class="code-view diff-table">
+              <tbody>
+              {%- for l in sg.old %}
+                <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>{{ l }}</code></td></tr>
+              {%- endfor %}
+              {%- for l in sg.new %}
+                <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>{{ l }}</code></td></tr>
+              {%- endfor %}
+              </tbody>
+            </table>
+            </div>
+            {%- if let Some(why) = sg.blocked %}
+            <p class="text-secondary">{{ why }}</p>
+            {%- else if sg.can_apply %}
+            <div class="button-row">
+              <button type="submit" class="button" form="apply-suggestions" name="only" value="{{ c.id }}">Apply suggestion</button>
+              <div class="checkbox"><input id="batch-{{ c.id }}" type="checkbox" form="apply-suggestions" name="comments" value="{{ c.id }}"><label for="batch-{{ c.id }}">Add to batch</label></div>
+            </div>
+            {%- endif %}
+          </div>
+          {%- endif %}
         </li>
       {%- endfor %}
       </ol>
@@ -199,6 +224,23 @@
       <div class="radio"><input id="update-rebase" type="radio" name="method" value="rebase"><label for="update-rebase">Rebase the branch onto <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> <span class="text-secondary">(rewrites its commits; pull or <code>jj git fetch</code> before you push again)</span></label></div>
     </fieldset>
     <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button></div>
+  </form>
+  {%- endif %}
+  {%- if let Some(head) = apply_suggestions %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/suggestions/apply" class="form merge-step" id="apply-suggestions" aria-labelledby="apply-suggestions-title" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="expected_head_oid" value="{{ head }}">
+    <h3 id="apply-suggestions-title" class="merge-step-title">Apply suggestions</h3>
+    {%- if let Some(e) = self.error("suggestions") %}
+    <div class="error-summary" role="alert"><p>{{ e }}</p></div>
+    {%- endif %}
+    <p class="text-secondary">Apply a suggestion with its own button, or check <strong>Add to batch</strong> on several and apply them together here.</p>
+    <fieldset class="field">
+      <legend>Apply them</legend>
+      <div class="radio"><input id="apply-commit" type="radio" name="mode" value="commit" checked><label for="apply-commit">As a new commit on top</label></div>
+      <div class="radio"><input id="apply-fold" type="radio" name="mode" value="fold"><label for="apply-fold">Folded into the change that added the lines <span class="text-secondary">(rewrites the branch; every change keeps its ID)</span></label></div>
+    </fieldset>
+    <div class="button-row"><button type="submit" class="button">Apply batch</button></div>
   </form>
   {%- endif %}
   {%- if let Some(am) = auto_merge %}

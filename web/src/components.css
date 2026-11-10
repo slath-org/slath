@@ -1473,6 +1473,25 @@ fieldset.field {
   margin-block-start: var(--space-1);
 }
 
+/* A suggestion under its comment: what it changes, and its actions. */
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+.suggestion-title {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+}
+.suggestion .code-wrap {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.suggestion > p {
+  margin: 0;
+}
+
 /* Alternatives (Git or jj, HTTPS or SSH): a radio group shows the panel of
    the chosen one only. Without :has(), every panel shows. */
 .choice {

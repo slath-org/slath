@@ -707,11 +707,23 @@ struct SnippetLine {
 }
 
 struct ThreadCommentView {
+    id: String,
     author: String,
     bot: bool,
     html: MarkupHtml,
     pending: bool,
     created: Time,
+    suggestion: Option<SuggestionView>,
+}
+
+/// A suggestion block of a line comment: the lines it replaces and its
+/// text, and whether the viewer can apply it now.
+struct SuggestionView {
+    old: Vec<String>,
+    new: Vec<String>,
+    /// Why it can't be applied (outdated, removed lines); `None` if it can.
+    blocked: Option<&'static str>,
+    can_apply: bool,
 }
 
 /// A review thread in the conversation.
@@ -1322,6 +1334,8 @@ struct MrPage {
     merge_form: Option<MergeForm>,
     update_form: Option<UpdateForm>,
     auto_merge: Option<AutoMergeView>,
+    /// The head, if the viewer can apply a suggestion of the conversation.
+    apply_suggestions: Option<String>,
     /// Commands for Git and jj that resolve conflicts with the target.
     conflict_commands: Option<(String, String)>,
 }
@@ -1446,13 +1460,47 @@ async fn thread_item(
             _ => p.clone(),
         }
     });
+    let may_apply = m.state == "open" && state.services.may_apply_suggestions(subject, a, m).await;
+    let anchored: Vec<String> = anchor
+        .context
+        .get("lines")
+        .and_then(|l| l.as_array())
+        .map(|l| {
+            l.iter()
+                .filter_map(|x| x.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut comments = Vec::new();
     for c in &t.comments {
         let html = state
             .services
             .render_markdown(subject, Some(rc), &c.body)
             .await?;
+        let suggestion = anchor
+            .path
+            .as_ref()
+            .and_then(|_| slath_markup::suggestion::suggestion(&c.body))
+            .map(|text| {
+                let blocked = if anchor.side.as_deref() == Some("old") {
+                    Some("It's on removed lines, so it can't be applied.")
+                } else if !matches!(t.position, Position::Current { .. }) {
+                    Some("Outdated: its lines changed since, so it can't be applied.")
+                } else if c.pending {
+                    Some("It can be applied once the review is submitted.")
+                } else {
+                    None
+                };
+                SuggestionView {
+                    old: anchored.clone(),
+                    new: text.lines().map(str::to_owned).collect(),
+                    can_apply: blocked.is_none() && may_apply,
+                    blocked,
+                }
+            });
         comments.push(ThreadCommentView {
+            id: c.id.to_string(),
+            suggestion,
             author: c
                 .author
                 .clone()
@@ -1705,6 +1753,16 @@ async fn mr_page_showing(
     } else {
         None
     };
+    let apply_suggestions = timeline
+        .iter()
+        .any(|t| match t {
+            TimelineView::Thread(x) => x
+                .comments
+                .iter()
+                .any(|c| c.suggestion.as_ref().is_some_and(|s| s.can_apply)),
+            _ => false,
+        })
+        .then(|| m.head_oid.clone().unwrap_or_default());
     let auto_merge = match state.services.mr_auto_merge(&m).await? {
         Some(am) if open => Some(AutoMergeView {
             may_cancel: state
@@ -1767,6 +1825,7 @@ async fn mr_page_showing(
         merge_form,
         update_form,
         auto_merge,
+        apply_suggestions,
         conflict_commands,
         message,
         errors,
@@ -1800,6 +1859,7 @@ async fn view(
         Some("reviewers") => Some("Reviewers saved."),
         Some("merged") => Some("Merged."),
         Some("updated") => Some("Branch updated."),
+        Some("applied") => Some("Suggestions applied."),
         Some("auto_merge") => Some("It merges when it's ready."),
         Some("auto_merge_cancelled") => Some("Merge when ready cancelled."),
         _ => None,
@@ -2838,6 +2898,57 @@ async fn merge(
     }
 }
 
+/// Applies the chosen suggestions (`comments`, or just `only` when a
+/// suggestion's own button was used) in the chosen mode.
+async fn apply_suggestions(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    body: axum::body::Bytes,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let pairs = crate::auth::form_pairs(&body);
+    let get = |k: &str| pairs.iter().find(|(p, _)| p == k).map(|(_, v)| v.clone());
+    let picked: Vec<String> = match get("only") {
+        Some(one) => vec![one],
+        None => pairs
+            .iter()
+            .filter(|(p, _)| p == "comments")
+            .map(|(_, v)| v.clone())
+            .collect(),
+    };
+    let ids: Vec<uuid::Uuid> = picked.iter().filter_map(|c| c.parse().ok()).collect();
+    let mode = slath_service::suggestions::ApplyMode::parse(&get("mode").unwrap_or_default())?;
+    let head = get("expected_head_oid");
+    match state
+        .services
+        .apply_suggestions(&s.subject, (&ns, &repo, n), &ids, mode, head.as_deref())
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=applied")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            let errors = errors
+                .into_iter()
+                .map(|e| FieldError {
+                    field: "suggestions".into(),
+                    ..e
+                })
+                .collect();
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(ServiceError::Conflict(why)) => {
+            let errors = vec![FieldError {
+                field: "suggestions".into(),
+                code: "conflict".into(),
+                message: why,
+            }];
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
 #[derive(Deserialize)]
 struct AutoMergeForm {
     #[serde(default)]
@@ -3284,6 +3395,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/auto-merge",
             Access::Resource,
             post(set_auto_merge),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/suggestions/apply",
+            Access::Resource,
+            post(apply_suggestions),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/auto-merge/cancel",

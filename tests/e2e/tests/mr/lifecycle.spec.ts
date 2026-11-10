@@ -188,6 +188,11 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
     page.getByRole("article", { name: "Thread on review.md, line 1" }).filter({ hasText: "Is this the final wording?" });
   await expect(seeded()).toBeVisible();
   await expect(seeded().getByRole("region", { name: "Code at review.md, line 1" })).toContainText("Second draft.");
+  // A suggestion shows what it changes, with its actions.
+  const suggestion = page.getByRole("article", { name: "Thread on review.md, line 1" }).filter({ hasText: "Shorter:" });
+  await expect(suggestion.getByRole("region", { name: "Suggested change" })).toContainText("Second.");
+  await expect(suggestion.getByRole("button", { name: "Apply suggestion" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Apply suggestions" })).toBeVisible();
   await expectAccessible(page);
   // The filter narrows the conversation to unresolved threads.
   await tapOrClick(page, page.locator("summary", { hasText: "Show:" }));

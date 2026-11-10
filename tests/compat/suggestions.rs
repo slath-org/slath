@@ -425,3 +425,92 @@ fn conf_review_09_folded_suggestions_keep_every_change_for_git_and_jj() {
     }
     git.ok(&repo, &["fsck", "--strict", "--no-dangling"]);
 }
+
+#[test]
+fn conf_review_09_suggestions_in_the_ui() {
+    let s = TestServer::start();
+    s.create_user("carol", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let carol = token(&s, "carol");
+    let r = api(
+        &s,
+        &alice,
+        "PUT",
+        "/alice/demo/collaborators/carol",
+        Some(json!({"role": "read"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let url = s.url(&DEMO);
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    write(&git, &w, "README", "demo\n", "init");
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    git.ok(&w, &["switch", "-q", "-c", "ui"]);
+    write(&git, &w, "a.txt", "one\ntwo\nthree\nfour\n", "Add a");
+    git.ok(&w, &["push", "-q", &url, "ui"]);
+    let (n, _) = open_mr(&s, &alice, "ui");
+    let page = format!("/alice/demo/merge-requests/{n}");
+    let first = suggest(&s, &carol, n, "a.txt", (1, 1), "```suggestion\nONE\n```");
+    let second = suggest(&s, &carol, n, "a.txt", (3, 3), "```suggestion\nTHREE\n```");
+    let third = suggest(&s, &carol, n, "a.txt", (4, 4), "```suggestion\nFOUR\n```");
+
+    // A reader sees the suggestion, not the actions.
+    let body = s.login("carol", PASSWORD).get(&page).body;
+    assert!(body.contains("Suggested change"), "{body}");
+    assert!(!body.contains("id=\"apply-suggestions\""), "{body}");
+    // The author applies one with its own button, then two as a folded batch.
+    let mut web = s.login("alice", PASSWORD);
+    let body = web.get(&page).body;
+    assert!(
+        body.contains(&format!("name=\"only\" value=\"{first}\"")),
+        "{body}"
+    );
+    let r = slath_tests::http::submit(
+        &mut web,
+        &page,
+        &format!("{page}/suggestions/apply"),
+        &[("only", &first), ("mode", "commit")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(
+        web.get(&format!("{page}?status=applied"))
+            .body
+            .contains("Suggestions applied.")
+    );
+    let r = slath_tests::http::submit(
+        &mut web,
+        &page,
+        &format!("{page}/suggestions/apply"),
+        &[
+            ("comments", &second),
+            ("comments", &third),
+            ("mode", "fold"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let repo = s.repo_path(&DEMO);
+    assert_eq!(
+        git.ok(&repo, &["show", "ui:a.txt"]),
+        "ONE\ntwo\nTHREE\nFOUR\n"
+    );
+    assert_eq!(
+        git.ok(&repo, &["show", "ui~1:a.txt"]),
+        "one\ntwo\nTHREE\nFOUR\n"
+    );
+    // Applied suggestions are resolved and can't be applied again; a
+    // suggestion on changed lines says it's outdated.
+    let late = suggest(&s, &carol, n, "a.txt", (2, 2), "```suggestion\nTWO\n```");
+    git.ok(&w, &["fetch", "-q", &url, "ui"]);
+    git.ok(&w, &["reset", "-q", "--hard", "FETCH_HEAD"]);
+    write(&git, &w, "a.txt", "ONE\n2\nTHREE\nFOUR\n", "Number two");
+    git.ok(&w, &["push", "-q", &url, "ui"]);
+    eventually(&s, "no fourth revision", || {
+        mr(&s, &alice, n)["revisions"] == 4
+    });
+    let body = web.get(&page).body;
+    assert!(body.contains("Outdated: its lines changed since"), "{body}");
+    assert!(!body.contains(&format!("value=\"{late}\"")), "{body}");
+}

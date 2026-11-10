@@ -94,6 +94,24 @@ fn splice(file: &[u8], edits: &[Edit]) -> Option<Vec<u8>> {
 }
 
 impl Services {
+    /// Whether the subject may apply suggestions to this merge request
+    /// (the page offers it): `mr.apply_suggestion` or authorship, and the
+    /// right to write its source branch.
+    pub async fn may_apply_suggestions(
+        &self,
+        subject: &Subject,
+        a: &crate::repos::RepoAccess,
+        m: &MergeRequest,
+    ) -> bool {
+        let me = match subject {
+            Subject::User { id, .. } => Some(*id),
+            _ => None,
+        };
+        me.is_some()
+            && (a.can(subject, Action::MrApplySuggestion) || m.author_id == me)
+            && self.may_update_branch(subject, a, m).await
+    }
+
     /// Applies the suggestions of `comments` (each a published line comment
     /// with a suggestion block) to the source branch.
     pub async fn apply_suggestions(
