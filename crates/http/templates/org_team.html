@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ team }} · Teams · {{ org }}{% endblock %}
+{% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "teams" %}{% let org_member = true %}{% let org_manage = can_manage %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
 <p><a href="/{{ org }}">{{ org }}</a> / <a href="/{{ org }}/-/teams">Teams</a></p>
 <h1>{{ team }}</h1>
