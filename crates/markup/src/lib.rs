@@ -14,6 +14,7 @@
 mod highlight;
 pub mod intraline;
 pub mod refs;
+pub mod suggestion;
 
 use std::collections::HashSet;
 
