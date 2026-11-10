@@ -4696,6 +4696,116 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/update-branch": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Brings the source branch up to date with the target\n(`mr.update_branch`): needs push on the source, or edits by maintainers\nof a fork's branch. The new head becomes a revision. 409 when it's\nalready up to date, conflicts, moved, or its protection refuses.",
+        "operationId": "update_branch",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBranchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write",
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/milestones": {
       "get": {
         "tags": [
@@ -7290,7 +7400,8 @@
         "description": "The merge box as data.",
         "required": [
           "mergeable",
-          "requirements"
+          "requirements",
+          "up_to_date"
         ],
         "properties": {
           "mergeable": {
@@ -7301,6 +7412,10 @@
             "items": {
               "$ref": "#/components/schemas/Requirement"
             }
+          },
+          "up_to_date": {
+            "type": "boolean",
+            "description": "The source contains the target's head; if not, `update-branch`\nbrings it up to date."
           }
         }
       },
@@ -8881,6 +8996,23 @@
           "type": {
             "type": "string",
             "description": "`dir`, `file`, `executable`, `symlink`, or `submodule`."
+          }
+        }
+      },
+      "UpdateBranchBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "expected_head_oid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The head you saw; if the merge request moved on, 409."
+          },
+          "method": {
+            "type": "string",
+            "description": "`rebase` (onto the target, keeping headers and change IDs) or\n`merge` (the target into the branch)."
           }
         }
       },

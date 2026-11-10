@@ -19,3 +19,4 @@ mod oidc_providers;
 mod reserved_refs;
 mod reviews;
 mod threads;
+mod update_branch;

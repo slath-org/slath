@@ -60,7 +60,7 @@ pub fn conflict_commands(source: &str, target: &str) -> (String, String) {
 impl Services {
     /// `Name <username@users.noreply.host> <time> +0000` for commits the
     /// server writes on someone's behalf.
-    async fn identity(&self, subject: &Subject) -> Result<String> {
+    pub(crate) async fn identity(&self, subject: &Subject) -> Result<String> {
         let Subject::User { id, .. } = subject else {
             return Err(ServiceError::Unauthenticated);
         };
@@ -82,6 +82,22 @@ impl Services {
             name.trim(),
             u.name
         ))
+    }
+
+    /// The display ID of each commit's change in the current revision, for
+    /// the change-id header of rewritten commits.
+    pub(crate) async fn change_ids(&self, m: &MergeRequest) -> Result<HashMap<String, String>> {
+        let changes: HashMap<uuid::Uuid, String> = slath_db::mr_changes::changes(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .map(|c| (c.id, c.display_id))
+            .collect();
+        Ok(slath_db::mr_changes::versions(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .filter(|v| v.revision_seq == m.revisions)
+            .filter_map(|v| Some((v.commit_oid, changes.get(&v.change_id?)?.clone())))
+            .collect())
     }
 
     /// The strategies the repository allows, and its default.
@@ -183,21 +199,7 @@ impl Services {
         let target =
             RefName::branch(m.target_branch.as_bytes()).map_err(|_| internal("bad target"))?;
         let head = oid(&input.expected_head_oid)?;
-        // Changes by commit, for the change-id of rewritten commits.
-        let ids: HashMap<String, String> = {
-            let changes: HashMap<uuid::Uuid, String> =
-                slath_db::mr_changes::changes(&self.pool, m.id)
-                    .await?
-                    .into_iter()
-                    .map(|c| (c.id, c.display_id))
-                    .collect();
-            slath_db::mr_changes::versions(&self.pool, m.id)
-                .await?
-                .into_iter()
-                .filter(|v| v.revision_seq == m.revisions)
-                .filter_map(|v| Some((v.commit_oid, changes.get(&v.change_id?)?.clone())))
-                .collect()
-        };
+        let ids = self.change_ids(&m).await?;
         let mut tx = self.pool.begin().await.map_err(internal)?;
         slath_db::merge_requests::lock_target(&mut *tx, a.repo.id, &m.target_branch).await?;
         let mut landed = None;
@@ -348,7 +350,8 @@ impl Services {
 
     /// The commit the target moves to.
     #[allow(clippy::too_many_arguments)]
-    async fn build(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn build(
         &self,
         a: &RepoAccess,
         m: &MergeRequest,

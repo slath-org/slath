@@ -237,6 +237,29 @@ conflicting files and the commands that resolve them with Git or jj.
 The API merges with `POST …/merge-requests/{n}/merge` and
 `{"strategy": "rebase", "expected_head_oid": "<head you reviewed>"}`.
 
+## Updating the branch
+
+When the target has commits the branch doesn't, the merge box offers
+**Update branch** to people who can push to the source branch. On a fork
+merge request, writers of the target can too while edits by maintainers
+are allowed. Choose how:
+
+- **Merge** the target into the branch: adds one merge commit, and
+  nothing you pushed changes. Pull before you push again.
+- **Rebase** the branch onto the target: replays its commits like a
+  rebase merge, keeping authors, messages, and change IDs. jj picks the
+  new commits up as the same changes with `jj git fetch`; with Git, reset
+  your branch to the new one (`git pull --rebase`) before you push again.
+
+The update becomes a new revision, and the timeline says who updated the
+branch and how. The source branch's protection applies as for a push: a
+branch that blocks force pushes can only be merged into, not rebased.
+
+The API updates with `POST …/merge-requests/{n}/update-branch` and
+`{"method": "merge", "expected_head_oid": "<head you saw>"}`; the
+mergeability response says `"up_to_date": false` when there's something
+to update.
+
 ## Statuses and required checks
 
 CI systems and other tools report the result of a check on a commit with

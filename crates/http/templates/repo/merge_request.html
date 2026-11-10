@@ -176,6 +176,21 @@
     <button type="button" class="button" data-copy="conflicts-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button>
   </details>
   {%- endif %}
+  {%- if let Some(u) = update_form %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/update-branch" class="form update-branch-form" id="update-branch" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="expected_head_oid" value="{{ u.head }}">
+    {%- if let Some(e) = self.error("update") %}
+    <div class="error-summary" role="alert"><p>{{ e }}</p></div>
+    {%- endif %}
+    <fieldset class="field">
+      <legend><code class="branch-name"><bdi>{{ h.source }}</bdi></code> is behind <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code>. Update it:</legend>
+      <div class="radio"><input id="update-merge" type="radio" name="method" value="merge" checked><label for="update-merge">Merge <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> into the branch</label></div>
+      <div class="radio"><input id="update-rebase" type="radio" name="method" value="rebase"><label for="update-rebase">Rebase the branch onto <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> <span class="text-secondary">(rewrites its commits; pull or <code>jj git fetch</code> before you push again)</span></label></div>
+    </fieldset>
+    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button></div>
+  </form>
+  {%- endif %}
   {%- if let Some(e) = self.error("merge") %}
   <div class="error-summary" role="alert" id="merge"><p>{{ e }}</p></div>
   {%- endif %}

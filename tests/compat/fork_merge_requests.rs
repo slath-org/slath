@@ -10,12 +10,12 @@
 use serde_json::{Value, json};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestRepo, TestServer};
 
-fn token(s: &TestServer, user: &str) -> String {
+pub(crate) fn token(s: &TestServer, user: &str) -> String {
     let mut c = s.login(user, PASSWORD);
     slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write", "statuses:write"])
 }
 
-fn api(
+pub(crate) fn api(
     s: &TestServer,
     token: &str,
     method: &str,
@@ -31,7 +31,7 @@ fn api(
 }
 
 /// Waits until `f` holds (jobs run in the background).
-fn eventually(s: &TestServer, what: &str, mut f: impl FnMut() -> bool) {
+pub(crate) fn eventually(s: &TestServer, what: &str, mut f: impl FnMut() -> bool) {
     let start = std::time::Instant::now();
     while !f() {
         assert!(start.elapsed().as_secs() < 30, "{what}\n{}", s.log());
@@ -39,7 +39,7 @@ fn eventually(s: &TestServer, what: &str, mut f: impl FnMut() -> bool) {
     }
 }
 
-fn fork(s: &TestServer, token: &str, body: Value, path: &str) {
+pub(crate) fn fork(s: &TestServer, token: &str, body: Value, path: &str) {
     let r = api(s, token, "POST", "/alice/demo/forks", Some(body));
     assert_eq!(r.status, 202, "{}", r.body);
     eventually(s, "fork not done", || {
@@ -47,14 +47,14 @@ fn fork(s: &TestServer, token: &str, body: Value, path: &str) {
     });
 }
 
-fn http_url(s: &TestServer, token: &str, repo: &str) -> String {
+pub(crate) fn http_url(s: &TestServer, token: &str, repo: &str) -> String {
     format!(
         "http://git:{token}@{}/{repo}.git",
         s.base().trim_start_matches("http://")
     )
 }
 
-fn commit(git: &GitClient, dir: &std::path::Path, file: &str) -> String {
+pub(crate) fn commit(git: &GitClient, dir: &std::path::Path, file: &str) -> String {
     std::fs::write(dir.join(file), format!("{file}\n")).unwrap();
     git.ok(dir, &["add", "."]);
     git.ok(dir, &["commit", "-q", "-m", &format!("Add {file}")]);

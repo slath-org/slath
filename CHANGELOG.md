@@ -80,6 +80,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - `#n` links to merge requests as well as issues, with their state, and issues and merge requests show where they were mentioned, once per source.
 - `Fixes #n`, `Closes #n`, and `Resolves #n` close the issue when the commit lands on the default branch or the merge request with it in its description is merged there.
 - Closing keywords act only on issues the pusher or merger may close; the issue's timeline links the commit or merge request that closed it.
+- Update branch merges the target into a merge request's branch or rebases the branch onto it on the server, keeping change IDs; the result is a new revision.
+- Writers of the original can update a fork merge request's branch while edits by maintainers are allowed; the source branch's protection applies as for a push.
 
 ### Changed
 

@@ -679,6 +679,9 @@ pub struct Requirement {
 pub struct MergeabilityBody {
     pub mergeable: bool,
     pub requirements: Vec<Requirement>,
+    /// The source contains the target's head; if not, `update-branch`
+    /// brings it up to date.
+    pub up_to_date: bool,
 }
 
 /// Whether the merge request can be merged, with each requirement.
@@ -693,6 +696,7 @@ pub async fn get_mergeability(
     let mb = state.services.mr_mergeability(&a, &m).await?;
     Ok(Json(MergeabilityBody {
         mergeable: mb.mergeable,
+        up_to_date: mb.up_to_date,
         requirements: mb
             .requirements
             .into_iter()
@@ -746,6 +750,42 @@ pub async fn merge(
                 commit_message: b.commit_message,
                 delete_source: b.delete_source,
             },
+        )
+        .await?;
+    Ok(Json(render(&state, &s, &ns, &repo, m).await?))
+}
+
+/// Every field is optional in the JSON so that authorization runs first.
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateBranchBody {
+    /// `rebase` (onto the target, keeping headers and change IDs) or
+    /// `merge` (the target into the branch).
+    #[serde(default)]
+    pub method: String,
+    /// The head you saw; if the merge request moved on, 409.
+    #[serde(default)]
+    pub expected_head_oid: Option<String>,
+}
+
+/// Brings the source branch up to date with the target
+/// (`mr.update_branch`): needs push on the source, or edits by maintainers
+/// of a fork's branch. The new head becomes a revision. 409 when it's
+/// already up to date, conflicts, moved, or its protection refuses.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/update-branch", tag = "merge requests", security(("token" = ["mrs:write", "repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = UpdateBranchBody,
+    responses((status = 200, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn update_branch(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<UpdateBranchBody>,
+) -> Result<Json<MergeRequest>, AppError> {
+    let m = state
+        .services
+        .update_mr_branch(
+            &s,
+            (&ns, &repo, number),
+            &b.method,
+            b.expected_head_oid.as_deref(),
         )
         .await?;
     Ok(Json(render(&state, &s, &ns, &repo, m).await?))
@@ -835,6 +875,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
             Access::Resource,
             axum::routing::post(merge),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/update-branch",
+            Access::Resource,
+            axum::routing::post(update_branch),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability",

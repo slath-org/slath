@@ -820,6 +820,17 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             "deleted the source branch, which closed this".to_owned(),
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
+        "branch_updated" if str_of("method") == "rebase" => (
+            "refresh-cw",
+            format!(
+                "updated the branch by rebasing it onto {}",
+                str_of("target")
+            ),
+        ),
+        "branch_updated" => (
+            "refresh-cw",
+            format!("updated the branch by merging {} into it", str_of("target")),
+        ),
         "maintainer_edits_allowed" => (
             "pencil",
             "allowed edits by maintainers of this repository".to_owned(),
@@ -1001,6 +1012,8 @@ struct Card {
     /// Timeline entries by others since the viewer's last review.
     since: Option<usize>,
     mergeable: bool,
+    /// The source contains the target's head.
+    up_to_date: bool,
 }
 
 /// Who the viewer is to this merge request, for choosing the next step.
@@ -1010,6 +1023,8 @@ struct Viewer {
     merge: bool,
     review: bool,
     push: bool,
+    /// The viewer may update the source branch with the target.
+    update: bool,
     /// The viewer's approval or request for changes counts now.
     reviewed: bool,
 }
@@ -1023,6 +1038,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
             form: None,
         })
     };
+    let up_to_date = mb.up_to_date;
     let done = |headline: String, reason: String, action| Card {
         headline,
         reason,
@@ -1031,6 +1047,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         rows: Vec::new(),
         since,
         mergeable: false,
+        up_to_date,
     };
     match m.state.as_str() {
         "merged" => {
@@ -1108,6 +1125,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         "identity" if v.push || v.author => {
             link("Choose changes", "git-commit-horizontal", "/commits")
         }
+        "up_to_date" if v.update => link("Update branch", "refresh-cw", "#update-branch"),
         _ => None,
     };
     Card {
@@ -1118,6 +1136,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         rows: mb.requirements,
         since,
         mergeable: false,
+        up_to_date,
     }
 }
 
@@ -1158,6 +1177,7 @@ async fn heading(
         merge: a.can(subject, Action::MrMerge),
         review: me.is_some() && a.can(subject, Action::MrReview) && m.author_id != me,
         push: a.can(subject, Action::RepoPush),
+        update: state.services.may_update_branch(subject, a, &m).await,
         reviewed,
     };
     let mb = state.services.mr_mergeability(a, &m).await?;
@@ -1281,6 +1301,7 @@ struct MrPage {
     /// The viewer may merge: the strategies (default first), the head
     /// they're looking at, and whether the source goes after merging.
     merge_form: Option<MergeForm>,
+    update_form: Option<UpdateForm>,
     /// Commands for Git and jj that resolve conflicts with the target.
     conflict_commands: Option<(String, String)>,
 }
@@ -1289,6 +1310,11 @@ struct MergeForm {
     strategies: Vec<(String, &'static str)>,
     head: String,
     delete_source: bool,
+}
+
+/// Updating a branch that's behind its target.
+struct UpdateForm {
+    head: String,
 }
 
 fn strategy_label(s: &str) -> &'static str {
@@ -1649,6 +1675,11 @@ async fn mr_page_showing(
     } else {
         None
     };
+    let update_form =
+        (open && !h.card.up_to_date && state.services.may_update_branch(subject, &a, &m).await)
+            .then(|| UpdateForm {
+                head: m.head_oid.clone().unwrap_or_default(),
+            });
     let statuses = state
         .services
         .mr_statuses(&m)
@@ -1677,6 +1708,7 @@ async fn mr_page_showing(
         since_review,
         statuses,
         merge_form,
+        update_form,
         conflict_commands,
         message,
         errors,
@@ -1709,6 +1741,7 @@ async fn view(
         Some("restored") => Some("Branch restored."),
         Some("reviewers") => Some("Reviewers saved."),
         Some("merged") => Some("Merged."),
+        Some("updated") => Some("Branch updated."),
         _ => None,
     };
     let show = match q.show.as_deref() {
@@ -2746,6 +2779,48 @@ async fn merge(
 }
 
 #[derive(Deserialize)]
+struct UpdateBranchForm {
+    #[serde(default)]
+    method: String,
+    #[serde(default)]
+    expected_head_oid: String,
+}
+
+async fn update_branch(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<UpdateBranchForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    match state
+        .services
+        .update_mr_branch(
+            &s.subject,
+            (&ns, &repo, n),
+            &f.method,
+            Some(f.expected_head_oid.as_str()),
+        )
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=updated")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(ServiceError::Conflict(why)) => {
+            let errors = vec![FieldError {
+                field: "update".into(),
+                code: "conflict".into(),
+                message: why,
+            }];
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
 struct ReviewersForm {
     #[serde(default)]
     reviewers: String,
@@ -3093,6 +3168,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/merge",
             Access::Resource,
             post(merge),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/update-branch",
+            Access::Resource,
+            post(update_branch),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/reviewers",

@@ -81,6 +81,9 @@ pub struct Requirement {
 pub struct Mergeability {
     pub mergeable: bool,
     pub requirements: Vec<Requirement>,
+    /// The target head is an ancestor of the source head (whether or not
+    /// that's required); otherwise the branch can be updated.
+    pub up_to_date: bool,
 }
 
 fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
@@ -613,6 +616,7 @@ impl Services {
         Ok(Mergeability {
             mergeable: reqs.iter().all(|r| r.state == "met"),
             requirements: reqs,
+            up_to_date,
         })
     }
 

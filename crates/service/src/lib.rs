@@ -51,6 +51,7 @@ pub mod settings;
 pub mod statuses;
 pub mod teams;
 pub mod tokens;
+pub mod update_branch;
 pub mod updates;
 
 use std::sync::Arc;
