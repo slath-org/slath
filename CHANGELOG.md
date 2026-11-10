@@ -78,6 +78,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The compare page can merge from a fork, with Allow edits by maintainers and the confirmation for less visible forks; forks link to it from Contribute, pushes, and the banner.
 - Fork merge requests show their source as owner/repository:branch, and the More menu turns edits by maintainers on or off.
 - `#n` links to merge requests as well as issues, with their state, and issues and merge requests show where they were mentioned, once per source.
+- `Fixes #n`, `Closes #n`, and `Resolves #n` close the issue when the commit lands on the default branch or the merge request with it in its description is merged there.
+- Closing keywords act only on issues the pusher or merger may close; the issue's timeline links the commit or merge request that closed it.
 
 ### Changed
 

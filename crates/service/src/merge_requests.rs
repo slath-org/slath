@@ -1332,6 +1332,9 @@ impl Services {
         };
         self.mrs_after_push(repo, pusher, &updates)
             .await
+            .map_err(|e| JobError::Retry(e.to_string()))?;
+        self.close_after_push(repo, pusher, &updates)
+            .await
             .map_err(|e| JobError::Retry(e.to_string()))
     }
 

@@ -7,8 +7,14 @@
 //! can read it. The event names its source, and it's shown only to viewers
 //! who can read the source, so a private repository's references reveal
 //! nothing to the readers of a public one.
+//!
+//! Closing keywords (`Fixes #n`, `Closes ns/repo#n`) in commit messages
+//! that land on the default branch, and in the description of a merge
+//! request merged into it, close the issue they name if the pusher or
+//! merger may close it there. Anything they can't read stays untouched.
 
 use slath_core::authz::{Action, Subject};
+use slath_core::ids::{RepoId, UserId};
 use slath_markup::refs::{Ref, RefContext};
 
 use crate::Services;
@@ -60,7 +66,7 @@ impl RefSource {
     }
 }
 
-fn subject_user(subject: &Subject) -> Option<slath_core::ids::UserId> {
+fn subject_user(subject: &Subject) -> Option<UserId> {
     match subject {
         Subject::User { id, .. } => Some(*id),
         _ => None,
@@ -160,11 +166,7 @@ impl Services {
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse().ok())?;
         let src = self
-            .repo_access_by_id(
-                subject,
-                slath_core::ids::RepoId::from_uuid(repo),
-                Action::RepoRead,
-            )
+            .repo_access_by_id(subject, RepoId::from_uuid(repo), Action::RepoRead)
             .await
             .ok()?;
         let target = if let Some(oid) = data.get("commit").and_then(|v| v.as_str()) {
@@ -180,5 +182,130 @@ impl Services {
             repo: format!("{}/{}", src.repo.namespace, src.repo.name),
             target,
         })
+    }
+
+    /// Closes the issues `text` names with closing keywords that the actor
+    /// may close, recording `via` (what closed them) in the event.
+    async fn close_by_keywords(
+        &self,
+        actor: &Subject,
+        a: &RepoAccess,
+        text: &str,
+        via: &serde_json::Value,
+    ) -> crate::error::Result<()> {
+        let ctx = RefContext {
+            ns: a.repo.namespace.clone(),
+            repo: a.repo.name.clone(),
+        };
+        for r in slath_markup::refs::closing_refs(text, &ctx) {
+            let Some((target, "issue", _, number)) = self.referenced_item(actor, &r).await else {
+                continue;
+            };
+            let Some(issue) = slath_db::issues::get(&self.pool, target.repo.id, number).await?
+            else {
+                continue;
+            };
+            if issue.state != "open" || !self.issue_perms(actor, &target, &issue).close {
+                continue;
+            }
+            let mut tx = self
+                .pool
+                .begin()
+                .await
+                .map_err(crate::error::ServiceError::internal)?;
+            let closed =
+                slath_db::issues::set_state(&mut *tx, issue.id, false, Some("completed")).await?;
+            if closed {
+                slath_db::issues::insert_event(
+                    &mut *tx,
+                    target.repo.id,
+                    "issue",
+                    issue.id,
+                    subject_user(actor),
+                    "closed",
+                    &serde_json::json!({"reason": "completed", "via": via}),
+                )
+                .await?;
+            }
+            tx.commit()
+                .await
+                .map_err(crate::error::ServiceError::internal)?;
+            if closed {
+                self.notify_item(
+                    actor,
+                    &target,
+                    &issue,
+                    crate::notifications::Activity::Closed,
+                )
+                .await;
+            }
+        }
+        Ok(())
+    }
+
+    /// Follow-up of a push (`ref.updated`): closing keywords in what landed
+    /// on the default branch, from merged merge requests' descriptions and
+    /// from commit messages (at most `review_max_commits` per update).
+    pub(crate) async fn close_after_push(
+        &self,
+        repo: RepoId,
+        pusher: Option<UserId>,
+        updates: &[slath_git::ipc::RefUpdate],
+    ) -> crate::error::Result<()> {
+        let Some(user) = pusher else {
+            return Ok(());
+        };
+        let Some(row) = slath_db::users::get(&self.pool, user).await? else {
+            return Ok(());
+        };
+        let actor = crate::notifications::user_subject(user, &row);
+        let Ok(a) = self.repo_access_by_id(&actor, repo, Action::RepoRead).await else {
+            return Ok(());
+        };
+        let default = format!("refs/heads/{}", a.repo.default_branch);
+        let repo_id = a.repo.id.to_string();
+        for u in updates {
+            if u.name != default.as_bytes() || u.new.bytes().all(|b| b == b'0') {
+                continue;
+            }
+            let new = slath_git::ObjectId::parse(u.new.as_bytes())
+                .map_err(crate::error::ServiceError::internal)?;
+            let old = if u.old.bytes().all(|b| b == b'0') {
+                None
+            } else {
+                Some(
+                    slath_git::ObjectId::parse(u.old.as_bytes())
+                        .map_err(crate::error::ServiceError::internal)?,
+                )
+            };
+            for id in slath_db::merge_requests::merged_as(&self.pool, repo, &u.new).await? {
+                let Some(m) = slath_db::merge_requests::get_by_id(&self.pool, id).await? else {
+                    continue;
+                };
+                if m.target_branch == a.repo.default_branch {
+                    let via = serde_json::json!({
+                        "repo_id": repo_id,
+                        "number": m.number,
+                        "kind": "merge_request",
+                    });
+                    self.close_by_keywords(&actor, &a, &m.description, &via)
+                        .await?;
+                }
+            }
+            let commits = slath_git::browse::messages_range(
+                &self.runner,
+                &self.repo_path(repo),
+                old.as_ref(),
+                &new,
+                self.config.limits.review_max_commits,
+            )
+            .await
+            .map_err(crate::error::ServiceError::internal)?;
+            for (oid, message) in commits {
+                let via = serde_json::json!({"repo_id": repo_id, "commit": oid.as_str()});
+                self.close_by_keywords(&actor, &a, &message, &via).await?;
+            }
+        }
+        Ok(())
     }
 }

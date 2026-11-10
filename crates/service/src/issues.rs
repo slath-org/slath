@@ -241,6 +241,12 @@ impl Services {
                     continue;
                 }
             }
+            // What closed it, for those who can read that.
+            if e.kind == "closed"
+                && let Some(via) = e.data.get("via")
+            {
+                source = self.event_source(subject, via).await;
+            }
             items.push((e.created_at, TimelineItem::Event(e, source)));
         }
         items.sort_by_key(|(t, _)| *t);

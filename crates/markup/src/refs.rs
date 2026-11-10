@@ -425,6 +425,42 @@ fn scan(text: &str, ctx: Option<&RefContext>) -> Vec<Found> {
     out
 }
 
+/// Words that close what follows them: `Fixes #12`, `closes: ns/repo#3`.
+const CLOSING: [&str; 9] = [
+    "close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved",
+];
+
+/// The issues or merge requests a plain text (a commit message or a merge
+/// request description) closes: each `#n` or `ns/repo#n` right after a
+/// closing keyword (case-insensitive, optionally followed by a colon).
+/// Deduplicated, in order, at most [`MAX_REFS`].
+#[must_use]
+pub fn closing_refs(text: &str, ctx: &RefContext) -> Vec<Ref> {
+    let mut out: Vec<Ref> = Vec::new();
+    for f in scan(text, Some(ctx)) {
+        if !matches!(f.r, Ref::Item { .. }) || out.contains(&f.r) {
+            continue;
+        }
+        let before = text[..f.start].trim_end_matches([' ', '\t']);
+        // At least one space or tab between keyword and reference.
+        if before.len() == f.start {
+            continue;
+        }
+        let before = before.strip_suffix(':').unwrap_or(before);
+        let word_start = before
+            .rfind(|c: char| !c.is_ascii_alphabetic())
+            .map_or(0, |i| i + 1);
+        let word = &before[word_start..];
+        if CLOSING.iter().any(|k| k.eq_ignore_ascii_case(word)) {
+            out.push(f.r);
+            if out.len() == MAX_REFS {
+                break;
+            }
+        }
+    }
+    out
+}
+
 /// The value after `~` or `%` starting at `k`: a quoted title or a plain
 /// name, with the end position.
 fn sigil_value(text: &str, k: usize, max: usize) -> Option<(String, usize)> {
@@ -656,6 +692,26 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closing_keywords() {
+        let ctx = RefContext {
+            ns: "o".into(),
+            repo: "r".into(),
+        };
+        let item = |ns: &str, repo: &str, number| Ref::Item {
+            ns: ns.into(),
+            repo: repo.into(),
+            number,
+        };
+        assert_eq!(
+            closing_refs("Fixes #1, closes: o/x#2 and RESOLVED #3\n\nfix #1", &ctx),
+            vec![item("o", "r", 1), item("o", "x", 2), item("o", "r", 3)]
+        );
+        // Not after a keyword, a keyword inside a word, or no space.
+        assert!(closing_refs("See #1; prefixes #2; fixes#3; unfixed #4", &ctx).is_empty());
+        assert_eq!(closing_refs("Closes\t#5", &ctx), vec![item("o", "r", 5)]);
+    }
 
     fn ctx() -> RefContext {
         RefContext {

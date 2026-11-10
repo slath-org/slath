@@ -313,6 +313,31 @@ that mentions it. You see that line only if you can read where the
 mention was written, and mentions of something you can't read stay plain
 text.
 
+## Closing issues
+
+A closing keyword right before an issue reference closes the issue once
+the work lands on the default branch:
+
+```text
+Fixes #12
+closes: owner/other-repo#3
+```
+
+The keywords are `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`,
+`resolve`, `resolves`, and `resolved`, in any case, optionally followed
+by a colon. Put one before each issue: in `Fixes #1, fixes #2` both
+close, in `Fixes #1 and #2` only `#1` does. They count in:
+
+- commit messages pushed to the default branch, by Git, jj, or a merge
+  in Slath (up to `[limits] review_max_commits` commits per push);
+- the description of a merge request when it's merged into the default
+  branch.
+
+The issue closes as completed, and its timeline links the commit or
+merge request for everyone who can read it. A keyword acts only if
+whoever pushed or merged may close that issue: keywords naming an issue
+you can't close, or a repository you can't read, do nothing.
+
 ## Closing and reopening
 
 The author and people who can triage close a merge request with **Close

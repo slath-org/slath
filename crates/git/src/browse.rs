@@ -347,6 +347,48 @@ pub async fn log_range(
     Ok(entries)
 }
 
+/// The full messages of the commits reachable from `head` but not from
+/// `base` (all of them without a base), oldest first, at most `max` (from
+/// the newest).
+pub async fn messages_range(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    head: &ObjectId,
+    max: usize,
+) -> Result<Vec<(ObjectId, String)>, GitError> {
+    let range = match base {
+        Some(b) => format!("{}..{}", b.as_str(), head.as_str()),
+        None => head.as_str().to_owned(),
+    };
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "log",
+            "--no-color",
+            "-z",
+            "--topo-order",
+            "--format=%H%x00%B",
+            &format!("--max-count={max}"),
+            "--end-of-options",
+            &range,
+            "--",
+        ])
+        .run()
+        .await?;
+    let fields: Vec<&[u8]> = out.stdout.split(|&b| b == 0).collect();
+    let mut entries: Vec<(ObjectId, String)> = fields
+        .chunks(2)
+        .filter(|c| c.len() == 2)
+        .filter_map(|c| {
+            let oid = ObjectId::parse(c[0].trim_ascii()).ok()?;
+            Some((oid, String::from_utf8_lossy(c[1]).into_owned()))
+        })
+        .collect();
+    entries.reverse();
+    Ok(entries)
+}
+
 /// The best common ancestor of two commits, if they have one.
 pub async fn merge_base(
     runner: &Runner,

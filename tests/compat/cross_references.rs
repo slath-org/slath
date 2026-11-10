@@ -158,3 +158,115 @@ fn conf_issue_02_issues_and_merge_requests_refer_to_each_other() {
     let mr = c.alice.get("/alice/demo/merge-requests/2").body;
     assert!(mr.contains("href=\"/alice/priv/issues/1\""), "{mr}");
 }
+
+/// The state of an issue (as alice sees it).
+fn state(c: &Ctx, repo: &str, n: i64) -> String {
+    c.api("GET", &format!("/{repo}/issues/{n}"), None).json()["state"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+fn eventually(c: &Ctx, what: &str, mut f: impl FnMut() -> bool) {
+    let start = std::time::Instant::now();
+    while !f() {
+        assert!(start.elapsed().as_secs() < 30, "{what}\n{}", c.s.log());
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+}
+
+#[test]
+fn conf_issue_02_closing_keywords_close_only_what_the_actor_may_close() {
+    let mut c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = c.seed(d.path());
+    for t in ["By push", "By description", "By merged commit", "Untouched"] {
+        c.issue("alice/demo", t, "");
+    }
+    create_repo(&mut c.alice, "alice", "priv", "private");
+    c.issue("alice/priv", "Secret", "");
+
+    // A keyword on another branch does nothing until it lands.
+    c.git.ok(&w, &["switch", "-q", "-c", "topic"]);
+    c.commit(&w, "t.txt", "Topic work\n\nFixes #3");
+    c.push(&w, "topic");
+    let mr = c.mr("topic", "Closes #2, see #4.");
+    assert_eq!(mr, 5);
+
+    // A push to the default branch closes what its commits name.
+    c.git.ok(&w, &["switch", "-q", "main"]);
+    let oid = c.commit(&w, "m.txt", "Repair\n\nfixes: #1, fixes alice/priv#1");
+    c.push(&w, "main");
+    eventually(&c, "#1 closed by the push", || {
+        // alice may close in alice/priv too.
+        state(&c, "alice/demo", 1) == "closed" && state(&c, "alice/priv", 1) == "closed"
+    });
+    let page = c.alice.get("/alice/demo/issues/1").body;
+    assert!(page.contains("closed this as completed in"), "{page}");
+    assert!(
+        page.contains(&format!("href=\"/alice/demo/commit/{oid}\"")),
+        "{page}"
+    );
+    assert_eq!(state(&c, "alice/demo", 3), "open");
+
+    // Merging closes what the description and the merged commits name.
+    let head = c.api("GET", "/alice/demo/merge-requests/5", None).json()["head_oid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = c.api(
+        "POST",
+        "/alice/demo/merge-requests/5/merge",
+        Some(json!({"strategy": "merge-commit", "expected_head_oid": head})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    eventually(&c, "#2 and #3 closed by the merge", || {
+        state(&c, "alice/demo", 2) == "closed" && state(&c, "alice/demo", 3) == "closed"
+    });
+    let page = c.alice.get("/alice/demo/issues/2").body;
+    assert!(
+        page.contains("href=\"/alice/demo/merge-requests/5\""),
+        "{page}"
+    );
+    assert_eq!(state(&c, "alice/demo", 4), "open");
+
+    // bob can read alice/demo but not close its issues, and can't read
+    // alice/priv: his keywords change nothing.
+    let r = c.api(
+        "PATCH",
+        "/alice/demo",
+        Some(json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    c.issue("alice/priv", "Another secret", "");
+    c.s.create_user("bob", PASSWORD, false);
+    let mut bob = c.s.login("bob", PASSWORD);
+    create_repo(&mut bob, "bob", "tools", "public");
+    let token = slath_tests::http::create_token(&mut bob, "b", &["repo:write", "issues:write"]);
+    let r = c.s.client().api(
+        "POST",
+        "/api/v1/repos/bob/tools/issues",
+        Some(&token),
+        Some(&json!({"title": "Marker"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let url = format!(
+        "http://git:{token}@{}/bob/tools.git",
+        c.s.base().trim_start_matches("http://")
+    );
+    let b = d.path().join("b");
+    std::fs::create_dir_all(&b).unwrap();
+    c.git.ok(&b, &["init", "-q", "-b", "main"]);
+    // The same commit closes bob's own issue, after the others.
+    c.commit(
+        &b,
+        "x.txt",
+        "Fixes alice/demo#4, fixes alice/priv#2, closes #1",
+    );
+    c.git.ok(&b, &["push", "-q", &url, "main"]);
+    eventually(&c, "bob's marker closed", || {
+        state(&c, "bob/tools", 1) == "closed"
+    });
+    assert_eq!(state(&c, "alice/demo", 4), "open");
+    assert_eq!(state(&c, "alice/priv", 2), "open");
+}

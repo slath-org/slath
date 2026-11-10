@@ -314,16 +314,23 @@ fn event_view(
             .to_owned()
     };
     let (icon, text, link, link_text) = match e.kind.as_str() {
-        "closed" => (
-            "circle-check",
-            match str_of("reason").as_str() {
-                "not_planned" => "closed this as not planned".to_owned(),
-                "duplicate" => "closed this as a duplicate".to_owned(),
-                _ => "closed this as completed".to_owned(),
-            },
-            None,
-            String::new(),
-        ),
+        "closed" => {
+            let text = match str_of("reason").as_str() {
+                "not_planned" => "closed this as not planned",
+                "duplicate" => "closed this as a duplicate",
+                _ => "closed this as completed",
+            };
+            // Closed by a commit or a merge request the viewer can read.
+            match source {
+                Some(s) => (
+                    "circle-check",
+                    format!("{text} in"),
+                    Some(s.path()),
+                    s.label(),
+                ),
+                None => ("circle-check", text.to_owned(), None, String::new()),
+            }
+        }
         "reopened" => (
             "circle-dot",
             "reopened this".to_owned(),

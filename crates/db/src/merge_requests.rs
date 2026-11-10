@@ -594,6 +594,23 @@ pub async fn titles(
         .collect())
 }
 
+/// Merge requests of a repository merged as `oid` (what a merge wrote to
+/// the target branch).
+pub async fn merged_as(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    oid: &str,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        "SELECT id FROM merge_requests WHERE repo_id = $1 AND state = 'merged' AND merged_oid = $2",
+        repo.as_uuid(),
+        oid
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}
+
 /// Marks a merge request merged.
 pub async fn set_merged(
     exec: impl PgExecutor<'_>,
