@@ -1,9 +1,11 @@
 # Lucide icons included in the sprite (scripts/build_icons.py). One name per
 # line. Only icons the UI uses belong here; remove unused ones.
+activity
 archive
 bell
 bold
 book-open
+building-2
 check
 chevron-down
 chevron-right
@@ -42,6 +44,7 @@ list-todo
 lock
 log-in
 log-out
+mail
 menu
 message-square
 monitor

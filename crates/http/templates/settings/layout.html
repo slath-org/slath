@@ -1,22 +1,19 @@
 {% extends "base.html" %}
+{% block sidebar %}
+{%- let who %}{% if let Some(u) = ctx.user %}{{ u.name }}{% endif %}{% endlet %}
+{%- call m::side_menu(ctx, "Settings", "User settings", who, "/-/settings") %}
+{%- call m::side_item(ctx, "/-/settings/profile", "user", "Profile", tab == "profile") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/notifications", "bell", "Notifications", tab == "notifications") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/appearance", "sun", "Appearance", tab == "appearance") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/security", "shield", "Security", tab == "security") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/sessions", "monitor", "Sessions", tab == "sessions") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/keys", "key-round", "SSH keys", tab == "keys") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/tokens", "lock", "Access tokens", tab == "tokens") %}{% endcall %}
+{%- endcall %}
+{% endblock %}
 {% block content %}
-<div class="with-sidebar">
-  <nav class="sidebar" aria-label="Settings">
-    <ul>
-      <li><a href="/-/settings/profile"{% if tab == "profile" %} aria-current="page"{% endif %}>Profile</a></li>
-      <li><a href="/-/settings/notifications"{% if tab == "notifications" %} aria-current="page"{% endif %}>Notifications</a></li>
-      <li><a href="/-/settings/appearance"{% if tab == "appearance" %} aria-current="page"{% endif %}>Appearance</a></li>
-      <li><a href="/-/settings/security"{% if tab == "security" %} aria-current="page"{% endif %}>Security</a></li>
-      <li><a href="/-/settings/sessions"{% if tab == "sessions" %} aria-current="page"{% endif %}>Sessions</a></li>
-      <li><a href="/-/settings/keys"{% if tab == "keys" %} aria-current="page"{% endif %}>SSH keys</a></li>
-      <li><a href="/-/settings/tokens"{% if tab == "tokens" %} aria-current="page"{% endif %}>Access tokens</a></li>
-    </ul>
-  </nav>
-  <div class="sidebar-content">
-    {%- if let Some(m) = message %}
-    <div class="success-summary" role="status"><p>{{ m }}</p></div>
-    {%- endif %}
-    {% block settings %}{% endblock %}
-  </div>
-</div>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{% block settings %}{% endblock %}
 {% endblock %}

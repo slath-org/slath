@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
 
 for (const [path, heading] of [
   ["/-/settings/profile", "Profile"],
@@ -38,8 +38,7 @@ test("conf_a11y_01_settings_validation_errors_are_announced", async ({ page }) =
 test("conf_a11y_04_settings_navigation_by_touch_or_click", async ({ page }) => {
   await signIn(page, USERS.alice);
   await page.goto("/-/settings/profile");
-  const nav = page.getByRole("navigation", { name: "Settings" });
-  await tapOrClick(page, nav.getByRole("link", { name: "Sessions" }));
+  await tapOrClick(page, (await sideMenu(page, "Settings")).getByRole("link", { name: "Sessions" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sessions");
-  await expect(nav.getByRole("link", { name: "Sessions" })).toHaveAttribute("aria-current", "page");
+  await expect((await sideMenu(page, "Settings")).getByRole("link", { name: "Sessions" })).toHaveAttribute("aria-current", "page");
 });

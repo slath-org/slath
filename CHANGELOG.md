@@ -94,7 +94,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repository pages: Clone and Download are menus next to the branch, clone URLs have copy buttons, and the files sit in a rounded box.
 - The branch name above the files opens a branch picker that keeps the current view and path.
 - A fork's origin shows next to the repository name, and how its default branch compares with the original next to the branch.
-- A side menu on the left shows where you are (a repository or your work) and its areas.
+- A side menu on the left shows where you are (a repository, your settings, administration, or your work) and its areas.
 - The side menu collapses with the button at the start of the top bar, and the choice is remembered; on narrow screens it opens as a drawer.
 - Repository pages: Code, Issues, Merge requests, and Settings are in the side menu; Files, Commits, Branches, Tags, and Forks are tabs under Code.
 - Merge request pages have a menu on the left for Conversation, Commits, and Changes; All, Unresolved, and Mine are tabs.

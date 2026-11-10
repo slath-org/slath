@@ -1,19 +1,15 @@
 {% extends "base.html" %}
+{% block sidebar %}
+{%- call m::side_menu(ctx, "Administration", "Administration", "Slath", "/-/admin") %}
+{%- call m::side_item(ctx, "/-/admin/users", "user", "Users", section == "users") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/invites", "mail", "Invitations", section == "invites") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/orgs", "building-2", "Organizations", section == "orgs") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/repos", "book-open", "Repositories", section == "repos") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/audit", "history", "Audit log", section == "audit") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/upgrades", "refresh-cw", "Upgrades", section == "upgrades") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/admin/health", "activity", "Health", section == "health") %}{% endcall %}
+{%- endcall %}
+{% endblock %}
 {% block content %}
-<div class="with-sidebar">
-  <nav class="sidebar" aria-label="Administration">
-    <ul>
-      <li><a href="/-/admin/users"{% if section == "users" %} aria-current="page"{% endif %}>Users</a></li>
-      <li><a href="/-/admin/invites"{% if section == "invites" %} aria-current="page"{% endif %}>Invitations</a></li>
-      <li><a href="/-/admin/orgs"{% if section == "orgs" %} aria-current="page"{% endif %}>Organizations</a></li>
-      <li><a href="/-/admin/repos"{% if section == "repos" %} aria-current="page"{% endif %}>Repositories</a></li>
-      <li><a href="/-/admin/audit"{% if section == "audit" %} aria-current="page"{% endif %}>Audit log</a></li>
-      <li><a href="/-/admin/upgrades"{% if section == "upgrades" %} aria-current="page"{% endif %}>Upgrades</a></li>
-      <li><a href="/-/admin/health"{% if section == "health" %} aria-current="page"{% endif %}>Health</a></li>
-    </ul>
-  </nav>
-  <div class="sidebar-content">
-  {% block admin %}{% endblock %}
-  </div>
-</div>
+{% block admin %}{% endblock %}
 {% endblock %}
