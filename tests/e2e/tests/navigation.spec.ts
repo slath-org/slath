@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// The side menu of a context.
+// The navigation levels: the side menu of a context and tabs for the
+// sections of an area.
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_04_side_menu_collapses_or_opens_as_a_drawer", async ({ page }) => {
@@ -47,4 +48,13 @@ test("conf_a11y_04_pages_without_a_context_have_no_side_menu", async ({ page }) 
   await page.goto("/-/login");
   await expect(page.locator("#app-sidebar")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Side menu" })).toBeHidden();
+});
+
+test("conf_a11y_04_sections_of_an_area_are_tabs", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/commits");
+  const code = page.getByRole("navigation", { name: "Code" });
+  await expect(code.getByRole("link", { name: "Commits" })).toHaveAttribute("aria-current", "page");
+  await tapOrClick(page, code.getByRole("link", { name: "Branches" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Branches");
 });

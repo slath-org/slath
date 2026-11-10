@@ -121,7 +121,7 @@ async fn allow_page(
         StatusCode::UNPROCESSABLE_ENTITY
     };
     let mut res = render(&AllowPage {
-        header: RepoHeader::load(state, a, subject, "code").await,
+        header: RepoHeader::load(state, a, subject, "push").await,
         fingerprint,
         rule,
         days: ALLOWANCE_DAYS.to_vec(),
@@ -207,7 +207,7 @@ async fn show_accept(
     let a = access(&state, &subject, &ns, &repo, Action::RepoSettings).await?;
     let findings = state.services.first_push_findings(&subject, &a, id).await?;
     Ok(render(&AcceptPage {
-        header: RepoHeader::load(&state, &a, &subject, "code").await,
+        header: RepoHeader::load(&state, &a, &subject, "push").await,
         id,
         findings,
         ctx,

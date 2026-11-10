@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) => {
   await signIn(page, USERS.alice);
@@ -12,8 +12,7 @@ test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) 
   await tapOrClick(page, page.getByRole("button", { name: "Create repository" }));
   await expect(page.getByRole("heading", { name: "This repository is empty" })).toBeVisible();
   await expectAccessible(page);
-  const repoNav = page.getByRole("navigation", { name: "Repository" });
-  await tapOrClick(page, repoNav.getByRole("link", { name: "Settings" }));
+  await tapOrClick(page, (await sideMenu(page, "Repository")).getByRole("link", { name: "Settings" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("General");
   await expectAccessible(page);
   for (const section of ["Access", "Branch protection", "Danger zone"]) {

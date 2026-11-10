@@ -42,6 +42,19 @@ export async function expectAccessible(page: Page): Promise<void> {
   ).toEqual([]);
 }
 
+/**
+ * The side menu named `name` (Repository, Settings, Administration, …),
+ * opened first where it's a closed drawer (narrow screens).
+ */
+export async function sideMenu(page: Page, name: string): Promise<Locator> {
+  const menu = page.getByRole("navigation", { name, exact: true });
+  if (!(await menu.isVisible())) {
+    await tapOrClick(page, page.getByRole("button", { name: "Side menu" }));
+    await expect(menu).toBeVisible();
+  }
+  return menu;
+}
+
 /** Taps on touch projects and clicks otherwise. */
 export async function tapOrClick(_page: Page, target: Locator): Promise<void> {
   if (base.info().project.use.hasTouch) {

@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, editor, write, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, editor, expect, expectAccessible, sideMenu, signIn, tapOrClick, test, write } from "../fixtures";
 
 test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   test.slow();
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo");
-  await tapOrClick(page, page.getByRole("navigation", { name: "Repository" }).getByRole("link", { name: "Issues" }));
+  await tapOrClick(page, (await sideMenu(page, "Repository")).getByRole("link", { name: "Issues" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Issues");
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("link", { name: "New issue" }));

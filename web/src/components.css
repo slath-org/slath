@@ -539,7 +539,6 @@ fieldset.field {
 /* Repository header and tabs */
 .repo-header {
   margin: 0 0 var(--space-4);
-  border-bottom: var(--border-width) solid var(--border);
 }
 /* Breadcrumb on the left; repository-wide actions (Watch, …) on the
    right of the same row, wrapping below it on narrow screens. */
@@ -586,9 +585,14 @@ fieldset.field {
 .repo-title .badge + .badge {
   margin-inline-start: var(--space-1);
 }
+/* Tabs: the sections inside an area, in a row with a rule below. */
+.tabs {
+  margin: 0 0 var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
+}
 .tabs ul {
   list-style: none;
-  margin: 0;
+  margin: 0 0 calc(-1 * var(--border-width));
   padding: 0;
   display: flex;
   flex-wrap: wrap;
@@ -597,6 +601,7 @@ fieldset.field {
 .tabs a {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: max(var(--row-height), var(--target-min));
   padding: 0 var(--space-3);
   color: var(--text);

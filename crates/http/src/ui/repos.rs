@@ -93,7 +93,8 @@ pub struct RepoHeader {
     pub issues: bool,
     /// The repository has merge requests.
     pub merge_requests: bool,
-    /// Which tab is active: `code`, `issues`, `settings`, ….
+    /// The page's section: `code` (files), `commits`, `branches`, `tags`,
+    /// `forks`, `fork`, `push`, `issues`, `merge-requests`, or `settings`.
     pub tab: &'static str,
     /// The viewer's subscription (`watching`, `ignoring`, `default`), shown
     /// to signed-in viewers on every repository page.
@@ -128,6 +129,16 @@ pub struct ImportView {
 }
 
 impl RepoHeader {
+    /// The side menu's area the page belongs to: `code`, `issues`,
+    /// `merge-requests`, or `settings`.
+    #[must_use]
+    pub fn area(&self) -> &'static str {
+        match self.tab {
+            "issues" | "merge-requests" | "settings" => self.tab,
+            _ => "code",
+        }
+    }
+
     /// The parent a merge request from this fork goes to, if the viewer
     /// can open one there.
     pub fn contribute_to(&self) -> Option<&str> {

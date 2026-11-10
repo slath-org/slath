@@ -63,7 +63,7 @@ async fn fork_page(
         .await?;
     let forks = state.services.list_forks(&s.subject, &a).await?.len();
     Ok(render(&ForkPage {
-        header: RepoHeader::load(&state, &a, &s.subject, "code").await,
+        header: RepoHeader::load(&state, &a, &s.subject, "fork").await,
         namespaces: creatable_namespaces(&state, &s).await?,
         selected: s.row.user_name.clone(),
         name: a.repo.name.clone(),
@@ -119,7 +119,7 @@ async fn fork_submit(
                 .await?;
             let forks = state.services.list_forks(&s.subject, &a).await?.len();
             let mut res = render(&ForkPage {
-                header: RepoHeader::load(&state, &a, &s.subject, "code").await,
+                header: RepoHeader::load(&state, &a, &s.subject, "fork").await,
                 namespaces: creatable_namespaces(&state, &s).await?,
                 selected: f.namespace,
                 name: f.name,
@@ -177,7 +177,7 @@ async fn forks_page(
         })
         .collect();
     Ok(render(&ForksPage {
-        header: RepoHeader::load(&state, &a, &subject, "code").await,
+        header: RepoHeader::load(&state, &a, &subject, "forks").await,
         rows,
         ctx,
     }))
@@ -239,7 +239,7 @@ async fn sync_page(
     };
     let compare = state.services.fork_compare(&s.subject, &a, &branch).await?;
     Ok(render(&SyncPage {
-        header: RepoHeader::load(&state, &a, &s.subject, "code").await,
+        header: RepoHeader::load(&state, &a, &s.subject, "fork").await,
         compare,
         ctx,
     }))

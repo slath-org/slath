@@ -1,0 +1,13 @@
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+{%- call m::side_menu(ctx, "Repository", "Repository", header.namespace ~ " / " ~ header.name, base) %}
+{%- call m::side_item(ctx, base, "code", "Code", header.area() == "code") %}{% endcall %}
+{%- if header.issues %}
+{%- call m::side_item(ctx, base ~ "/issues", "circle-dot", "Issues", header.area() == "issues") %}{% endcall %}
+{%- endif %}
+{%- if header.merge_requests %}
+{%- call m::side_item(ctx, base ~ "/merge-requests", "git-pull-request", "Merge requests", header.area() == "merge-requests") %}{% endcall %}
+{%- endif %}
+{%- if header.can_admin %}
+{%- call m::side_item(ctx, base ~ "/settings/general", "settings", "Settings", header.area() == "settings") %}{% endcall %}
+{%- endif %}
+{%- endcall %}
