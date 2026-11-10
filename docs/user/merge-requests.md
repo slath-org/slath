@@ -237,6 +237,27 @@ conflicting files and the commands that resolve them with Git or jj.
 The API merges with `POST …/merge-requests/{n}/merge` and
 `{"strategy": "rebase", "expected_head_oid": "<head you reviewed>"}`.
 
+## Merge when ready
+
+While a requirement is still missing (an approval, a check, a resolved
+thread), people who can merge can choose **Merge when ready** with a
+strategy instead. The merge request then merges as them as soon as the
+last requirement is met: when a check passes, a review approves, a thread
+is resolved, it's marked ready, or the target moves. It merges once, and
+a notice in the merge box says who set it.
+
+It's cancelled when someone other than the person who set it pushes a
+new revision (their own pushes keep it), when the merge request is
+closed, and with **Cancel merge when ready**, which the setter, the
+author, and anyone who can merge may use. If the merge itself fails, for
+example on a conflict, the timeline says why. The person who set it gets
+a notification when it merged, failed, or was cancelled.
+
+The API sets it with `PUT …/merge-requests/{n}/auto-merge` and
+`{"strategy": "rebase"}` (or `{}` for the repository's default), and
+cancels it with `DELETE` on the same path; merge requests show it as
+`auto_merge`.
+
 ## Updating the branch
 
 When the target has commits the branch doesn't, the merge box offers

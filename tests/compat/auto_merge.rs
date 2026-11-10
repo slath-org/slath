@@ -188,11 +188,13 @@ fn conf_review_09_merge_when_ready_merges_once_and_cancels_on_a_foreign_push() {
     eventually(&s, "not cancelled by alice's push", || {
         mr(&s, &alice, n)["auto_merge"].is_null()
     });
-    assert_eq!(
-        s.db.query_one(
-            "SELECT data->>'reason' FROM timeline_events WHERE kind = 'auto_merge_cancelled'"
-        ),
-        "push"
+    let page = s
+        .login("bob", PASSWORD)
+        .get(&format!("/alice/demo/merge-requests/{n}"))
+        .body;
+    assert!(
+        page.contains("cancelled merging when ready by pushing a new revision"),
+        "{page}"
     );
     eventually(&s, "bob not told", || auto_merge_notices(&s, "bob") == 1);
 
@@ -221,4 +223,55 @@ fn conf_review_09_merge_when_ready_merges_once_and_cancels_on_a_foreign_push() {
     eventually(&s, "not merged after the approval", || {
         mr(&s, &alice, n)["state"] == "merged"
     });
+}
+
+#[test]
+fn conf_review_09_merge_when_ready_in_the_ui() {
+    let s = TestServer::start();
+    let alice = token(&s, "alice");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let url = s.url(&DEMO);
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/alice/demo/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    git.ok(&w, &["switch", "-q", "-c", "topic"]);
+    commit(&git, &w, "a.txt");
+    git.ok(&w, &["push", "-q", &url, "topic"]);
+    let (n, _) = open(&s, &alice, "topic", "main");
+    let page = format!("/alice/demo/merge-requests/{n}");
+    let mut web = s.login("alice", PASSWORD);
+    let body = web.get(&page).body;
+    assert!(body.contains(">Merge when ready</button>"), "{body}");
+    let r = slath_tests::http::submit(
+        &mut web,
+        &page,
+        &format!("{page}/auto-merge"),
+        &[("strategy", "rebase")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let body = web.get(&format!("{page}?status=auto_merge")).body;
+    assert!(
+        body.contains("It merges (rebase) as soon as every requirement is met."),
+        "{body}"
+    );
+    assert!(
+        body.contains("set this to merge when ready (rebase)"),
+        "{body}"
+    );
+    let r = slath_tests::http::submit(&mut web, &page, &format!("{page}/auto-merge/cancel"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    let body = web.get(&page).body;
+    assert!(body.contains(">Merge when ready</button>"), "{body}");
+    assert!(body.contains("cancelled merging when ready"), "{body}");
 }

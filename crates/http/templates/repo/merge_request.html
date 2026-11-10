@@ -191,6 +191,31 @@
     <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button></div>
   </form>
   {%- endif %}
+  {%- if let Some(am) = auto_merge %}
+  {%- if let Some((strategy, by)) = am.set %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/auto-merge/cancel" class="notice auto-merge" id="auto-merge">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <p>{% call m::icon(ctx, "clock") %}{% endcall %}It merges ({{ strategy|lower }}) as soon as every requirement is met. Set by <strong>{{ by }}</strong>; a new revision pushed by anyone else cancels it.</p>
+    {%- if am.may_cancel %}
+    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Cancel merge when ready</button></div>
+    {%- endif %}
+  </form>
+  {%- else %}
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/auto-merge" class="form merge-form" id="auto-merge" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <div class="field">
+      <label for="auto-strategy">Merge with</label>
+      <select id="auto-strategy" name="strategy">
+        {%- for (value, label) in am.strategies %}
+        <option value="{{ value }}">{{ label }}</option>
+        {%- endfor %}
+      </select>
+    </div>
+    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "clock") %}{% endcall %}Merge when ready</button></div>
+    <p class="text-secondary">It merges as you as soon as every requirement is met.</p>
+  </form>
+  {%- endif %}
+  {%- endif %}
   {%- if let Some(e) = self.error("merge") %}
   <div class="error-summary" role="alert" id="merge"><p>{{ e }}</p></div>
   {%- endif %}

@@ -820,6 +820,25 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             "deleted the source branch, which closed this".to_owned(),
         ),
         "source_restored" => ("git-branch", "restored the source branch".to_owned()),
+        "auto_merge_set" => (
+            "clock",
+            format!(
+                "set this to merge when ready ({})",
+                strategy_label(&str_of("strategy")).to_lowercase()
+            ),
+        ),
+        "auto_merge_cancelled" => (
+            "clock",
+            match str_of("reason").as_str() {
+                "push" => "cancelled merging when ready by pushing a new revision".to_owned(),
+                "closed" => "cancelled merging when ready by closing this".to_owned(),
+                "failed" => format!("couldn't merge this when ready: {}", str_of("detail")),
+                "no_permission" => {
+                    "cancelled merging when ready: its setter can no longer merge".to_owned()
+                }
+                _ => "cancelled merging when ready".to_owned(),
+            },
+        ),
         "branch_updated" if str_of("method") == "rebase" => (
             "refresh-cw",
             format!(
@@ -1302,6 +1321,7 @@ struct MrPage {
     /// they're looking at, and whether the source goes after merging.
     merge_form: Option<MergeForm>,
     update_form: Option<UpdateForm>,
+    auto_merge: Option<AutoMergeView>,
     /// Commands for Git and jj that resolve conflicts with the target.
     conflict_commands: Option<(String, String)>,
 }
@@ -1310,6 +1330,16 @@ struct MergeForm {
     strategies: Vec<(String, &'static str)>,
     head: String,
     delete_source: bool,
+}
+
+/// Merge when ready: the form while it isn't set, or what is set.
+struct AutoMergeView {
+    /// Set: strategy label and who set it.
+    set: Option<(&'static str, String)>,
+    /// The viewer may cancel it.
+    may_cancel: bool,
+    /// Not set: the strategies to choose from (default first).
+    strategies: Vec<(String, &'static str)>,
 }
 
 /// Updating a branch that's behind its target.
@@ -1675,6 +1705,33 @@ async fn mr_page_showing(
     } else {
         None
     };
+    let auto_merge = match state.services.mr_auto_merge(&m).await? {
+        Some(am) if open => Some(AutoMergeView {
+            may_cancel: state
+                .services
+                .may_cancel_auto_merge(subject, &a, &m, &am)
+                .await,
+            set: Some((
+                strategy_label(&am.strategy),
+                am.by.unwrap_or_else(|| "A deleted user".to_owned()),
+            )),
+            strategies: Vec::new(),
+        }),
+        None if open && !h.card.mergeable && a.can(subject, Action::MrAutoMerge) => {
+            let (allowed, default) = state.services.mr_merge_settings(&a).await?;
+            let mut strategies: Vec<(String, &'static str)> = allowed
+                .iter()
+                .map(|x| (x.clone(), strategy_label(x)))
+                .collect();
+            strategies.sort_by_key(|(x, _)| *x != default);
+            Some(AutoMergeView {
+                set: None,
+                may_cancel: false,
+                strategies,
+            })
+        }
+        _ => None,
+    };
     let update_form =
         (open && !h.card.up_to_date && state.services.may_update_branch(subject, &a, &m).await)
             .then(|| UpdateForm {
@@ -1709,6 +1766,7 @@ async fn mr_page_showing(
         statuses,
         merge_form,
         update_form,
+        auto_merge,
         conflict_commands,
         message,
         errors,
@@ -1742,6 +1800,8 @@ async fn view(
         Some("reviewers") => Some("Reviewers saved."),
         Some("merged") => Some("Merged."),
         Some("updated") => Some("Branch updated."),
+        Some("auto_merge") => Some("It merges when it's ready."),
+        Some("auto_merge_cancelled") => Some("Merge when ready cancelled."),
         _ => None,
     };
     let show = match q.show.as_deref() {
@@ -2779,6 +2839,57 @@ async fn merge(
 }
 
 #[derive(Deserialize)]
+struct AutoMergeForm {
+    #[serde(default)]
+    strategy: String,
+}
+
+async fn set_auto_merge(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(f): Form<AutoMergeForm>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    match state
+        .services
+        .set_auto_merge(&s.subject, (&ns, &repo, n), Some(f.strategy.as_str()))
+        .await
+    {
+        Ok(m) if m.state == "merged" => {
+            Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=merged")).into_response())
+        }
+        Ok(_) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=auto_merge")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(ServiceError::Conflict(why)) => {
+            let errors = vec![FieldError {
+                field: "merge".into(),
+                code: "conflict".into(),
+                message: why,
+            }];
+            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn cancel_auto_merge(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    state
+        .services
+        .cancel_auto_merge(&s.subject, (&ns, &repo, n))
+        .await?;
+    Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=auto_merge_cancelled")).into_response())
+}
+
+#[derive(Deserialize)]
 struct UpdateBranchForm {
     #[serde(default)]
     method: String,
@@ -3168,6 +3279,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/merge",
             Access::Resource,
             post(merge),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/auto-merge",
+            Access::Resource,
+            post(set_auto_merge),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/auto-merge/cancel",
+            Access::Resource,
+            post(cancel_auto_merge),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/update-branch",
