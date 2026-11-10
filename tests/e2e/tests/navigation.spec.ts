@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// The navigation levels: the side menu of a context and tabs for the
-// sections of an area.
+// The navigation levels: the side menu of a context, tabs for the sections
+// of an area, and a menu for the views of a list.
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_a11y_04_side_menu_collapses_or_opens_as_a_drawer", async ({ page }) => {
@@ -57,4 +57,18 @@ test("conf_a11y_04_sections_of_an_area_are_tabs", async ({ page }) => {
   await expect(code.getByRole("link", { name: "Commits" })).toHaveAttribute("aria-current", "page");
   await tapOrClick(page, code.getByRole("link", { name: "Branches" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Branches");
+});
+
+test("conf_a11y_04_views_of_a_list_are_a_menu", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/issues");
+  const view = page.locator("summary", { hasText: "State:" });
+  await expect(view).toContainText("Open");
+  await tapOrClick(page, view);
+  const views = page.getByRole("list", { name: "State" });
+  await expect(views.getByRole("link", { name: /^Open/ })).toHaveAttribute("aria-current", "page");
+  await expectAccessible(page);
+  await tapOrClick(page, views.getByRole("link", { name: /^Closed/ }));
+  await expect(page).toHaveURL(/state=closed/);
+  await expect(page.locator("summary", { hasText: "State:" })).toContainText("Closed");
 });

@@ -26,6 +26,7 @@
        administration, or your work) and its areas, on the start side. It
        collapses on wide screens and opens as a drawer on narrow ones.
     2. tabs: the sections inside an area (Files, Commits, Branches, Tags).
+    3. view_menu: views of one list (Open, Closed, All), as a menu.
     Deeper levels don't get navigation of their own. -#}
 {%- macro side_menu(ctx, label, kind, title, href) -%}
 <nav class="app-sidebar" id="app-sidebar" aria-label="{{ label }}">
@@ -55,4 +56,18 @@
 {#- One tab; a non-empty `count` follows the label. -#}
 {%- macro tab(href, label, current, count) -%}
 <li><a href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ label }}{% if !count.is_empty() %} <span class="count">{{ count }}</span>{% endif %}</a></li>
+{%- endmacro -%}
+{#- Views of one list as a menu; the button names the view shown. The body
+    is its view_item calls. -#}
+{%- macro view_menu(ctx, label, current) -%}
+<details class="menu view-menu">
+  <summary class="button"><span class="view-menu-label">{{ label }}:</span> {{ current }}{% call icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <ul class="menu-panel" aria-label="{{ label }}">
+{{ caller() }}
+  </ul>
+</details>
+{%- endmacro -%}
+{#- One view in a view_menu; a non-empty `count` follows the label. -#}
+{%- macro view_item(href, label, current, count) -%}
+<li><a class="menu-item" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ label }}{% if !count.is_empty() %} <span class="count">{{ count }}</span>{% endif %}</a></li>
 {%- endmacro -%}

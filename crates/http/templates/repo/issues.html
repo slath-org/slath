@@ -52,13 +52,11 @@
     </div>
   </form>
 </details>
-<nav class="tabs" aria-label="Issue state">
-  <ul>
-    <li><a href="?state=open{{ query }}"{% if state == "open" %} aria-current="page"{% endif %}>Open <span class="count">{{ open }}</span></a></li>
-    <li><a href="?state=closed{{ query }}"{% if state == "closed" %} aria-current="page"{% endif %}>Closed <span class="count">{{ closed }}</span></a></li>
-    <li><a href="?state=all{{ query }}"{% if state == "all" %} aria-current="page"{% endif %}>All</a></li>
-  </ul>
-</nav>
+{%- call m::view_menu(ctx, "State", state|capitalize) %}
+{%- call m::view_item("?state=open" ~ query, "Open", state == "open", open.to_string()) %}{% endcall %}
+{%- call m::view_item("?state=closed" ~ query, "Closed", state == "closed", closed.to_string()) %}{% endcall %}
+{%- call m::view_item("?state=all" ~ query, "All", state == "all", "") %}{% endcall %}
+{%- endcall %}
 {%- if issues.is_empty() %}
 <p class="text-secondary empty-state">{% if filtered %}No issues match these filters.{% else if state == "closed" %}No closed issues.{% else if state == "all" %}No issues yet.{% else %}No open issues.{% endif %}</p>
 {%- else %}

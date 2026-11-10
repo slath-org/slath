@@ -195,9 +195,9 @@ new revision.
 
 In the conversation, each thread shows the code it's about, its replies,
 and whether it's outdated or resolved. **Reply** sends an answer right
-away; **Add to my review** keeps it pending. **All**, **Unresolved**, and
-**Mine** above the timeline narrow the conversation to open threads or to
-what you wrote.
+away; **Add to my review** keeps it pending. The **Show** menu above the
+timeline narrows the conversation to **Unresolved** threads or to what you
+wrote (**Mine**).
 
 The API has `GET …/merge-requests/{n}/threads` (with each thread's current
 position), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,

@@ -11,12 +11,11 @@
   </form>
   {%- endif %}
 </div>
-<nav class="tabs" aria-label="Notifications">
-  <ul>
-    <li><a href="/-/notifications"{% if !all %} aria-current="page"{% endif %}>Unread</a></li>
-    <li><a href="/-/notifications?all=true"{% if all %} aria-current="page"{% endif %}>All</a></li>
-  </ul>
-</nav>
+{%- let view %}{% if all %}All{% else %}Unread{% endif %}{% endlet %}
+{%- call m::view_menu(ctx, "Show", view) %}
+{%- call m::view_item("/-/notifications", "Unread", !all, "") %}{% endcall %}
+{%- call m::view_item("/-/notifications?all=true", "All", all, "") %}{% endcall %}
+{%- endcall %}
 {%- if rows.is_empty() %}
 <p class="text-secondary empty-state">{% if all %}No notifications yet. You get them about issues and merge requests you take part in, are mentioned in, or watch.{% else %}You're all caught up.{% endif %}</p>
 {%- else %}

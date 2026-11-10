@@ -179,7 +179,8 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await expect(seeded().getByRole("region", { name: "Code at review.md, line 1" })).toContainText("Second draft.");
   await expectAccessible(page);
   // The filter narrows the conversation to unresolved threads.
-  await tapOrClick(page, page.getByRole("navigation", { name: "Show in the conversation" }).getByRole("link", { name: /Unresolved/ }));
+  await tapOrClick(page, page.locator("summary", { hasText: "Show:" }));
+  await tapOrClick(page, page.getByRole("list", { name: "Show" }).getByRole("link", { name: /Unresolved/ }));
   await expect(page).toHaveURL(/show=unresolved/);
   await expect(seeded()).toBeVisible();
   await expect(page.getByRole("article", { name: "Description" })).toBeVisible();

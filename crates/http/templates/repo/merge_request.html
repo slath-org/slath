@@ -27,15 +27,14 @@
 <div class="issue-layout">
 <div class="issue-main">
 <div class="timeline-tools">
-  <nav class="tabs" aria-label="Show in the conversation">
-    <ul>
-      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}"{% if show == "all" %} aria-current="page"{% endif %}>All</a></li>
-      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=unresolved"{% if show == "unresolved" %} aria-current="page"{% endif %}>Unresolved <span class="count">{{ unresolved }}</span></a></li>
-      {%- if ctx.user.is_some() %}
-      <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}?show=mine"{% if show == "mine" %} aria-current="page"{% endif %}>Mine</a></li>
-      {%- endif %}
-    </ul>
-  </nav>
+  {%- let here = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
+  {%- call m::view_menu(ctx, "Show", show|capitalize) %}
+  {%- call m::view_item(here, "All", show == "all", "") %}{% endcall %}
+  {%- call m::view_item(here ~ "?show=unresolved", "Unresolved", show == "unresolved", unresolved.to_string()) %}{% endcall %}
+  {%- if ctx.user.is_some() %}
+  {%- call m::view_item(here ~ "?show=mine", "Mine", show == "mine", "") %}{% endcall %}
+  {%- endif %}
+  {%- endcall %}
   <a href="#timeline-end">Jump to newest</a>
 </div>
 <ol class="timeline">

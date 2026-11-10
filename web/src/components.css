@@ -339,6 +339,27 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
   }
 }
 
+/* Views of one list (Open, Closed, All) as a menu. */
+.view-menu .menu-panel {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  list-style: none;
+  margin-block: var(--space-1) 0;
+}
+.view-menu-label {
+  color: var(--text-secondary);
+  font-weight: var(--weight-regular);
+}
+.menu-item[aria-current="page"] {
+  background: var(--selection);
+  font-weight: var(--weight-semibold);
+}
+.menu-item .count {
+  margin-inline-start: auto;
+}
+.view-menu {
+  margin-block-end: var(--space-3);
+}
 
 /* Tables */
 .table-wrap {
