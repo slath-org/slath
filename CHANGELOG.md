@@ -87,6 +87,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge box offers Merge when ready while a requirement is missing, and once it's set, shows who set it with a button to cancel.
 - The merge box shows each action (update the branch, merge, merge when ready, resolving conflicts) as its own titled group.
 - Alternatives show one at a time behind a choice: Git or jj commands, HTTPS or SSH clone URLs; the browser remembers the choice.
+- Deploy keys: per-repository SSH keys, read-only or allowed to push, that reach only their own repository; managed by repository admins through the API.
 
 ### Changed
 

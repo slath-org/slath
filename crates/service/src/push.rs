@@ -111,7 +111,20 @@ impl Services {
         }
         let Some(k) = slath_db::ssh_keys::find_by_fingerprint(&self.pool, fingerprint).await?
         else {
-            return Ok(None);
+            // A repository's deploy key, while its repository is usable.
+            let Some(d) =
+                slath_db::ssh_keys::find_deploy_key(&self.pool, Some(fingerprint), None).await?
+            else {
+                return Ok(None);
+            };
+            if !self.deploy_key_usable(&d).await? {
+                return Ok(None);
+            }
+            return Ok(Some(SshKeyGrant {
+                key_id: d.id,
+                key_type: d.key_type,
+                key_base64: d.public_key,
+            }));
         };
         if k.user_state != UserState::Active {
             return Ok(None);
@@ -127,7 +140,20 @@ impl Services {
     /// unusable keys). Records the key's use.
     pub async fn ssh_subject(&self, key_id: SshKeyId) -> Result<Option<Subject>> {
         let Some(k) = slath_db::ssh_keys::find_by_id(&self.pool, key_id).await? else {
-            return Ok(None);
+            let Some(d) =
+                slath_db::ssh_keys::find_deploy_key(&self.pool, None, Some(key_id)).await?
+            else {
+                return Ok(None);
+            };
+            if !self.deploy_key_usable(&d).await? {
+                return Ok(None);
+            }
+            slath_db::ssh_keys::touch(&self.pool, key_id).await?;
+            return Ok(Some(Subject::DeployKey {
+                id: key_id,
+                repo_id: d.repo_id,
+                write: d.can_push,
+            }));
         };
         if k.user_state != UserState::Active {
             return Ok(None);
@@ -141,6 +167,14 @@ impl Services {
             is_site_admin,
             credential: Credential::SshKey { id: key_id },
         }))
+    }
+
+    /// A deploy key works while its repository exists and isn't being
+    /// deleted or locked (authorization says the rest).
+    async fn deploy_key_usable(&self, d: &slath_db::ssh_keys::DeployKeyRow) -> Result<bool> {
+        Ok(slath_db::repos::get(&self.pool, d.repo_id)
+            .await?
+            .is_some_and(|r| matches!(r.state, RepoState::Active | RepoState::Archived)))
     }
 
     /// Authorizes a Git transport request: reading needs `repo.read`,

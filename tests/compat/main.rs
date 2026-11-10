@@ -7,6 +7,7 @@
 mod auto_merge;
 mod change_identity;
 mod cross_references;
+mod deploy_keys;
 mod fork_merge_requests;
 mod forks;
 mod git_http;

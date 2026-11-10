@@ -79,6 +79,12 @@ impl Services {
             Subject::User { id, .. } => Some(*id.as_uuid()),
             _ => None,
         };
+        // A deploy key has no account: the event names the key.
+        let mut data = data;
+        if let (Subject::DeployKey { id, .. }, serde_json::Value::Object(map)) = (actor, &mut data)
+        {
+            map.insert("deploy_key".to_owned(), serde_json::json!(id.to_string()));
+        }
         let ip = CLIENT_IP.try_with(Clone::clone).ok().flatten();
         let event = slath_db::audit::NewEvent {
             actor_id,

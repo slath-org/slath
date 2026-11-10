@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT k.id, k.user_id, k.title, k.key_type, k.public_key, k.fingerprint_sha256, k.last_used_at, k.created_at,\n                u.kind, u.state, u.is_admin\n         FROM ssh_keys k JOIN users u ON u.id = k.user_id\n         WHERE k.id = $1",
+  "query": "SELECT k.id, k.user_id AS \"user_id!\", k.title, k.key_type, k.public_key, k.fingerprint_sha256, k.last_used_at, k.created_at,\n                u.kind, u.state, u.is_admin\n         FROM ssh_keys k JOIN users u ON u.id = k.user_id\n         WHERE k.fingerprint_sha256 = $1",
   "describe": {
     "columns": [
       {
@@ -16,7 +16,7 @@
       },
       {
         "ordinal": 1,
-        "name": "user_id",
+        "name": "user_id!",
         "type_info": "Uuid",
         "origin": {
           "Table": {
@@ -127,12 +127,12 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
       false,
-      false,
+      true,
       false,
       false,
       false,
@@ -144,5 +144,5 @@
       false
     ]
   },
-  "hash": "7acbc7f4637914dd2bffc03d72e282f867efb157c8d51635e1f3e17656fa5a3e"
+  "hash": "645b3bcd87842c044b1a125867c9d63bb3051559c1c977385c6e6ccd67e3aa7c"
 }

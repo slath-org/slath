@@ -16,6 +16,7 @@ pub mod avatars;
 pub mod bgmigrations;
 pub mod blobs;
 pub mod cross_refs;
+pub mod deploy_keys;
 pub mod email;
 pub mod error;
 pub mod forks;

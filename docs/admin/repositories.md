@@ -132,6 +132,28 @@ A refused push changes nothing: no ref moves and nothing is recorded. Tags
 aren't affected by branch rules (moving or deleting a tag needs the
 maintain role). Changes to rules are recorded in the audit log.
 
+## Deploy keys
+
+A deploy key is an SSH key of one repository, for a machine rather than a
+person: a build server that clones, or a deployment that pushes. Admins of
+the repository add them; with a token, use `repo:write`:
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" -d '{"key": "ssh-ed25519 AAAA… deploy@ci", "can_push": false}' \
+  https://slath.example/api/v1/repos/alice/demo/keys
+```
+
+- A key is **read-only** unless `can_push` is set. With it, the key pushes
+  like a writer: branch protection applies, it can add tags but not move or
+  delete them, and it never changes settings.
+- A key reaches **its repository only**. Every other repository, public
+  ones and forks of this one included, answers "repository not found".
+- A key belongs to exactly one person or repository: one already in use
+  anywhere is refused without saying where. Generate a key per repository.
+- `GET …/keys` lists them with their last use, and `DELETE …/keys/{id}`
+  removes one; the next connection with it fails. Adding and removing are
+  in the audit log, and actions taken with a key name it there.
+
 ## Issues
 
 Every repository has issues unless they are turned off. Issues and merge

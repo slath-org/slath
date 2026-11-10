@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, user_id, title, key_type, public_key, fingerprint_sha256, last_used_at, created_at\n         FROM ssh_keys WHERE user_id = $1 ORDER BY created_at DESC LIMIT 500",
+  "query": "SELECT k.id, k.repo_id AS \"repo_id!\", k.title, k.key_type, k.public_key, k.fingerprint_sha256,\n                  k.can_push, NULL::text AS added_by, k.last_used_at, k.created_at\n           FROM ssh_keys k\n           WHERE k.repo_id IS NOT NULL\n             AND (k.fingerprint_sha256 = $1 OR k.id = $2)",
   "describe": {
     "columns": [
       {
@@ -16,12 +16,12 @@
       },
       {
         "ordinal": 1,
-        "name": "user_id",
+        "name": "repo_id!",
         "type_info": "Uuid",
         "origin": {
           "Table": {
             "table": "ssh_keys",
-            "name": "user_id"
+            "name": "repo_id"
           }
         }
       },
@@ -71,6 +71,23 @@
       },
       {
         "ordinal": 6,
+        "name": "can_push",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "ssh_keys",
+            "name": "can_push"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "added_by",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
         "name": "last_used_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -81,7 +98,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -94,19 +111,22 @@
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Uuid"
       ]
     },
     "nullable": [
       false,
+      true,
       false,
       false,
       false,
       false,
       false,
+      null,
       true,
       false
     ]
   },
-  "hash": "85f2329e840b56ce17b771ee47c830b8d4b661f0cdc90efd1f8ffa78ef7ef5ef"
+  "hash": "66e6e418e339067791857ef57bb422afaa0132a2df17691adebd770b8131e9cd"
 }

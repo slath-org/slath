@@ -797,6 +797,101 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
     }
 }
 
+/// A deploy key: an SSH key of this repository for machines.
+#[derive(Serialize, ToSchema)]
+pub struct DeployKey {
+    pub id: String,
+    pub title: String,
+    pub key_type: String,
+    /// `SHA256:` fingerprint as `ssh-keygen -l` prints it.
+    pub fingerprint: String,
+    /// It may push; otherwise it only reads.
+    pub can_push: bool,
+    /// Who added it (`None` once their account is gone).
+    pub added_by: Option<String>,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+}
+
+impl From<slath_db::ssh_keys::DeployKeyRow> for DeployKey {
+    fn from(k: slath_db::ssh_keys::DeployKeyRow) -> Self {
+        Self {
+            id: k.id.to_string(),
+            title: k.title,
+            key_type: k.key_type,
+            fingerprint: k.fingerprint,
+            can_push: k.can_push,
+            added_by: k.added_by,
+            created_at: ts(k.created_at),
+            last_used_at: k.last_used_at.map(ts),
+        }
+    }
+}
+
+/// The repository's deploy keys (admins).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/keys", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    responses((status = 200, body = Vec<DeployKey>), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn list_deploy_keys(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+) -> Result<Json<Vec<DeployKey>>, AppError> {
+    let (_, keys) = state.services.deploy_keys(&s, &ns, &repo).await?;
+    Ok(Json(keys.into_iter().map(Into::into).collect()))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct NewDeployKey {
+    /// Defaults to the key's comment.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// One `authorized_keys` line: `<type> <base64> [comment]`.
+    #[serde(default)]
+    pub key: String,
+    /// Allow pushing; default: read-only.
+    #[serde(default)]
+    pub can_push: bool,
+}
+
+/// Adds a deploy key (admins). A key already in use by anyone is refused.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/keys", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = NewDeployKey,
+    responses((status = 201, body = DeployKey), (status = 401, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn add_deploy_key(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    Json(k): Json<NewDeployKey>,
+) -> Result<Response, AppError> {
+    let key = state
+        .services
+        .add_deploy_key(
+            &s,
+            false,
+            (&ns, &repo),
+            k.title.as_deref().unwrap_or(""),
+            &k.key,
+            k.can_push,
+        )
+        .await?;
+    Ok((StatusCode::CREATED, Json(DeployKey::from(key))).into_response())
+}
+
+/// Removes a deploy key (admins).
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/keys/{id}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn remove_deploy_key(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .remove_deploy_key(&s, false, (&ns, &repo), id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// A repository's branch protection rules (admins).
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/protections", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
     responses((status = 200, body = Vec<ProtectionRule>), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
@@ -1129,6 +1224,16 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/collaborators",
             Access::Resource,
             get(list_collaborators),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/keys",
+            Access::Resource,
+            get(list_deploy_keys).post(add_deploy_key),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/keys/{id}",
+            Access::Resource,
+            axum::routing::delete(remove_deploy_key),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/protections",

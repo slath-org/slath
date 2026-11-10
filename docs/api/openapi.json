@@ -2758,6 +2758,215 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/keys": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "The repository's deploy keys (admins).",
+        "operationId": "list_deploy_keys",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeployKey"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Adds a deploy key (admins). A key already in use by anyone is refused.",
+        "operationId": "add_deploy_key",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDeployKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/keys/{id}": {
+      "delete": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Removes a deploy key (admins).",
+        "operationId": "remove_deploy_key",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/labels": {
       "get": {
         "tags": [
@@ -6900,6 +7109,53 @@
           }
         }
       },
+      "DeployKey": {
+        "type": "object",
+        "description": "A deploy key: an SSH key of this repository for machines.",
+        "required": [
+          "id",
+          "title",
+          "key_type",
+          "fingerprint",
+          "can_push",
+          "created_at"
+        ],
+        "properties": {
+          "added_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who added it (`None` once their account is gone)."
+          },
+          "can_push": {
+            "type": "boolean",
+            "description": "It may push; otherwise it only reads."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "`SHA256:` fingerprint as `ssh-keygen -l` prints it."
+          },
+          "id": {
+            "type": "string"
+          },
+          "key_type": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "Fork": {
         "type": "object",
         "required": [
@@ -7864,6 +8120,26 @@
             ],
             "format": "int32",
             "description": "The current revision; null before the first."
+          }
+        }
+      },
+      "NewDeployKey": {
+        "type": "object",
+        "properties": {
+          "can_push": {
+            "type": "boolean",
+            "description": "Allow pushing; default: read-only."
+          },
+          "key": {
+            "type": "string",
+            "description": "One `authorized_keys` line: `<type> <base64> [comment]`."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Defaults to the key's comment."
           }
         }
       },

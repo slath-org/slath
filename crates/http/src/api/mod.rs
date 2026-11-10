@@ -157,6 +157,7 @@ impl utoipa::Modify for SecurityAddon {
         repos::list_branches, repos::list_tags, repos::list_commits, repos::get_commit, repos::get_tree, repos::get_blob,
         repos::list_collaborators, repos::put_collaborator, repos::delete_collaborator,
         repos::list_protections, repos::post_protection, repos::delete_protection,
+        repos::list_deploy_keys, repos::add_deploy_key, repos::remove_deploy_key,
         issues::list_issues, issues::create_issue, issues::get_issue, issues::update_issue,
         issues::list_comments, issues::create_comment, issues::update_comment, issues::delete_comment,
         merge_requests::list_mrs, merge_requests::create_mr, merge_requests::get_mr, merge_requests::update_mr,

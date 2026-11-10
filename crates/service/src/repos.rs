@@ -125,6 +125,14 @@ impl Services {
                 ..
             } => (*id, *is_site_admin),
             Subject::System => return Ok(Some(Role::Admin)),
+            // A deploy key has its role on its own repository only.
+            Subject::DeployKey { repo_id, write, .. } => {
+                return Ok((*repo_id == repo.id).then_some(if *write {
+                    Role::Write
+                } else {
+                    Role::Read
+                }));
+            }
             _ => return Ok(None),
         };
         if site_admin {
