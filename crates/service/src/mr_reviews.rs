@@ -258,6 +258,7 @@ impl Services {
             .ok_or(ServiceError::NotFound)?;
         self.notify_mr(Some(*me), &m, MrActivity::Reviewed(review.id))
             .await;
+        self.queue_auto_merge(m.id).await;
         Ok(review)
     }
 

@@ -80,6 +80,12 @@ pub enum MrActivity {
     ReviewRequested(Vec<UserId>),
     /// A new revision was pushed.
     Revision(i32),
+    /// What became of merge when ready, for whoever set it: merged,
+    /// cancelled, or failed, in words.
+    AutoMerge {
+        setter: UserId,
+        outcome: String,
+    },
 }
 
 impl MrActivity {
@@ -95,12 +101,14 @@ impl MrActivity {
             Self::Reviewed(_) => "reviewed",
             Self::ReviewRequested(_) => "review_requested",
             Self::Revision(_) => "revision",
+            Self::AutoMerge { .. } => "auto_merge",
         }
     }
 }
 
 /// Why someone hears about something, strongest first.
-const REASONS: [&str; 8] = [
+const REASONS: [&str; 9] = [
+    "auto_merge_result",
     "assigned",
     "review_requested",
     "mentioned",
@@ -112,7 +120,13 @@ const REASONS: [&str; 8] = [
 ];
 
 /// Reasons aimed at the recipient, which get through an ignored repository.
-const AIMED: [&str; 4] = ["assigned", "review_requested", "mentioned", "mr_ready"];
+const AIMED: [&str; 5] = [
+    "auto_merge_result",
+    "assigned",
+    "review_requested",
+    "mentioned",
+    "mr_ready",
+];
 
 fn stronger(a: &str, b: &str) -> bool {
     let pos = |r: &str| {
@@ -256,7 +270,12 @@ impl Services {
                 (None, u.iter().map(ToString::to_string).collect(), None)
             }
             MrActivity::Revision(seq) => (None, Vec::new(), Some(*seq)),
+            MrActivity::AutoMerge { setter, .. } => (None, vec![setter.to_string()], None),
             _ => (None, Vec::new(), None),
+        };
+        let outcome = match &what {
+            MrActivity::AutoMerge { outcome, .. } => Some(outcome.clone()),
+            _ => None,
         };
         self.queue_fanout(serde_json::json!({
             "kind": "merge_request",
@@ -267,6 +286,7 @@ impl Services {
             "item_id": item,
             "users": users,
             "revision": revision,
+            "outcome": outcome,
         }))
         .await;
     }
@@ -481,6 +501,14 @@ impl Services {
                 format!("{actor_name} asked you to review this merge request."),
                 String::new(),
             ),
+            "auto_merge" => (
+                job.payload
+                    .get("outcome")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("Merge when ready ended.")
+                    .to_owned(),
+                String::new(),
+            ),
             "revision" => {
                 let seq = job
                     .payload
@@ -548,7 +576,12 @@ impl Services {
         };
 
         let mut who = Recipients::default();
-        if activity == "review_requested" {
+        if activity == "auto_merge" {
+            // Only whoever set it.
+            for u in payload_users(&job.payload, "users") {
+                who.add(u, "auto_merge_result");
+            }
+        } else if activity == "review_requested" {
             // Only the people asked; never while it's a draft.
             if !m.draft && m.state == "open" {
                 let asked = payload_users(&job.payload, "users");

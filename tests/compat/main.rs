@@ -4,6 +4,7 @@
 //! Needs the `slath` binary built and a Git client (`$SLATH_TEST_GIT`).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod auto_merge;
 mod change_identity;
 mod cross_references;
 mod fork_merge_requests;

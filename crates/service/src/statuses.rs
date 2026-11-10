@@ -149,6 +149,9 @@ impl Services {
             },
         )
         .await?;
+        if s.state == "success" {
+            self.queue_auto_merges_in(a.repo.id).await;
+        }
         slath_db::statuses::for_commit(&self.pool, a.repo.id, oid.as_str())
             .await?
             .into_iter()

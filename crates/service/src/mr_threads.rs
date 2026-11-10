@@ -326,6 +326,9 @@ impl Services {
         )
         .await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        if resolved {
+            self.queue_auto_merge(m.id).await;
+        }
         Ok(())
     }
 

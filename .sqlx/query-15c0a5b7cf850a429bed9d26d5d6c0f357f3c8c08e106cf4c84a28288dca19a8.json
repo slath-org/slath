@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests m SET auto_merge_strategy = NULL, auto_merge_by = NULL, auto_merge_set_at = NULL\n           FROM (SELECT id, auto_merge_strategy, auto_merge_by FROM merge_requests\n                 WHERE id = $1 AND auto_merge_strategy IS NOT NULL FOR UPDATE) old\n           WHERE m.id = old.id\n           RETURNING old.auto_merge_strategy AS \"strategy!\", old.auto_merge_by",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "strategy!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "auto_merge_strategy"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "auto_merge_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "auto_merge_by"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "15c0a5b7cf850a429bed9d26d5d6c0f357f3c8c08e106cf4c84a28288dca19a8"
+}

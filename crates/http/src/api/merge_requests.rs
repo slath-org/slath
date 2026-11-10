@@ -59,6 +59,18 @@ pub struct MergeRequest {
     pub updated_at: String,
     pub closed_at: Option<String>,
     pub merged_at: Option<String>,
+    /// Merge when ready, if set.
+    pub auto_merge: Option<AutoMergeJson>,
+}
+
+/// Merge when ready: it merges as `set_by` with `strategy` once every
+/// requirement is met.
+#[derive(Serialize, ToSchema)]
+pub struct AutoMergeJson {
+    pub strategy: String,
+    /// `None` for deleted accounts.
+    pub set_by: Option<String>,
+    pub set_at: String,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -110,8 +122,14 @@ fn mr_json(
     m: slath_db::merge_requests::MergeRequest,
     html: String,
     source_repo: Option<String>,
+    auto_merge: Option<slath_db::merge_requests::AutoMerge>,
 ) -> MergeRequest {
     MergeRequest {
+        auto_merge: auto_merge.map(|a| AutoMergeJson {
+            strategy: a.strategy,
+            set_by: a.by,
+            set_at: ts(a.at),
+        }),
         held_source: slath_service::push_protection::HeldSource::of(&m).map(held_json),
         source_repo,
         allow_maintainer_edits: m.allow_maintainer_edits,
@@ -150,7 +168,8 @@ async fn render(
         .render_markdown(s, Some(&ctx), &m.description)
         .await?;
     let source = state.services.mr_source_name(&m).await?;
-    Ok(mr_json(m, html, source))
+    let auto_merge = state.services.mr_auto_merge(&m).await?;
+    Ok(mr_json(m, html, source, auto_merge))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -757,6 +776,48 @@ pub async fn merge(
 
 /// Every field is optional in the JSON so that authorization runs first.
 #[derive(Deserialize, ToSchema)]
+pub struct AutoMergeBody {
+    /// Default: the repository's default strategy.
+    #[serde(default)]
+    pub strategy: Option<String>,
+}
+
+/// Sets merge when ready (`mr.auto_merge`): it merges as you, with
+/// `strategy`, as soon as every requirement is met (right away if they
+/// are). A new revision pushed by someone else cancels it.
+#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/auto-merge", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = AutoMergeBody,
+    responses((status = 200, body = MergeRequest), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn put_auto_merge(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<AutoMergeBody>,
+) -> Result<Json<MergeRequest>, AppError> {
+    let m = state
+        .services
+        .set_auto_merge(&s, (&ns, &repo, number), b.strategy.as_deref())
+        .await?;
+    Ok(Json(render(&state, &s, &ns, &repo, m).await?))
+}
+
+/// Cancels merge when ready: whoever set it, the author, or anyone who may
+/// set it.
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/auto-merge", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn delete_auto_merge(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<StatusCode, AppError> {
+    state
+        .services
+        .cancel_auto_merge(&s, (&ns, &repo, number))
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Every field is optional in the JSON so that authorization runs first.
+#[derive(Deserialize, ToSchema)]
 pub struct UpdateBranchBody {
     /// `rebase` (onto the target, keeping headers and change IDs) or
     /// `merge` (the target into the branch).
@@ -875,6 +936,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
             Access::Resource,
             axum::routing::post(merge),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/auto-merge",
+            Access::Resource,
+            axum::routing::put(put_auto_merge).delete(delete_auto_merge),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/update-branch",

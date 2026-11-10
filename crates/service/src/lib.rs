@@ -11,6 +11,7 @@ pub mod accounts;
 pub mod admin;
 pub mod attachments;
 pub mod audit;
+pub mod auto_merge;
 pub mod avatars;
 pub mod bgmigrations;
 pub mod blobs;

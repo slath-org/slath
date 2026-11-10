@@ -82,6 +82,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Closing keywords act only on issues the pusher or merger may close; the issue's timeline links the commit or merge request that closed it.
 - Update branch merges the target into a merge request's branch or rebases the branch onto it on the server, keeping change IDs; the result is a new revision.
 - Writers of the original can update a fork merge request's branch while edits by maintainers are allowed; the source branch's protection applies as for a push.
+- Merge when ready merges a merge request as the person who set it as soon as every requirement is met, once; a push by anyone else cancels it.
+- Whoever sets merge when ready is notified when it merged, failed, or was cancelled; the timeline records each step.
 
 ### Changed
 

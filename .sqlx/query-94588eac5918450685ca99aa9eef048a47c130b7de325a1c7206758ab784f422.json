@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests SET auto_merge_strategy = $2, auto_merge_by = $3, auto_merge_set_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "94588eac5918450685ca99aa9eef048a47c130b7de325a1c7206758ab784f422"
+}

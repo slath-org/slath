@@ -3471,6 +3471,186 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/auto-merge": {
+      "put": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Sets merge when ready (`mr.auto_merge`): it merges as you, with\n`strategy`, as soon as every requirement is met (right away if they\nare). A new revision pushed by someone else cancels it.",
+        "operationId": "put_auto_merge",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoMergeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Cancels merge when ready: whoever set it, the author, or anyone who may\nset it.",
+        "operationId": "delete_auto_merge",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments": {
       "get": {
         "tags": [
@@ -6368,6 +6548,42 @@
           }
         }
       },
+      "AutoMergeBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Default: the repository's default strategy."
+          }
+        }
+      },
+      "AutoMergeJson": {
+        "type": "object",
+        "description": "Merge when ready: it merges as `set_by` with `strategy` once every\nrequirement is met.",
+        "required": [
+          "strategy",
+          "set_at"
+        ],
+        "properties": {
+          "set_at": {
+            "type": "string"
+          },
+          "set_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` for deleted accounts."
+          },
+          "strategy": {
+            "type": "string"
+          }
+        }
+      },
       "BindBody": {
         "type": "object",
         "properties": {
@@ -7312,6 +7528,17 @@
               "null"
             ],
             "description": "`None` for deleted accounts."
+          },
+          "auto_merge": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AutoMergeJson",
+                "description": "Merge when ready, if set."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "closed_at": {
             "type": [

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.auto_merge_strategy AS \"strategy!\", m.auto_merge_by, n.name::text AS by_name,\n                  m.auto_merge_set_at AS \"at!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.auto_merge_by AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.id = $1 AND m.auto_merge_strategy IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "strategy!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "auto_merge_strategy"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "auto_merge_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "auto_merge_by"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "by_name",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "auto_merge_set_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      null,
+      true
+    ]
+  },
+  "hash": "7587c1ef9915e61211651a028e1e90899810903e2408b7ba7d44bb70c8381530"
+}

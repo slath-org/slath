@@ -611,6 +611,96 @@ pub async fn merged_as(
     Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
 }
 
+/// Merge when ready, as set on a merge request.
+#[derive(Debug, Clone)]
+pub struct AutoMerge {
+    pub strategy: String,
+    pub by_id: Option<slath_core::ids::UserId>,
+    pub by: Option<String>,
+    pub at: time::OffsetDateTime,
+}
+
+/// The merge-when-ready setting of a merge request, if any.
+pub async fn auto_merge(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+) -> Result<Option<AutoMerge>, DbError> {
+    let r = sqlx::query!(
+        r#"SELECT m.auto_merge_strategy AS "strategy!", m.auto_merge_by, n.name::text AS by_name,
+                  m.auto_merge_set_at AS "at!"
+           FROM merge_requests m LEFT JOIN users u ON u.id = m.auto_merge_by AND u.state <> 'deleted'
+           LEFT JOIN namespaces n ON n.id = u.namespace_id
+           WHERE m.id = $1 AND m.auto_merge_strategy IS NOT NULL"#,
+        mr.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map(|r| AutoMerge {
+        strategy: r.strategy,
+        by_id: r.auto_merge_by.map(slath_core::ids::UserId::from_uuid),
+        by: r.by_name,
+        at: r.at,
+    }))
+}
+
+/// Sets merge when ready (replacing an earlier setting).
+pub async fn set_auto_merge(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    by: slath_core::ids::UserId,
+    strategy: &str,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE merge_requests SET auto_merge_strategy = $2, auto_merge_by = $3, auto_merge_set_at = now()
+         WHERE id = $1",
+        mr.as_uuid(),
+        strategy,
+        by.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Clears merge when ready and returns what was set: only one caller gets
+/// it, so a merge it leads to happens once.
+pub async fn take_auto_merge(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+) -> Result<Option<(String, Option<slath_core::ids::UserId>)>, DbError> {
+    let r = sqlx::query!(
+        r#"UPDATE merge_requests m SET auto_merge_strategy = NULL, auto_merge_by = NULL, auto_merge_set_at = NULL
+           FROM (SELECT id, auto_merge_strategy, auto_merge_by FROM merge_requests
+                 WHERE id = $1 AND auto_merge_strategy IS NOT NULL FOR UPDATE) old
+           WHERE m.id = old.id
+           RETURNING old.auto_merge_strategy AS "strategy!", old.auto_merge_by"#,
+        mr.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map(|r| {
+        (
+            r.strategy,
+            r.auto_merge_by.map(slath_core::ids::UserId::from_uuid),
+        )
+    }))
+}
+
+/// Open merge requests of a repository with merge when ready set.
+pub async fn auto_merges(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        "SELECT id FROM merge_requests
+         WHERE repo_id = $1 AND state = 'open' AND auto_merge_strategy IS NOT NULL",
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}
+
 /// Marks a merge request merged.
 pub async fn set_merged(
     exec: impl PgExecutor<'_>,

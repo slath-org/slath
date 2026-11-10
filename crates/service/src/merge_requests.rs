@@ -916,6 +916,10 @@ impl Services {
         if changed && open {
             self.sync_mr(m.id, subject_user(subject)).await?;
         }
+        if changed && !open {
+            self.end_auto_merge(&m, subject_user(subject), "closed", None)
+                .await?;
+        }
         if changed {
             let what = if open {
                 MrActivity::Reopened
@@ -959,6 +963,7 @@ impl Services {
             let m = slath_db::merge_requests::get_by_id(&self.pool, m.id)
                 .await?
                 .ok_or(ServiceError::NotFound)?;
+            self.queue_auto_merge(m.id).await;
             self.notify_mr(subject_user(subject), &m, MrActivity::Ready)
                 .await;
         }
@@ -1173,6 +1178,14 @@ impl Services {
         if seq > 1 {
             self.notify_mr(pusher, &m, MrActivity::Revision(seq)).await;
         }
+        // Merge when ready survives only the setter's own pushes.
+        if let Some(am) = slath_db::merge_requests::auto_merge(&self.pool, id).await? {
+            if pusher.is_some() && am.by_id == pusher {
+                self.queue_auto_merge(id).await;
+            } else {
+                self.end_auto_merge(&m, pusher, "push", None).await?;
+            }
+        }
         Ok(Some(seq))
     }
 
@@ -1244,6 +1257,7 @@ impl Services {
             {
                 for mr in slath_db::merge_requests::open_by_target(&self.pool, repo, branch).await?
                 {
+                    self.queue_auto_merge(mr).await;
                     slath_db::mr_ledger::append(
                         &self.pool,
                         mr,
@@ -1279,6 +1293,7 @@ impl Services {
                     if closed
                         && let Some(m) = slath_db::merge_requests::get_by_id(&self.pool, id).await?
                     {
+                        self.end_auto_merge(&m, pusher, "closed", None).await?;
                         self.notify_mr(pusher, &m, MrActivity::Closed).await;
                     }
                 } else {
