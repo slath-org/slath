@@ -64,10 +64,12 @@ test("conf_a11y_04_views_of_a_list_are_a_menu", async ({ page }) => {
   await page.goto("/alice/demo/issues");
   const view = page.locator("summary", { hasText: "State:" });
   await expect(view).toContainText("Open");
+  await expectAccessible(page);
   await tapOrClick(page, view);
   const views = page.getByRole("list", { name: "State" });
   await expect(views.getByRole("link", { name: /^Open/ })).toHaveAttribute("aria-current", "page");
-  await expectAccessible(page);
+  // The open menu covers the list below it: check the menu alone.
+  await expectAccessible(page, "details[open]");
   await tapOrClick(page, views.getByRole("link", { name: /^Closed/ }));
   await expect(page).toHaveURL(/state=closed/);
   await expect(page.locator("summary", { hasText: "State:" })).toContainText("Closed");

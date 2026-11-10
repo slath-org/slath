@@ -26,9 +26,17 @@ const exceptions: Exception[] = JSON.parse(
 
 export const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/** Runs axe on the page and fails on any violation not listed in a11y-exceptions.json. */
-export async function expectAccessible(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+/**
+ * Runs axe on the page (or only the elements matching `include`, e.g. an
+ * open menu, which covers the content below it) and fails on any violation
+ * not listed in a11y-exceptions.json.
+ */
+export async function expectAccessible(page: Page, include?: string): Promise<void> {
+  let axe = new AxeBuilder({ page }).withTags(WCAG_TAGS);
+  if (include) {
+    axe = axe.include(include);
+  }
+  const results = await axe.analyze();
   const violations = results.violations
     .map((v) => ({
       ...v,
