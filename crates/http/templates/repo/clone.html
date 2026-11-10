@@ -2,7 +2,14 @@
   <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
   <div class="menu-panel copy-panel">
     <p class="menu-hint text-secondary">Copy a URL to clone this repository with Git or jj.</p>
-    {% call m::copy_field(ctx, "clone-https", "HTTPS", https_url, "Copy the HTTPS URL") %}{% endcall %}
-    {% call m::copy_field(ctx, "clone-ssh", "SSH", ssh_url, "Copy the SSH URL") %}{% endcall %}
+    <div class="choice">
+      <fieldset class="choice-options">
+        <legend class="visually-hidden">Clone over</legend>
+        <div class="radio"><input id="clone-over-https" type="radio" name="clone-over" value="https" data-remember="clone-over" checked><label for="clone-over-https">HTTPS</label></div>
+        <div class="radio"><input id="clone-over-ssh" type="radio" name="clone-over" value="ssh" data-remember="clone-over"><label for="clone-over-ssh">SSH</label></div>
+      </fieldset>
+      <div class="choice-panel">{% call m::copy_field(ctx, "clone-https", "HTTPS URL", https_url, "Copy the HTTPS URL") %}{% endcall %}</div>
+      <div class="choice-panel">{% call m::copy_field(ctx, "clone-ssh", "SSH URL", ssh_url, "Copy the SSH URL") %}{% endcall %}</div>
+    </div>
   </div>
 </details>

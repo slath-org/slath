@@ -7,8 +7,15 @@
     <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
     <div class="menu-panel copy-panel copy-panel-wide">
       <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
-      {% call m::copy_field(ctx, "checkout-git", "With Git", h.git_checkout, "Copy the Git commands") %}{% endcall %}
-      {% call m::copy_field(ctx, "checkout-jj", "With jj", h.jj_checkout, "Copy the jj commands") %}{% endcall %}
+      <div class="choice">
+        <fieldset class="choice-options">
+          <legend class="visually-hidden">Check out with</legend>
+          <div class="radio"><input id="checkout-tool-git" type="radio" name="checkout-tool" value="git" data-remember="tool" checked><label for="checkout-tool-git">Git</label></div>
+          <div class="radio"><input id="checkout-tool-jj" type="radio" name="checkout-tool" value="jj" data-remember="tool"><label for="checkout-tool-jj">jj</label></div>
+        </fieldset>
+        <div class="choice-panel">{% call m::copy_field(ctx, "checkout-git", "Git commands", h.git_checkout, "Copy the Git commands") %}{% endcall %}</div>
+        <div class="choice-panel">{% call m::copy_field(ctx, "checkout-jj", "jj commands", h.jj_checkout, "Copy the jj commands") %}{% endcall %}</div>
+      </div>
     </div>
   </details>
   {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}

@@ -17,6 +17,7 @@ import { installPasskeys } from "./passkeys";
 import { installEditors } from "./editor";
 import { installSuggestions } from "./suggest";
 import { installCopyButtons } from "./copy";
+import { installChoices } from "./choice";
 import { installNavigation } from "./nav";
 
 installCsrf();
@@ -31,4 +32,5 @@ installPasskeys();
 installEditors();
 installSuggestions();
 installCopyButtons();
+installChoices();
 installNavigation();

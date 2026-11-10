@@ -1414,7 +1414,89 @@ fieldset.field {
   color: var(--error);
 }
 .merge-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   margin-block: var(--space-4);
+}
+/* Each action of the merge box is one group in its own frame, so a
+   button never seems to belong to the form after it. */
+.merge-area > .readiness {
+  margin-block: 0;
+}
+.merge-step {
+  max-width: none;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.merge-step > p {
+  margin: 0;
+}
+.merge-step .field,
+.merge-step .error-summary {
+  max-width: 32rem;
+}
+.merge-step > .merge-step-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.conflict-help > summary {
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+}
+.conflict-help[open] > summary {
+  margin-block-end: var(--space-3);
+}
+.merge-step.notice {
+  margin: 0;
+  border-inline-start-width: var(--space-1);
+}
+.notice-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.notice-line > svg {
+  flex: none;
+  margin-block-start: var(--space-1);
+}
+
+/* Alternatives (Git or jj, HTTPS or SSH): a radio group shows the panel of
+   the chosen one only. Without :has(), every panel shows. */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice-options legend {
+  float: left;
+  margin-inline-end: var(--space-2);
+  padding: 0;
+  padding-block: var(--space-1);
+  font-weight: var(--weight-semibold);
+}
+.choice-options .radio {
+  min-height: auto;
+}
+.choice:has(> .choice-options) > .choice-panel {
+  display: none;
+}
+.choice:has(> .choice-options div.radio:nth-of-type(1) input:checked) > .choice-panel:nth-of-type(1),
+.choice:has(> .choice-options div.radio:nth-of-type(2) input:checked) > .choice-panel:nth-of-type(2),
+.choice:has(> .choice-options div.radio:nth-of-type(3) input:checked) > .choice-panel:nth-of-type(3) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .commit-checks {
   display: inline-flex;

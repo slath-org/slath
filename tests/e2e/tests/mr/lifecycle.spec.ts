@@ -86,18 +86,29 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Review fixture");
   const n = new URL(page.url()).pathname.split("/").pop();
 
-  // 5. Checkout commands for Git (the merge request ref) and jj, with copy
-  // buttons, in the Check out menu.
+  // 5. Checkout commands for Git (the merge request ref) or jj, with copy
+  // buttons, in the Check out menu: one tool at a time, remembered.
   await tapOrClick(page, page.locator(".checkout-menu > summary"));
   await expect(page.locator("#checkout-git")).toBeVisible();
   await expect(page.locator("#checkout-git")).toHaveValue(
     `git fetch origin refs/merge-requests/${n}/head && git switch --detach FETCH_HEAD`,
   );
+  await expect(page.getByRole("button", { name: "Copy the Git commands" })).toBeVisible();
+  await expect(page.locator("#checkout-jj")).toBeHidden();
+  await tapOrClick(page, page.getByRole("radio", { name: "jj" }));
+  await expect(page.locator("#checkout-jj")).toBeVisible();
   await expect(page.locator("#checkout-jj")).toHaveValue(
     "jj git fetch --remote origin --branch review && jj new review@origin",
   );
-  await expect(page.getByRole("button", { name: "Copy the Git commands" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy the jj commands" })).toBeVisible();
+  await expect(page.locator("#checkout-git")).toBeHidden();
+  await expectAccessible(page, ".checkout-menu .menu-panel");
+  // Opened again, the page shows jj.
+  await page.goto(page.url());
+  await tapOrClick(page, page.locator(".checkout-menu > summary"));
+  await expect(page.locator("#checkout-jj")).toBeVisible();
+  await tapOrClick(page, page.getByRole("radio", { name: "Git" }));
+  await expect(page.locator("#checkout-git")).toBeVisible();
   await page.keyboard.press("Escape");
 
   // 8. Both revisions in the timeline, the second with "Compare with previous".

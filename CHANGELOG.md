@@ -85,6 +85,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Merge when ready merges a merge request as the person who set it as soon as every requirement is met, once; a push by anyone else cancels it.
 - Whoever sets merge when ready is notified when it merged, failed, or was cancelled; the timeline records each step.
 - The merge box offers Merge when ready while a requirement is missing, and once it's set, shows who set it with a button to cancel.
+- The merge box shows each action (update the branch, merge, merge when ready, resolving conflicts) as its own titled group.
+- Alternatives show one at a time behind a choice: Git or jj commands, HTTPS or SSH clone URLs; the browser remembers the choice.
 
 ### Changed
 

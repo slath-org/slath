@@ -12,14 +12,23 @@
 <section aria-labelledby="empty-heading">
   <h2 id="empty-heading">This repository is empty</h2>
   {%- if can_push %}
-  <p>Push an existing repository:</p>
-  <pre class="code-view" tabindex="0" role="region" aria-label="Commands to push an existing repository"><code>git remote add origin {{ https_url }}
+  <div class="choice">
+    <fieldset class="choice-options">
+      <legend>Get started:</legend>
+      <div class="radio"><input id="start-existing" type="radio" name="start" value="existing" checked><label for="start-existing">Push an existing repository</label></div>
+      <div class="radio"><input id="start-new" type="radio" name="start" value="new"><label for="start-new">Start a new one</label></div>
+    </fieldset>
+    <div class="choice-panel">
+      <pre class="code-view" tabindex="0" role="region" aria-label="Commands to push an existing repository"><code>git remote add origin {{ https_url }}
 git push -u origin {{ default_branch }}</code></pre>
-  <p>Or start a new one:</p>
-  <pre class="code-view" tabindex="0" role="region" aria-label="Commands to start a new repository"><code>git init -b {{ default_branch }}
+    </div>
+    <div class="choice-panel">
+      <pre class="code-view" tabindex="0" role="region" aria-label="Commands to start a new repository"><code>git init -b {{ default_branch }}
 git commit --allow-empty -m "Initial commit"
 git remote add origin {{ https_url }}
 git push -u origin {{ default_branch }}</code></pre>
+    </div>
+  </div>
   <p class="text-secondary">Git over HTTPS uses a <a href="/-/settings/tokens">personal access token</a> as the password.</p>
   {%- else %}
   <p class="text-secondary">Nothing has been pushed yet.</p>

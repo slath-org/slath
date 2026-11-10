@@ -113,3 +113,15 @@ test("ux_nav_01_links_swap_the_page_and_views_swap_the_list", async ({ page }) =
   await expect(page).toHaveURL(/\/alice\/demo\/issues$/);
   await expect(page.locator("summary", { hasText: "State:" })).toContainText("Open");
 });
+
+test("conf_a11y_04_alternatives_show_one_at_a_time", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo");
+  await tapOrClick(page, page.locator(".clone-menu > summary"));
+  await expect(page.locator("#clone-https")).toBeVisible();
+  await expect(page.locator("#clone-ssh")).toBeHidden();
+  await tapOrClick(page, page.getByRole("radio", { name: "SSH" }));
+  await expect(page.locator("#clone-ssh")).toBeVisible();
+  await expect(page.locator("#clone-https")).toBeHidden();
+  await expectAccessible(page, ".clone-menu .menu-panel");
+});

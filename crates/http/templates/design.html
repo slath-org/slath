@@ -83,7 +83,15 @@
       <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
       <div class="menu-panel copy-panel">
         <p class="menu-hint text-secondary">Copy a URL to clone this repository with Git or jj.</p>
-        {% call m::copy_field(ctx, "demo-clone", "HTTPS", "https://slath.example/alice/demo.git", "Copy the HTTPS URL") %}{% endcall %}
+        <div class="choice">
+          <fieldset class="choice-options">
+            <legend class="visually-hidden">Clone over</legend>
+            <div class="radio"><input id="demo-clone-https" type="radio" name="demo-clone-over" value="https" checked><label for="demo-clone-https">HTTPS</label></div>
+            <div class="radio"><input id="demo-clone-ssh" type="radio" name="demo-clone-over" value="ssh"><label for="demo-clone-ssh">SSH</label></div>
+          </fieldset>
+          <div class="choice-panel">{% call m::copy_field(ctx, "demo-clone", "HTTPS URL", "https://slath.example/alice/demo.git", "Copy the HTTPS URL") %}{% endcall %}</div>
+          <div class="choice-panel">{% call m::copy_field(ctx, "demo-clone-ssh-url", "SSH URL", "ssh://git@slath.example/alice/demo.git", "Copy the SSH URL") %}{% endcall %}</div>
+        </div>
       </div>
     </details>
     <button type="button" class="button" data-dialog-open="demo-dialog">Open dialog</button>
