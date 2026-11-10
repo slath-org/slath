@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
 {% block title %}Design catalog{% endblock %}
+{% block sidebar %}{% let area = "" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
 <h1>Design catalog</h1>
 <p class="text-secondary">Every Weave component in its states. Development builds only.</p>

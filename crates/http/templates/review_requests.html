@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Review requests{% endblock %}
+{% block sidebar %}{% let area = "review-requests" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
 <h1>Review requests</h1>
 <p class="text-secondary">Open merge requests that ask for your review, directly or through one of your teams.</p>

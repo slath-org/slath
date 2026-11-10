@@ -95,6 +95,9 @@ pub struct PageCtx {
     pub density: &'static str,
     /// The signed-in user's code font size in px, if not the default.
     pub code_size: Option<i16>,
+    /// The side menu is collapsed on wide screens (a per-browser cookie
+    /// the page sets when it's toggled).
+    pub sidebar_collapsed: bool,
     pub app_url: String,
     pub style_url: String,
     /// The regular interface font, preloaded by every page.
@@ -182,6 +185,7 @@ impl PageCtx {
             theme,
             density,
             code_size,
+            sidebar_collapsed: cookie(headers, "slath_sidebar") == Some("collapsed"),
             app_url: state.assets.url("app.js"),
             style_url: state.assets.url("style.css"),
             font_url: state.assets.url("SourceSans3-Upright.woff2"),

@@ -94,6 +94,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repository pages: Clone and Download are menus next to the branch, clone URLs have copy buttons, and the files sit in a rounded box.
 - The branch name above the files opens a branch picker that keeps the current view and path.
 - A fork's origin shows next to the repository name, and how its default branch compares with the original next to the branch.
+- A side menu on the left leads to Explore, Review requests, Notifications, and Search.
+- The side menu collapses with the button at the start of the top bar, and the choice is remembered; on narrow screens it opens as a drawer.
 - Merge request pages have a menu on the left for Conversation, Commits, and Changes; All, Unresolved, and Mine are tabs.
 - Merge request checkout commands are in a Check out menu next to the title, with icon copy buttons.
 

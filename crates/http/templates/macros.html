@@ -21,3 +21,25 @@
 {%- macro evidence(kind) -%}
 <span class="evidence-chip">{{ kind }}</span>
 {%- endmacro -%}
+{#- Navigation. Every page uses the same levels, each in one form:
+    1. side_menu: the context (a repository, an organization, your settings,
+       administration, or your work) and its areas, on the start side. It
+       collapses on wide screens and opens as a drawer on narrow ones.
+    Deeper levels don't get navigation of their own. -#}
+{%- macro side_menu(ctx, label, kind, title, href) -%}
+<nav class="app-sidebar" id="app-sidebar" aria-label="{{ label }}">
+  <div class="app-sidebar-inner">
+    <div class="app-sidebar-head">
+      <p class="app-sidebar-context"><span class="app-sidebar-kind">{{ kind }}</span><a href="{{ href }}"><bdi>{{ title }}</bdi></a></p>
+      <a class="button button-quiet button-icon app-sidebar-close" href="#main" data-sidebar-close title="Close side menu">{% call icon(ctx, "x") %}{% endcall %}<span class="visually-hidden">Close side menu</span></a>
+    </div>
+    <ul class="app-sidebar-list">
+{{ caller() }}
+    </ul>
+  </div>
+</nav>
+{%- endmacro -%}
+{#- One area in the side menu; `current` marks the area of this page. -#}
+{%- macro side_item(ctx, href, icon_name, label, current) -%}
+<li><a href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{% call icon(ctx, icon_name) %}{% endcall %}<span>{{ label }}</span></a></li>
+{%- endmacro -%}

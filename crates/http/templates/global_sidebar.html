@@ -1,0 +1,16 @@
+{#- The side menu of pages outside a repository or organization: what to
+    explore and the viewer's own work. The page sets `area` (explore,
+    review-requests, notifications, search, or "" for none). -#}
+{%- if let Some(u) = ctx.user %}
+{%- call m::side_menu(ctx, "Your work", "Your work", u.name, "/" ~ u.name) %}
+{%- call m::side_item(ctx, "/", "globe", "Explore", area == "explore") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/review-requests", "git-pull-request", "Review requests", area == "review-requests") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/notifications", "bell", "Notifications", area == "notifications") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/search", "search", "Search", area == "search") %}{% endcall %}
+{%- endcall %}
+{%- else %}
+{%- call m::side_menu(ctx, "Explore", "Explore", "Slath", "/") %}
+{%- call m::side_item(ctx, "/", "globe", "Explore", area == "explore") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/search", "search", "Search", area == "search") %}{% endcall %}
+{%- endcall %}
+{%- endif %}
