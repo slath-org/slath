@@ -84,6 +84,8 @@ test("conf_editor_01_saving_without_edits_keeps_the_text", async ({ page }) => {
   await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Untouched body");
   await tapOrClick(page, page.getByRole("link", { name: "Edit issue", exact: true }));
+  // The issue page's comment editor is ready too: wait for the edit page.
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Edit issue");
   await expect(page.locator("slath-editor[data-state=ready]")).toBeVisible();
   // Saving without touching the text sends it back unchanged.
   await tapOrClick(page, page.getByRole("button", { name: "Save" }));
