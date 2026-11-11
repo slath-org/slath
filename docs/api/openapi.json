@@ -3860,6 +3860,78 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/checkout": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "\"Check out\": a fork merge request's branch `mr/<n>` shows in the\ncaller's fetches of this repository from now on.",
+        "operationId": "checkout",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkout"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments": {
       "get": {
         "tags": [
@@ -7008,6 +7080,29 @@
           "status": {
             "type": "string",
             "description": "`added`, `deleted`, `modified`, `renamed`, or `copied`."
+          }
+        }
+      },
+      "Checkout": {
+        "type": "object",
+        "description": "Where to fetch a merge request as a branch.",
+        "required": [
+          "branch",
+          "fetch_url",
+          "head_ref"
+        ],
+        "properties": {
+          "branch": {
+            "type": "string",
+            "description": "`mr/<n>` for merge requests from forks, else the source branch."
+          },
+          "fetch_url": {
+            "type": "string",
+            "description": "A URL that always authenticates (fetches of `mr/<n>` need it over\nHTTPS on public and internal repositories)."
+          },
+          "head_ref": {
+            "type": "string",
+            "description": "`refs/merge-requests/<n>/head`, for scripts."
           }
         }
       },

@@ -312,10 +312,24 @@ impl Services {
             }
             let bytes = r.as_bytes();
             if bytes.starts_with(slath_git::refs::MR_BRANCH_PREFIX) {
-                deny(
-                    DenyReason::ReservedRef,
-                    "branches under mr/ show merge requests from forks; Slath writes them",
-                );
+                // Only maintainer edits of fork merge requests (mr/<n>).
+                if archived {
+                    deny(DenyReason::Archived, "the repository is archived");
+                    continue;
+                }
+                let force = !is_zero(&u.old)
+                    && !is_zero(&u.new)
+                    && !self
+                        .fast_forward(grant.repo_id, &u.old, &u.new, quarantine)
+                        .await
+                        .unwrap_or(false);
+                match self
+                    .mr_branch_push_check(&grant.subject, grant.repo_id, u, force)
+                    .await
+                {
+                    Ok(edit) => edits.push(edit),
+                    Err(why) => deny(DenyReason::ReservedRef, &why),
+                }
                 continue;
             }
             let is_tag = bytes.starts_with(b"refs/tags/");
@@ -593,6 +607,18 @@ impl Services {
     /// the push; anything missed here is repaired by the reconciler.
     pub async fn post_receive(&self, grant: &PushGrant, updates: &[RefUpdate]) -> Vec<String> {
         let mut messages = Vec::new();
+        // Maintainer edits through mr/<n> go on to the fork.
+        for u in updates
+            .iter()
+            .filter(|u| u.name.starts_with(slath_git::refs::MR_BRANCH_PREFIX))
+        {
+            if let Some(m) = self
+                .propagate_mr_branch(&grant.subject, grant.repo_id, u)
+                .await
+            {
+                messages.push(m);
+            }
+        }
         if let Err(e) = self
             .record_push(
                 grant.repo_id,

@@ -122,3 +122,27 @@ recorded in the original's audit log.
 
 The right only goes from the original to forks of it: a merge request
 from the original into your fork gives you no access to the original.
+
+### The branch mr/<n> in the original
+
+While a merge request from a fork is open, the original shows it as the
+branch `mr/<n>` (`mr/12` for merge request 12) at its latest revision.
+That way reviewers check it out, and maintainers push edits to it, with
+Git or jj and without adding your fork as a remote. It appears in the
+fetches of its requested reviewers and assignees, of anyone who used
+**Check out** on it, and, for pushing, of those who may edit it; everyone
+else's fetches don't show it, and it disappears when the merge request
+is closed or merged. That's to keep fetches tidy, not to keep it secret:
+whoever can read the original can read the merge request's commits.
+
+A push to `mr/<n>` by someone who may edit the merge request as a
+maintainer updates your branch in your fork, by compare-and-swap: if you
+pushed meanwhile, their push is refused or its output says it didn't
+reach the fork, and they fetch and try again. Nobody else can push to
+`mr/<n>`, and no other branches can be created under `mr/`.
+
+Git sends credentials over HTTPS only when a server asks, so fetches of
+a public or internal original are anonymous and don't show `mr/<n>`.
+Use the address that always asks, `https://slath.example/-/auth/<owner>/<repo>.git`,
+which **Check out** and `POST …/merge-requests/{n}/checkout` give you;
+over SSH it works with the usual address.

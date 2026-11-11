@@ -1411,7 +1411,10 @@ impl Services {
             let Some(branch) = u.name.strip_prefix(b"refs/heads/") else {
                 continue;
             };
-            if u.new.bytes().all(|b| b == b'0') || branch == r.default_branch.as_bytes() {
+            if u.new.bytes().all(|b| b == b'0')
+                || branch == r.default_branch.as_bytes()
+                || u.name.starts_with(slath_git::refs::MR_BRANCH_PREFIX)
+            {
                 continue;
             }
             let Ok(branch) = std::str::from_utf8(branch) else {
@@ -1515,7 +1518,10 @@ impl Services {
             else {
                 continue;
             };
-            if branch == a.repo.default_branch || self.branch_head(a.repo.id, &r).await?.is_none() {
+            if branch == a.repo.default_branch
+                || name.starts_with(slath_git::refs::MR_BRANCH_PREFIX)
+                || self.branch_head(a.repo.id, &r).await?.is_none()
+            {
                 continue;
             }
             if slath_db::merge_requests::open_by_source(&self.pool, a.repo.id, &name)

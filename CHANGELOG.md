@@ -94,6 +94,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Suggestions show the change they make in the conversation, with Apply suggestion, Add to batch, and an Apply suggestions group in the merge box.
 - Commands on merge request pages (checking out, resolving conflicts) follow your tool: a new Commands for setting, else the tool your recent pushes came from, else Git.
 - A merge request from a fork shows in its target as the branch mr/<n>, to its reviewers and assignees only; branches under mr/ can't be pushed otherwise.
+- Maintainers push edits to a fork merge request through mr/<n>, with Git or jj; the fork's branch follows by compare-and-swap.
+- Every repository is also served under /-/auth/<owner>/<repo>.git, which always asks for credentials, so HTTPS fetches can show your mr/<n> branches.
 
 ### Changed
 

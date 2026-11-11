@@ -51,6 +51,65 @@ pub fn router() -> Router<AppState> {
             Access::Git,
             post(receive_pack),
         )
+        // The same repositories under a path that always asks for
+        // credentials: Git sends them over HTTPS only when asked, and
+        // fetches of public repositories would otherwise stay anonymous
+        // (and miss the fork merge request branches meant for the user).
+        .route_as(
+            "/-/auth/{ns}/{repo}/info/refs",
+            Access::Git,
+            get(info_refs_auth),
+        )
+        .route_as(
+            "/-/auth/{ns}/{repo}/git-upload-pack",
+            Access::Git,
+            post(upload_pack_auth),
+        )
+        .route_as(
+            "/-/auth/{ns}/{repo}/git-receive-pack",
+            Access::Git,
+            post(receive_pack_auth),
+        )
+}
+
+fn needs_credentials(headers: &HeaderMap) -> bool {
+    !headers.contains_key(header::AUTHORIZATION)
+}
+
+async fn info_refs_auth(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+    query: Query<InfoRefsQuery>,
+    headers: HeaderMap,
+) -> Response {
+    if needs_credentials(&headers) {
+        return Denied::Unauthorized.into_response();
+    }
+    info_refs(state, path, query, headers).await
+}
+
+async fn upload_pack_auth(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    if needs_credentials(&headers) {
+        return Denied::Unauthorized.into_response();
+    }
+    upload_pack(state, path, headers, body).await
+}
+
+async fn receive_pack_auth(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    if needs_credentials(&headers) {
+        return Denied::Unauthorized.into_response();
+    }
+    receive_pack(state, path, headers, body).await
 }
 
 #[derive(Deserialize)]

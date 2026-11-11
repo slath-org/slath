@@ -774,6 +774,45 @@ pub async fn merge(
     Ok(Json(render(&state, &s, &ns, &repo, m).await?))
 }
 
+/// Where to fetch a merge request as a branch.
+#[derive(Serialize, ToSchema)]
+pub struct Checkout {
+    /// `mr/<n>` for merge requests from forks, else the source branch.
+    pub branch: String,
+    /// A URL that always authenticates (fetches of `mr/<n>` need it over
+    /// HTTPS on public and internal repositories).
+    pub fetch_url: String,
+    /// `refs/merge-requests/<n>/head`, for scripts.
+    pub head_ref: String,
+}
+
+/// "Check out": a fork merge request's branch `mr/<n>` shows in the
+/// caller's fetches of this repository from now on.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/checkout", tag = "merge requests", security(("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, body = Checkout), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn checkout(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Json<Checkout>, AppError> {
+    let (a, m) = state.services.mr(&s, &ns, &repo, number).await?;
+    state.services.note_checkout(&s, &m).await?;
+    let fork = m.source_repo_id.is_some_and(|r| r != a.repo.id);
+    Ok(Json(Checkout {
+        branch: if fork {
+            format!("mr/{number}")
+        } else {
+            m.source_branch()
+        },
+        fetch_url: state
+            .config
+            .server
+            .public_url
+            .join(&format!("/-/auth/{}/{}.git", a.repo.namespace, a.repo.name)),
+        head_ref: format!("refs/merge-requests/{number}/head"),
+    }))
+}
+
 /// Every field is optional in the JSON so that authorization runs first.
 #[derive(Deserialize, ToSchema)]
 pub struct ApplySuggestionsBody {
@@ -982,6 +1021,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
             Access::Resource,
             axum::routing::post(merge),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/checkout",
+            Access::Resource,
+            axum::routing::post(checkout),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/suggestions/apply",
