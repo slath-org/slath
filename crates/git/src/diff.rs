@@ -49,6 +49,11 @@ pub struct FileDiff {
     pub hunks: Vec<Hunk>,
     pub additions: u32,
     pub deletions: u32,
+    /// Lines of this file were dropped at the line limit.
+    pub cut: bool,
+    /// The mode on the `index` line (unchanged modes, e.g. `120000` for a
+    /// symbolic link or `160000` for a submodule).
+    pub index_mode: Option<String>,
 }
 
 impl FileDiff {
@@ -181,6 +186,8 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
                 hunks: Vec::new(),
                 additions: 0,
                 deletions: 0,
+                cut: false,
+                index_mode: None,
             });
             continue;
         }
@@ -236,6 +243,11 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
                 if let Some(p) = side_path(p) {
                     f.new_path = p;
                 }
+            } else if let Some(rest) = raw.strip_prefix(b"index ") {
+                f.index_mode = rest
+                    .split(|&b| b == b' ')
+                    .nth(1)
+                    .map(|m| String::from_utf8_lossy(m).into_owned());
             } else if raw.starts_with(b"Binary files ") || raw == b"GIT binary patch" {
                 f.binary = true;
             }
@@ -254,6 +266,7 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
         if lines_left == 0 {
             diff.truncated = true;
             skipping = true;
+            f.cut = true;
             continue;
         }
         lines_left -= 1;
