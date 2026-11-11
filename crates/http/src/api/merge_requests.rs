@@ -774,6 +774,81 @@ pub async fn merge(
     Ok(Json(render(&state, &s, &ns, &repo, m).await?))
 }
 
+/// One file of a diff inventory.
+#[derive(Serialize, ToSchema)]
+pub struct InventoryFile {
+    pub path: String,
+    /// For renames and copies.
+    pub old_path: Option<String>,
+    /// `content`, `rename`, `copy`, `mode_only`, `whitespace_only`,
+    /// `generated`, `binary`, `symlink`, `submodule`, or `not_shown`.
+    pub class: String,
+    /// Why it's in its class (for `not_shown`, the limit by name).
+    pub reason: String,
+    /// For `content` and `whitespace_only` files, each hunk's class:
+    /// `content` or `whitespace_only`.
+    pub hunks: Vec<String>,
+    /// Folded in diff views (every class but `content`).
+    pub folded: bool,
+}
+
+/// A diff's inventory: every file in exactly one class.
+#[derive(Serialize, ToSchema)]
+pub struct InventoryBody {
+    pub files: Vec<InventoryFile>,
+    /// Files changed but not listed, past `files_limit`.
+    pub left_out: usize,
+    /// The limit the list stopped at (`diff_max_files`), if it did.
+    pub files_limit: Option<String>,
+}
+
+impl From<slath_git::inventory::Inventory> for InventoryBody {
+    fn from(i: slath_git::inventory::Inventory) -> Self {
+        Self {
+            files: i
+                .files
+                .into_iter()
+                .map(|f| InventoryFile {
+                    path: String::from_utf8_lossy(&f.path).into_owned(),
+                    old_path: f.old_path.map(|p| String::from_utf8_lossy(&p).into_owned()),
+                    class: f.class.as_str().to_owned(),
+                    reason: f.reason,
+                    hunks: f.hunks.iter().map(|h| h.as_str().to_owned()).collect(),
+                    folded: f.class.folded(),
+                })
+                .collect(),
+            left_out: i.left_out,
+            files_limit: i.files_limit.map(str::to_owned),
+        }
+    }
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct InventoryQuery {
+    /// The revision (default: the current one).
+    pub revision: Option<i32>,
+    /// A change version's commit in that revision: its own diff.
+    pub commit: Option<String>,
+}
+
+/// The inventory of a merge request revision's diff (`merge_base..head`),
+/// or of one change version's diff (`parent..commit`).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/inventory", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), InventoryQuery),
+    responses((status = 200, body = InventoryBody), (status = 404, body = super::Problem)))]
+pub async fn get_inventory(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Query(q): Query<InventoryQuery>,
+) -> Result<Json<InventoryBody>, AppError> {
+    let inv = state
+        .services
+        .mr_inventory(&s, (&ns, &repo, number), q.revision, q.commit.as_deref())
+        .await?;
+    Ok(Json(inv.into()))
+}
+
 /// Where to fetch a merge request as a branch.
 #[derive(Serialize, ToSchema)]
 pub struct Checkout {
@@ -1021,6 +1096,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/merge",
             Access::Resource,
             axum::routing::post(merge),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/inventory",
+            Access::Resource,
+            get(get_inventory),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/checkout",

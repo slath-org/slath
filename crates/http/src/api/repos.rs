@@ -419,6 +419,12 @@ pub struct ChangedFile {
     pub additions: u32,
     pub deletions: u32,
     pub binary: bool,
+    /// The file's class in the diff inventory: `content`, `rename`,
+    /// `copy`, `mode_only`, `whitespace_only`, `generated`, `binary`,
+    /// `symlink`, `submodule`, or `not_shown`.
+    pub class: String,
+    /// Why it's in its class.
+    pub reason: String,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -432,6 +438,10 @@ pub struct CommitDetail {
     pub files: Vec<ChangedFile>,
     /// The change list was cut off at the instance's diff limits.
     pub truncated: bool,
+    /// Files changed but not listed, past `files_limit`.
+    pub left_out: usize,
+    /// The limit the list stopped at (`diff_max_files`), if it did.
+    pub files_limit: Option<String>,
 }
 
 /// A commit with the files it changes (compared with its first parent).
@@ -471,6 +481,10 @@ pub async fn get_commit(
     .map_err(|e| AppError::internal(&e))?;
     let limits = &state.config.limits;
     let diff = slath_git::diff::parse(&out, limits.diff_max_files, limits.diff_max_lines);
+    let inventory = state
+        .services
+        .diff_inventory(a.repo.id, parents.first(), &oid)
+        .await?;
     let who = |h: &[u8]| -> (String, i64) {
         let s = String::from_utf8_lossy(h);
         let name = s.split(" <").next().unwrap_or("").to_owned();
@@ -494,7 +508,10 @@ pub async fn get_commit(
         files: diff
             .files
             .iter()
-            .map(|f| ChangedFile {
+            .zip(&inventory.files)
+            .map(|(f, e)| ChangedFile {
+                class: e.class.as_str().to_owned(),
+                reason: e.reason.clone(),
                 path: lossy(f.path()),
                 old_path: matches!(
                     f.status,
@@ -508,6 +525,8 @@ pub async fn get_commit(
             })
             .collect(),
         truncated: diff.truncated || too_big,
+        left_out: inventory.left_out,
+        files_limit: inventory.files_limit.map(str::to_owned),
     }))
 }
 

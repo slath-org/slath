@@ -98,6 +98,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Every repository is also served under /-/auth/<owner>/<repo>.git, which always asks for credentials, so HTTPS fetches can show your mr/<n> branches.
 - Check out on a fork merge request adds its mr/<n> branch to your fetches, and then shows Git and jj commands that use it.
 - The merge request and fork guides show every step with Git and jj side by side, and a test runs every command in them.
+- The API lists every file of a merge request's diff, a change's diff, or a commit in exactly one class (content, rename, mode only, whitespace only, generated, binary, symlink, submodule, not shown) with the reason.
+- Diff inventories name the limit a file or the file list stopped at and count the files left out.
 
 ### Changed
 

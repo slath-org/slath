@@ -479,6 +479,36 @@ pub async fn diff(
     }
 }
 
+/// How many files `base..commit` changes (renames counted once, as in
+/// [`diff`]), for when the diff itself is too big to read.
+pub async fn changed_file_count(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+) -> Result<usize, GitError> {
+    let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "diff",
+            "--no-ext-diff",
+            "-M",
+            "--name-only",
+            "-z",
+            "--end-of-options",
+            base,
+            commit.as_str(),
+        ])
+        .run()
+        .await?;
+    Ok(out
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|p| !p.is_empty())
+        .count())
+}
+
 /// Which of `paths` are marked generated in `source`'s `.gitattributes`
 /// (`linguist-generated` or `slath-generated` set).
 pub async fn generated_paths(

@@ -4097,6 +4097,89 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/inventory": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The inventory of a merge request revision's diff (`merge_base..head`),\nor of one change version's diff (`parent..commit`).",
+        "operationId": "get_inventory",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "The revision (default: the current one).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "commit",
+            "in": "query",
+            "description": "A change version's commit in that revision: its own diff.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger": {
       "get": {
         "tags": [
@@ -7052,7 +7135,9 @@
           "status",
           "additions",
           "deletions",
-          "binary"
+          "binary",
+          "class",
+          "reason"
         ],
         "properties": {
           "additions": {
@@ -7062,6 +7147,10 @@
           },
           "binary": {
             "type": "boolean"
+          },
+          "class": {
+            "type": "string",
+            "description": "The file's class in the diff inventory: `content`, `rename`,\n`copy`, `mode_only`, `whitespace_only`, `generated`, `binary`,\n`symlink`, `submodule`, or `not_shown`."
           },
           "deletions": {
             "type": "integer",
@@ -7076,6 +7165,10 @@
           },
           "path": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it's in its class."
           },
           "status": {
             "type": "string",
@@ -7229,7 +7322,8 @@
           "committer_name",
           "message",
           "files",
-          "truncated"
+          "truncated",
+          "left_out"
         ],
         "properties": {
           "author_name": {
@@ -7246,6 +7340,18 @@
             "items": {
               "$ref": "#/components/schemas/ChangedFile"
             }
+          },
+          "files_limit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The limit the list stopped at (`diff_max_files`), if it did."
+          },
+          "left_out": {
+            "type": "integer",
+            "description": "Files changed but not listed, past `files_limit`.",
+            "minimum": 0
           },
           "message": {
             "type": "string"
@@ -7608,6 +7714,76 @@
           "url": {
             "type": "string",
             "description": "The source, without credentials."
+          }
+        }
+      },
+      "InventoryBody": {
+        "type": "object",
+        "description": "A diff's inventory: every file in exactly one class.",
+        "required": [
+          "files",
+          "left_out"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryFile"
+            }
+          },
+          "files_limit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The limit the list stopped at (`diff_max_files`), if it did."
+          },
+          "left_out": {
+            "type": "integer",
+            "description": "Files changed but not listed, past `files_limit`.",
+            "minimum": 0
+          }
+        }
+      },
+      "InventoryFile": {
+        "type": "object",
+        "description": "One file of a diff inventory.",
+        "required": [
+          "path",
+          "class",
+          "reason",
+          "hunks",
+          "folded"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "`content`, `rename`, `copy`, `mode_only`, `whitespace_only`,\n`generated`, `binary`, `symlink`, `submodule`, or `not_shown`."
+          },
+          "folded": {
+            "type": "boolean",
+            "description": "Folded in diff views (every class but `content`)."
+          },
+          "hunks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "For `content` and `whitespace_only` files, each hunk's class:\n`content` or `whitespace_only`."
+          },
+          "old_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For renames and copies."
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it's in its class (for `not_shown`, the limit by name)."
           }
         }
       },

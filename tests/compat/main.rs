@@ -14,6 +14,7 @@ mod forks;
 mod git_http;
 mod git_ssh;
 mod import;
+mod inventory;
 mod jj;
 mod ledger;
 mod merge;
