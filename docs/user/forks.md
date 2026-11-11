@@ -74,7 +74,32 @@ counts.
 ## Merge requests from a fork
 
 To propose your fork's changes to the original, open a merge request
-against the original with your fork as the source. When you push a
+against the original with your fork as the source. Clone your fork (here
+Bob's fork `bob/demo` of `alice/demo`):
+
+```sh git fork-clone
+git clone https://slath.example/bob/demo.git bob-demo && cd bob-demo
+```
+
+```sh jj fork-clone
+jj git clone https://slath.example/bob/demo.git bob-demo && cd bob-demo
+```
+
+Then commit your work and push it:
+
+```sh git fork-push
+git switch -c my-topic
+git add -A && git commit -m "Add notes"
+git push origin my-topic
+```
+
+```sh jj fork-push
+jj commit -m "Add notes"
+jj bookmark create my-topic -r @-
+jj git push --bookmark my-topic
+```
+
+ When you push a
 branch to your fork, Git (or jj) prints a link to the original's compare
 page with your fork preselected; the fork's front page shows the same
 link in its "Recently pushed" banner, and **Contribute** next to
@@ -148,6 +173,27 @@ which **Check out** and `POST …/merge-requests/{n}/checkout` give you;
 over SSH it works with the usual address.
 
 On the merge request, **Check out → Check out mr/<n>** adds the branch to
-your fetches; the menu then shows the commands, for Git
-(`git fetch <address> mr/12:mr/12 && git switch mr/12`) or jj (which
-points `origin` at that address once, then fetches and tracks `mr/12`).
+your fetches; the menu then shows the commands. For merge request 12 in
+your clone of the original:
+
+```sh git mr-checkout
+git fetch https://slath.example/-/auth/alice/demo.git mr/12:mr/12 && git switch mr/12
+```
+
+```sh jj mr-checkout
+jj git remote set-url origin https://slath.example/-/auth/alice/demo.git && jj git fetch --branch mr/12 && jj bookmark track mr/12@origin && jj new mr/12
+```
+
+To edit it as a maintainer, commit and push the branch; the fork's branch
+follows:
+
+```sh git mr-edit
+git add -A && git commit -m "Fix a typo"
+git push https://slath.example/-/auth/alice/demo.git mr/12
+```
+
+```sh jj mr-edit
+jj commit -m "Fix a typo"
+jj bookmark set mr/12 -r @-
+jj git push --bookmark mr/12
+```

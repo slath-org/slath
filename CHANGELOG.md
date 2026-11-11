@@ -97,6 +97,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Maintainers push edits to a fork merge request through mr/<n>, with Git or jj; the fork's branch follows by compare-and-swap.
 - Every repository is also served under /-/auth/<owner>/<repo>.git, which always asks for credentials, so HTTPS fetches can show your mr/<n> branches.
 - Check out on a fork merge request adds its mr/<n> branch to your fetches, and then shows Git and jj commands that use it.
+- The merge request and fork guides show every step with Git and jj side by side, and a test runs every command in them.
 
 ### Changed
 

@@ -26,3 +26,4 @@ mod suggestions;
 mod threads;
 mod tool_parity;
 mod update_branch;
+mod user_guide;

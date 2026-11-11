@@ -9,6 +9,94 @@ A merge request asks to merge a branch into another branch of the same
 repository, usually the default branch. It works the same whether you use
 Git or jj, and it needs no hooks or client configuration.
 
+## Working with Git or jj
+
+Every step works the same with Git and with jj: nothing to install or
+configure beyond the repository's address and your credentials (an SSH
+key, or a personal access token from **Settings → Access tokens** as the
+HTTPS password). The commands below use `https://slath.example/alice/demo.git`;
+use your repository's address from **Clone**. Each pair shows the same
+step with Git, then with jj.
+
+Get the repository:
+
+```sh git clone
+git clone https://slath.example/alice/demo.git demo && cd demo
+```
+
+```sh jj clone
+jj git clone https://slath.example/alice/demo.git demo && cd demo
+```
+
+Commit your work on a branch and push it. The push prints the link to
+open the merge request (see [Opening a merge request](#opening-a-merge-request)):
+
+```sh git push-branch
+git switch -c my-topic
+git add -A && git commit -m "Add notes"
+git push origin my-topic
+```
+
+```sh jj push-branch
+jj commit -m "Add notes"
+jj bookmark create my-topic -r @-
+jj git push --bookmark my-topic
+```
+
+Update it after review by pushing again: each push is a new revision.
+Amending and rewriting are fine; the merge request follows each change
+across revisions:
+
+```sh git update
+git add -A && git commit --amend --no-edit
+git push --force-with-lease origin my-topic
+```
+
+```sh jj update
+jj squash --into my-topic
+jj git push --bookmark my-topic
+```
+
+When the target moved on, bring the branch up to date by rebasing it on
+the target and pushing (or use [Update branch](#updating-the-branch) on
+the server). If the rebase stops at a conflict, resolve it and continue
+as the comment says:
+
+```sh git rebase
+git fetch origin
+git rebase origin/main
+# On a conflict: resolve the files, then git add <files> && git rebase --continue
+git push --force-with-lease origin my-topic
+```
+
+```sh jj rebase
+jj git fetch
+jj rebase -b my-topic -d main@origin
+# On a conflict: resolve it (jj resolve, or edit the files), then push
+jj git push --bookmark my-topic
+```
+
+After a change on the server (**Update branch**, applied suggestions, a
+maintainer's edit), take the new revision before you change more:
+
+```sh git catch-up
+git pull --rebase origin my-topic
+```
+
+```sh jj catch-up
+jj git fetch
+```
+
+After the merge request is merged, continue from the updated target:
+
+```sh git after-merge
+git switch main && git pull origin main
+```
+
+```sh jj after-merge
+jj git fetch && jj new main@origin
+```
+
 ## Opening a merge request
 
 Push a branch. Git (or jj) prints a link:
@@ -380,26 +468,22 @@ automatic, the one your recent pushes came from (jj writes a change ID
 into every commit, Git doesn't). Until it knows, it shows Git; switching
 to jj on the page works at any time, and your browser remembers it. Only commands differ; every page looks the
 same whichever tool made the commits. With Git, the current revision is
-always at `refs/merge-requests/<n>/head`:
+always at `refs/merge-requests/<n>/head` (here merge request 12):
 
-```sh
+```sh git checkout
 git fetch origin refs/merge-requests/12/head && git switch --detach FETCH_HEAD
 ```
 
-A normal clone or fetch doesn't download these refs.
+A normal clone or fetch doesn't download these refs. With jj, which
+fetches branches, fetch the source branch:
 
-With jj, fetch the source branch:
-
-```sh
+```sh jj checkout
 jj git fetch --remote origin --branch my-topic && jj new my-topic@origin
 ```
 
-For a merge request from a fork, the jj command first adds the fork as a
-remote, since its branch lives there:
-
-```sh
-jj git remote add bob https://slath.example/bob/demo.git && jj git fetch --remote bob --branch my-topic && jj new my-topic@bob
-```
+A merge request from a fork is the branch `mr/<n>` in the original for
+those who check it out, so neither tool needs the fork as a remote; see
+[The branch mr/\<n\> in the original](forks.md#the-branch-mrn-in-the-original).
 
 ## References
 
