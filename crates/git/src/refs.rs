@@ -51,6 +51,18 @@ pub fn mr_head(number: u32) -> RefName {
     reserved(format!("refs/merge-requests/{number}/head"))
 }
 
+/// The branch that shows fork merge request `number` in its target
+/// (`refs/heads/mr/<n>`): written by the server, hidden from fetches except
+/// for the people involved, and updated by maintainer edits pushed to it.
+#[must_use]
+pub fn mr_branch(number: u32) -> RefName {
+    RefName::parse(format!("refs/heads/mr/{number}").into_bytes())
+        .unwrap_or_else(|_| reserved(format!("refs/heads/mr/{number}")))
+}
+
+/// The prefix of [`mr_branch`]es.
+pub const MR_BRANCH_PREFIX: &[u8] = b"refs/heads/mr/";
+
 /// A temporary ref for fetching a fork's parent branch, unique within this
 /// process and over restarts.
 #[must_use]

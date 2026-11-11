@@ -78,11 +78,18 @@ fn invocation(
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
+    shown: &[u32],
 ) -> crate::runner::Invocation {
     let mut inv = match service {
         Service::UploadPack => runner.repo(git_dir),
         Service::ReceivePack => runner.receive_pack(git_dir),
     };
+    // Fork merge request branches show only to those they're meant for;
+    // command-line config comes after the repository's, so these win.
+    inv = inv.config("transfer.hideRefs", "refs/heads/mr/");
+    for n in shown {
+        inv = inv.config("transfer.hideRefs", format!("!refs/heads/mr/{n}"));
+    }
     if let Some(p) = git_protocol {
         inv = inv.git_protocol(p);
     }
@@ -102,8 +109,9 @@ pub async fn http_info_refs(
     git_dir: &Path,
     service: Service,
     git_protocol: Option<&str>,
+    shown: &[u32],
 ) -> Result<Vec<u8>, GitError> {
-    let out = invocation(runner, git_dir, service, git_protocol, None)
+    let out = invocation(runner, git_dir, service, git_protocol, None, shown)
         .args(["--stateless-rpc", "--http-backend-info-refs"])
         .arg(git_dir)
         .max_output(MAX_ADVERTISEMENT)
@@ -128,8 +136,9 @@ pub async fn spawn_http_rpc(
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
+    shown: &[u32],
 ) -> Result<GitChild, GitError> {
-    invocation(runner, git_dir, service, git_protocol, hooks)
+    invocation(runner, git_dir, service, git_protocol, hooks, shown)
         .arg("--stateless-rpc")
         .arg(git_dir)
         .spawn()
@@ -144,9 +153,10 @@ pub async fn spawn_ssh(
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
+    shown: &[u32],
     stdio: [OwnedFd; 3],
 ) -> Result<GitChild, GitError> {
-    invocation(runner, git_dir, service, git_protocol, hooks)
+    invocation(runner, git_dir, service, git_protocol, hooks, shown)
         .arg(git_dir)
         .spawn_attached(stdio)
         .await

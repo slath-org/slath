@@ -30,6 +30,7 @@ pub mod maintenance;
 pub mod merge;
 pub mod merge_requests;
 pub mod mfa;
+pub mod mr_branches;
 pub mod mr_changes;
 pub mod mr_reviews;
 pub mod mr_threads;

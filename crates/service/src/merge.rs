@@ -301,6 +301,7 @@ impl Services {
             }],
         )
         .await?;
+        self.sync_mr_branch_by_id(m.id).await;
         if input.delete_source.unwrap_or(m.delete_source_on_merge) {
             self.delete_source(subject, &a, &m, &head).await;
         }

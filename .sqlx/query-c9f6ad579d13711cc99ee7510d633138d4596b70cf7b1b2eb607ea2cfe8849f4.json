@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT number FROM merge_requests\n         WHERE repo_id = $1 AND state = 'open' AND allow_maintainer_edits\n           AND source_repo_id IS NOT NULL AND source_repo_id <> repo_id\n         ORDER BY number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "number"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c9f6ad579d13711cc99ee7510d633138d4596b70cf7b1b2eb607ea2cfe8849f4"
+}

@@ -53,6 +53,8 @@ pub async fn list_refs(
             "--sort=-creatordate",
             &format!("--count={limit}"),
             "--format=%(objectname)%00%(*objectname)%00%(refname)%00%(creatordate:unix)%00%(contents:subject)",
+            // Fork merge request branches aren't the repository's own.
+            "--exclude=refs/heads/mr/",
             prefix,
         ])
         .run()

@@ -841,3 +841,62 @@ pub async fn set_allow_maintainer_edits(
     .rows_affected()
         > 0)
 }
+
+/// Numbers of the open fork merge requests into `repo` whose branch
+/// `mr/<n>` `user` is involved in: requested reviewer (directly or through
+/// a team), assignee, or someone who chose "Check out".
+pub async fn involved_fork_mrs(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    user: slath_core::ids::UserId,
+) -> Result<Vec<i32>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT m.number FROM merge_requests m
+           WHERE m.repo_id = $1 AND m.state = 'open'
+             AND m.source_repo_id IS NOT NULL AND m.source_repo_id <> m.repo_id
+             AND (EXISTS (SELECT 1 FROM mr_reviewers r
+                          LEFT JOIN team_members t ON t.team_id = r.team_id
+                          WHERE r.mr_id = m.id AND r.state <> 'removed'
+                            AND (r.user_id = $2 OR t.user_id = $2))
+                  OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $2)
+                  OR EXISTS (SELECT 1 FROM mr_checkouts c WHERE c.mr_id = m.id AND c.user_id = $2))
+           ORDER BY m.number"#,
+        repo.as_uuid(),
+        user.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?)
+}
+
+/// Records that `user` chose "Check out" on a merge request.
+pub async fn add_checkout(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    user: slath_core::ids::UserId,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "INSERT INTO mr_checkouts (mr_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        mr.as_uuid(),
+        user.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Numbers of the open fork merge requests into `repo` that allow edits by
+/// maintainers.
+pub async fn maintainer_editable_into(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<i32>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT number FROM merge_requests
+         WHERE repo_id = $1 AND state = 'open' AND allow_maintainer_edits
+           AND source_repo_id IS NOT NULL AND source_repo_id <> repo_id
+         ORDER BY number",
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?)
+}

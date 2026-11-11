@@ -210,7 +210,18 @@ async fn info_refs(
         Err(d) => return d.into_response(),
     };
     let git_dir = state.services.repo_path(access.repo.id);
-    match transport::http_info_refs(&state.runner, &git_dir, service, git_protocol(&headers)).await
+    let shown = state
+        .services
+        .shown_mr_branches(&subject, access.repo.id, service.is_write())
+        .await;
+    match transport::http_info_refs(
+        &state.runner,
+        &git_dir,
+        service,
+        git_protocol(&headers),
+        &shown,
+    )
+    .await
     {
         Ok(body) => {
             let ct = match service {
@@ -304,6 +315,10 @@ async fn rpc(
     // receive.maxInputSize check, with its clear message, fires first.
     let body_limit = max_bytes.saturating_add(1024 * 1024);
     let git_dir = state.services.repo_path(access.repo.id);
+    let shown = state
+        .services
+        .shown_mr_branches(&subject, access.repo.id, service.is_write())
+        .await;
     let token = match service {
         Service::ReceivePack => {
             let grant = PushGrant {
@@ -329,6 +344,7 @@ async fn rpc(
         service,
         git_protocol(headers),
         hooks.as_ref(),
+        &shown,
     )
     .await
     {

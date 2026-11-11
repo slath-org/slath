@@ -366,6 +366,8 @@ struct SshGrant {
     git_dir: PathBuf,
     /// Present for `git-receive-pack`; valid until the session ends.
     hook_token: Option<HookToken>,
+    /// The `mr/<n>` branches this subject sees.
+    shown: Vec<u32>,
 }
 
 /// How long `ssh-serve` has to pass its descriptors after the go-ahead.
@@ -412,6 +414,7 @@ async fn ssh_session(
         grant.service,
         req.git_protocol,
         hooks.as_ref(),
+        &grant.shown,
         stdio,
     )
     .await;
@@ -490,6 +493,10 @@ async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGran
             return Err(Response::deny("slath: internal error"));
         }
     };
+    let shown = ctx
+        .services
+        .shown_mr_branches(&subject, access.repo.id, service.is_write())
+        .await;
     let hook_token = if service.is_write() {
         let grant = PushGrant {
             subject,
@@ -510,6 +517,7 @@ async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGran
         service,
         git_dir: ctx.services.repo_path(access.repo.id),
         hook_token,
+        shown,
     })
 }
 

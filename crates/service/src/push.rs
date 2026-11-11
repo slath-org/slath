@@ -311,6 +311,13 @@ impl Services {
                 continue;
             }
             let bytes = r.as_bytes();
+            if bytes.starts_with(slath_git::refs::MR_BRANCH_PREFIX) {
+                deny(
+                    DenyReason::ReservedRef,
+                    "branches under mr/ show merge requests from forks; Slath writes them",
+                );
+                continue;
+            }
             let is_tag = bytes.starts_with(b"refs/tags/");
             if !bytes.starts_with(b"refs/heads/") && !is_tag {
                 deny(

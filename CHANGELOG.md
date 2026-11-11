@@ -93,6 +93,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Suggestions can also be folded into the change that introduced their lines; later commits are rebased and every change keeps its ID, for Git and jj alike.
 - Suggestions show the change they make in the conversation, with Apply suggestion, Add to batch, and an Apply suggestions group in the merge box.
 - Commands on merge request pages (checking out, resolving conflicts) follow your tool: a new Commands for setting, else the tool your recent pushes came from, else Git.
+- A merge request from a fork shows in its target as the branch mr/<n>, to its reviewers and assignees only; branches under mr/ can't be pushed otherwise.
 
 ### Changed
 
