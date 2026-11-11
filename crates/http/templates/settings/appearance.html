@@ -30,7 +30,7 @@
   <fieldset class="field" aria-describedby="tool-hint">
     <legend>Commands for</legend>
     <p id="tool-hint" class="hint">Where pages show commands (checking out, resolving conflicts), they show them for this tool. Everything else looks the same either way.</p>
-    <div class="checkbox"><input id="tool-auto" type="radio" name="tool" value="auto"{% if tool == "auto" %} checked{% endif %}><label for="tool-auto">Automatic ({% if let Some(d) = detected %}{{ d }}, from your recent pushes{% else %}from your pushes; until then, you choose on each page{% endif %})</label></div>
+    <div class="checkbox"><input id="tool-auto" type="radio" name="tool" value="auto"{% if tool == "auto" %} checked{% endif %}><label for="tool-auto">Automatic ({% if let Some(d) = detected %}{{ d }}, from your recent pushes{% else %}from your pushes; Git until then{% endif %})</label></div>
     <div class="checkbox"><input id="tool-git" type="radio" name="tool" value="git"{% if tool == "git" %} checked{% endif %}><label for="tool-git">Git</label></div>
     <div class="checkbox"><input id="tool-jj" type="radio" name="tool" value="jj"{% if tool == "jj" %} checked{% endif %}><label for="tool-jj">jj</label></div>
   </fieldset>

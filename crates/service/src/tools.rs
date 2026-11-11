@@ -5,8 +5,8 @@
 //! after a server-side change) differ. A user's setting decides; on
 //! "automatic", their recent pushes do: jj writes a `change-id` header
 //! into every commit it makes, Git doesn't. Pushes the server makes
-//! itself (merges, updates, suggestions) don't count. Unknown means the
-//! UI lets the viewer choose, with nothing preselected.
+//! itself (merges, updates, suggestions) don't count. Unknown means Git,
+//! which the viewer can switch on the page at any time.
 
 use slath_core::authz::Subject;
 use slath_core::ids::{RepoId, UserId};

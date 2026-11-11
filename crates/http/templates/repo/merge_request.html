@@ -198,7 +198,7 @@
     <div class="choice">
       <fieldset class="choice-options">
         <legend>Commands for</legend>
-        <div class="radio"><input id="conflicts-tool-git" type="radio" name="conflicts-tool" value="git"{% if h.tool.git %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="conflicts-tool-git">Git</label></div>
+        <div class="radio"><input id="conflicts-tool-git" type="radio" name="conflicts-tool" value="git"{% if h.tool.git || !h.tool.known() %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="conflicts-tool-git">Git</label></div>
         <div class="radio"><input id="conflicts-tool-jj" type="radio" name="conflicts-tool" value="jj"{% if h.tool.jj %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="conflicts-tool-jj">jj</label></div>
       </fieldset>
       <div class="choice-panel">

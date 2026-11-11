@@ -1010,7 +1010,7 @@ struct MrHeading {
 }
 
 /// The viewer's tool for command blocks: preselected when known (setting
-/// or recent pushes), else nothing is and the browser remembers a pick.
+/// or recent pushes); otherwise Git is, and the browser remembers a pick.
 #[derive(Clone, Copy)]
 struct ToolChoice {
     git: bool,

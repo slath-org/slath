@@ -3,7 +3,7 @@
 //! One UI for Git and jj (JJ-11, D-44): the same merge request made with
 //! Git and with jj renders the same pages apart from command blocks, and
 //! command blocks follow the viewer's tool: their setting, else what their
-//! pushes came from, else a choice with nothing preselected.
+//! pushes came from, else Git (switchable on the page at any time).
 
 use std::path::Path;
 
@@ -207,10 +207,10 @@ fn conf_jj_11_commands_follow_the_viewers_tool() {
         let remember = html.contains(r#"data-remember="tool""#);
         (git, jj, remember)
     };
-    // Unknown (no pushes yet): nothing preselected, the browser remembers.
+    // Unknown (no pushes yet): Git, and the browser remembers a switch.
     let mut web = s.login("bob", PASSWORD);
-    assert_eq!(checked(&web.get(&page).body), (false, false, true));
-    assert_eq!(checked(&s.client().get(&page).body), (false, false, true));
+    assert_eq!(checked(&web.get(&page).body), (true, false, true));
+    assert_eq!(checked(&s.client().get(&page).body), (true, false, true));
     // A push with Git makes it Git.
     git.ok(&w, &["switch", "-q", "-c", "bob-git", "main"]);
     write(&w, "g.txt", "g\n");

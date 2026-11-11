@@ -377,8 +377,8 @@ Diffs look the same on commits, the compare page, and merge requests:
 each with a copy button, for Git or for jj. Slath shows your tool's: the
 one you chose under **Settings → Appearance → Commands for**, or, set to
 automatic, the one your recent pushes came from (jj writes a change ID
-into every commit, Git doesn't). Until it knows, you choose on the page
-and your browser remembers it. Only commands differ; every page looks the
+into every commit, Git doesn't). Until it knows, it shows Git; switching
+to jj on the page works at any time, and your browser remembers it. Only commands differ; every page looks the
 same whichever tool made the commits. With Git, the current revision is
 always at `refs/merge-requests/<n>/head`:
 
