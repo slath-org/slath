@@ -1075,7 +1075,14 @@ struct Card {
     mergeable: bool,
     /// The source contains the target's head.
     up_to_date: bool,
+    /// Files no counting approver had viewed when approving (the first
+    /// [`UNVIEWED_SHOWN`]), and how many more there are.
+    unviewed: Vec<String>,
+    unviewed_more: usize,
 }
+
+/// How many files not viewed by an approver the card names.
+const UNVIEWED_SHOWN: usize = 50;
 
 /// Who the viewer is to this merge request, for choosing the next step.
 struct Viewer {
@@ -1100,6 +1107,13 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         })
     };
     let up_to_date = mb.up_to_date;
+    let mut unviewed = mb
+        .coverage
+        .as_ref()
+        .map(|c| c.unviewed.clone())
+        .unwrap_or_default();
+    let unviewed_more = unviewed.len().saturating_sub(UNVIEWED_SHOWN);
+    unviewed.truncate(UNVIEWED_SHOWN);
     let done = |headline: String, reason: String, action| Card {
         headline,
         reason,
@@ -1109,6 +1123,8 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         since,
         mergeable: false,
         up_to_date,
+        unviewed: unviewed.clone(),
+        unviewed_more,
     };
     match m.state.as_str() {
         "merged" => {
@@ -1198,6 +1214,8 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         since,
         mergeable: false,
         up_to_date,
+        unviewed,
+        unviewed_more,
     }
 }
 

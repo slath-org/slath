@@ -509,6 +509,63 @@ pub async fn changed_file_count(
         .count())
 }
 
+/// The files `base..commit` changes (renames counted once, as in
+/// [`diff`]), each with the object it has at `commit`: its new path, or
+/// for a deleted file its old path and the zero object ID.
+pub async fn changed_blobs(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+) -> Result<Vec<(Vec<u8>, String)>, GitError> {
+    let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "diff",
+            "--no-ext-diff",
+            "-M",
+            "--raw",
+            "--no-abbrev",
+            "-z",
+            "--end-of-options",
+            base,
+            commit.as_str(),
+        ])
+        .run()
+        .await?;
+    Ok(parse_raw(&out.stdout))
+}
+
+/// Parses `git diff --raw -z --no-abbrev` output: `:<old mode> <new mode>
+/// <old oid> <new oid> <status>` NUL `<path>` NUL, with a second path for
+/// renames and copies.
+fn parse_raw(out: &[u8]) -> Vec<(Vec<u8>, String)> {
+    let mut fields = out.split(|&b| b == 0);
+    let mut files = Vec::new();
+    while let Some(meta) = fields.next() {
+        let Some(meta) = meta.strip_prefix(b":") else {
+            continue;
+        };
+        let meta = String::from_utf8_lossy(meta);
+        let parts: Vec<&str> = meta.split(' ').collect();
+        let (Some(new_oid), Some(status)) = (parts.get(3), parts.get(4)) else {
+            break;
+        };
+        let Some(mut path) = fields.next() else {
+            break;
+        };
+        if status.starts_with(['R', 'C']) {
+            match fields.next() {
+                Some(p) => path = p,
+                None => break,
+            }
+        }
+        files.push((path.to_vec(), (*new_oid).to_owned()));
+    }
+    files
+}
+
 /// Which of `paths` are marked generated in `source`'s `.gitattributes`
 /// (`linguist-generated` or `slath-generated` set).
 pub async fn generated_paths(
@@ -704,5 +761,27 @@ mod blame_tests {
             1_700_000_100
         );
         assert!(parse_blame(b"\torphan line\n").is_err());
+    }
+}
+
+#[cfg(test)]
+mod raw_tests {
+    use super::parse_raw;
+
+    #[test]
+    fn raw_diff_is_parsed() {
+        let z = "0".repeat(40);
+        let (a, b) = ("a".repeat(40), "b".repeat(40));
+        let out = format!(
+            ":100644 100644 {a} {b} M\0x.txt\0:100644 100644 {a} {a} R100\0old.txt\0new.txt\0:100644 000000 {a} {z} D\0gone.txt\0"
+        );
+        assert_eq!(
+            parse_raw(out.as_bytes()),
+            vec![
+                (b"x.txt".to_vec(), b.clone()),
+                (b"new.txt".to_vec(), a.clone()),
+                (b"gone.txt".to_vec(), z.clone()),
+            ]
+        );
     }
 }

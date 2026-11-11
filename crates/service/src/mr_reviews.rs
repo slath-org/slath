@@ -84,6 +84,40 @@ pub struct Mergeability {
     /// The target head is an ancestor of the source head (whether or not
     /// that's required); otherwise the branch can be updated.
     pub up_to_date: bool,
+    /// What the counting approvers had viewed when they approved; `None`
+    /// without counting approvals.
+    pub coverage: Option<Coverage>,
+}
+
+/// One counting approval's coverage snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApprovalCoverage {
+    pub reviewer: String,
+    /// The revision approved (older than the current one when carried).
+    pub revision: i32,
+    pub files_viewed: usize,
+    pub files_total: usize,
+}
+
+/// The coverage of the counting approvals (spec: approval coverage).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Coverage {
+    pub approvals: Vec<ApprovalCoverage>,
+    /// Files of the current revision's diff no counting approver viewed.
+    pub unviewed: Vec<String>,
+}
+
+impl ApprovalCoverage {
+    /// "r3, 12 of 15 files viewed".
+    #[must_use]
+    pub fn describe(&self) -> String {
+        format!(
+            "r{}, {} of {} viewed",
+            self.revision,
+            self.files_viewed,
+            plural(self.files_total, "file", "files")
+        )
+    }
 }
 
 fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
@@ -237,8 +271,15 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
+        // An approval's coverage: the files of the revision's diff the
+        // approver viewed, as they are in it.
+        let coverage = if verdict == Verdict::Approve {
+            Some(self.coverage_snapshot(&m, *me).await?)
+        } else {
+            None
+        };
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        db::insert(
+        let id = db::insert(
             &mut *tx,
             m.id,
             m.revisions,
@@ -247,6 +288,9 @@ impl Services {
             body.trim(),
         )
         .await?;
+        if let Some((total, viewed)) = coverage {
+            db::set_coverage(&mut tx, id, total, &viewed).await?;
+        }
         // The review publishes the reviewer's pending comments with it.
         slath_db::mr_threads::publish_pending(&mut *tx, m.id, *me).await?;
         db::mark_reviewed(&mut *tx, m.id, *me).await?;
@@ -260,6 +304,82 @@ impl Services {
             .await;
         self.queue_auto_merge(m.id).await;
         Ok(review)
+    }
+
+    /// The files of revision `seq`'s diff, with their objects at its head.
+    async fn revision_files(&self, m: &MergeRequest, seq: i32) -> Result<Vec<(String, String)>> {
+        let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        let r = revs
+            .iter()
+            .find(|r| r.seq == seq)
+            .ok_or(ServiceError::NotFound)?;
+        let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
+        let base = r.merge_base_oid.as_deref().map(parse).transpose()?;
+        let head = parse(&r.head_oid)?;
+        let dir = self.repo_path(m.repo_id);
+        Ok(
+            slath_git::browse::changed_blobs(&self.runner, &dir, base.as_ref(), &head)
+                .await
+                .map_err(ServiceError::internal)?
+                .into_iter()
+                .map(|(p, o)| (String::from_utf8_lossy(&p).into_owned(), o))
+                .collect(),
+        )
+    }
+
+    /// The coverage of `user`'s approval of the current revision: how many
+    /// files its diff has, and which the user viewed as they are in it.
+    async fn coverage_snapshot(
+        &self,
+        m: &MergeRequest,
+        user: UserId,
+    ) -> Result<(i32, Vec<String>)> {
+        let files = self.revision_files(m, m.revisions).await?;
+        let viewed: HashMap<String, String> = slath_db::mr_threads::viewed(&self.pool, m.id, user)
+            .await?
+            .into_iter()
+            .collect();
+        let seen = files
+            .iter()
+            .filter(|(p, o)| viewed.get(p) == Some(o))
+            .map(|(p, _)| p.clone())
+            .collect();
+        Ok((i32::try_from(files.len()).unwrap_or(i32::MAX), seen))
+    }
+
+    /// The coverage of the counting approvals `approvals` (review, name).
+    async fn approval_coverage(
+        &self,
+        m: &MergeRequest,
+        approvals: &[(&Review, String)],
+    ) -> Result<Option<Coverage>> {
+        if approvals.is_empty() {
+            return Ok(None);
+        }
+        let ids: Vec<uuid::Uuid> = approvals.iter().map(|(r, _)| r.id).collect();
+        let snaps = db::coverage(&self.pool, &ids).await?;
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Coverage::default();
+        for (r, name) in approvals {
+            let Some(c) = snaps.get(&r.id) else {
+                continue;
+            };
+            seen.extend(c.viewed.iter().cloned());
+            out.approvals.push(ApprovalCoverage {
+                reviewer: name.clone(),
+                revision: r.revision_seq,
+                files_viewed: c.viewed.len(),
+                files_total: usize::try_from(c.files_total).unwrap_or(0),
+            });
+        }
+        out.unviewed = self
+            .revision_files(m, m.revisions)
+            .await?
+            .into_iter()
+            .map(|(p, _)| p)
+            .filter(|p| !seen.contains(p))
+            .collect();
+        Ok(Some(out))
     }
 
     /// The reviews, with whether each still counts.
@@ -492,6 +612,7 @@ impl Services {
         });
         let views = self.mr_reviews(m).await?;
         let mut approvers = Vec::new();
+        let mut approvals = Vec::new();
         let mut blockers = Vec::new();
         let mut stale = 0;
         for v in &views {
@@ -506,12 +627,30 @@ impl Services {
                 continue;
             }
             match (v.review.verdict.as_str(), v.counts) {
-                ("approve", true) => approvers.push(name),
+                ("approve", true) => {
+                    approvers.push(name.clone());
+                    approvals.push((&v.review, name));
+                }
                 ("request_changes", true) => blockers.push(name),
                 ("approve", false) if v.stale => stale += 1,
                 _ => {}
             }
         }
+        let coverage = self.approval_coverage(m, &approvals).await?;
+        // Each approver with what they had viewed: "alice (r3, 12 of 15
+        // files viewed)".
+        let named: Vec<String> = approvers
+            .iter()
+            .map(|n| {
+                match coverage
+                    .as_ref()
+                    .and_then(|c| c.approvals.iter().find(|a| &a.reviewer == n))
+                {
+                    Some(a) => format!("{n} ({})", a.describe()),
+                    None => n.clone(),
+                }
+            })
+            .collect();
         let needed = usize::try_from(eff.required_approvals).unwrap_or(0);
         let stale_note = if stale > 0 {
             format!(
@@ -524,19 +663,24 @@ impl Services {
         reqs.push(if approvers.len() >= needed {
             met(
                 "approvals",
-                if needed == 0 {
+                if named.is_empty() {
                     "No approvals are required.".to_owned()
                 } else {
-                    format!("Approved by {}.", approvers.join(", "))
+                    format!("Approved by {}.", named.join(", "))
                 },
             )
         } else {
             unmet(
                 "approvals",
-                format!(
-                    "{} of {needed} required approvals{stale_note}.",
-                    approvers.len()
-                ),
+                if named.is_empty() {
+                    format!("0 of {needed} required approvals{stale_note}.")
+                } else {
+                    format!(
+                        "{} of {needed} required approvals{stale_note}: {}.",
+                        named.len(),
+                        named.join(", ")
+                    )
+                },
                 "Ask a reviewer with write access",
             )
         });
@@ -618,6 +762,7 @@ impl Services {
             mergeable: reqs.iter().all(|r| r.state == "met"),
             requirements: reqs,
             up_to_date,
+            coverage,
         })
     }
 

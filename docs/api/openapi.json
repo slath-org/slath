@@ -7010,6 +7010,35 @@
           }
         }
       },
+      "ApprovalCoverageBody": {
+        "type": "object",
+        "description": "A counting approval's coverage: a snapshot taken when it was given.",
+        "required": [
+          "reviewer",
+          "revision",
+          "files_viewed",
+          "files_total"
+        ],
+        "properties": {
+          "files_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files_viewed": {
+            "type": "integer",
+            "description": "Files of that revision's diff the reviewer had marked viewed, as\nthey are in that revision.",
+            "minimum": 0
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The revision approved; older than the current one when the\napproval carried forward."
+          }
+        }
+      },
       "AttachmentJson": {
         "type": "object",
         "description": "An uploaded attachment.",
@@ -7441,6 +7470,29 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CoverageBody": {
+        "type": "object",
+        "description": "Approval coverage, an observed fact.",
+        "required": [
+          "approvals",
+          "unviewed_files"
+        ],
+        "properties": {
+          "approvals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalCoverageBody"
+            }
+          },
+          "unviewed_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files of the current revision's diff no counting approver viewed."
           }
         }
       },
@@ -8292,6 +8344,17 @@
           "up_to_date"
         ],
         "properties": {
+          "coverage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CoverageBody",
+                "description": "What the counting approvers had viewed when they approved; absent\nwithout counting approvals."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "mergeable": {
             "type": "boolean"
           },

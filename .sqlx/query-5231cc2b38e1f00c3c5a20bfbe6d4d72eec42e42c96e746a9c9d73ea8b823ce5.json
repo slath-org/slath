@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_review_viewed_files (review_id, path)\n         SELECT $1, p FROM unnest($2::text[]) AS p",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5231cc2b38e1f00c3c5a20bfbe6d4d72eec42e42c96e746a9c9d73ea8b823ce5"
+}

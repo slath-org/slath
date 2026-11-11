@@ -1473,6 +1473,14 @@ fieldset.field {
   margin: 0 0 var(--space-1) var(--space-6);
   color: var(--text-secondary);
 }
+/* A requirement's list of files: the label and its files as one group. */
+.requirement-files > p,
+.requirement-files > ul {
+  margin: 0;
+}
+.requirement-files > ul {
+  margin-block-start: var(--space-1);
+}
 /* The tones: icon and words, the color only adds to them. */
 .tone-done > svg,
 .tone-done > details > summary > svg,

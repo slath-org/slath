@@ -45,6 +45,71 @@ pub async fn insert(
     Ok(id)
 }
 
+/// Records an approval's coverage: the files in the approved revision's
+/// diff, and the ones the approver had viewed.
+pub async fn set_coverage(
+    conn: &mut sqlx::PgConnection,
+    review: uuid::Uuid,
+    files_total: i32,
+    viewed: &[String],
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE mr_reviews SET files_total = $2 WHERE id = $1",
+        review,
+        files_total
+    )
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query!(
+        "INSERT INTO mr_review_viewed_files (review_id, path)
+         SELECT $1, p FROM unnest($2::text[]) AS p",
+        review,
+        viewed
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+/// An approval's coverage: the files in its revision's diff, and the
+/// paths the approver had viewed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Coverage {
+    pub files_total: i32,
+    pub viewed: Vec<String>,
+}
+
+/// The coverage of each of `reviews` that has one.
+pub async fn coverage(
+    exec: impl PgExecutor<'_>,
+    reviews: &[uuid::Uuid],
+) -> Result<std::collections::HashMap<uuid::Uuid, Coverage>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT r.id, r.files_total AS "files_total!",
+                  COALESCE(array_agg(v.path ORDER BY v.path) FILTER (WHERE v.path IS NOT NULL),
+                           '{}') AS "viewed!"
+           FROM mr_reviews r
+           LEFT JOIN mr_review_viewed_files v ON v.review_id = r.id
+           WHERE r.id = ANY($1) AND r.files_total IS NOT NULL
+           GROUP BY r.id, r.files_total"#,
+        reviews
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            (
+                r.id,
+                Coverage {
+                    files_total: r.files_total,
+                    viewed: r.viewed,
+                },
+            )
+        })
+        .collect())
+}
+
 /// Every review, oldest first.
 pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<Review>, DbError> {
     let rows = sqlx::query!(

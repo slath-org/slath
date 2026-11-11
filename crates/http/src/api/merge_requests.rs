@@ -701,6 +701,31 @@ pub struct MergeabilityBody {
     /// The source contains the target's head; if not, `update-branch`
     /// brings it up to date.
     pub up_to_date: bool,
+    /// What the counting approvers had viewed when they approved; absent
+    /// without counting approvals.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<CoverageBody>,
+}
+
+/// A counting approval's coverage: a snapshot taken when it was given.
+#[derive(Serialize, ToSchema)]
+pub struct ApprovalCoverageBody {
+    pub reviewer: String,
+    /// The revision approved; older than the current one when the
+    /// approval carried forward.
+    pub revision: i32,
+    /// Files of that revision's diff the reviewer had marked viewed, as
+    /// they are in that revision.
+    pub files_viewed: usize,
+    pub files_total: usize,
+}
+
+/// Approval coverage, an observed fact.
+#[derive(Serialize, ToSchema)]
+pub struct CoverageBody {
+    pub approvals: Vec<ApprovalCoverageBody>,
+    /// Files of the current revision's diff no counting approver viewed.
+    pub unviewed_files: Vec<String>,
 }
 
 /// Whether the merge request can be merged, with each requirement.
@@ -716,6 +741,19 @@ pub async fn get_mergeability(
     Ok(Json(MergeabilityBody {
         mergeable: mb.mergeable,
         up_to_date: mb.up_to_date,
+        coverage: mb.coverage.map(|c| CoverageBody {
+            approvals: c
+                .approvals
+                .into_iter()
+                .map(|a| ApprovalCoverageBody {
+                    reviewer: a.reviewer,
+                    revision: a.revision,
+                    files_viewed: a.files_viewed,
+                    files_total: a.files_total,
+                })
+                .collect(),
+            unviewed_files: c.unviewed,
+        }),
         requirements: mb
             .requirements
             .into_iter()

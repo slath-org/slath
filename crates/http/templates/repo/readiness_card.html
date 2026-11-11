@@ -28,13 +28,27 @@
   {%- if !h.card.rows.is_empty() %}
   <ul class="requirements">
   {%- for r in h.card.rows %}
+    {%- let coverage = r.key == "approvals" && !h.card.unviewed.is_empty() %}
     <li class="requirement tone-{{ r.tone }}">
-      {%- if r.tone == "done" %}
+      {%- if r.tone == "done" && !coverage %}
       {% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span>
       {%- else %}
       <details>
         <summary>{% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span></summary>
         {%- if let Some(f) = r.fix %}<p class="requirement-fix">{{ f }}.</p>{% endif %}
+        {%- if coverage %}
+        <div class="requirement-fix requirement-files">
+          <p>Not viewed by an approver when approving {% call m::evidence("Observed") %}{% endcall %}</p>
+          <ul class="plain-list">
+          {%- for f in h.card.unviewed %}
+            <li>{{ f }}</li>
+          {%- endfor %}
+          {%- if h.card.unviewed_more > 0 %}
+            <li>and {{ h.card.unviewed_more }} more</li>
+          {%- endif %}
+          </ul>
+        </div>
+        {%- endif %}
       </details>
       {%- endif %}
     </li>

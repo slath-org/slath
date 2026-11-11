@@ -103,6 +103,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Diffs fold renames, mode and whitespace changes, generated, binary, symlink, and submodule files with the reason.
 - The file list above a diff shows files with changed content; All files adds the folded ones with their reasons.
 - Each file of a diff has its own frame, and Load diff sits at the same place for every folded file.
+- An approval records how many files of the diff the approver had viewed; the readiness card and the mergeability API show it and the files no approver viewed.
 
 ### Changed
 

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Reviews and requirements (REVIEW-01): who may approve, approvals that
 //! survive a pure rebase and go stale after a content change, requests
-//! for changes, drafts, and the review requests inbox.
+//! for changes, drafts, and the review requests inbox. Approval coverage
+//! (REVIEW-14): what an approver had viewed, snapshot at approval.
 
 use serde_json::{Value, json};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
@@ -179,7 +180,10 @@ fn conf_review_01_approvals_rebases_and_requirements() {
     assert!(!bob_ui.get("/-/review-requests").body.contains("Add a"));
     assert_eq!(
         requirement(&u, n, "approvals"),
-        ("met".into(), "Approved by bob.".into())
+        (
+            "met".into(),
+            "Approved by bob (r1, 0 of 1 file viewed).".into()
+        )
     );
     let m = api(
         &u,
@@ -727,5 +731,171 @@ fn conf_review_13_returning_reviewer_and_the_strict_rule() {
             .iter()
             .any(|e| e["kind"] == "approval_stale" && e["reason"] == "new-revision"),
         "{ledger}"
+    );
+}
+
+/// Marks `path` viewed (or not) as the signed-in user, as the page does.
+fn mark_viewed(ui: &mut slath_tests::http::Client, n: i64, path: &str, viewed: bool) {
+    let changes = format!("/alice/demo/merge-requests/{n}/changes");
+    let r = slath_tests::http::submit(
+        ui,
+        &changes,
+        &format!("/alice/demo/merge-requests/{n}/viewed"),
+        &[
+            ("path", path),
+            ("viewed", if viewed { "true" } else { "false" }),
+            ("back", &changes),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+}
+
+#[test]
+fn conf_review_14_approval_coverage_is_a_snapshot() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.create_user("carol", PASSWORD, false);
+    let u = Users {
+        alice: token(&s, "alice"),
+        bob: token(&s, "bob"),
+        carol: token(&s, "carol"),
+        s,
+    };
+    for (who, role) in [("bob", "write"), ("carol", "read")] {
+        let r = api(
+            &u,
+            &u.alice,
+            "PUT",
+            &format!("/collaborators/{who}"),
+            Some(json!({"role": role})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1, "block_force_push": false})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = u.s.url(&DEMO);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    std::fs::write(w.join("gone.txt"), "bye\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "-c", "topic"]);
+    for f in ["a.txt", "b.txt", "c.txt"] {
+        std::fs::write(w.join(f), format!("{f}\n")).unwrap();
+    }
+    git.ok(w, &["rm", "-q", "gone.txt"]);
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "Add files"]);
+    git.ok(w, &["push", "-q", &url, "topic"]);
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Add files"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    wait_revisions(&u, n, 1);
+    let coverage = |token: &str| {
+        api(
+            &u,
+            token,
+            "GET",
+            &format!("/merge-requests/{n}/mergeability"),
+            None,
+        )
+        .json()["coverage"]
+            .clone()
+    };
+    assert_eq!(coverage(&u.alice), Value::Null, "no approvals, no coverage");
+
+    // Bob views everything at r1, then c.txt changes in r2: only the
+    // views of r2's blobs count (the deleted file's view still does).
+    let mut bob_ui = u.s.login("bob", PASSWORD);
+    for f in ["a.txt", "b.txt", "c.txt", "gone.txt"] {
+        mark_viewed(&mut bob_ui, n, f, true);
+    }
+    std::fs::write(w.join("c.txt"), "c, changed\n").unwrap();
+    git.ok(w, &["commit", "-qa", "--amend", "--no-edit"]);
+    git.ok(w, &["push", "-q", "--force", &url, "topic"]);
+    wait_revisions(&u, n, 2);
+    let r = api(
+        &u,
+        &u.bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "approve"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let expected = json!({
+        "approvals": [{"reviewer": "bob", "revision": 2, "files_viewed": 3, "files_total": 4}],
+        "unviewed_files": ["c.txt"],
+    });
+    assert_eq!(coverage(&u.alice), expected);
+    assert_eq!(
+        requirement(&u, n, "approvals"),
+        (
+            "met".into(),
+            "Approved by bob (r2, 3 of 4 files viewed).".into()
+        )
+    );
+
+    // Later views don't change it.
+    mark_viewed(&mut bob_ui, n, "c.txt", true);
+    mark_viewed(&mut bob_ui, n, "a.txt", false);
+    assert_eq!(coverage(&u.alice), expected);
+
+    // A pure rebase carries the approval with its coverage.
+    git.ok(w, &["switch", "-q", "main"]);
+    std::fs::write(w.join("other.txt"), "o\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "Other"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "topic"]);
+    git.ok(w, &["rebase", "-q", "main"]);
+    git.ok(w, &["push", "-q", "--force", &url, "topic"]);
+    wait_revisions(&u, n, 3);
+    assert_eq!(requirement(&u, n, "approvals").0, "met");
+    assert_eq!(coverage(&u.alice), expected);
+
+    // Readers see the snapshot, nothing more of Bob's viewed state.
+    assert_eq!(coverage(&u.carol), expected);
+    let mut carol_ui = u.s.login("carol", PASSWORD);
+    let page = carol_ui
+        .get(&format!("/alice/demo/merge-requests/{n}"))
+        .body;
+    assert!(
+        page.contains("Approved by bob (r2, 3 of 4 files viewed).")
+            && page.contains("Not viewed by an approver when approving")
+            && page.contains("<li>c.txt</li>"),
+        "{page}"
+    );
+    let changes = carol_ui
+        .get(&format!("/alice/demo/merge-requests/{n}/changes"))
+        .body;
+    assert!(
+        !changes.contains("You marked this file viewed")
+            && !changes.contains(r#"aria-pressed="true""#),
+        "{changes}"
+    );
+    // Bob's own viewed state is his (a.txt unmarked, c.txt marked).
+    let changes = bob_ui
+        .get(&format!("/alice/demo/merge-requests/{n}/changes"))
+        .body;
+    assert_eq!(
+        changes.matches(r#"aria-pressed="true""#).count(),
+        3,
+        "{changes}"
     );
 }
