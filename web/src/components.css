@@ -862,19 +862,58 @@ fieldset.field {
 .diff-tree-status {
   margin-inline-start: var(--space-3);
 }
+/* Each file of a diff in its own frame: a head with its name, and the
+   changes or the note why they're folded. */
 .diff-file {
-  margin: var(--space-5) 0;
+  margin: var(--space-4) 0;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: clip;
+}
+.diff-file-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border);
 }
 .diff-file-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
   font-size: var(--text-base);
+  overflow-wrap: anywhere;
 }
-.diff-file-title > .text-secondary {
-  margin-inline-start: var(--space-2);
+.diff-file-head .viewed-toggle {
+  float: none;
+  margin-inline-start: auto;
 }
+/* Hunks fill the frame, one under the other. */
+.diff-file .code-wrap {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.diff-file .code-wrap + .code-wrap {
+  border-top: var(--border-width) solid var(--border);
+}
+/* Shown when reached with the keyboard. */
 .skip-file {
-  display: inline-block;
-  margin-bottom: var(--space-2);
+  display: block;
+  padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
+}
+.skip-file:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .diff-toolbar {
   display: flex;
@@ -916,11 +955,16 @@ fieldset.field {
   gap: var(--space-1);
   color: var(--text-secondary);
 }
+/* The note of a folded file, with Load diff always at the end. */
 .diff-placeholder {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-height: calc(var(--target-min) + 2 * var(--space-3));
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
 }
 .diff-split-table td:nth-child(2) {
   border-inline-end: var(--border-width) solid var(--border);

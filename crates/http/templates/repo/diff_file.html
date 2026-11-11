@@ -1,5 +1,6 @@
 <section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
-  <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }}, <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span>{% if f.folded %}, folded: {{ f.reason }}{% endif %}</span></h3>
+  <header class="diff-file-head">
+  <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }} · <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></h3>
   {%- if let Some(r) = diff.review %}
   <form method="post" action="{{ r.viewed_post }}" class="inline-form viewed-toggle">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -9,17 +10,18 @@
     <button type="submit" class="button button-quiet" aria-pressed="{% if f.viewed %}true{% else %}false{% endif %}">{% if f.viewed %}{% call m::icon(ctx, "check") %}{% endcall %}Viewed{% else %}Mark viewed{% endif %}<span class="visually-hidden"> {{ f.path }}</span></button>
   </form>
   {%- endif %}
+  </header>
   {%- if f.index + 1 < diff.files.len() %}<a class="skip-file" href="#diff-{{ f.index + 1 }}">Skip to the next file</a>{% endif %}
   {%- if f.load != "now" %}
   <p class="diff-placeholder text-secondary">
-    {%- if f.viewed %}You marked this file viewed; it hasn't changed since.{% else if f.folded %}Folded: {{ f.reason }}.{% else if f.load == "click" %}This file has many changes.{% else %}Loading…{% endif %}
+    <span>{% if f.viewed %}You marked this file viewed; it hasn't changed since.{% else if f.folded %}Folded: {{ f.reason }}.{% else if f.load == "click" %}This file has many changes.{% else %}Loading…{% endif %}</span>
     {%- if f.has_lines || !f.folded %}
     <a class="button" href="{{ diff.file_href(f.index) }}" hx-get="{{ diff.file_href(f.index) }}" hx-target="closest section" hx-swap="outerHTML"{% if f.load == "scroll" %} hx-trigger="revealed"{% endif %} {% call m::hx(ctx.nonce) %}{% endcall %}>Load diff</a>
     {%- endif %}
   </p>
   {%- else %}
   {%- if f.binary %}
-  <p class="text-secondary">Binary file not shown.</p>
+  <p class="diff-placeholder text-secondary">Binary file not shown.</p>
   {%- endif %}
   {%- for h in f.hunks %}
   <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
