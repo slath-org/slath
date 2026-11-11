@@ -339,3 +339,95 @@ fn conf_jj_12_maintainer_edits_through_mr_branches_with_git_and_jj() {
         .unwrap();
     assert!(audit >= 2, "{audit}");
 }
+
+#[test]
+fn conf_jj_12_check_out_in_the_ui_adds_the_branch_to_fetches() {
+    let s = TestServer::start();
+    for u in ["bob", "carol"] {
+        s.create_user(u, PASSWORD, false);
+    }
+    let alice = token(&s, "alice");
+    let (bob, carol) = (token(&s, "bob"), token(&s, "carol"));
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("alice");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    commit(&git, &w, "README");
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let r = api(
+        &s,
+        &alice,
+        "PATCH",
+        "/alice/demo",
+        Some(json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+    let b = d.path().join("bob");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(&s, &bob, "bob/demo"), "bob"],
+    );
+    git.ok(&b, &["switch", "-q", "-c", "topic"]);
+    commit(&git, &b, "a.txt");
+    git.ok(&b, &["push", "-q", "origin", "topic"]);
+    let r = api(
+        &s,
+        &bob,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_repo": "bob/demo", "source_branch": "topic", "title": "Add a"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let page = format!("/alice/demo/merge-requests/{n}");
+    eventually(&s, "no first revision", || {
+        api(
+            &s,
+            &bob,
+            "GET",
+            &page
+                .replace("/alice", "/api/v1/repos/alice")
+                .replacen("/api/v1/repos", "", 1),
+            None,
+        )
+        .status
+            == 200
+    });
+
+    let mut web = s.login("carol", PASSWORD);
+    let body = web.get(&page).body;
+    assert!(
+        body.contains(&format!(">Check out mr/{n}</button>")),
+        "{body}"
+    );
+    assert!(ls_mr(&git, &s, &carol).is_empty());
+    let r = slath_tests::http::submit(&mut web, &page, &format!("{page}/checkout"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    let body = web.get(&format!("{page}?status=checkout")).body;
+    assert!(
+        body.contains("Its branch now shows in your fetches"),
+        "{body}"
+    );
+    assert!(
+        body.contains(&format!("/-/auth/alice/demo.git&#39; mr/{n}:mr/{n}")),
+        "{body}"
+    );
+    assert!(
+        !body.contains(&format!(">Check out mr/{n}</button>")),
+        "{body}"
+    );
+    let seen = git.ok(
+        d.path(),
+        &[
+            "ls-remote",
+            "--heads",
+            &format!(
+                "http://git:{carol}@{}/-/auth/alice/demo.git",
+                s.base().trim_start_matches("http://")
+            ),
+        ],
+    );
+    assert!(seen.contains(&format!("refs/heads/mr/{n}")), "{seen}");
+}

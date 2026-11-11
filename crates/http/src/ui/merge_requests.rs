@@ -1005,6 +1005,9 @@ struct MrHeading {
     /// Copy-paste commands that check the merge request out.
     git_checkout: String,
     jj_checkout: String,
+    /// A fork merge request whose `mr/<n>` the viewer doesn't fetch yet:
+    /// the form that adds it, instead of commands that wouldn't work.
+    checkout_form: Option<String>,
     /// Whose commands to show first.
     tool: ToolChoice,
 }
@@ -1286,10 +1289,36 @@ async fn heading(
         m.state == "open" && state.services.may_set_maintainer_edits(subject, &m).await;
     let n = m.number;
     let branch = m.source_branch();
-    let git_checkout =
-        format!("git fetch origin refs/merge-requests/{n}/head && git switch --detach FETCH_HEAD");
-    // jj fetches branches only: a fork's branch comes from the fork.
+    // A fork merge request is the branch mr/<n> here for those involved,
+    // fetched over the address that authenticates.
+    let fork_branch = source_repo.is_some() && me.is_some();
+    let sees = fork_branch && state.services.sees_mr_branch(subject, &m).await;
+    let checkout_form =
+        (fork_branch && !sees).then(|| mr_url(&a.repo.namespace, &a.repo.name, n, "/checkout"));
+    let auth_url = state
+        .config
+        .server
+        .public_url
+        .join(&format!("/-/auth/{}/{}.git", a.repo.namespace, a.repo.name));
+    let mr_branch = format!("mr/{n}");
+    let git_checkout = if sees {
+        format!(
+            "git fetch {u} {b}:{b} && git switch {b}",
+            u = sh(&auth_url),
+            b = sh(&mr_branch)
+        )
+    } else {
+        format!("git fetch origin refs/merge-requests/{n}/head && git switch --detach FETCH_HEAD")
+    };
+    // jj fetches branches only: a fork's branch comes from the fork unless
+    // mr/<n> shows here.
     let jj_checkout = match &source_repo {
+        Some(_) if sees => format!(
+            "jj git remote set-url origin {u} && jj git fetch --branch {b} && jj bookmark track {t} && jj new {b}",
+            u = sh(&auth_url),
+            b = sh(&mr_branch),
+            t = sh(&format!("{mr_branch}@origin"))
+        ),
         Some(r) => {
             let remote = r.split('/').next().unwrap_or("fork").to_owned();
             format!(
@@ -1307,6 +1336,7 @@ async fn heading(
         ),
     };
     Ok(MrHeading {
+        checkout_form,
         tool: tool_choice(state, subject).await?,
         git_checkout,
         jj_checkout,
@@ -1896,6 +1926,9 @@ async fn view(
         Some("merged") => Some("Merged."),
         Some("updated") => Some("Branch updated."),
         Some("applied") => Some("Suggestions applied."),
+        Some("checkout") => {
+            Some("Its branch now shows in your fetches; Check out has the commands.")
+        }
         Some("auto_merge") => Some("It merges when it's ready."),
         Some("auto_merge_cancelled") => Some("Merge when ready cancelled."),
         _ => None,
@@ -2934,6 +2967,19 @@ async fn merge(
     }
 }
 
+/// "Check out" on a fork merge request: its branch `mr/<n>` shows in the
+/// viewer's fetches from now on.
+async fn note_checkout(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let n = number(&n)?;
+    let (_, m) = state.services.mr(&s.subject, &ns, &repo, n).await?;
+    state.services.note_checkout(&s.subject, &m).await?;
+    Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=checkout")).into_response())
+}
+
 /// Applies the chosen suggestions (`comments`, or just `only` when a
 /// suggestion's own button was used) in the chosen mode.
 async fn apply_suggestions(
@@ -3431,6 +3477,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests/{n}/auto-merge",
             Access::Resource,
             post(set_auto_merge),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/checkout",
+            Access::Resource,
+            post(note_checkout),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/suggestions/apply",

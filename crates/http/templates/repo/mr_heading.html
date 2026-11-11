@@ -6,6 +6,13 @@
   <details class="menu checkout-menu header-actions">
     <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
     <div class="menu-panel copy-panel copy-panel-wide">
+      {%- if let Some(action) = h.checkout_form %}
+      <form method="post" action="{{ action }}" class="form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <p class="menu-hint text-secondary">This merge request comes from a fork. Checking it out makes it the branch <code class="branch-name">mr/{{ h.mr.number }}</code> in your fetches of this repository, without adding the fork as a remote.</p>
+        <div class="button-row"><button type="submit" class="button">Check out mr/{{ h.mr.number }}</button></div>
+      </form>
+      {%- else %}
       <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
       <div class="choice">
         <fieldset class="choice-options">
@@ -16,6 +23,7 @@
         <div class="choice-panel">{% call m::copy_field(ctx, "checkout-git", "Git commands", h.git_checkout, "Copy the Git commands") %}{% endcall %}</div>
         <div class="choice-panel">{% call m::copy_field(ctx, "checkout-jj", "jj commands", h.jj_checkout, "Copy the jj commands") %}{% endcall %}</div>
       </div>
+      {%- endif %}
     </div>
   </details>
   {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}

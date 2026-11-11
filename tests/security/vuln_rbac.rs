@@ -40,7 +40,12 @@ struct World {
 
 impl World {
     fn new(with_ssh: bool) -> Self {
-        let s = TestServer::start_with(&[PRIV]);
+        // The probes are many anonymous API requests; this is about who may
+        // do what, not about rate limits.
+        let s = TestServer::start_full(
+            &[PRIV],
+            "[limits]\napi_anonymous_requests_per_hour = 100000\n",
+        );
         let git = GitClient::new();
         let work = tempfile::tempdir().unwrap();
         let src = work.path().join("src");

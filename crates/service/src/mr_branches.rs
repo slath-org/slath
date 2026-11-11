@@ -109,6 +109,17 @@ impl Services {
         }
     }
 
+    /// Whether the merge request's branch `mr/<n>` shows in the subject's
+    /// fetches already.
+    pub async fn sees_mr_branch(&self, subject: &Subject, m: &MergeRequest) -> bool {
+        let Subject::User { id, .. } = subject else {
+            return false;
+        };
+        slath_db::merge_requests::involved_fork_mrs(&self.pool, m.repo_id, *id)
+            .await
+            .is_ok_and(|n| n.contains(&m.number))
+    }
+
     /// Records that the subject chose "Check out": the merge request's
     /// branch shows in their fetches from now on.
     pub async fn note_checkout(&self, subject: &Subject, m: &MergeRequest) -> Result<()> {

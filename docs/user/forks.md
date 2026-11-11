@@ -146,3 +146,8 @@ a public or internal original are anonymous and don't show `mr/<n>`.
 Use the address that always asks, `https://slath.example/-/auth/<owner>/<repo>.git`,
 which **Check out** and `POST …/merge-requests/{n}/checkout` give you;
 over SSH it works with the usual address.
+
+On the merge request, **Check out → Check out mr/<n>** adds the branch to
+your fetches; the menu then shows the commands, for Git
+(`git fetch <address> mr/12:mr/12 && git switch mr/12`) or jj (which
+points `origin` at that address once, then fetches and tracks `mr/12`).
