@@ -843,6 +843,19 @@ fieldset.field {
   width: 1%;
   user-select: none;
 }
+/* The diff inventory: folded files with their reasons, and files left
+   out at the file limit. */
+.diff-inventory {
+  margin-block: var(--space-3);
+}
+.diff-inventory > summary {
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+}
+.diff-inventory > ul,
+.diff-inventory > p {
+  margin-block: var(--space-2) 0;
+}
 .diff-file {
   margin: var(--space-5) 0;
 }

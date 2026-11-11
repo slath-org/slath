@@ -68,6 +68,13 @@ pub struct FileView {
     pub deletions: u32,
     /// Marked generated in `.gitattributes`: collapsed until asked for.
     pub generated: bool,
+    /// Its class in the diff inventory, and why.
+    pub class: &'static str,
+    pub reason: String,
+    /// Every class but changed content is folded until asked for.
+    pub folded: bool,
+    /// There are lines to load.
+    pub has_lines: bool,
     /// The viewer marked it viewed (and it hasn't changed since).
     pub viewed: bool,
     /// `now`, `scroll` (loads when it comes into view), or `click`.
@@ -128,6 +135,19 @@ pub struct DiffView {
     pub signed_in: bool,
     /// Merge request diffs: threads, commenting, viewed files.
     pub review: Option<ReviewCtx>,
+    /// The folded files of the inventory, with their reasons.
+    pub folded: Vec<FoldedFile>,
+    /// Files not listed, past the file limit, and that limit.
+    pub left_out: usize,
+    pub max_files: usize,
+}
+
+/// A folded file in the inventory list above a diff.
+pub struct FoldedFile {
+    pub path: String,
+    /// The file's anchor, if it's on the page.
+    pub anchor: Option<String>,
+    pub reason: String,
 }
 
 /// The side and number a line is anchored by: removed lines by their old
@@ -445,21 +465,37 @@ pub fn view(
         max_pairs: limits.diff_intraline_max_pairs,
         ignore_whitespace,
     };
+    // The inventory: every file in one class (as the API has it).
+    let total = raw
+        .split(|&b| b == b'\n')
+        .filter(|l| l.starts_with(b"diff --git "))
+        .count();
+    let mut inventory =
+        slath_git::inventory::inventory(&diff, total, limits.diff_max_files, generated);
     // `git diff -w` keeps the header of a file whose changes are all
-    // whitespace; such files have nothing to show.
+    // whitespace; such files have nothing to show, and stay listed.
+    let header_only = |f: &slath_git::diff::FileDiff| {
+        ignore_whitespace && f.status == Status::Modified && !f.binary && f.hunks.is_empty()
+    };
+    for (e, f) in inventory.files.iter_mut().zip(&diff.files) {
+        if header_only(f) && f.old_mode == f.new_mode {
+            e.class = slath_git::inventory::FileClass::WhitespaceOnly;
+            "only whitespace changed".clone_into(&mut e.reason);
+        }
+    }
     let mut files: Vec<FileView> = diff
         .files
         .iter()
-        .filter(|f| {
-            !(ignore_whitespace && f.status == Status::Modified && !f.binary && f.hunks.is_empty())
-        })
+        .zip(&inventory.files)
+        .filter(|(f, _)| !header_only(f))
         .enumerate()
-        .map(|(i, f)| {
+        .map(|(i, (f, e))| {
             let lines: usize = f.hunks.iter().map(|h| h.lines.len()).sum();
             let is_generated = generated.contains(f.path());
+            let folded = e.class.folded();
             let load = if q.file == Some(i) {
                 "now"
-            } else if is_generated || lines > CLICK_LINES {
+            } else if folded || lines > CLICK_LINES {
                 "click"
             } else if i >= EAGER_FILES {
                 "scroll"
@@ -519,9 +555,29 @@ pub fn view(
                 additions: f.additions,
                 deletions: f.deletions,
                 generated: is_generated,
+                class: e.class.as_str(),
+                reason: e.reason.clone(),
+                folded,
+                has_lines: lines > 0,
                 viewed: false,
                 load,
                 hunks,
+            }
+        })
+        .collect();
+    let folded = inventory
+        .files
+        .iter()
+        .filter(|e| e.class.folded())
+        .map(|e| {
+            let path = lossy(&e.path);
+            FoldedFile {
+                anchor: files
+                    .iter()
+                    .find(|f| f.path == path)
+                    .map(|f| f.anchor.clone()),
+                path,
+                reason: e.reason.clone(),
             }
         })
         .collect();
@@ -539,6 +595,9 @@ pub fn view(
         only: q.file,
         signed_in: ctx.user.is_some(),
         review: None,
+        folded,
+        left_out: inventory.left_out,
+        max_files: limits.diff_max_files,
     }
 }
 
@@ -723,6 +782,10 @@ mod tests {
             viewed: false,
             load: "now",
             hunks: Vec::new(),
+            class: "content",
+            reason: String::new(),
+            folded: false,
+            has_lines: true,
         };
         let t = tree(&[
             file(0, "src/b.rs"),

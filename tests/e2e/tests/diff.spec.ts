@@ -21,20 +21,29 @@ test("conf_a11y_01_diff_file_tree_generated_and_later_files", async ({ page }) =
   await expect(tree.getByRole("link", { name: "gen.txt" })).toBeVisible();
   await expectAccessible(page);
 
+  // Folded files are listed above the diff with their reasons.
+  const inventory = page.locator("details.diff-inventory");
+  await tapOrClick(page, inventory.locator("summary"));
+  await expect(inventory).toContainText("gen.txt: marked generated in .gitattributes");
+  await expectAccessible(page);
+
   // The generated file is collapsed until asked for.
   const gen = page.locator("section.diff-file").filter({ has: page.getByRole("heading", { name: /gen\.txt/ }) });
-  await expect(gen).toContainText("This file is generated");
+  await expect(gen).toContainText("Folded: marked generated in .gitattributes.");
   await tapOrClick(page, gen.getByRole("link", { name: "Load diff" }));
   const loaded = page.locator("section.diff-file").filter({ hasText: "generated output" });
   await expect(loaded.locator(".diff-unified")).toBeVisible();
 
   // Files after the first 20 load when they come into view.
   // (Scrolling the page, since each file is replaced when it loads.)
-  const loadedLast = page.locator("section.diff-file").filter({ hasText: "alpha" }).locator(".diff-unified");
+  const loadedLast = page.locator("section.diff-file").filter({ hasText: "file 22" }).locator(".diff-unified");
   await expect(async () => {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect(loadedLast).toBeVisible({ timeout: 1000 });
   }).toPass();
+  // The whitespace-only file is folded with its reason.
+  const ws = page.locator("section.diff-file").filter({ has: page.getByRole("heading", { name: /ws\.txt/ }) });
+  await expect(ws).toContainText("Folded: only whitespace changed.");
   await expectAccessible(page);
 });
 

@@ -212,6 +212,25 @@ fn conf_diff_02_every_file_in_one_class_for_git_jj_and_mixed_stacks() {
             .unwrap();
         assert_eq!(a["hunks"], json!(["content"]));
         assert_eq!(a["folded"], false);
+        // The Changes tab lists the same folded files with their reasons.
+        let mut web = s.login("alice", slath_tests::server::PASSWORD);
+        let html = web.get(&format!("{path}/changes")).body;
+        for f in inv["files"].as_array().unwrap() {
+            let entry = format!(
+                "<code>{}</code></a>: {}</li>",
+                f["path"].as_str().unwrap(),
+                f["reason"].as_str().unwrap()
+            );
+            assert_eq!(
+                html.contains(&entry),
+                f["folded"] == true,
+                "{branch}: {entry}"
+            );
+        }
+        assert!(
+            html.contains("1 more file changed but isn't listed"),
+            "{branch}"
+        );
         // Each change version.
         let stack = api(&s, &alice, "GET", &format!("{path}/stack"), None).json();
         let mut per = Vec::new();

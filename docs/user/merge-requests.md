@@ -454,9 +454,15 @@ Diffs look the same on commits, the compare page, and merge requests:
   least 1024 pixels wide. **Ignore whitespace** hides changes that only
   touch spaces and indentation. Once you're signed in, both choices are
   remembered.
-- Files marked as generated in the repository's `.gitattributes`
-  (`linguist-generated` or `slath-generated`) are collapsed; **Load diff**
-  shows them.
+- Only files with changed content are shown right away. Everything else
+  is folded with its reason, and **Load diff** shows it where there are
+  lines to show: renamed or copied files without changes, files whose
+  mode is the only change, files where only whitespace changed, files
+  marked as generated in the repository's `.gitattributes`
+  (`linguist-generated` or `slath-generated`), binary files, symbolic
+  links, submodules, and files cut at the line limit. The folded files
+  are listed with their reasons above the diff, together with the number
+  of files past the file limit, so nothing is left out without saying so.
 - Large diffs load as you scroll, and very large files on request.
 
 ## Checking out a merge request
