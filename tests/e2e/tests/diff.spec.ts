@@ -18,13 +18,17 @@ test("conf_a11y_01_diff_file_tree_generated_and_later_files", async ({ page }) =
   await openCommit(page);
   await expect(page.getByRole("heading", { name: "26 changed files" })).toBeVisible();
   const tree = page.getByRole("navigation", { name: "Changed files" });
-  await expect(tree.getByRole("link", { name: "gen.txt" })).toBeVisible();
+  await expect(tree.getByRole("link", { name: "f00.txt" })).toBeVisible();
   await expectAccessible(page);
 
-  // Folded files are listed above the diff with their reasons.
-  const inventory = page.locator("details.diff-inventory");
-  await tapOrClick(page, inventory.locator("summary"));
-  await expect(inventory).toContainText("gen.txt: marked generated in .gitattributes");
+  // The list shows changed content; folded files show, with their
+  // reasons, once all files are asked for.
+  await expect(page.getByText("2 folded files hidden.")).toBeVisible();
+  await expect(tree.getByRole("link", { name: "gen.txt" })).toBeHidden();
+  await tapOrClick(page, page.getByLabel("All files (26)"));
+  await expect(tree.getByRole("link", { name: "gen.txt" })).toBeVisible();
+  await expect(tree.getByRole("listitem").filter({ hasText: "gen.txt" })).toContainText("Added · marked generated in .gitattributes");
+  await expect(page.getByText("2 folded files hidden.")).toBeHidden();
   await expectAccessible(page);
 
   // The generated file is collapsed until asked for.

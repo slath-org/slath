@@ -212,21 +212,25 @@ fn conf_diff_02_every_file_in_one_class_for_git_jj_and_mixed_stacks() {
             .unwrap();
         assert_eq!(a["hunks"], json!(["content"]));
         assert_eq!(a["folded"], false);
-        // The Changes tab lists the same folded files with their reasons.
+        // The Changes tab's file list gives folded files their reasons,
+        // and hides them by default.
         let mut web = s.login("alice", slath_tests::server::PASSWORD);
         let html = web.get(&format!("{path}/changes")).body;
-        for f in inv["files"].as_array().unwrap() {
-            let entry = format!(
-                "<code>{}</code></a>: {}</li>",
-                f["path"].as_str().unwrap(),
-                f["reason"].as_str().unwrap()
-            );
+        let files = inv["files"].as_array().unwrap();
+        for f in files {
+            let entry = format!(" · {}</span>", f["reason"].as_str().unwrap());
             assert_eq!(
                 html.contains(&entry),
                 f["folded"] == true,
                 "{branch}: {entry}"
             );
         }
+        let folded = files.iter().filter(|f| f["folded"] == true).count();
+        assert!(
+            html.contains(&format!("Changed content ({})", files.len() - folded))
+                && html.contains(&format!("{folded} folded files hidden.")),
+            "{branch}"
+        );
         assert!(
             html.contains("1 more file changed but isn't listed"),
             "{branch}"

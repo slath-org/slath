@@ -24,33 +24,31 @@
 {%- if diff.truncated %}
 <div class="notice" role="note"><p>This diff is too large to show completely. Some files or lines are omitted.</p></div>
 {%- endif %}
-{%- if diff.only.is_none() && (!diff.folded.is_empty() || diff.left_out > 0) %}
-<details class="diff-inventory">
-  <summary>{% if !diff.folded.is_empty() %}{{ diff.folded.len() }} file{% if diff.folded.len() != 1 %}s{% endif %} folded{% endif %}{% if !diff.folded.is_empty() && diff.left_out > 0 %}, {% endif %}{% if diff.left_out > 0 %}{{ diff.left_out }} not listed{% endif %}</summary>
-  {%- if !diff.folded.is_empty() %}
-  <ul class="plain-list">
-  {%- for f in diff.folded %}
-    <li>{% if let Some(a) = f.anchor %}<a href="#{{ a }}"><code>{{ f.path }}</code></a>{% else %}<code>{{ f.path }}</code>{% endif %}: {{ f.reason }}</li>
-  {%- endfor %}
-  </ul>
-  {%- endif %}
-  {%- if diff.left_out > 0 %}
-  <p>{{ diff.left_out }} more file{% if diff.left_out != 1 %}s{% endif %} changed but {% if diff.left_out == 1 %}isn't{% else %}aren't{% endif %} listed: the list stops at {{ diff.max_files }} files (<code>diff_max_files</code>).</p>
-  {%- endif %}
-</details>
-{%- endif %}
 {%- if let Some(_) = diff.only %}
 <p><a href="{{ diff.href }}#diff">Show all files</a></p>
 {%- else %}
 <h2>{{ diff.files.len() }} changed file{% if diff.files.len() != 1 %}s{% endif %}</h2>
+{%- if diff.left_out > 0 %}
+<p>{{ diff.left_out }} more file{% if diff.left_out != 1 %}s{% endif %} changed but {% if diff.left_out == 1 %}isn't{% else %}aren't{% endif %} listed: the list stops at {{ diff.max_files }} files (<code>diff_max_files</code>).</p>
+{%- endif %}
 {%- if diff.files.len() > 1 %}
+<div class="diff-list">
+  {%- if diff.content_files > 0 && diff.folded_files > 0 %}
+  <fieldset class="choice-options diff-filter">
+    <legend>Show</legend>
+    <div class="radio"><input type="radio" id="diff-show-content" name="diff-show" value="content" checked><label for="diff-show-content">Changed content ({{ diff.content_files }})</label></div>
+    <div class="radio"><input type="radio" id="diff-show-all" name="diff-show" value="all"><label for="diff-show-all">All files ({{ diff.files.len() }})</label></div>
+  </fieldset>
+  <p class="diff-hidden text-secondary">{{ diff.folded_files }} folded file{% if diff.folded_files != 1 %}s{% endif %} hidden.</p>
+  {%- endif %}
 <nav class="diff-tree" aria-label="Changed files">
   <ul>
   {%- for e in diff.tree %}
-    <li class="depth-{{ e.depth.min(6) }}">{% if let Some(a) = e.anchor %}<a href="#{{ a }}">{{ e.name }}</a> <span class="text-secondary">{{ e.status }}</span>{% else %}<span class="diff-tree-dir">{% call m::icon(ctx, "folder") %}{% endcall %}{{ e.name }}/</span>{% endif %}</li>
+    <li class="depth-{{ e.depth.min(6) }}{% if e.folded %} diff-tree-folded{% endif %}">{% if let Some(a) = e.anchor %}<a href="#{{ a }}">{{ e.name }}</a><span class="diff-tree-status text-secondary">{{ e.status }}{% if !e.reason.is_empty() %} · {{ e.reason }}{% endif %}</span>{% else %}<span class="diff-tree-dir">{% call m::icon(ctx, "folder") %}{% endcall %}{{ e.name }}/</span>{% endif %}</li>
   {%- endfor %}
   </ul>
 </nav>
+</div>
 {%- endif %}
 {%- endif %}
 {%- for f in diff.files %}

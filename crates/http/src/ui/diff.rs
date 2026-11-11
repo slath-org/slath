@@ -89,6 +89,11 @@ pub struct TreeEntry {
     /// The file's anchor; `None` for a directory.
     pub anchor: Option<String>,
     pub status: &'static str,
+    /// A folded file, or a directory with only folded files: hidden while
+    /// the list shows changed content only.
+    pub folded: bool,
+    /// Why a folded file is folded.
+    pub reason: String,
 }
 
 /// A thread shown under its line.
@@ -135,19 +140,12 @@ pub struct DiffView {
     pub signed_in: bool,
     /// Merge request diffs: threads, commenting, viewed files.
     pub review: Option<ReviewCtx>,
-    /// The folded files of the inventory, with their reasons.
-    pub folded: Vec<FoldedFile>,
+    /// Files with changed content, and folded files, in the list.
+    pub content_files: usize,
+    pub folded_files: usize,
     /// Files not listed, past the file limit, and that limit.
     pub left_out: usize,
     pub max_files: usize,
-}
-
-/// A folded file in the inventory list above a diff.
-pub struct FoldedFile {
-    pub path: String,
-    /// The file's anchor, if it's on the page.
-    pub anchor: Option<String>,
-    pub reason: String,
 }
 
 /// The side and number a line is anchored by: removed lines by their old
@@ -421,27 +419,45 @@ fn refine(hunks: &mut [HunkView], bounds: &Bounds) {
 fn tree(files: &[FileView]) -> Vec<TreeEntry> {
     let mut sorted: Vec<&FileView> = files.iter().collect();
     sorted.sort_by(|a, b| a.path.cmp(&b.path));
-    let mut out = Vec::new();
-    let mut open: Vec<&str> = Vec::new();
+    let mut out: Vec<TreeEntry> = Vec::new();
+    // The open directories, with their entries' indices.
+    let mut open: Vec<(&str, usize)> = Vec::new();
     for f in sorted {
         let parts: Vec<&str> = f.path.split('/').collect();
         let (dirs, name) = parts.split_at(parts.len() - 1);
-        let common = open.iter().zip(dirs).take_while(|(a, b)| a == b).count();
+        let common = open
+            .iter()
+            .zip(dirs)
+            .take_while(|((a, _), b)| a == *b)
+            .count();
         open.truncate(common);
         for (depth, d) in dirs.iter().enumerate().skip(common) {
+            open.push((d, out.len()));
             out.push(TreeEntry {
                 depth,
                 name: (*d).to_owned(),
                 anchor: None,
                 status: "",
+                folded: true,
+                reason: String::new(),
             });
-            open.push(d);
+        }
+        if !f.folded {
+            for (_, i) in &open {
+                out[*i].folded = false;
+            }
         }
         out.push(TreeEntry {
             depth: dirs.len(),
             name: name[0].to_owned(),
             anchor: Some(f.anchor.clone()),
             status: f.status,
+            folded: f.folded,
+            reason: if f.folded {
+                f.reason.clone()
+            } else {
+                String::new()
+            },
         });
     }
     out
@@ -565,22 +581,8 @@ pub fn view(
             }
         })
         .collect();
-    let folded = inventory
-        .files
-        .iter()
-        .filter(|e| e.class.folded())
-        .map(|e| {
-            let path = lossy(&e.path);
-            FoldedFile {
-                anchor: files
-                    .iter()
-                    .find(|f| f.path == path)
-                    .map(|f| f.anchor.clone()),
-                path,
-                reason: e.reason.clone(),
-            }
-        })
-        .collect();
+    let folded_files = files.iter().filter(|f| f.folded).count();
+    let content_files = files.len() - folded_files;
     let tree = tree(&files);
     if let Some(i) = q.file {
         files.retain(|f| f.index == i);
@@ -595,7 +597,8 @@ pub fn view(
         only: q.file,
         signed_in: ctx.user.is_some(),
         review: None,
-        folded,
+        content_files,
+        folded_files,
         left_out: inventory.left_out,
         max_files: limits.diff_max_files,
     }
@@ -806,6 +809,32 @@ mod tests {
                 (1, "a", false),
                 (2, "x.rs", true),
                 (1, "b.rs", true),
+            ]
+        );
+        // Directories with only folded files are folded too.
+        let folded = |i: usize, path: &str, folded: bool| FileView {
+            folded,
+            reason: "a binary file".to_owned(),
+            ..file(i, path)
+        };
+        let t = tree(&[
+            folded(0, "src/a/x.rs", false),
+            folded(1, "src/b/y.rs", true),
+            folded(2, "README", true),
+        ]);
+        let got: Vec<(&str, bool, &str)> = t
+            .iter()
+            .map(|e| (e.name.as_str(), e.folded, e.reason.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("README", true, "a binary file"),
+                ("src", false, ""),
+                ("a", false, ""),
+                ("x.rs", false, ""),
+                ("b", true, ""),
+                ("y.rs", true, "a binary file"),
             ]
         );
     }

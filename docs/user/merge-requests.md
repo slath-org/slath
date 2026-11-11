@@ -449,7 +449,9 @@ Diffs look the same on commits, the compare page, and merge requests:
   underlined. Lines are paired with the most similar line of the hunk;
   lines that changed almost entirely, and very long lines, are shown
   without highlighting.
-- A file tree above the files links to each of them.
+- A file tree above the files links to each of them. It lists the files
+  with changed content; **All files** adds the folded ones (see below),
+  each with the reason it's folded.
 - **Split** shows old and new side by side; it's offered on screens at
   least 1024 pixels wide. **Ignore whitespace** hides changes that only
   touch spaces and indentation. Once you're signed in, both choices are
@@ -460,9 +462,9 @@ Diffs look the same on commits, the compare page, and merge requests:
   mode is the only change, files where only whitespace changed, files
   marked as generated in the repository's `.gitattributes`
   (`linguist-generated` or `slath-generated`), binary files, symbolic
-  links, submodules, and files cut at the line limit. The folded files
-  are listed with their reasons above the diff, together with the number
-  of files past the file limit, so nothing is left out without saying so.
+  links, submodules, and files cut at the line limit. Above the diff,
+  Slath says how many files are folded and how many are past the file
+  limit, so nothing is left out without saying so.
 - Large diffs load as you scroll, and very large files on request.
 
 ## Checking out a merge request

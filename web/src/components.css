@@ -843,24 +843,33 @@ fieldset.field {
   width: 1%;
   user-select: none;
 }
-/* The diff inventory: folded files with their reasons, and files left
-   out at the file limit. */
-.diff-inventory {
-  margin-block: var(--space-3);
+/* The file list above a diff: with changed content only, folded files
+   and the directories holding only them are hidden, and a note says how
+   many. */
+.diff-filter {
+  margin-block-end: var(--space-2);
 }
-.diff-inventory > summary {
-  cursor: pointer;
-  font-weight: var(--weight-semibold);
+.diff-hidden {
+  display: none;
+  margin-block: 0 var(--space-2);
 }
-.diff-inventory > ul,
-.diff-inventory > p {
-  margin-block: var(--space-2) 0;
+.diff-list:has(#diff-show-content:checked) .diff-hidden {
+  display: block;
+}
+.diff-list:has(#diff-show-content:checked) .diff-tree-folded {
+  display: none;
+}
+.diff-tree-status {
+  margin-inline-start: var(--space-3);
 }
 .diff-file {
   margin: var(--space-5) 0;
 }
 .diff-file-title {
   font-size: var(--text-base);
+}
+.diff-file-title > .text-secondary {
+  margin-inline-start: var(--space-2);
 }
 .skip-file {
   display: inline-block;
