@@ -39,7 +39,11 @@ merge request up to date. The target's allowlist applies as for a push.
 Repositories imported from another server are scanned after the import,
 but only reported: the history exists elsewhere already. The repository's
 front page tells its administrators how many possible secrets were found,
-so they can revoke them.
+so they can revoke them. Findings the imported default branch's allowlist
+covers are counted apart, as allowed by the repository.
+
+Merge and squash messages and applied suggestions are scanned too, with
+the repository's allowances and allowlist, as for a push.
 
 ## What a rejection looks like
 
@@ -89,6 +93,42 @@ it: it left the machine it was on.
   accept all of that push's findings in one audited step
   (`secret_scan.accept_first_push`); they're allowed for a day. Revoke
   those secrets anyway.
+
+## Repositories with secrets on purpose
+
+Some repositories hold credential-shaped content deliberately: test keys
+and certificates, scanner rule tests, security training material,
+honeytokens. Slath never changes or hides repository content in its
+views, diffs, raw files, archives, forks, or backups; push protection
+only decides what gets in. To keep such a repository usable:
+
+1. **Allowlist first.** Put the fixtures' paths in `.slath/secret-scan.toml`
+   on the default branch (see above), and merge that file before the
+   fixtures. From then on, pushes, merge and squash messages, applied
+   suggestions, and merge requests from forks all pass for those paths
+   and fingerprints, without any further step.
+2. **Or allow a whole push.** When a push with two or more blocking
+   findings is rejected, the output also prints one link for all of them:
+
+   ```text
+   remote: slath:   Or allow all 10 findings of this push at once, with one reason and one period:
+   remote: slath:     https://git.example.org/team/app/-/secret-scan/accept/0190…
+   ```
+
+   Whoever may allow findings (writers, or administrators when **Only
+   administrators may allow findings** is checked; with sudo, never a bot
+   or a token) allows them all with one reason for 1, 7, or 30 days. One
+   audit event, `secret_scan.allow_push`, lists every fingerprint. The
+   link stays valid for 24 hours. Each finding's own allow link leads to
+   it as well.
+3. **Forks** copy the history without scanning it again, and the
+   allowlist comes along with the default branch.
+4. **Imports** count findings covered by the imported default branch's
+   allowlist apart: the report's `secret_findings_allowed`, and on the
+   front page as allowed by the repository, not as secrets to revoke.
+
+Where the site sets `minimum = "block"`, the mode `off` isn't available;
+path entries in the allowlist are the way to hold fixtures there.
 
 ## Modes
 

@@ -88,18 +88,22 @@ pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Allowan
         .collect())
 }
 
-/// Remembers the findings of a rejected first push; returns its ID.
+/// Remembers the findings of a rejected push (`kind`: `first_push` into
+/// an empty repository, or `push` with several findings); returns its ID.
 pub async fn insert_rejection(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
+    kind: &str,
     findings: &serde_json::Value,
     expires_at: OffsetDateTime,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO secret_rejections (id, repo_id, findings, expires_at) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO secret_rejections (id, repo_id, kind, findings, expires_at)
+         VALUES ($1, $2, $3, $4, $5)",
         id,
         repo.as_uuid(),
+        kind,
         findings,
         expires_at
     )
@@ -108,19 +112,22 @@ pub async fn insert_rejection(
     Ok(id)
 }
 
-/// A remembered rejection of `repo` that hasn't expired.
+/// A remembered rejection of `repo` that hasn't expired: its kind and
+/// findings.
 pub async fn rejection(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     id: uuid::Uuid,
-) -> Result<Option<serde_json::Value>, DbError> {
-    Ok(sqlx::query_scalar!(
-        "SELECT findings FROM secret_rejections WHERE id = $1 AND repo_id = $2 AND expires_at > now()",
+) -> Result<Option<(String, serde_json::Value)>, DbError> {
+    Ok(sqlx::query!(
+        "SELECT kind, findings FROM secret_rejections
+          WHERE id = $1 AND repo_id = $2 AND expires_at > now()",
         id,
         repo.as_uuid()
     )
     .fetch_optional(exec)
-    .await?)
+    .await?
+    .map(|r| (r.kind, r.findings)))
 }
 
 /// Deletes expired allowances and rejections.

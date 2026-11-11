@@ -301,3 +301,48 @@ fn conf_sec_08_imports_report_secrets_without_rejecting() {
         page.body
     );
 }
+
+/// An import whose default branch allowlists its fixtures reports them as
+/// allowed by the repository, not as secrets to revoke (SEC-08).
+#[test]
+fn conf_sec_08_intentional_secrets_an_allowlisted_import_reports_nothing_to_revoke() {
+    let (src, d) = source("basic");
+    src.db
+        .execute("UPDATE repositories SET push_protection = 'off'");
+    let git = GitClient::new();
+    let w = d.path().join("src");
+    let (_, key) = slath_core::secret_scan::samples()
+        .into_iter()
+        .find(|(r, _)| *r == "private-key")
+        .unwrap();
+    std::fs::create_dir_all(w.join("fixtures")).unwrap();
+    std::fs::write(w.join("fixtures/id_test"), key).unwrap();
+    std::fs::create_dir_all(w.join(".slath")).unwrap();
+    std::fs::write(
+        w.join(".slath/secret-scan.toml"),
+        "[[allow]]\npath = \"fixtures/**\"\nreason = \"scanner tests\"\n",
+    )
+    .unwrap();
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "fixtures"]);
+    git.ok(&w, &["push", "-q", &src.url(&DEMO), "HEAD"]);
+    let mut src_alice = src.login("alice", PASSWORD);
+    let src_token = create_token(&mut src_alice, "export", &["repo:read"]);
+
+    let s = TestServer::start_full(&[], ALLOW_LOCAL);
+    s.create_user("alice", PASSWORD, false);
+    let mut a = s.login("alice", PASSWORD);
+    let token = create_token(&mut a, "t", &["repo:write"]);
+    let url = format!("{}/alice/demo.git", src.base());
+    let r = import_with(&mut a, &token, "fixtures", &url, "alice", &src_token);
+    assert_eq!(r.status, 202, "{}", r.body);
+    let report = wait_done(&mut a, &token, "fixtures");
+    assert_eq!(report["state"], "done", "{report}");
+    assert_eq!(report["secret_findings"], 0, "{report}");
+    assert_eq!(report["secret_findings_allowed"], 1, "{report}");
+    let page = a.get("/alice/fixtures").body;
+    assert!(
+        !page.contains("possible secret(s)") && page.contains("allowed by the repository"),
+        "{page}"
+    );
+}

@@ -174,6 +174,9 @@ pub struct ImportReport {
     /// Possible secrets push protection found in the imported history; the
     /// import isn't rejected for them.
     pub secret_findings: Option<i32>,
+    /// Findings the imported default branch's allowlist covers: allowed by
+    /// the repository, counted apart from `secret_findings`.
+    pub secret_findings_allowed: Option<i32>,
     pub created_at: String,
     pub finished_at: Option<String>,
 }
@@ -188,6 +191,7 @@ fn report(full: String, i: slath_db::imports::Import) -> ImportReport {
         tags: i.tags,
         size_bytes: i.size_bytes,
         secret_findings: i.secret_findings,
+        secret_findings_allowed: i.secret_findings_allowed,
         created_at: Time::from(i.created_at).iso,
         finished_at: i.finished_at.map(|t| Time::from(t).iso),
     }

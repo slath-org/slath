@@ -205,26 +205,31 @@ impl Services {
             });
         }
 
-        // Push protection looks at what the suggestions add.
-        if self.push_protection_mode(a.repo.id).await? == slath_core::config::ScanMode::Block {
-            let added: String = files.values().flatten().map(|e| e.text.as_str()).collect();
-            let blocking: Vec<String> = self
-                .scan_rules
-                .scan(added.as_bytes())
-                .into_iter()
-                .filter(|f| f.tier == slath_core::secret_scan::Tier::Block)
-                .map(|f| f.description)
-                .collect();
-            if !blocking.is_empty() {
-                return Err(ServiceError::invalid(
-                    "comments",
-                    "secret",
-                    format!(
-                        "A suggestion contains what looks like a secret ({}); it can't be applied.",
-                        blocking.join(", ")
-                    ),
-                ));
-            }
+        // Push protection looks at what the suggestions add, with the
+        // repository's allowances and allowlist as for a push.
+        let added: Vec<(String, String)> = files
+            .iter()
+            .map(|(p, es)| (p.clone(), es.iter().map(|e| e.text.as_str()).collect()))
+            .collect();
+        let parts: Vec<(Option<&str>, &[u8])> = added
+            .iter()
+            .map(|(p, t)| (Some(p.as_str()), t.as_bytes()))
+            .collect();
+        let blocking: Vec<String> = self
+            .blocking_in(&a.repo, &parts)
+            .await?
+            .into_iter()
+            .map(|f| f.description)
+            .collect();
+        if !blocking.is_empty() {
+            return Err(ServiceError::invalid(
+                "comments",
+                "secret",
+                format!(
+                    "A suggestion contains what looks like a secret ({}); it can't be applied.",
+                    blocking.join(", ")
+                ),
+            ));
         }
 
         let dir = self.repo_path(a.repo.id);

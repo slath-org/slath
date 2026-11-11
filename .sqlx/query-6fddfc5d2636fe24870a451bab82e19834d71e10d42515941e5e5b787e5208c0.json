@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT repo_id, url, state, error, branches, tags, size_bytes, secret_findings, created_at, finished_at\n           FROM repo_imports WHERE repo_id = $1",
+  "query": "SELECT repo_id, url, state, error, branches, tags, size_bytes, secret_findings, secret_findings_allowed, created_at, finished_at\n           FROM repo_imports WHERE repo_id = $1",
   "describe": {
     "columns": [
       {
@@ -93,6 +93,17 @@
       },
       {
         "ordinal": 8,
+        "name": "secret_findings_allowed",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repo_imports",
+            "name": "secret_findings_allowed"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "finished_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -128,9 +139,10 @@
       true,
       true,
       true,
+      true,
       false,
       true
     ]
   },
-  "hash": "3365783cc6d499efca2ec28424a4d9fc4b41f64e418cb6fed84df719a579341f"
+  "hash": "6fddfc5d2636fe24870a451bab82e19834d71e10d42515941e5e5b787e5208c0"
 }

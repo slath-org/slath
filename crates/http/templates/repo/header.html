@@ -56,7 +56,7 @@
   {%- else if i.state == "failed" && i.url.is_some() %}
 <div class="error-summary" role="alert"><p>The import{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %} failed. {% if let Some(e) = i.error %}{{ e }}{% endif %} Delete this repository and try again.</p></div>
   {%- else if i.state == "done" && i.url.is_some() %}
-<div class="notice" role="note"><p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p>{% if i.secrets > 0 %}<p><strong>Push protection found {{ i.secrets }} possible secret(s) in the imported history.</strong> They were imported anyway, since that history exists elsewhere: revoke them. New pushes are scanned.</p>{% endif %}</div>
+<div class="notice" role="note"><p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p>{% if i.secrets > 0 %}<p><strong>Push protection found {{ i.secrets }} possible secret(s) in the imported history.</strong> They were imported anyway, since that history exists elsewhere: revoke them. New pushes are scanned.</p>{% endif %}{% if i.secrets_allowed > 0 %}<p>{{ i.secrets_allowed }} finding(s) in the imported history are allowed by the repository: its allowlist on the default branch covers them, so they aren't secrets to revoke.</p>{% endif %}</div>
   {%- endif %}
 {%- endif %}
 {%- for b in header.recent_pushes %}

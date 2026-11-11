@@ -453,3 +453,50 @@ fn squash_messages_are_scanned_for_secrets() {
     );
     assert_eq!(c.merge(n, &head, "squash").status, 200);
 }
+
+/// Repositories that hold secrets on purpose: merge and squash messages
+/// honor the allowlist's fingerprints (SEC-08).
+#[test]
+fn conf_sec_08_intentional_secrets_a_squash_message_quoting_an_allowlisted_fingerprint_merges() {
+    let c = Ctx::start();
+    c.s.db
+        .execute("UPDATE repositories SET push_protection = 'block'");
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    let samples = slath_core::secret_scan::samples();
+    let secret = |rule: &str| samples.iter().find(|(r, _)| *r == rule).unwrap().1.clone();
+    let rules = slath_core::secret_scan::RuleSet::new(&[], &[]).unwrap();
+    let fp = rules.scan(secret("github-token").as_bytes())[0]
+        .fingerprint
+        .clone();
+    std::fs::create_dir_all(w.join(".slath")).unwrap();
+    commit(
+        &c.git,
+        &w,
+        ".slath/secret-scan.toml",
+        &format!("[[allow]]\nfingerprint = \"{fp}\"\nreason = \"documented example\"\n"),
+        "Allow the documented example token",
+    );
+    c.push(&w, "main");
+    c.git.ok(&w, &["switch", "-q", "-c", "sq"]);
+    commit(&c.git, &w, "s.txt", "s\n", "Squash me");
+    c.push(&w, "sq");
+    let (n, head) = c.open_mr("sq");
+    // Another secret in the message is still refused.
+    let r = c.api(
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"strategy": "squash", "expected_head_oid": head,
+                    "commit_message": format!("Squash\n\n{}", secret("npm-token"))})),
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    let message = format!("Squash\n\nThe docs use {}", secret("github-token"));
+    let r = c.api(
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"strategy": "squash", "expected_head_oid": head, "commit_message": message})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let log = c.server(&["log", "-1", "--format=%B", "refs/heads/main"]);
+    assert!(log.contains("The docs use"), "{log}");
+}

@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Push protection pages behind the links in a rejected push: allowing one
-//! finding (repository writers), and accepting all findings of a first push
-//! into an empty repository (repository administrators).
+//! finding or all findings of a push (whoever may allow findings), and
+//! accepting all findings of a first push into an empty repository
+//! (repository administrators).
 
 use askama::Template;
 use axum::extract::{Path, Query, State};
@@ -42,6 +43,9 @@ struct AllowPage {
     message: Option<&'static str>,
     errors: Vec<FieldError>,
     allowances: Vec<AllowanceView>,
+    /// The rejected push the finding came from, when it had several, and
+    /// how many: they can be allowed at once.
+    push: Option<(uuid::Uuid, usize)>,
 }
 
 impl AllowPage {
@@ -57,6 +61,17 @@ struct AcceptPage {
     header: RepoHeader,
     id: uuid::Uuid,
     findings: Vec<(String, String)>,
+    /// A first push into an empty repository (administrators, one day);
+    /// otherwise a push with several findings (a period and a reason).
+    first_push: bool,
+    days: Vec<i64>,
+    errors: Vec<FieldError>,
+}
+
+impl AcceptPage {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -66,6 +81,16 @@ struct AllowQuery {
     #[serde(default)]
     rule: String,
     status: Option<String>,
+    /// The rejected push, when it had several findings.
+    push: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct AcceptForm {
+    #[serde(default)]
+    days: String,
+    #[serde(default)]
+    reason: String,
 }
 
 #[derive(Deserialize)]
@@ -98,10 +123,22 @@ async fn allow_page(
     ctx: PageCtx,
     subject: &Subject,
     a: &RepoAccess,
-    (fingerprint, rule): (String, String),
+    // The finding, and the rejected push it came from.
+    (fingerprint, rule, push): (String, String, Option<uuid::Uuid>),
     message: Option<&'static str>,
     errors: Vec<FieldError>,
 ) -> Result<Response, AppError> {
+    // The push's other findings, if the viewer may allow them.
+    let push = match push {
+        Some(id) => state
+            .services
+            .push_findings(subject, a, id)
+            .await
+            .ok()
+            .filter(|f| f.len() > 1)
+            .map(|f| (id, f.len())),
+        None => None,
+    };
     let allowances = state
         .services
         .secret_allowances(subject, a)
@@ -128,6 +165,7 @@ async fn allow_page(
         message,
         errors,
         allowances,
+        push,
         ctx,
     });
     *res.status_mut() = status;
@@ -148,14 +186,18 @@ async fn show_allow(
             Some("Allowed. Push again; the finding passes until the allowance expires.")
         }
         Some("accepted") => Some("The first push's findings are allowed for a day. Push again."),
+        Some("allowed-push") => Some(
+            "The push's findings are allowed. Push again; they pass until the allowances expire.",
+        ),
         _ => None,
     };
+    let push = q.push.as_deref().and_then(|p| p.parse().ok());
     allow_page(
         &state,
         ctx,
         &subject,
         &a,
-        (q.fingerprint, q.rule),
+        (q.fingerprint, q.rule, push),
         message,
         Vec::new(),
     )
@@ -186,7 +228,7 @@ async fn save_allow(
                 ctx,
                 &s.subject,
                 &a,
-                (f.fingerprint, f.rule),
+                (f.fingerprint, f.rule, None),
                 None,
                 errors,
             )
@@ -194,6 +236,50 @@ async fn save_allow(
         }
         Err(e) => Err(e.into()),
     }
+}
+
+/// The page for a remembered rejection: a first push (administrators) or
+/// a push with several findings (whoever may allow findings).
+async fn accept_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    (ns, repo): (&str, &str),
+    id: uuid::Uuid,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
+    let a = access(state, subject, ns, repo, Action::RepoPush).await?;
+    let first_push = state
+        .services
+        .rejection_is_first_push(&a, id)
+        .await?
+        .ok_or_else(AppError::not_found)?;
+    let findings = if first_push {
+        let a = access(state, subject, ns, repo, Action::RepoSettings).await?;
+        state.services.first_push_findings(subject, &a, id).await?
+    } else {
+        // Who may not allow findings doesn't learn about them.
+        match state.services.push_findings(subject, &a, id).await {
+            Err(ServiceError::Forbidden) => return Err(AppError::not_found()),
+            other => other?,
+        }
+    };
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&AcceptPage {
+        header: RepoHeader::load(state, &a, subject, "push").await,
+        id,
+        findings,
+        first_push,
+        days: ALLOWANCE_DAYS.to_vec(),
+        errors,
+        ctx,
+    });
+    *res.status_mut() = status;
+    Ok(res)
 }
 
 async fn show_accept(
@@ -204,25 +290,46 @@ async fn show_accept(
 ) -> Result<Response, AppError> {
     let subject = session.subject();
     let id: uuid::Uuid = id.parse().map_err(|_| AppError::not_found())?;
-    let a = access(&state, &subject, &ns, &repo, Action::RepoSettings).await?;
-    let findings = state.services.first_push_findings(&subject, &a, id).await?;
-    Ok(render(&AcceptPage {
-        header: RepoHeader::load(&state, &a, &subject, "push").await,
-        id,
-        findings,
-        ctx,
-    }))
+    accept_page(&state, ctx, &subject, (&ns, &repo), id, Vec::new()).await
 }
 
 async fn save_accept(
     State(state): State<AppState>,
+    ctx: PageCtx,
     Sudo(s): Sudo,
     Path((ns, repo, id)): Path<(String, String, String)>,
+    Form(f): Form<AcceptForm>,
 ) -> Result<Response, AppError> {
     let id: uuid::Uuid = id.parse().map_err(|_| AppError::not_found())?;
-    let a = access(&state, &s.subject, &ns, &repo, Action::RepoSettings).await?;
-    state.services.accept_first_push(&s.subject, &a, id).await?;
-    Ok(Redirect::to(&format!("/{ns}/{repo}/-/secret-scan/allow?status=accepted")).into_response())
+    let a = access(&state, &s.subject, &ns, &repo, Action::RepoPush).await?;
+    let first_push = state
+        .services
+        .rejection_is_first_push(&a, id)
+        .await?
+        .ok_or_else(AppError::not_found)?;
+    if first_push {
+        let a = access(&state, &s.subject, &ns, &repo, Action::RepoSettings).await?;
+        state.services.accept_first_push(&s.subject, &a, id).await?;
+        return Ok(
+            Redirect::to(&format!("/{ns}/{repo}/-/secret-scan/allow?status=accepted"))
+                .into_response(),
+        );
+    }
+    let days = f.days.parse().unwrap_or(0);
+    match state
+        .services
+        .allow_push(&s.subject, &a, id, days, &f.reason)
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&format!(
+            "/{ns}/{repo}/-/secret-scan/allow?status=allowed-push"
+        ))
+        .into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            accept_page(&state, ctx, &s.subject, (&ns, &repo), id, errors).await
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 pub fn router() -> Router<AppState> {

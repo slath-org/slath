@@ -7745,6 +7745,14 @@
             "format": "int32",
             "description": "Possible secrets push protection found in the imported history; the\nimport isn't rejected for them."
           },
+          "secret_findings_allowed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Findings the imported default branch's allowlist covers: allowed by\nthe repository, counted apart from `secret_findings`."
+          },
           "size_bytes": {
             "type": [
               "integer",

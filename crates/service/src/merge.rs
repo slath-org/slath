@@ -321,7 +321,8 @@ impl Services {
     }
 
     /// Refuses a merge or squash message with secrets that block rules
-    /// find, unless the repository's push protection is off or warns.
+    /// find, unless the repository's push protection is off or warns, or
+    /// an allowance or the allowlist lets them through.
     async fn scan_message(
         &self,
         a: &RepoAccess,
@@ -329,10 +330,6 @@ impl Services {
         strategy: &str,
         message: Option<&str>,
     ) -> Result<()> {
-        let mode = self.push_protection_mode(a.repo.id).await?;
-        if mode != slath_core::config::ScanMode::Block {
-            return Ok(());
-        }
         let text = message
             .map(str::to_owned)
             .filter(|t| !t.trim().is_empty())
@@ -343,11 +340,11 @@ impl Services {
                     format!("{}\n\n{}", m.title, m.description)
                 }
             });
+        // Allowances and allowlist fingerprints apply as for a push.
         let blocking: Vec<String> = self
-            .scan_rules
-            .scan(text.as_bytes())
+            .blocking_in(&a.repo, &[(None, text.as_bytes())])
+            .await?
             .into_iter()
-            .filter(|f| f.tier == slath_core::secret_scan::Tier::Block)
             .map(|f| f.description)
             .collect();
         if blocking.is_empty() {

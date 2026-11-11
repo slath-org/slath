@@ -128,6 +128,8 @@ pub struct ImportView {
     pub tags: i32,
     /// Possible secrets in the imported history (administrators only).
     pub secrets: i32,
+    /// Findings the repository's allowlist covers, counted apart.
+    pub secrets_allowed: i32,
 }
 
 impl RepoHeader {
@@ -256,6 +258,11 @@ impl RepoHeader {
                 tags: i.tags.unwrap_or(0),
                 secrets: if admin {
                     i.secret_findings.unwrap_or(0)
+                } else {
+                    0
+                },
+                secrets_allowed: if admin {
+                    i.secret_findings_allowed.unwrap_or(0)
                 } else {
                     0
                 },

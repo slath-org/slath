@@ -25,6 +25,17 @@ pub enum Place {
     TagMessage { tag: String },
 }
 
+impl Place {
+    /// The file's path, for a finding in a file.
+    #[must_use]
+    pub fn path(&self) -> Option<&str> {
+        match self {
+            Self::File { path, .. } => Some(path),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PushFinding {
     pub place: Place,
@@ -48,9 +59,13 @@ pub struct Links {
     /// The allowance page of the repository; a finding's fingerprint and
     /// rule are appended.
     pub allow: String,
-    /// For a first push into an empty repository: the page where an
-    /// administrator accepts all its findings at once.
+    /// The page where all findings of this push are allowed at once: for
+    /// a first push into an empty repository (administrators), or for a
+    /// push with several findings (whoever may allow findings).
     pub accept: Option<String>,
+    /// The remembered push, when it has several findings: the allow links
+    /// carry it, so the allow page offers allowing all of them.
+    pub push: Option<uuid::Uuid>,
 }
 
 /// A blocking finding in a fork MR's source head, as the merge request
@@ -332,13 +347,21 @@ impl Services {
         )
         .await
         .map_err(|_| ServiceError::internal("the import's secret scan timed out"))??;
-        let n = report.findings.len();
-        slath_db::imports::set_secret_findings(
-            &self.pool,
-            repo,
-            i32::try_from(n).unwrap_or(i32::MAX),
-        )
-        .await?;
+        // Findings the imported default branch's allowlist covers are the
+        // repository's choice, not secrets to revoke.
+        let default_branch = slath_db::repos::get(&self.pool, repo)
+            .await?
+            .map(|r| r.default_branch)
+            .unwrap_or_default();
+        let list = self.allowlist(repo, &default_branch).await;
+        let allowed = report
+            .findings
+            .iter()
+            .filter(|f| list.allows(f.place.path(), &f.finding.fingerprint))
+            .count();
+        let n = report.findings.len() - allowed;
+        let count = |n: usize| i32::try_from(n).unwrap_or(i32::MAX);
+        slath_db::imports::set_secret_findings(&self.pool, repo, count(n), count(allowed)).await?;
         if n > 0 {
             tracing::warn!(repo = %repo, findings = n, "imported history contains possible secrets");
         }
@@ -528,12 +551,8 @@ impl Services {
         let (keep, pass): (Vec<_>, Vec<_>) = std::mem::take(&mut report.findings)
             .into_iter()
             .partition(|f| {
-                let path = match &f.place {
-                    Place::File { path, .. } => Some(path.as_str()),
-                    _ => None,
-                };
                 !(allowed.contains(&f.finding.fingerprint)
-                    || list.allows(path, &f.finding.fingerprint))
+                    || list.allows(f.place.path(), &f.finding.fingerprint))
             });
         report.findings = keep;
         for f in pass {
@@ -547,9 +566,43 @@ impl Services {
         Ok(())
     }
 
-    /// The links for a rejection; for a first push into an empty
-    /// repository, remembers its findings so an administrator can accept
-    /// them.
+    /// What server-side writes (merge and squash messages, applied
+    /// suggestions) add that push protection blocks in `repo`: block-rule
+    /// findings in `parts` (each with its file's path, `None` for a
+    /// message) that no allowance and no allowlist entry lets through.
+    /// Empty unless the repository's mode is `block`.
+    pub(crate) async fn blocking_in(
+        &self,
+        repo: &slath_db::repos::Repo,
+        parts: &[(Option<&str>, &[u8])],
+    ) -> Result<Vec<Finding>> {
+        if self.push_protection_mode(repo.id).await? != ScanMode::Block {
+            return Ok(Vec::new());
+        }
+        let mut found: Vec<(Option<&str>, Finding)> = parts
+            .iter()
+            .flat_map(|(path, text)| {
+                self.scan_rules
+                    .scan(text)
+                    .into_iter()
+                    .filter(|f| f.tier == Tier::Block)
+                    .map(move |f| (*path, f))
+            })
+            .collect();
+        if found.is_empty() {
+            return Ok(Vec::new());
+        }
+        let allowed = slath_db::secret_allowances::active(&self.pool, repo.id).await?;
+        let list = self.allowlist(repo.id, &repo.default_branch).await;
+        found.retain(|(path, f)| {
+            !(allowed.contains(&f.fingerprint) || list.allows(*path, &f.fingerprint))
+        });
+        Ok(found.into_iter().map(|(_, f)| f).collect())
+    }
+
+    /// The links for a rejection. A first push into an empty repository,
+    /// or a push with several findings, is remembered so its findings can
+    /// be allowed in one step.
     pub(crate) async fn rejection_links(
         &self,
         repo: &slath_db::repos::Repo,
@@ -563,6 +616,7 @@ impl Services {
         let mut links = Links {
             allow: format!("{base}/allow"),
             accept: None,
+            push: None,
         };
         let empty = slath_db::refs::snapshot(&self.pool, repo.id)
             .await?
@@ -571,17 +625,129 @@ impl Services {
             .blocking()
             .map(|f| serde_json::json!({"fingerprint": f.finding.fingerprint, "rule": f.finding.rule}))
             .collect();
-        if empty && !blocking.is_empty() {
+        let distinct: std::collections::HashSet<&str> = report
+            .blocking()
+            .map(|f| f.finding.fingerprint.as_str())
+            .collect();
+        if !blocking.is_empty() && (empty || distinct.len() >= 2) {
+            let kind = if empty { "first_push" } else { "push" };
             let id = slath_db::secret_allowances::insert_rejection(
                 &self.pool,
                 repo.id,
+                kind,
                 &serde_json::Value::Array(blocking),
                 time::OffsetDateTime::now_utc() + time::Duration::hours(ACCEPT_HOURS),
             )
             .await?;
             links.accept = Some(format!("{base}/accept/{id}"));
+            links.push = (!empty).then_some(id);
         }
         Ok(links)
+    }
+
+    /// Whether `subject` may allow findings in `a`'s repository: a human
+    /// user with push access, an administrator when the repository says
+    /// so; never a bot or a token's own principal.
+    fn may_allow(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        need_admin: bool,
+    ) -> Result<slath_core::ids::UserId> {
+        use slath_core::authz::{Action, Subject, UserKind};
+        self.authorize(subject, a, Action::RepoPush)?;
+        if need_admin && !a.can(subject, Action::RepoSettings) {
+            return Err(ServiceError::Forbidden);
+        }
+        match subject {
+            Subject::User {
+                id,
+                kind: UserKind::Human,
+                ..
+            } => Ok(*id),
+            _ => Err(ServiceError::Forbidden),
+        }
+    }
+
+    /// The findings of a rejected push with several of them, for the page
+    /// that allows them all (whoever may allow findings).
+    pub async fn push_findings(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        id: uuid::Uuid,
+    ) -> Result<Vec<(String, String)>> {
+        let need_admin = self.allowances_need_admin(a.repo.id).await?;
+        self.may_allow(subject, a, need_admin)?;
+        match slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await? {
+            Some((kind, v)) if kind == "push" => Ok(findings_of(&v)),
+            _ => Err(ServiceError::NotFound),
+        }
+    }
+
+    /// Whether a remembered rejection is a first push (`Some(true)`), a
+    /// push with several findings (`Some(false)`), or gone.
+    pub async fn rejection_is_first_push(
+        &self,
+        a: &crate::repos::RepoAccess,
+        id: uuid::Uuid,
+    ) -> Result<Option<bool>> {
+        Ok(
+            slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id)
+                .await?
+                .map(|(kind, _)| kind == "first_push"),
+        )
+    }
+
+    /// Allows every finding of a rejected push in one step, with one
+    /// reason and one period (whoever may allow findings, never bots);
+    /// one audit event lists the fingerprints.
+    pub async fn allow_push(
+        &self,
+        subject: &slath_core::authz::Subject,
+        a: &crate::repos::RepoAccess,
+        id: uuid::Uuid,
+        days: i64,
+        reason: &str,
+    ) -> Result<usize> {
+        let findings = self.push_findings(subject, a, id).await?;
+        let user = self.may_allow(subject, a, self.allowances_need_admin(a.repo.id).await?)?;
+        let errors = period_errors(days, reason);
+        if !errors.is_empty() {
+            return Err(ServiceError::Invalid(errors));
+        }
+        let reason = reason.trim();
+        let expires = time::OffsetDateTime::now_utc() + time::Duration::days(days);
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        for (fp, rule) in &findings {
+            slath_db::secret_allowances::insert(
+                &mut *tx,
+                a.repo.id,
+                fp,
+                rule,
+                user,
+                (!reason.is_empty()).then_some(reason),
+                expires,
+            )
+            .await?;
+        }
+        tx.commit().await.map_err(ServiceError::internal)?;
+        let fingerprints: Vec<&str> = findings.iter().map(|(f, _)| f.as_str()).collect();
+        let rules: Vec<&str> = findings.iter().map(|(_, r)| r.as_str()).collect();
+        self.audit(
+            subject,
+            "secret_scan.allow_push",
+            crate::audit::Target::repo(*a.repo.id.as_uuid()),
+            serde_json::json!({
+                "fingerprints": fingerprints,
+                "rules": rules,
+                "days": days,
+                "reason": reason,
+            }),
+        )
+        .await;
+        self.retry_held_back(a.repo.id).await;
+        Ok(findings.len())
     }
 
     /// Allows one finding in a repository for `days` (writers only, never
@@ -595,19 +761,7 @@ impl Services {
         days: i64,
         reason: &str,
     ) -> Result<()> {
-        use slath_core::authz::{Action, Subject, UserKind};
-        self.authorize(subject, a, Action::RepoPush)?;
-        if self.allowances_need_admin(a.repo.id).await? && !a.can(subject, Action::RepoSettings) {
-            return Err(ServiceError::Forbidden);
-        }
-        let Subject::User {
-            id,
-            kind: UserKind::Human,
-            ..
-        } = subject
-        else {
-            return Err(ServiceError::Forbidden);
-        };
+        let id = &self.may_allow(subject, a, self.allowances_need_admin(a.repo.id).await?)?;
         let mut errors = Vec::new();
         if fingerprint.len() != 32
             || !fingerprint
@@ -632,21 +786,8 @@ impl Services {
                 "This link is incomplete; copy it from the push output again.",
             ));
         }
-        if !ALLOWANCE_DAYS.contains(&days) {
-            errors.push(crate::FieldError::new(
-                "days",
-                "invalid",
-                "Choose one of the offered periods.",
-            ));
-        }
+        errors.extend(period_errors(days, reason));
         let reason = reason.trim();
-        if reason.len() > 500 {
-            errors.push(crate::FieldError::new(
-                "reason",
-                "too_long",
-                "Keep the reason under 500 characters.",
-            ));
-        }
         if !errors.is_empty() {
             return Err(ServiceError::Invalid(errors));
         }
@@ -681,20 +822,10 @@ impl Services {
         id: uuid::Uuid,
     ) -> Result<Vec<(String, String)>> {
         self.authorize(subject, a, slath_core::authz::Action::RepoSettings)?;
-        let Some(v) = slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await?
-        else {
-            return Err(ServiceError::NotFound);
-        };
-        Ok(v.as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|f| {
-                Some((
-                    f["fingerprint"].as_str()?.to_owned(),
-                    f["rule"].as_str()?.to_owned(),
-                ))
-            })
-            .collect())
+        match slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await? {
+            Some((kind, v)) if kind == "first_push" => Ok(findings_of(&v)),
+            _ => Err(ServiceError::NotFound),
+        }
     }
 
     /// Accepts every finding of a rejected first push in one step (the
@@ -756,6 +887,40 @@ impl Services {
     }
 }
 
+/// The `(fingerprint, rule)` pairs of a remembered rejection.
+fn findings_of(v: &serde_json::Value) -> Vec<(String, String)> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|f| {
+            Some((
+                f["fingerprint"].as_str()?.to_owned(),
+                f["rule"].as_str()?.to_owned(),
+            ))
+        })
+        .collect()
+}
+
+/// What's wrong with an allowance's period and reason.
+fn period_errors(days: i64, reason: &str) -> Vec<crate::FieldError> {
+    let mut errors = Vec::new();
+    if !ALLOWANCE_DAYS.contains(&days) {
+        errors.push(crate::FieldError::new(
+            "days",
+            "invalid",
+            "Choose one of the offered periods.",
+        ));
+    }
+    if reason.trim().len() > 500 {
+        errors.push(crate::FieldError::new(
+            "reason",
+            "too_long",
+            "Keep the reason under 500 characters.",
+        ));
+    }
+    errors
+}
+
 /// The `remote:` lines for a scan: rejections with fix hints for Git and
 /// jj and the allowance links (in `block` mode), warnings otherwise.
 #[must_use]
@@ -796,17 +961,27 @@ pub fn messages(report: &ScanReport, mode: ScanMode, links: &Links) -> Vec<Strin
         }
         if !links.allow.is_empty() {
             out.push("slath:   Not a secret? A repository writer can allow it, then push again unchanged:".into());
+            let push = links
+                .push
+                .map(|id| format!("&push={id}"))
+                .unwrap_or_default();
             let mut seen = std::collections::HashSet::new();
             for f in &blocking {
                 if seen.insert(&f.finding.fingerprint) {
                     out.push(format!(
-                        "slath:     {}?fingerprint={}&rule={}",
+                        "slath:     {}?fingerprint={}&rule={}{push}",
                         links.allow, f.finding.fingerprint, f.finding.rule
                     ));
                 }
             }
         }
-        if let Some(accept) = &links.accept {
+        if let (Some(accept), Some(_)) = (&links.accept, links.push) {
+            out.push(format!(
+                "slath:   Or allow all {} findings of this push at once, with one reason and one period:",
+                seen_count(&blocking)
+            ));
+            out.push(format!("slath:     {accept}"));
+        } else if let Some(accept) = &links.accept {
             out.push("slath:   This is the repository's first push. If its history already exists elsewhere, an administrator can accept all its findings at once:".into());
             out.push(format!("slath:     {accept}"));
         }
@@ -835,6 +1010,15 @@ pub fn messages(report: &ScanReport, mode: ScanMode, links: &Links) -> Vec<Strin
         ));
     }
     out
+}
+
+/// How many different secrets (fingerprints) `findings` have.
+fn seen_count(findings: &[&PushFinding]) -> usize {
+    findings
+        .iter()
+        .map(|f| &f.finding.fingerprint)
+        .collect::<std::collections::HashSet<_>>()
+        .len()
 }
 
 fn describe(f: &PushFinding, indent: &str) -> Vec<String> {

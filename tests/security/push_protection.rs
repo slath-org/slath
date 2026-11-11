@@ -570,3 +570,142 @@ fn conf_sec_08_repositories_can_require_admins_to_allow_findings() {
         "1"
     );
 }
+
+/// Ten different test keys (private-key blocks).
+fn test_keys() -> Vec<String> {
+    let (_, key) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "private-key")
+        .unwrap();
+    (0..10)
+        .map(|i| key.replace("AAAAtz", &format!("AAAAt{i}")))
+        .collect()
+}
+
+/// A repository that holds test keys on purpose: a push adding ten of them
+/// is rejected, then accepted unchanged after one allowance of all its
+/// findings, by whoever may allow findings and nobody else.
+#[test]
+fn conf_sec_08_intentional_secrets_one_step_allows_all_findings_of_a_push() {
+    use slath_tests::http::submit;
+    use slath_tests::server::PASSWORD;
+    let s = TestServer::start();
+    s.create_user("carol", PASSWORD, false);
+    s.create_user("botty", PASSWORD, false);
+    let mut alice = s.login("alice", PASSWORD);
+    for who in ["carol", "botty"] {
+        let r = submit(
+            &mut alice,
+            "/alice/demo/settings/access",
+            "/alice/demo/settings/access",
+            &[("username", who), ("role", "write")],
+        );
+        assert_eq!(r.status, 303, "{}", r.body);
+    }
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    work(&git, &w);
+    let url = s.url(&DEMO);
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    for (i, k) in test_keys().iter().enumerate() {
+        std::fs::create_dir_all(w.join("tests/keys")).unwrap();
+        std::fs::write(w.join(format!("tests/keys/key{i}.pem")), k).unwrap();
+    }
+    git.ok(&w, &["add", "."]);
+    git.ok(&w, &["commit", "-q", "-m", "Add test keys"]);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    assert!(
+        err.contains("Or allow all 10 findings of this push at once"),
+        "{err}"
+    );
+    let line = err
+        .lines()
+        .find(|l| l.contains("/-/secret-scan/accept/"))
+        .unwrap_or_else(|| panic!("{err}"));
+    let full = line.split_whitespace().last().unwrap();
+    let link = full[full.find("/alice/").unwrap()..].to_owned();
+    // Each finding's own link offers the batch too.
+    let one = allow_link(&err);
+    assert!(one.contains("&push="), "{one}");
+    let mut carol = s.login("carol", PASSWORD);
+    assert!(
+        carol.get(&one).body.contains("Allow all 10 at once"),
+        "the allow page offers the batch"
+    );
+    let allowances = || {
+        s.db.query_one("SELECT count(*)::text FROM secret_allowances")
+    };
+
+    // With admins only allowing findings, a writer can't.
+    let r = submit(
+        &mut alice,
+        "/alice/demo/settings/general",
+        "/alice/demo/settings/push-protection",
+        &[("mode", "block"), ("admins_allow", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(carol.get(&link).status, 404);
+    let r = submit(&mut carol, "/-/settings/profile", &link, &[("days", "7")]);
+    assert!(r.status == 403 || r.status == 404, "{}", r.status);
+    assert_eq!(allowances(), "0");
+    let r = submit(
+        &mut alice,
+        "/alice/demo/settings/general",
+        "/alice/demo/settings/push-protection",
+        &[("mode", "block")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+
+    // Neither a bot nor a token.
+    let mut bot = s.login("botty", PASSWORD);
+    s.db.execute(
+        "UPDATE users u SET kind = 'bot', bot_owner_kind = 'user', password_hash = NULL,
+                bot_owner_id = (SELECT u2.id FROM users u2 JOIN namespaces n2 ON n2.id = u2.namespace_id WHERE n2.name = 'alice')
+           FROM namespaces n WHERE n.id = u.namespace_id AND n.name = 'botty'",
+    );
+    let _ = submit(&mut bot, "/-/settings/profile", &link, &[("days", "7")]);
+    let token = slath_tests::http::create_token(&mut alice, "t", &["repo:write"]);
+    let r = s.client().api("POST", &link, Some(&token), None);
+    assert_ne!(r.status, 200, "{}", r.body);
+    assert_eq!(allowances(), "0");
+
+    // The writer allows all ten with one reason and one period.
+    let page = carol.get(&link);
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("Allow 10 findings"), "{}", page.body);
+    let r = submit(&mut carol, &link, &link, &[("days", "5")]);
+    assert_eq!(r.status, 422, "{}", r.body);
+    let r = submit(
+        &mut carol,
+        &link,
+        &link,
+        &[("days", "30"), ("reason", "scanner test keys")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(allowances(), "10");
+    let out = git.cmd(&w).args(["push", &url, "main"]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let audit = s
+        .db
+        .query_one("SELECT data::text FROM audit_events WHERE action = 'secret_scan.allow_push'");
+    assert!(audit.contains("scanner test keys"), "{audit}");
+    assert_eq!(
+        s.db.query_one(
+            "SELECT jsonb_array_length(data->'fingerprints')::text FROM audit_events WHERE action = 'secret_scan.allow_push'"
+        ),
+        "10"
+    );
+    // A single finding has no batch.
+    let (_, other) = samples()
+        .into_iter()
+        .find(|(r, _)| *r == "npm-token")
+        .unwrap();
+    commit_file(&git, &w, "npmrc", &other);
+    let err = git.fails(&w, &["push", &url, "main"]);
+    assert!(!err.contains("/-/secret-scan/accept/"), "{err}");
+}
