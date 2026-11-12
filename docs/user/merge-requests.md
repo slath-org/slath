@@ -476,6 +476,22 @@ Diffs look the same on commits, the compare page, and merge requests:
   limit, so nothing is left out without saying so.
 - Large diffs load as you scroll, and very large files on request.
 
+### As plain text
+
+For tools, scripts, and agents, diffs also come as plain text:
+
+| What | In the browser | Through the API |
+| --- | --- | --- |
+| A commit's diff (against its first parent) | `/<ns>/<repo>/commit/<oid>.diff` | `GET /api/v1/repos/<ns>/<repo>/commits/<oid>/diff` |
+| A commit as a patch mail | `/<ns>/<repo>/commit/<oid>.patch` | `GET /api/v1/repos/<ns>/<repo>/commits/<oid>/patch` |
+| A merge request's diff (current revision, from its merge base) | `/<ns>/<repo>/merge-requests/<n>.diff` | `GET /api/v1/repos/<ns>/<repo>/merge-requests/<n>/diff` |
+| A merge request's commits as patch mails | `/<ns>/<repo>/merge-requests/<n>.patch` | `GET /api/v1/repos/<ns>/<repo>/merge-requests/<n>/patch` |
+
+Diffs are what `git diff` prints and patches what `git format-patch`
+prints, so `git apply` and `git am` take them. They're never folded or
+cut, up to 64 MiB. Who can read the repository can read them; the API
+needs a token with `repo:read` for private repositories.
+
 ## Checking out a merge request
 
 **Check out** next to the merge request's title shows commands to copy,

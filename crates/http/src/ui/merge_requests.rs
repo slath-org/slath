@@ -1985,6 +1985,11 @@ async fn view(
     Path((ns, repo, n)): Path<(String, String, String)>,
     Query(q): Query<StatusQuery>,
 ) -> Result<Response, AppError> {
+    if let (n, Some(format)) = crate::plain::split_suffix(&n) {
+        let subject = session.subject();
+        return crate::plain::merge_request(&state, &subject, (&ns, &repo, number(n)?), format)
+            .await;
+    }
     let message = match q.status.as_deref() {
         Some("saved") => Some("Merge request saved."),
         Some("restored") => Some("Branch restored."),

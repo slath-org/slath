@@ -21,6 +21,7 @@ mod notifications;
 mod oidc;
 mod orgs;
 mod passkeys;
+mod plain;
 mod protection;
 mod push_protection;
 mod reconcile;

@@ -479,6 +479,53 @@ pub async fn diff(
     }
 }
 
+/// The commits from `base` (exclusive) to `head` as `git format-patch`
+/// mails, oldest first; without a base, just `head` (its whole tree for a
+/// root commit). The flag says the output exceeded `max_bytes` (nothing is
+/// returned then).
+pub async fn format_patch(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    head: &ObjectId,
+    root: bool,
+    max_bytes: usize,
+) -> Result<(Vec<u8>, bool), GitError> {
+    let mut cmd = runner
+        .repo(git_dir)
+        .config("core.quotePath", "false")
+        .args([
+            "format-patch",
+            "--stdout",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-signature",
+            "-M",
+            "--full-index",
+        ]);
+    let range = match base {
+        Some(b) => format!("{}..{}", b.as_str(), head.as_str()),
+        None => {
+            cmd = cmd.arg("-1");
+            if root {
+                cmd = cmd.arg("--root");
+            }
+            head.as_str().to_owned()
+        }
+    };
+    let result = cmd
+        .args(["--end-of-options", &range, "--"])
+        .max_output(max_bytes)
+        .run()
+        .await;
+    match result {
+        Ok(out) => Ok((out.stdout, false)),
+        Err(GitError::Limit(crate::LimitKind::Output)) => Ok((Vec::new(), true)),
+        Err(e) => Err(e),
+    }
+}
+
 /// How many files `base..commit` changes (renames counted once, as in
 /// [`diff`]), for when the diff itself is too big to read.
 pub async fn changed_file_count(

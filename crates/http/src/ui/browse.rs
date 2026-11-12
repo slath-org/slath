@@ -991,6 +991,11 @@ async fn commit(
     let subject = session.subject();
     let (ns, repo, rest) = params(&raw);
     let a = access(&state, &subject, &ns, &repo).await?;
+    if let Ok(text) = std::str::from_utf8(&rest)
+        && let (oid, Some(format)) = crate::plain::split_suffix(text)
+    {
+        return crate::plain::commit(&state, &a, oid, format).await;
+    }
     let oid = ObjectId::parse(&rest).map_err(|_| AppError::not_found())?;
     let git_dir = state.services.repo_path(a.repo.id);
     let oid = browse::resolve_commit(&state.runner, &git_dir, oid.as_str().as_bytes())

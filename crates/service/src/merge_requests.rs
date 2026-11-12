@@ -751,6 +751,36 @@ impl Services {
         .map_err(ServiceError::internal)
     }
 
+    /// The current revision's commits as `git format-patch` mails, from its
+    /// merge base. `None` without revisions; the flag says it was too big.
+    pub async fn mr_patch(&self, m: &MergeRequest) -> Result<Option<(Vec<u8>, bool)>> {
+        let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        let Some(r) = revs.last() else {
+            return Ok(None);
+        };
+        let Ok(head) = ObjectId::parse(&r.head_oid) else {
+            return Ok(None);
+        };
+        let base = r
+            .merge_base_oid
+            .as_deref()
+            .and_then(|b| ObjectId::parse(b).ok());
+        let Some(base) = base else {
+            return Ok(None);
+        };
+        slath_git::browse::format_patch(
+            &self.runner,
+            &self.repo_path(m.repo_id),
+            Some(&base),
+            &head,
+            false,
+            64 * 1024 * 1024,
+        )
+        .await
+        .map(Some)
+        .map_err(ServiceError::internal)
+    }
+
     /// The conversation: comments, events, and revisions in order.
     pub async fn mr_timeline(
         &self,

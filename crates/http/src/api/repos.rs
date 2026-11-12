@@ -445,6 +445,30 @@ pub struct CommitDetail {
 }
 
 /// A commit with the files it changes (compared with its first parent).
+/// A commit's diff against its first parent, as plain text (`git diff`).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}/diff", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
+    responses((status = 200, content_type = "text/plain", body = String), (status = 404, body = super::Problem), (status = 413, body = super::Problem)))]
+pub async fn get_commit_diff(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, oid)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
+    crate::plain::commit(&state, &a, &oid, crate::plain::Format::Diff).await
+}
+
+/// A commit as a patch mail, as plain text (`git format-patch`).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}/patch", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
+    responses((status = 200, content_type = "text/plain", body = String), (status = 404, body = super::Problem), (status = 413, body = super::Problem)))]
+pub async fn get_commit_patch(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, oid)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
+    crate::plain::commit(&state, &a, &oid, crate::plain::Format::Patch).await
+}
+
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
     responses((status = 200, body = CommitDetail), (status = 404, body = super::Problem)))]
 pub async fn get_commit(
@@ -1238,6 +1262,16 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/commits/{oid}",
             Access::Resource,
             get(get_commit),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/commits/{oid}/diff",
+            Access::Resource,
+            get(get_commit_diff),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/commits/{oid}/patch",
+            Access::Resource,
+            get(get_commit_patch),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/tree/{ref}",

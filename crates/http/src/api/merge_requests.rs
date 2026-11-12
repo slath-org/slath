@@ -310,6 +310,28 @@ pub async fn create_mr(
     ))
 }
 
+/// The current revision's diff from its merge base, as plain text (`git diff`).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/diff", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, content_type = "text/plain", body = String), (status = 404, body = super::Problem), (status = 413, body = super::Problem)))]
+pub async fn get_mr_diff(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, n)): Path<(String, String, i32)>,
+) -> Result<Response, AppError> {
+    crate::plain::merge_request(&state, &s, (&ns, &repo, n), crate::plain::Format::Diff).await
+}
+
+/// The current revision's commits as patch mails, as plain text (`git format-patch`).
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/patch", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 200, content_type = "text/plain", body = String), (status = 404, body = super::Problem), (status = 413, body = super::Problem)))]
+pub async fn get_mr_patch(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, n)): Path<(String, String, i32)>,
+) -> Result<Response, AppError> {
+    crate::plain::merge_request(&state, &s, (&ns, &repo, n), crate::plain::Format::Patch).await
+}
+
 /// One merge request.
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
     responses((status = 200, body = MergeRequest), (status = 404, body = super::Problem)))]
@@ -1109,6 +1131,16 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}",
             Access::Resource,
             get(get_mr).patch(update_mr),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/diff",
+            Access::Resource,
+            get(get_mr_diff),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/patch",
+            Access::Resource,
+            get(get_mr_patch),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments",
