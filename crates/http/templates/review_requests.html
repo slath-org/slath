@@ -12,7 +12,7 @@
   <li class="item-row">
     <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}</span>
     <div class="item-main">
-      <a class="item-title" href="{{ r.href }}"><bdi>{{ r.title }}</bdi></a>
+      <a class="item-title" href="{{ r.href }}"><bdi>{{ crate::ui::title_html(r.title.as_str()) }}</bdi></a>
       <p class="item-meta text-secondary">{{ r.repo }} !{{ r.number }}{% if let Some(a) = r.author %} by {{ a }}{% endif %} · updated <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
     </div>
   </li>

@@ -66,7 +66,7 @@
   <li class="item-row">
     <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ i.number }}"><bdi>{{ i.title }}</bdi></a>
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
       {%- if !i.labels.is_empty() %}
       <span class="item-labels">
         {%- for l in i.labels %}

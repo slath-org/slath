@@ -64,7 +64,7 @@
   <li class="item-row">
     <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state_text }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ i.number }}"><bdi>{{ i.title }}</bdi></a>
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>{% if let Some(c) = i.checks %} <span class="item-checks tone-{{ c.tone }}" title="{{ c.text }}">{% call m::tone_icon(ctx, c.tone) %}{% endcall %}<span class="visually-hidden">{{ c.text }}</span></span>{% endif %}
       {%- if i.state == "draft" %} <span class="badge">Draft</span>{% endif %}
       {%- if !i.labels.is_empty() %}
       <span class="item-labels">

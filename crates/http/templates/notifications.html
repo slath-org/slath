@@ -25,7 +25,7 @@
   <li class="item-row{% if r.unread %} item-unread{% endif %}">
     <span class="item-state item-state-{{ r.state }}">{% call m::icon(ctx, r.icon) %}{% endcall %}<span class="visually-hidden">{{ r.state }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="{{ r.href }}"><bdi>{{ r.title }}</bdi></a>{% if r.unread %} <span class="badge">Unread</span>{% endif %}
+      <a class="item-title" href="{{ r.href }}"><bdi>{{ crate::ui::title_html(r.title.as_str()) }}</bdi></a>{% if r.unread %} <span class="badge">Unread</span>{% endif %}
       <p class="item-meta text-secondary">{{ r.reference }} · {{ r.reason }} · <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
     </div>
     <form method="post" action="/-/notifications/{{ r.id }}/mark" class="inline-form">

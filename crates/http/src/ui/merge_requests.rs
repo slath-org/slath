@@ -100,6 +100,48 @@ struct MrRow {
     comments: i64,
     source: String,
     target: String,
+    /// The head's checks; `None` without statuses or when not open.
+    checks: Option<Checks>,
+}
+
+/// A head's checks in one tone (`done`, `waiting`, `blocking`) and words.
+struct Checks {
+    tone: &'static str,
+    text: String,
+}
+
+/// The checks of a head in one tone and words: failing if any failed,
+/// running if any is pending, passed if all passed.
+fn checks_summary(statuses: &[slath_db::statuses::Status]) -> Option<Checks> {
+    let total = statuses.len();
+    if total == 0 {
+        return None;
+    }
+    let count = |states: &[&str]| {
+        statuses
+            .iter()
+            .filter(|s| states.contains(&s.state.as_str()))
+            .count()
+    };
+    let failed = count(&["failure", "error"]);
+    let pending = count(&["pending"]);
+    let checks = |n: usize| if n == 1 { "check" } else { "checks" };
+    let (tone, text) = if failed > 0 {
+        (
+            "blocking",
+            format!("{failed} of {total} {} failed", checks(total)),
+        )
+    } else if pending > 0 {
+        (
+            "waiting",
+            format!("{pending} of {total} {} running", checks(total)),
+        )
+    } else if total == 1 {
+        ("done", "The check passed".to_owned())
+    } else {
+        ("done", format!("All {total} checks passed"))
+    };
+    Some(Checks { tone, text })
 }
 
 #[derive(Template)]
@@ -206,7 +248,13 @@ async fn list(
     for m in items.into_iter().take(PER_PAGE as usize) {
         let (_, _, labels, _) = state.services.mr_details(&m).await?;
         let (icon, s, text) = state_view(&m);
+        let checks = if m.state == "open" {
+            checks_summary(&state.services.mr_statuses(&m).await?)
+        } else {
+            None
+        };
         rows.push(MrRow {
+            checks,
             labels,
             number: m.number,
             icon,

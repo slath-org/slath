@@ -294,6 +294,13 @@ impl std::fmt::Display for MarkupHtml {
 
 impl askama::filters::HtmlSafe for MarkupHtml {}
 
+/// An issue or merge request title as HTML: text in backticks shows as
+/// code, nothing else is interpreted.
+#[must_use]
+pub fn title_html(title: &str) -> MarkupHtml {
+    MarkupHtml::from_markup(slath_markup::title_html(title))
+}
+
 /// A commit status as pages show it, with its reporter.
 pub struct StatusRow {
     pub context: String,

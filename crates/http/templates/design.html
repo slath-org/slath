@@ -355,6 +355,22 @@
       </div>
     </li>
   </ul>
+  <ul class="item-list">
+    <li class="item-row">
+      <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#issues-heading"><bdi>{{ crate::ui::title_html("Upgrade `vite` from v5 to v8") }}</bdi></a> <span class="item-checks tone-done" title="All 3 checks passed">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span class="visually-hidden">All 3 checks passed</span></span>
+        <p class="item-meta text-secondary">!103 opened <time datetime="2026-11-01T09:00:00Z">yesterday</time> by alice</p>
+      </div>
+    </li>
+    <li class="item-row">
+      <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
+      <div class="item-main">
+        <a class="item-title" href="#issues-heading"><bdi>{{ crate::ui::title_html("Implement `/repos/{org}/{repo}/forks`") }}</bdi></a> <span class="item-checks tone-blocking" title="1 of 2 checks failed">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span class="visually-hidden">1 of 2 checks failed</span></span>
+        <p class="item-meta text-secondary">!110 opened <time datetime="2026-10-29T09:00:00Z">Oct 29</time> by bob</p>
+      </div>
+    </li>
+  </ul>
   <ol class="timeline">
     <li class="timeline-comment">
       <article aria-label="Comment by bob">

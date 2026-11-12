@@ -4,7 +4,7 @@
 {% include "repo/header.html" %}
 <div class="issue">
 <div class="issue-heading">
-  <h1><bdi>{{ issue.title }}</bdi> <span class="text-secondary">#{{ issue.number }}</span></h1>
+  <h1><bdi>{{ crate::ui::title_html(issue.title.as_str()) }}</bdi> <span class="text-secondary">#{{ issue.number }}</span></h1>
   {%- if perms.edit %}
   <a class="button button-icon" title="Edit issue" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit issue</span></a>
   {%- endif %}

@@ -1584,6 +1584,19 @@ details[open] > summary .disclosure svg {
   display: block;
   font-size: var(--text-sm);
 }
+/* Code in issue and merge request titles follows the title's size
+   (headings and list rows), not the fixed code size. */
+h1 > bdi code,
+.item-title code {
+  font-size: var(--code-in-text);
+}
+/* A merge request's checks next to its title in lists: the tone's icon
+   (shape, not only color; colored by the shared tone rules), the words
+   for screen readers and as a tooltip. */
+.item-checks {
+  display: inline-flex;
+  vertical-align: middle;
+}
 /* A checkbox's label with a plain explanation under its name. */
 .checkbox-hint {
   display: block;
@@ -1607,15 +1620,6 @@ details[open] > summary .disclosure svg {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-}
-.delivery-state.tone-done > svg {
-  color: var(--success);
-}
-.delivery-state.tone-waiting > svg {
-  color: var(--warning);
-}
-.delivery-state.tone-blocking > svg {
-  color: var(--danger);
 }
 .delivery-facts {
   display: grid;

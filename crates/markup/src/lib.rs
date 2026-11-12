@@ -15,10 +15,12 @@ mod highlight;
 pub mod intraline;
 pub mod refs;
 pub mod suggestion;
+mod title;
 
 use std::collections::HashSet;
 
 pub use highlight::{Highlighted, highlight};
+pub use title::title_html;
 
 /// Bumped whenever rendering output changes, so cached renders are discarded.
 pub const RENDERER_VERSION: u32 = 1;

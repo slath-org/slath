@@ -118,6 +118,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Each change in a diff links to the previous and next change; with the diff focused, n and p do the same.
 - On phones, a long changed line in a diff no longer makes the whole page scroll sideways.
 - The diff options read "Unified view" or "Split view", next to Ignore whitespace and Apply on one line.
+- Text in backticks in merge request and issue titles shows as code in headings, lists, search, and the inbox.
+- Merge request lists show each open merge request's checks next to its title.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 

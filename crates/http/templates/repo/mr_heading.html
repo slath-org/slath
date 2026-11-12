@@ -1,5 +1,5 @@
 <div class="issue-heading">
-  <h1><bdi>{{ h.mr.title }}</bdi> <span class="text-secondary">!{{ h.mr.number }}</span></h1>
+  <h1><bdi>{{ crate::ui::title_html(h.mr.title.as_str()) }}</bdi> <span class="text-secondary">!{{ h.mr.number }}</span></h1>
   {%- if h.perms.edit %}
   <a class="button button-icon" title="Edit merge request" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit merge request</span></a>
   {%- endif %}

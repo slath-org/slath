@@ -210,3 +210,86 @@ fn conf_review_01_only_people_who_can_push_open_merge_requests() {
         r.body
     );
 }
+
+/// Lists show code in titles and each open merge request's checks.
+#[test]
+fn titles_show_code_and_lists_show_checks() {
+    let s = TestServer::start();
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(
+        &mut alice,
+        "mr",
+        &["repo:write", "issues:write", "mrs:write", "statuses:write"],
+    );
+    let api = |method: &str, path: &str, body: Option<serde_json::Value>| {
+        s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(&token),
+            body.as_ref(),
+        )
+    };
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let url = s.url(&DEMO);
+    work(&git, &w, &url);
+    git.ok(&w, &["switch", "-q", "-c", "topic"]);
+    let head = commit(&git, &w, "b.txt", "b\n");
+    git.ok(&w, &["push", "-q", &url, "topic"]);
+    let r = api(
+        "POST",
+        "/merge-requests",
+        Some(serde_json::json!({"source_branch": "topic", "title": "Upgrade `vite` to <v8>"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let r = api(
+        "POST",
+        "/issues",
+        Some(serde_json::json!({"title": "Crash in `parse()`"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    eventually(&s, "no revision", || {
+        api("GET", &format!("/merge-requests/{n}"), None).json()["revisions"] == 1
+    });
+    let list = alice.get("/alice/demo/merge-requests").body;
+    assert!(
+        list.contains("Upgrade <code>vite</code> to &lt;v8&gt;"),
+        "{list}"
+    );
+    assert!(
+        !list.contains("item-checks"),
+        "no statuses, no checks: {list}"
+    );
+    for (context, state) in [("build", "success"), ("lint", "pending")] {
+        let r = api(
+            "POST",
+            &format!("/statuses/{head}"),
+            Some(serde_json::json!({"context": context, "state": state})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+    }
+    let list = alice.get("/alice/demo/merge-requests").body;
+    assert!(list.contains("1 of 2 checks running"), "{list}");
+    let r = api(
+        "POST",
+        &format!("/statuses/{head}"),
+        Some(serde_json::json!({"context": "lint", "state": "failure"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert!(
+        alice
+            .get("/alice/demo/merge-requests")
+            .body
+            .contains("1 of 2 checks failed")
+    );
+    // Headings and the issue list too; the page title stays text.
+    let page = alice.get(&format!("/alice/demo/merge-requests/{n}")).body;
+    assert!(
+        page.contains("<h1><bdi>Upgrade <code>vite</code> to &lt;v8&gt;</bdi>"),
+        "{page}"
+    );
+    let issues = alice.get("/alice/demo/issues").body;
+    assert!(issues.contains("Crash in <code>parse()</code>"), "{issues}");
+}
