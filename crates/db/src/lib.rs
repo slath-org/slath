@@ -8,6 +8,7 @@ pub mod audit;
 pub mod backup;
 pub mod bgmigrations;
 pub mod blobs;
+pub mod bots;
 pub mod email_tokens;
 pub mod forks;
 pub mod idempotency;

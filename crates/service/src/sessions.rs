@@ -4,7 +4,7 @@
 
 use slath_auth::token;
 use slath_core::Secret;
-use slath_core::authz::{Credential, Subject, UserState};
+use slath_core::authz::{Credential, Subject, UserKind, UserState};
 use slath_core::ids::UserId;
 use slath_db::sessions::{AuthLevel, SessionRow};
 use time::OffsetDateTime;
@@ -94,7 +94,8 @@ impl Services {
         let Some(row) = slath_db::sessions::find(&self.pool, &hash, self.idle()).await? else {
             return Ok(None);
         };
-        if row.user_state != UserState::Active {
+        // Bots never have sessions; refuse one should it exist anyway.
+        if row.user_state != UserState::Active || row.user_kind != UserKind::Human {
             return Ok(None);
         }
         if OffsetDateTime::now_utc() - row.last_seen_at > time::Duration::minutes(1) {

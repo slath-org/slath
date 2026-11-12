@@ -59,7 +59,7 @@ impl Services {
         name: &str,
         display_name: &str,
     ) -> Result<OrgId> {
-        let user = user_with_scope(subject, Scope::UserWrite)?;
+        let user = crate::bots::human_with_scope(subject, Scope::UserWrite)?;
         self.require_confirmed(subject).await?;
         if !self.config.auth.users_can_create_orgs && !is_site_admin(subject) {
             return Err(ServiceError::Forbidden);
@@ -172,6 +172,17 @@ impl Services {
                 ));
             }
         };
+        if role == OrgRole::Owner
+            && slath_db::users::get(&self.pool, target)
+                .await?
+                .is_some_and(|u| u.kind == slath_core::authz::UserKind::Bot)
+        {
+            return Err(ServiceError::invalid(
+                "username",
+                "bot",
+                "Bots can't own organizations.",
+            ));
+        }
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         slath_db::orgs::lock(&mut tx, org).await?;
         let current = slath_db::orgs::role_of(&mut *tx, org, target).await?;

@@ -186,8 +186,10 @@ impl Services {
             return Ok(());
         }
         match subject {
+            // Bots have no email; their owner confirmed theirs.
             Subject::User {
                 id,
+                kind: slath_core::authz::UserKind::Human,
                 is_site_admin: false,
                 ..
             } if !slath_db::invitations::email_confirmed(&self.pool, *id).await? => {

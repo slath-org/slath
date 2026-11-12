@@ -1,0 +1,115 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.display_name, u.state,\n                  u.bot_owner_kind AS \"owner_kind!\", u.bot_owner_id AS \"owner_id!\",\n                  o.name::text AS \"owner_name!\", u.created_at\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           JOIN namespaces o ON o.id = CASE u.bot_owner_kind\n                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)\n                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END\n           WHERE u.kind = 'bot' AND u.bot_owner_kind = $1 AND u.bot_owner_id = $2\n           ORDER BY n.name LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "namespace_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "namespace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "owner_kind!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "bot_owner_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "owner_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "bot_owner_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "owner_name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      true,
+      false,
+      true,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "e70a155c65ce235d828a830705d15dc04798e28a421c027b21782500a1cede6e"
+}

@@ -5,6 +5,7 @@
 //! is generated from these handlers ([`openapi`]) and committed as
 //! `docs/api/openapi.json`.
 
+pub mod bots;
 pub mod issues;
 pub mod labels;
 pub mod merge_requests;
@@ -151,6 +152,7 @@ impl utoipa::Modify for SecurityAddon {
         user::current_user,
         user::list_keys, user::add_key, user::remove_key,
         user::list_tokens, user::create_token, user::revoke_token,
+        bots::list_user_bots, bots::create_user_bot, bots::list_org_bots, bots::create_org_bot, bots::get_bot,
         orgs::list_orgs, orgs::create_org, orgs::get_org, orgs::update_org,
         orgs::list_members, orgs::get_member, orgs::put_member, orgs::delete_member,
         repos::list_repos, repos::create_repo, repos::get_repo, repos::update_repo, repos::delete_repo,
@@ -181,7 +183,7 @@ impl utoipa::Modify for SecurityAddon {
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
-    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"), (name = "webhooks"))
+    tags((name = "meta"), (name = "user"), (name = "bots"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"), (name = "webhooks"))
 )]
 pub struct ApiDoc;
 
@@ -204,6 +206,7 @@ pub fn router() -> Router<AppState> {
         .route_as("/api/v1/version", Access::Public, get(version))
         .route_as("/api/v1/openapi.json", Access::Public, get(openapi_json))
         .merge(user::router())
+        .merge(bots::router())
         .merge(orgs::router())
         .merge(repos::router())
         .merge(issues::router())

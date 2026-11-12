@@ -126,6 +126,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The Compose setup runs on rootless Podman, with bind mounts labeled for SELinux and setup steps in the install guide.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
+- Bot accounts for automation: people create their own and organization owners their organization's through the API; bots never sign in.
+- Bots can be organization members but not owners, and can't create organizations or bots.
 
 ### Changed
 

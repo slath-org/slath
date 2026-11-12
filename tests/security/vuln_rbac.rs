@@ -821,6 +821,7 @@ fn conf_rbac_02_pat_scopes_property_test() {
                     "name": "probe", "namespace": "alice", "visibility": "private",
                     "description": "probe", "role": role, "title": "probe",
                     "key": public, "scopes": ["repo:read"], "display_name": "probe",
+                    "username": "probe",
                 })
             });
             for (scope, token) in &tokens {

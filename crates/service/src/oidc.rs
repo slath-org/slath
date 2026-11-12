@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 use slath_auth::oidc::{self as proto, Discovery, Jwks};
 use slath_auth::token;
 use slath_core::Secret;
-use slath_core::authz::{Credential, Subject, UserState};
+use slath_core::authz::{Credential, Subject, UserKind, UserState};
 use slath_core::config::OidcProvider;
 use slath_core::ids::UserId;
 use slath_db::sessions::AuthLevel;
@@ -381,7 +381,8 @@ impl Services {
             let Some(user) = slath_db::users::get(&self.pool, identity.user_id).await? else {
                 return Ok((OidcResult::Disabled, next));
             };
-            if user.state != UserState::Active {
+            // Bots never sign in, even if an identity points at one.
+            if user.state != UserState::Active || user.kind != UserKind::Human {
                 return Ok((OidcResult::Disabled, next));
             }
             slath_db::oidc::touch_identity(&self.pool, &claims.issuer, &claims.subject).await?;

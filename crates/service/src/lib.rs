@@ -15,6 +15,7 @@ pub mod auto_merge;
 pub mod avatars;
 pub mod bgmigrations;
 pub mod blobs;
+pub mod bots;
 pub mod cross_refs;
 pub mod deploy_keys;
 pub mod email;
