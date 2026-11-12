@@ -1356,6 +1356,7 @@ impl Services {
         self.close_after_push(repo, pusher, &updates)
             .await
             .map_err(|e| JobError::Retry(e.to_string()))?;
+        self.webhook_push(repo, pusher, &updates).await;
         // Which tool the pusher uses only affects commands shown to them.
         if let Err(e) = self.note_push_tool(repo, push, pusher, &updates).await {
             tracing::warn!(error = %e, "noting the pusher's tool failed");

@@ -38,6 +38,29 @@ and, for administrators, the result.
 - Only Git data is imported, not issues, merge requests, wikis, or
   releases. `[import] enabled = false` turns imports off.
 
+## Webhooks
+
+Repository administrators and organization owners add webhooks (see the
+[user guide](../user/webhooks.md)). Deliveries leave the server from the
+job workers; plan for them in outbound firewall rules.
+
+- Only `https://` URLs work, unless `[webhooks] allow_http = true`.
+- The address policy is the one imports use: the receiver's name is
+  resolved at every attempt, every address must be public, and Slath
+  connects only to the checked address (DNS rebinding can't redirect a
+  delivery). To deliver to internal receivers, list their networks in
+  `[webhooks] allow_networks` (e.g. `["10.20.0.0/16"]`).
+- Redirects aren't followed. An attempt may take 10 seconds; failures are
+  retried, 8 attempts in all over about two hours, and 50 failed attempts in a
+  row switch a webhook off (audit event `webhook.disabled`, and an email
+  to the person it acts for).
+- At most `limits.webhooks_per_owner` (20) webhooks per repository or
+  organization. Deliveries are kept 30 days. Creating, changing, and
+  deleting webhooks is audited (`webhook.create`, `webhook.update`,
+  `webhook.delete`).
+- Webhook secrets are encrypted with the master key; rotating it
+  re-encrypts them (see [secrets](secrets.md)).
+
 ## Visibility
 
 Every repository is **private** (only people with access), **internal**

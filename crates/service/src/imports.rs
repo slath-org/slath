@@ -78,7 +78,7 @@ fn git_message(stderr: &[u8]) -> String {
 }
 
 impl Services {
-    fn own_host(&self) -> String {
+    pub(crate) fn own_host(&self) -> String {
         self.config.server.public_url.host().to_owned()
     }
 

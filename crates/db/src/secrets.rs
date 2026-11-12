@@ -21,12 +21,20 @@ pub struct EncryptedColumn {
 /// Every encrypted column. A new one must be added here, or rotation
 /// would leave it behind (the `encryption_keys` foreign keys then keep
 /// the old key from being retired).
-pub const ENCRYPTED_COLUMNS: &[EncryptedColumn] = &[EncryptedColumn {
-    table: "totp_credentials",
-    id: "user_id",
-    value: "secret_enc",
-    key: "key_id",
-}];
+pub const ENCRYPTED_COLUMNS: &[EncryptedColumn] = &[
+    EncryptedColumn {
+        table: "totp_credentials",
+        id: "user_id",
+        value: "secret_enc",
+        key: "key_id",
+    },
+    EncryptedColumn {
+        table: "webhooks",
+        id: "id",
+        value: "secret_enc",
+        key: "key_id",
+    },
+];
 
 /// One encrypted value.
 #[derive(Debug, Clone)]

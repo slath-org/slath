@@ -191,6 +191,9 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
                         if let Err(e) = svc.purge_secret_scan().await {
                             tracing::warn!(error = %e, "purging expired push protection allowances failed");
                         }
+                        if let Err(e) = svc.purge_webhook_deliveries().await {
+                            tracing::warn!(error = %e, "purging old webhook deliveries failed");
+                        }
                         match svc.collect_blobs().await {
                             Ok(c) if c.blobs + c.orphans > 0 => {
                                 tracing::info!(blobs = c.blobs, orphans = c.orphans, "deleted unused files");

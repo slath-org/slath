@@ -73,6 +73,13 @@ impl Services {
                 async move { s.run_email_job(&job).await }
             }
         })
+        .handle(crate::webhooks::WEBHOOK_DELIVER, {
+            let s = self.clone();
+            move |job: LeasedJob| {
+                let s = s.clone();
+                async move { s.run_webhook_delivery(&job).await }
+            }
+        })
         .handle(crate::notifications::NOTIFY_FANOUT, {
             let s = self.clone();
             move |job: LeasedJob| {

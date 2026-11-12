@@ -43,6 +43,8 @@ pub struct Config {
     #[serde(default)]
     pub import: Import,
     #[serde(default)]
+    pub webhooks: Webhooks,
+    #[serde(default)]
     pub upgrade: Upgrade,
     #[serde(default)]
     pub push_protection: PushProtection,
@@ -376,6 +378,8 @@ pub struct Limits {
     /// Maximum `limit` of list endpoints.
     pub api_page_max: usize,
     pub archive_timeout: Dur,
+    /// Webhooks per repository or organization.
+    pub webhooks_per_owner: usize,
     /// Concurrent archive downloads.
     pub archive_max_concurrent: usize,
     /// API requests per hour for an authenticated principal.
@@ -426,6 +430,7 @@ impl Default for Limits {
             text_max_bytes: Bytes(256 * 1024),
             api_page_max: 100,
             archive_timeout: Dur::secs(120),
+            webhooks_per_owner: 20,
             archive_max_concurrent: 4,
             api_requests_per_hour: 5000,
             api_anonymous_requests_per_hour: 300,
@@ -726,6 +731,19 @@ impl Default for Import {
             allow_networks: Vec::new(),
         }
     }
+}
+
+/// Outbound webhook deliveries.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Webhooks {
+    /// Also allow `http://` URLs (payloads travel unencrypted).
+    #[serde(default)]
+    pub allow_http: bool,
+    /// Networks webhooks may reach although the address policy denies
+    /// them (internal receivers), e.g. `["10.20.0.0/16"]`.
+    #[serde(default, deserialize_with = "cidrs")]
+    pub allow_networks: Vec<crate::net::Cidr>,
 }
 
 #[derive(Debug, Deserialize)]

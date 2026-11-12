@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 # Secrets and the master key
 
 Slath stores passwords and access tokens only as hashes. Secrets it must be
-able to read again (two-factor seeds, and later webhook and CI secrets) are
+able to read again (two-factor seeds, webhook secrets, and later CI secrets) are
 encrypted with AES-256-GCM under a key derived from the **master key**
 (`secrets.master_key_file`). A database dump on its own contains no
 readable secret.

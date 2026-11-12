@@ -405,6 +405,8 @@ impl Services {
             .await?;
         let target = self.repo_target(&a.repo).await;
         self.audit(subject, "repo.create", target, serde_json::json!({"name": format!("{}/{}", a.repo.namespace, a.repo.name), "visibility": slath_db::repos::visibility_str(input.visibility)})).await;
+        self.webhook_repo(subject, a.repo.id, "created", serde_json::json!({}))
+            .await;
         Ok(a)
     }
 
@@ -459,6 +461,13 @@ impl Services {
             serde_json::json!({"visibility": slath_db::repos::visibility_str(v)}),
         )
         .await;
+        self.webhook_repo(
+            subject,
+            a.repo.id,
+            "visibility",
+            serde_json::json!({"visibility": {"from": a.repo.visibility, "to": v}}),
+        )
+        .await;
         self.review_forks(a.repo.id).await;
         Ok(())
     }
@@ -501,6 +510,13 @@ impl Services {
             serde_json::json!({"from": a.repo.name, "to": name.as_str()}),
         )
         .await;
+        self.webhook_repo(
+            subject,
+            a.repo.id,
+            "renamed",
+            serde_json::json!({"name": {"from": a.repo.name, "to": name.as_str()}}),
+        )
+        .await;
         Ok(name.as_str().to_owned())
     }
 
@@ -538,6 +554,9 @@ impl Services {
     pub async fn delete_repo(&self, subject: &Subject, sudo: bool, a: &RepoAccess) -> Result<()> {
         self.authorize(subject, a, Action::RepoDelete)?;
         require_sudo_for_sessions(subject, sudo)?;
+        // Told while the repository can still be read.
+        self.webhook_repo(subject, a.repo.id, "deleted", serde_json::json!({}))
+            .await;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         slath_db::repos::set_state(&mut *tx, a.repo.id, RepoState::Deleting).await?;
         slath_db::jobs::enqueue(

@@ -108,6 +108,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Push protection names the type of a private key it finds, such as "OpenSSH private key" or "PGP private key".
 - The allow pages and the allowances list say what each finding is and where it is (file, line, and commit), never the secret.
 - Readiness card lines that open show a chevron after their text.
+- Repositories and organizations can send events to webhooks: pushes, merge requests, comments, reviews, issues, statuses, forks, and repository changes.
+- Webhook deliveries are signed with a timestamp, retried with the same delivery ID, and switched off after 50 failures in a row.
+- Webhooks never reach internal networks unless the site allows them, and only carry what the person they act for can read.
+- The API manages webhooks of repositories and organizations, lists their deliveries with every attempt, and redelivers or pings.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 

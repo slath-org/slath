@@ -11,6 +11,7 @@ pub mod password;
 pub mod ssh_key;
 pub mod token;
 pub mod totp;
+pub mod webhook;
 
 pub use crypto::Envelope;
 pub use master_key::MasterKey;

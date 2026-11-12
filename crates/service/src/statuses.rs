@@ -152,6 +152,20 @@ impl Services {
         if s.state == "success" {
             self.queue_auto_merges_in(a.repo.id).await;
         }
+        self.emit_webhook(
+            a.repo.id,
+            Some(*reporter),
+            ("status", Some(s.state.as_str())),
+            crate::webhooks::Needs::Repo,
+            serde_json::json!({"status": {
+                "commit": oid.as_str(),
+                "context": context,
+                "state": s.state,
+                "description": description,
+                "target_url": target_url,
+            }}),
+        )
+        .await;
         slath_db::statuses::for_commit(&self.pool, a.repo.id, oid.as_str())
             .await?
             .into_iter()

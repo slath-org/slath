@@ -14,6 +14,7 @@ pub mod repos;
 pub mod statuses;
 pub mod support;
 pub mod user;
+pub mod webhooks;
 
 use axum::extract::FromRequestParts;
 use axum::http::header;
@@ -173,10 +174,14 @@ impl utoipa::Modify for SecurityAddon {
         crate::ui::notifications::api_list, crate::ui::notifications::api_patch,
         crate::ui::search::api_issues, crate::ui::search::api_repos,
         crate::ui::import::api_import, crate::ui::import::api_report,
+        webhooks::list_repo_webhooks, webhooks::create_repo_webhook, webhooks::get_repo_webhook, webhooks::update_repo_webhook, webhooks::delete_repo_webhook,
+        webhooks::ping_repo_webhook, webhooks::list_repo_deliveries, webhooks::get_repo_delivery, webhooks::redeliver_repo_delivery,
+        webhooks::list_org_webhooks, webhooks::create_org_webhook, webhooks::get_org_webhook, webhooks::update_org_webhook, webhooks::delete_org_webhook,
+        webhooks::ping_org_webhook, webhooks::list_org_deliveries, webhooks::get_org_delivery, webhooks::redeliver_org_delivery,
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
-    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"))
+    tags((name = "meta"), (name = "user"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"), (name = "webhooks"))
 )]
 pub struct ApiDoc;
 
@@ -211,5 +216,6 @@ pub fn router() -> Router<AppState> {
         .merge(crate::ui::notifications::api_router())
         .merge(crate::ui::search::api_router())
         .merge(crate::ui::import::api_router())
+        .merge(webhooks::router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

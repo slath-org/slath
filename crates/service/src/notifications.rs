@@ -242,6 +242,11 @@ impl Services {
             Activity::Assigned(users) => (None, users.iter().map(ToString::to_string).collect()),
             _ => (None, Vec::new()),
         };
+        let actor = match subject {
+            Subject::User { id, .. } => Some(*id),
+            _ => None,
+        };
+        self.webhook_issue(actor, a, issue, &what).await;
         self.queue_fanout(serde_json::json!({
             "repo_id": a.repo.id.to_string(),
             "issue_id": issue.id.to_string(),
@@ -273,6 +278,7 @@ impl Services {
             MrActivity::AutoMerge { setter, .. } => (None, vec![setter.to_string()], None),
             _ => (None, Vec::new(), None),
         };
+        self.webhook_mr(actor, m, &what).await;
         let outcome = match &what {
             MrActivity::AutoMerge { outcome, .. } => Some(outcome.clone()),
             _ => None,

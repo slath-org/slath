@@ -59,6 +59,7 @@ pub mod tokens;
 pub mod tools;
 pub mod update_branch;
 pub mod updates;
+pub mod webhooks;
 
 use std::sync::Arc;
 

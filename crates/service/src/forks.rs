@@ -659,6 +659,27 @@ impl Services {
         }
         slath_db::forks::set_state(&self.pool, id, "done", None)
             .await
-            .map_err(retry)
+            .map_err(retry)?;
+        // The original's webhooks hear about forks their principal can see.
+        let base = self
+            .config
+            .server
+            .public_url
+            .origin()
+            .trim_end_matches('/')
+            .to_owned();
+        self.emit_webhook(
+            parent.id,
+            fork.requested_by,
+            ("fork", Some("created")),
+            crate::webhooks::Needs::Also(id),
+            serde_json::json!({"fork": {
+                "full_name": format!("{}/{}", repo.namespace, repo.name),
+                "visibility": repo.visibility,
+                "html_url": format!("{base}/{}/{}", repo.namespace, repo.name),
+            }}),
+        )
+        .await;
+        Ok(())
     }
 }

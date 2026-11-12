@@ -134,9 +134,184 @@ pub fn check(addrs: &[IpAddr], allowed: &[Cidr]) -> Result<(), UrlError> {
     Ok(())
 }
 
+/// Like [`parse`], but keeps the query (webhook receivers often put a
+/// token there); the fragment is dropped.
+pub fn parse_keeping_query(raw: &str, allow_http: bool) -> Result<url::Url, UrlError> {
+    let mut url = parse(raw, allow_http)?;
+    let query = url::Url::parse(raw)
+        .ok()
+        .and_then(|u| u.query().map(str::to_owned));
+    url.set_query(query.as_deref());
+    Ok(url)
+}
+
+/// The answer to a [`post`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Response {
+    pub status: u16,
+    /// The body, cut at the requested size.
+    pub body: Vec<u8>,
+}
+
+/// POSTs `body` to a checked destination over HTTP/1.1: the connection
+/// goes to `dest.ip` only (never resolving the name again), with the
+/// URL's host for TLS (SNI and the certificate) and the `Host` header.
+/// Redirects aren't followed; the whole exchange must finish within
+/// `timeout`. Errors are in words, without secrets.
+pub async fn post(
+    dest: &Destination,
+    headers: &[(&str, String)],
+    body: Vec<u8>,
+    timeout: std::time::Duration,
+    max_body: usize,
+) -> Result<Response, String> {
+    tokio::time::timeout(timeout, post_inner(dest, headers, body, max_body))
+        .await
+        .map_err(|_| format!("no answer within {} s", timeout.as_secs()))?
+}
+
+async fn post_inner(
+    dest: &Destination,
+    headers: &[(&str, String)],
+    body: Vec<u8>,
+    max_body: usize,
+) -> Result<Response, String> {
+    use hyper::header::{CONTENT_TYPE, HOST, USER_AGENT};
+    let tcp = tokio::net::TcpStream::connect((dest.ip, dest.port))
+        .await
+        .map_err(|e| format!("couldn't connect: {e}"))?;
+    let default_port = dest.url.port().is_none();
+    let host = if default_port {
+        dest.host.clone()
+    } else {
+        format!("{}:{}", dest.host, dest.port)
+    };
+    let target = match dest.url.query() {
+        Some(q) => format!("{}?{q}", dest.url.path()),
+        None => dest.url.path().to_owned(),
+    };
+    let mut req = hyper::Request::post(target)
+        .header(HOST, host)
+        .header(CONTENT_TYPE, "application/json")
+        .header(USER_AGENT, concat!("Slath/", env!("CARGO_PKG_VERSION")));
+    for (k, v) in headers {
+        req = req.header(*k, v.as_str());
+    }
+    let req = req
+        .body(http_body_util::Full::new(hyper::body::Bytes::from(body)))
+        .map_err(|e| format!("bad request: {e}"))?;
+    if dest.url.scheme() == "https" {
+        let mut roots = tokio_rustls::rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = tokio_rustls::rustls::ClientConfig::builder_with_provider(
+            std::sync::Arc::new(tokio_rustls::rustls::crypto::ring::default_provider()),
+        )
+        .with_safe_default_protocol_versions()
+        .map_err(|e| format!("TLS setup failed: {e}"))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let bare = dest.host.trim_start_matches('[').trim_end_matches(']');
+        let name = tokio_rustls::rustls::pki_types::ServerName::try_from(bare.to_owned())
+            .map_err(|_| "the host name isn't valid for TLS".to_owned())?;
+        let tls = tokio_rustls::TlsConnector::from(std::sync::Arc::new(config))
+            .connect(name, tcp)
+            .await
+            .map_err(|e| format!("TLS failed: {e}"))?;
+        send(tls, req, max_body).await
+    } else {
+        send(tcp, req, max_body).await
+    }
+}
+
+async fn send<S>(
+    io: S,
+    req: hyper::Request<http_body_util::Full<hyper::body::Bytes>>,
+    max_body: usize,
+) -> Result<Response, String>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    use http_body_util::BodyExt as _;
+    let (mut sender, conn) =
+        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(io))
+            .await
+            .map_err(|e| format!("HTTP failed: {e}"))?;
+    let conn = tokio::spawn(conn);
+    let mut res = sender
+        .send_request(req)
+        .await
+        .map_err(|e| format!("HTTP failed: {e}"))?;
+    let status = res.status().as_u16();
+    let mut body = Vec::new();
+    while body.len() < max_body {
+        match res.body_mut().frame().await {
+            Some(Ok(f)) => {
+                if let Ok(d) = f.into_data() {
+                    body.extend_from_slice(&d);
+                }
+            }
+            Some(Err(_)) | None => break,
+        }
+    }
+    body.truncate(max_body);
+    conn.abort();
+    Ok(Response { status, body })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The client connects to the checked address only: a name that
+    /// doesn't resolve at all still reaches the pinned server, so a second
+    /// resolution (DNS rebinding) can't send a delivery elsewhere.
+    #[tokio::test]
+    async fn conf_api_02_posts_go_to_the_pinned_address_only() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (mut c, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0; 4096];
+            let n = c.read(&mut buf).await.unwrap();
+            c.write_all(b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:1/\r\nContent-Length: 5\r\n\r\nmoved")
+                .await
+                .unwrap();
+            String::from_utf8_lossy(&buf[..n]).into_owned()
+        });
+        let url =
+            parse_keeping_query(&format!("http://rebind.invalid:{port}/hook?t=1"), true).unwrap();
+        let dest = Destination {
+            host: "rebind.invalid".into(),
+            port,
+            ip: "127.0.0.1".parse().unwrap(),
+            url,
+        };
+        let r = post(
+            &dest,
+            &[("X-Test", "1".into())],
+            b"{}".to_vec(),
+            std::time::Duration::from_secs(5),
+            3,
+        )
+        .await
+        .unwrap();
+        // Not followed, and the body is cut.
+        assert_eq!(
+            r,
+            Response {
+                status: 302,
+                body: b"mov".to_vec()
+            }
+        );
+        let req = server.await.unwrap();
+        assert!(req.starts_with("POST /hook?t=1 HTTP/1.1\r\n"), "{req}");
+        assert!(
+            req.to_ascii_lowercase()
+                .contains(&format!("host: rebind.invalid:{port}")),
+            "{req}"
+        );
+    }
 
     #[test]
     fn urls_are_checked() {
