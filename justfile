@@ -60,6 +60,10 @@ schema-fixture:
 test-compose:
     scripts/test-compose.sh
 
+# The agent sandbox profile (`docker build -t slath:test .` first).
+test-sandbox:
+    scripts/test-sandbox.sh
+
 # `slath setup` on a clean Debian host container (`docker build -t slath:test .` first).
 test-setup:
     scripts/test-setup.sh

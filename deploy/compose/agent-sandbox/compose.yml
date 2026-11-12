@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# A throwaway Slath for trying out AI agents and automation. NOT FOR
+# PRODUCTION: fixed database password, no TLS, no two-factor requirement
+# for administrators, and it listens on this computer only.
+#
+#   docker compose up -d --wait     # or: podman compose up -d
+#   docker compose logs seed        # clone URLs and accounts
+#   cat secrets/bot-token           # the agent's token
+#
+# It starts PostgreSQL, Slath, and sshd, and applies seed.toml: an
+# administrator (ada, password in secrets/ada-password), an organization
+# (sandbox), a repository (sandbox/playground), and a bot (agent) with
+# write access and a token for that repository only. Running it again
+# changes nothing. `docker compose down -v` removes everything; delete
+# secrets/* as well to start over. See docs/user/agents.md.
+name: slath-agent-sandbox
+
+x-image: &image ${SLATH_IMAGE:-ghcr.io/slath-org/slath:${SLATH_VERSION:-0.3.0}}
+x-env: &env
+  SLATH__DATABASE__URL: postgres://slath:sandbox@postgres/slath
+  SLATH__SERVER__PUBLIC_URL: http://127.0.0.1:${SANDBOX_HTTP_PORT:-3080}
+  SLATH__GIT__SSH_PORT: ${SANDBOX_SSH_PORT:-2280}
+  SLATH__AUTH__REQUIRE_MFA_FOR_ADMINS: "false"
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: sandbox
+      SLATH_DB_PASSWORD: sandbox
+    volumes:
+      - postgres:/var/lib/postgresql
+      - ../postgres-init.sh:/docker-entrypoint-initdb.d/10-slath.sh:ro,z
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "slath", "-d", "slath"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  init:
+    image: *image
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["test -f /var/lib/slath/master.key || slath admin gen-key --output /var/lib/slath/master.key"]
+    volumes:
+      - data:/var/lib/slath
+
+  slath:
+    image: *image
+    environment: *env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${SANDBOX_HTTP_PORT:-3080}:3000"
+    healthcheck:
+      test: ["CMD", "slath", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+      start_interval: 2s
+    volumes:
+      - data:/var/lib/slath
+      - run:/run/slath
+
+  sshd:
+    image: *image
+    user: root
+    entrypoint: ["/usr/local/lib/slath/sshd-entrypoint"]
+    command: []
+    depends_on:
+      - slath
+    ports:
+      - "127.0.0.1:${SANDBOX_SSH_PORT:-2280}:22"
+    volumes:
+      - run:/run/slath
+      - sshd-keys:/etc/ssh/keys
+    tmpfs:
+      - /var/lib/slath:mode=0700
+
+  # Applies seed.toml once Slath is up, and puts the secrets into
+  # ./secrets (owned like that directory, mode 0600).
+  seed:
+    image: *image
+    user: root
+    environment: *env
+    entrypoint: ["/bin/sh", "/sandbox/seed.sh"]
+    depends_on:
+      slath:
+        condition: service_healthy
+    volumes:
+      - data:/var/lib/slath
+      - ./seed.toml:/sandbox/seed.toml:ro,z
+      - ./seed.sh:/sandbox/seed.sh:ro,z
+      - ./secrets:/secrets:z
+
+volumes:
+  postgres:
+  data:
+  run:
+  sshd-keys:

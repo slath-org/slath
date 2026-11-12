@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# What the agent sandbox starts with (`slath admin apply`, see
+# docs/admin/bootstrap.md). Change it and run `docker compose up -d` again
+# to add more; nothing is ever removed.
+
+[[users]]
+username = "ada"
+email = "ada@sandbox.invalid"
+admin = true
+password_file = "secrets/ada-password"
+
+[[orgs]]
+name = "sandbox"
+owners = ["ada"]
+
+[[bots]]
+name = "agent"
+owner = "sandbox"
+display_name = "Sandbox agent"
+
+[[repos]]
+namespace = "sandbox"
+name = "playground"
+description = "A repository for agents to work in"
+collaborators = { "agent" = "write" }
+
+[[tokens]]
+name = "sandbox"
+bot = "agent"
+scopes = ["repo:write", "issues:write", "mrs:write", "statuses:write", "user:read"]
+repos = ["sandbox/playground"]
+file = "secrets/bot-token"

@@ -398,7 +398,7 @@ jobs:
           v="${TAG#v}"
           mkdir dist
           cp artifacts/build-*/slath-*-linux dist/
-          tar -czf "dist/slath-compose-$v.tar.gz" -C deploy compose/compose.yml compose/Caddyfile compose/postgres-init.sh compose/.env.example
+          tar -czf "dist/slath-compose-$v.tar.gz" -C deploy compose/compose.yml compose/Caddyfile compose/postgres-init.sh compose/.env.example compose/agent-sandbox/compose.yml compose/agent-sandbox/seed.toml compose/agent-sandbox/seed.sh compose/agent-sandbox/secrets/.gitignore
           # The binaries to publish are the ones the build job hashed.
           (cd dist && sha256sum -c ../artifacts/build-x86_64/slath-x86_64.sha256 \
                                    ../artifacts/build-aarch64/slath-aarch64.sha256 \

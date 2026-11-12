@@ -142,6 +142,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - `slath admin apply FILE` creates the users, organizations, bots, repositories, and tokens a TOML file lists; running it again changes nothing.
 - `slath admin apply` writes generated passwords and new tokens only to the files the bootstrap file names, with mode 0600.
 - Every `slath admin` command's `--output json` has a JSON Schema in `docs/cli/`.
+- `deploy/compose/agent-sandbox/` starts a throwaway Slath for AI agents in one command, with an administrator, an organization, a repository, and a bot token.
+- The guide "Working with AI agents" covers the sandbox, one bot per agent, least privilege, branch- or fork-based work, and the API for programs.
+- The release's Compose bundle includes the agent sandbox.
 
 ### Changed
 

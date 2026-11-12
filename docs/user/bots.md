@@ -10,6 +10,8 @@ AI coding agent. It belongs to a person or an organization, acts only
 through the credentials its owner gives it, and is marked as a bot
 wherever it appears, so nobody mistakes its work for a person's.
 
+For setting up agents with bots, see [Working with AI agents](agents.md).
+
 ## Creating a bot
 
 Anyone can create bots of their own under **Settings → Bots**. An
