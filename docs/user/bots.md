@@ -12,8 +12,11 @@ wherever it appears, so nobody mistakes its work for a person's.
 
 ## Creating a bot
 
-Anyone can create bots of their own. An organization's bots are created
-by the organization's owners.
+Anyone can create bots of their own under **Settings → Bots**. An
+organization's bots are created by the organization's owners on the
+organization's **Bots** page. Each bot has a page (`/-/bots/<name>`) for its
+tokens and SSH keys, which only its managers can open: its owner, or for
+an organization's bot, the organization's owners.
 
 Through the API, with a token that has the `user:write` scope:
 
@@ -50,8 +53,10 @@ personal access tokens, with stricter rules:
   administrators can change both (see
   [Accounts](../admin/accounts.md#bots)).
 
-The token is shown once, when it's created. A site administrator creates
-one on the server:
+The token is shown once, when it's created. Create one under **Tokens** on
+the bot's page; Slath asks for your password first if you haven't
+confirmed it recently. A site administrator can also create one on the
+server:
 
 ```sh
 slath admin create-bot --owner alice --name alice-ci \
@@ -76,7 +81,8 @@ that role allows.
 ## SSH keys
 
 For Git over SSH, give the bot its own key pair. Its owner adds the public
-key through the API with a token that has `user:write`:
+key under **SSH keys** on the bot's page, or through the API with a token
+that has `user:write`:
 
 ```sh
 curl -X POST https://git.example.org/api/v1/bots/alice-ci/keys \

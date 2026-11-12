@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}{{ bot.name }} · Bots{% endblock %}
+{% block sidebar %}
+{%- if let Some(org) = org %}{% let org_name = org.as_str() %}{% let org_area = "bots" %}{% let org_member = true %}{% let org_manage = true %}{% include "org_sidebar.html" %}
+{%- else %}{% include "settings/sidebar.html" %}{% endif %}
+{% endblock %}
+{% block content %}
+<h1>{{ bot.name }} <span class="badge">Bot</span>{% if !bot.active %} <span class="badge">Suspended</span>{% endif %}</h1>
+<p>{% if let Some(d) = bot.display_name %}{{ d }}, owned by{% else %}Owned by{% endif %} <a href="/{{ owner }}">{{ owner }}</a>. <a href="/{{ bot.name }}">Profile</a></p>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{%- if let Some(token) = created %}
+<div class="success-summary" role="status">
+  <h2>Token created</h2>
+  <p>Copy it now. It won't be shown again.</p>
+  <p><label for="new-token" class="visually-hidden">New token</label>
+  <input id="new-token" class="token-value" type="text" value="{{ token }}" readonly autocomplete="off" spellcheck="false"></p>
+</div>
+{%- endif %}
+{% include "settings/errors.html" %}
+
+<h2>Tokens</h2>
+<p>Bot tokens start with <code>slath_bot_</code>, work only for the repositories they name, and expire after at most {{ max_days }} days. The bot also needs a role on those repositories.</p>
+{%- if tokens.is_empty() %}
+<p class="text-secondary empty-state">This bot has no tokens.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="tokens-caption">
+<table class="table">
+  <caption id="tokens-caption" class="visually-hidden">Tokens of {{ bot.name }}</caption>
+  <thead>
+    <tr><th scope="col">Name</th><th scope="col">Token</th><th scope="col">Scopes</th><th scope="col">Created</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+  {%- for t in tokens %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td><code>slath_bot_{{ t.prefix }}…</code></td>
+      <td>{{ t.scopes }}</td>
+      <td><time datetime="{{ t.created.iso }}">{{ t.created.text }}</time></td>
+      <td>{% if let Some(u) = t.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
+      <td>{% if let Some(e) = t.expires %}<time datetime="{{ e.iso }}">{{ e.text }}</time>{% else %}Never{% endif %}</td>
+      <td>{{ t.state }}</td>
+      <td>
+      {%- if t.state == "Active" %}
+        <form method="post" action="/-/bots/{{ bot.name }}/tokens/{{ t.id }}/revoke" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Revoke<span class="visually-hidden"> {{ t.name }}</span></button>
+        </form>
+      {%- endif %}
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h3>New token</h3>
+<form method="post" action="/-/bots/{{ bot.name }}/tokens" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" name="name" type="text" value="{{ token_name }}" maxlength="100" required aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"
+      {%- if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="name-hint" class="hint">What it's for, e.g. "release job".</p>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="repos">Repositories</label>
+    <textarea id="repos" name="repos" rows="3" required autocapitalize="none" spellcheck="false" aria-describedby="repos-hint{% if self.error("repos").is_some() %} repos-error{% endif %}"
+      {%- if self.error("repos").is_some() %} aria-invalid="true"{% endif %}>{{ token_repos }}</textarea>
+    <p id="repos-hint" class="hint">One per line, as <code>namespace/name</code>. The token works for these and nothing else.</p>
+    {%- if let Some(e) = self.error("repos") %}
+    <p id="repos-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <fieldset class="field" id="scopes"{% if self.error("scopes").is_some() %} aria-invalid="true"{% endif %}>
+    <legend>Scopes</legend>
+    {%- for (scope, description, checked) in scopes %}
+    <div class="checkbox">
+      <input id="scope-{{ loop.index }}" type="checkbox" name="scopes" value="{{ scope }}"{% if *checked %} checked{% endif %}>
+      <label for="scope-{{ loop.index }}"><code>{{ scope }}</code> {{ description }}</label>
+    </div>
+    {%- endfor %}
+    {%- if let Some(e) = self.error("scopes") %}
+    <p class="field-error">{{ e }}</p>
+    {%- endif %}
+  </fieldset>
+  <div class="field">
+    <label for="expires">Expires</label>
+    <select id="expires" name="expires"{% if self.error("expires").is_some() %} aria-invalid="true" aria-describedby="expires-error"{% endif %}>
+    {%- for (days, selected) in expiry %}
+      <option value="{{ days }}"{% if *selected %} selected{% endif %}>{{ days }} days</option>
+    {%- endfor %}
+    </select>
+    {%- if let Some(e) = self.error("expires") %}
+    <p id="expires-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Create token</button></div>
+</form>
+
+<h2>SSH keys</h2>
+<p>A key of its own lets the bot clone and push over SSH. Each key belongs to exactly one account.</p>
+{%- if keys.is_empty() %}
+<p class="text-secondary empty-state">This bot has no SSH keys.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="keys-caption">
+<table class="table">
+  <caption id="keys-caption" class="visually-hidden">SSH keys of {{ bot.name }}</caption>
+  <thead>
+    <tr><th scope="col">Title</th><th scope="col">Fingerprint</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+  </thead>
+  <tbody>
+  {%- for k in keys %}
+    <tr>
+      <td>{{ k.title }}</td>
+      <td><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
+      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time></td>
+      <td>{% if let Some(u) = k.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
+      <td>
+        <form method="post" action="/-/bots/{{ bot.name }}/keys/{{ k.id }}/delete" class="inline-form">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <button type="submit" class="button">Remove<span class="visually-hidden"> {{ k.title }}</span></button>
+        </form>
+      </td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h3>Add a key</h3>
+<form method="post" action="/-/bots/{{ bot.name }}/keys" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="key">Public key</label>
+    <textarea id="key" name="key" rows="4" required spellcheck="false" autocapitalize="none" aria-describedby="key-hint{% if self.error("key").is_some() %} key-error{% endif %}"
+      {%- if self.error("key").is_some() %} aria-invalid="true"{% endif %}>{{ key }}</textarea>
+    <p id="key-hint" class="hint">The contents of the bot's <code>.pub</code> file. Ed25519 and ECDSA keys and RSA keys of at least 3072 bits are accepted.</p>
+    {%- if let Some(e) = self.error("key") %}
+    <p id="key-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="title">Title</label>
+    <input id="title" name="title" type="text" value="{{ key_title }}" maxlength="100" aria-describedby="title-hint"
+      {%- if self.error("title").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="title-hint" class="hint">Optional. Defaults to the key's comment.</p>
+  </div>
+  <div><button type="submit" class="button button-primary">Add key</button></div>
+</form>
+{% endblock %}

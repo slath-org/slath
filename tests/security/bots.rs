@@ -662,3 +662,85 @@ fn conf_auth_06_bot_approvals_count_only_if_enabled_and_never_for_their_owner() 
         "{reason}"
     );
 }
+
+#[test]
+fn conf_auth_06_bot_pages_are_for_their_managers_only() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    s.create_user("bob", PW, false);
+    let mut a = s.login("alice", PW);
+    slath_tests::http::create_repo(&mut a, "alice", "app", "private");
+    create_org(&mut a, "acme");
+    let r = submit(
+        &mut a,
+        "/acme/-/members",
+        "/acme/-/members",
+        &[("username", "bob"), ("role", "member")],
+    );
+    assert!(r.status == 303 || r.status == 200, "{}", r.body);
+    let r = submit(
+        &mut a,
+        "/-/settings/bots",
+        "/-/settings/bots",
+        &[("username", "alice-ci"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let r = submit(
+        &mut a,
+        "/acme/-/bots",
+        "/acme/-/bots",
+        &[("username", "acme-ci"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(a.get("/-/bots/alice-ci").status, 200);
+    assert_eq!(a.get("/-/bots/acme-ci").status, 200);
+
+    // Bob, a member of acme but not an owner, sees neither bot's page
+    // nor acme's bots, and anonymous visitors get nothing either.
+    let mut b = s.login("bob", PW);
+    for path in ["/-/bots/alice-ci", "/-/bots/acme-ci", "/acme/-/bots"] {
+        assert_eq!(b.get(path).status, 404, "{path}");
+        assert_ne!(s.client().get(path).status, 200, "{path}");
+    }
+    assert!(
+        !b.get("/-/settings/bots")
+            .body
+            .contains("href=\"/-/bots/alice-ci\"")
+    );
+
+    // The owner creates a token for the bot's repositories; it's shown
+    // once and never cached.
+    let r = submit(
+        &mut a,
+        "/-/bots/alice-ci",
+        "/-/bots/alice-ci/tokens",
+        &[
+            ("name", "job"),
+            ("repos", "alice/app"),
+            ("scopes", "repo:read"),
+            ("expires", "30"),
+        ],
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("value=\"slath_bot_"), "{}", r.body);
+    assert_eq!(r.header("cache-control"), Some("no-store"));
+    let again = a.get("/-/bots/alice-ci");
+    assert!(!again.body.contains("value=\"slath_bot_"));
+    // Bob can't post to it either.
+    let token = slath_tests::http::csrf_token(&b.get("/-/settings/bots").body).unwrap();
+    let r = b.post_form(
+        "/-/bots/alice-ci/tokens",
+        &[
+            ("_csrf", token.as_str()),
+            ("name", "x"),
+            ("repos", "alice/app"),
+            ("scopes", "repo:read"),
+            ("expires", "30"),
+        ],
+    );
+    assert_eq!(r.status, 404, "{}", r.body);
+    assert_eq!(
+        s.db.query_one("SELECT count(*)::text FROM access_tokens WHERE name = 'x'"),
+        "0"
+    );
+}

@@ -5,6 +5,7 @@
 
 pub mod account;
 pub mod admin;
+pub mod bots;
 pub mod browse;
 pub mod design;
 pub mod diff;
@@ -442,6 +443,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(oidc::router())
         .merge(editor::router())
         .merge(teams::router())
+        .merge(bots::router())
         .merge(issues::router())
         .merge(merge_requests::router())
         .merge(diff::router())

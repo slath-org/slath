@@ -1,5 +1,5 @@
 {#- The organization side menu. The page sets org_name, org_area
-    (repositories, members, teams, settings), org_member (the viewer may
+    (repositories, members, teams, bots, webhooks, settings), org_member (the viewer may
     see members and teams), and org_manage (the viewer manages it). -#}
 {%- let base = "/" ~ org_name %}
 {%- call m::side_menu(ctx, "Organization", "Organization", org_name, base) %}
@@ -9,6 +9,7 @@
 {%- call m::side_item(ctx, base ~ "/-/teams", "users", "Teams", org_area == "teams") %}{% endcall %}
 {%- endif %}
 {%- if org_manage %}
+{%- call m::side_item(ctx, base ~ "/-/bots", "bot", "Bots", org_area == "bots") %}{% endcall %}
 {%- call m::side_item(ctx, base ~ "/-/webhooks", "webhook", "Webhooks", org_area == "webhooks") %}{% endcall %}
 {%- call m::side_item(ctx, base ~ "/-/settings", "settings", "Settings", org_area == "settings") %}{% endcall %}
 {%- endif %}

@@ -1,0 +1,8 @@
+{% extends "settings/layout.html" %}
+{% block title %}Bots{% endblock %}
+{% block settings %}
+<h1>Bots</h1>
+<p>Bots are accounts for automation and AI agents. They never sign in, act only through the tokens and SSH keys you give them, and can never do more than you on a repository.</p>
+{% include "settings/errors.html" %}
+{% include "bots_list.html" %}
+{% endblock %}

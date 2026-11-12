@@ -135,6 +135,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Suspending a person suspends their bots, and reactivating the person brings back exactly those bots.
 - Branch protection lists the bots that may merge into and push to its branches; other bots can't, whatever their role.
 - A bot's approval never counts for its owner's merge request, even where bot approvals count.
+- Settings → Bots and an organization's Bots page list and create bots; each bot's page manages its tokens and SSH keys.
 
 ### Changed
 

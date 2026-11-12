@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Bots · {{ org }}{% endblock %}
+{% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "bots" %}{% let org_member = true %}{% let org_manage = true %}{% include "org_sidebar.html" %}{% endblock %}
+{% block content %}
+<h1>Bots</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+<p>Bots are accounts for automation and AI agents. They never sign in and act only through the tokens and SSH keys the organization's owners give them. Give them roles on repositories like members, as collaborators or through teams.</p>
+{% include "settings/errors.html" %}
+{% include "bots_list.html" %}
+{% endblock %}

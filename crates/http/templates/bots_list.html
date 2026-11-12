@@ -1,0 +1,44 @@
+{#- A list of bots and the form for a new one. The page sets bots, action,
+    username, display_name, and error(). -#}
+{%- if bots.is_empty() %}
+<p class="text-secondary empty-state">No bots yet.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="bots-caption">
+<table class="table">
+  <caption id="bots-caption" class="visually-hidden">Bots</caption>
+  <thead><tr><th scope="col">Bot</th><th scope="col">State</th><th scope="col">Created</th></tr></thead>
+  <tbody>
+  {%- for b in bots %}
+    <tr>
+      <td><a href="/-/bots/{{ b.name }}">{{ b.name }}</a>{% if let Some(d) = b.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td>{% if b.active %}Active{% else %}Suspended{% endif %}</td>
+      <td><time datetime="{{ b.created.iso }}">{{ b.created.text }}</time></td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h2>New bot</h2>
+<form method="post" action="{{ action }}" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" value="{{ username }}" maxlength="39" required autocapitalize="none" spellcheck="false" aria-describedby="username-hint{% if self.error("name").is_some() %} username-error{% endif %}"
+      {%- if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="username-hint" class="hint">Shares the namespace of users and organizations, for example <code>alice-ci</code>.</p>
+    {%- if let Some(e) = self.error("name") %}
+    <p id="username-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <label for="display_name">Display name <span class="text-secondary">(optional)</span></label>
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
+      {%- if let Some(e) = self.error("display_name") %} aria-invalid="true" aria-describedby="display_name-error"{% endif %}>
+    {%- if let Some(e) = self.error("display_name") %}
+    <p id="display_name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Create bot</button></div>
+</form>

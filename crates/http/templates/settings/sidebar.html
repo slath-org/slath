@@ -1,0 +1,12 @@
+{#- The user settings side menu. The page sets tab. -#}
+{%- let who %}{% if let Some(u) = ctx.user %}{{ u.name }}{% endif %}{% endlet %}
+{%- call m::side_menu(ctx, "Settings", "User settings", who, "/-/settings") %}
+{%- call m::side_item(ctx, "/-/settings/profile", "user", "Profile", tab == "profile") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/notifications", "bell", "Notifications", tab == "notifications") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/appearance", "sun", "Appearance", tab == "appearance") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/security", "shield", "Security", tab == "security") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/sessions", "monitor", "Sessions", tab == "sessions") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/keys", "key-round", "SSH keys", tab == "keys") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/tokens", "lock", "Access tokens", tab == "tokens") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/settings/bots", "bot", "Bots", tab == "bots") %}{% endcall %}
+{%- endcall %}

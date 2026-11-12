@@ -5,6 +5,7 @@ archive
 bell
 bold
 book-open
+bot
 building-2
 check
 chevron-down
