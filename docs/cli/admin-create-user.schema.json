@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-create-user.schema.json",
+  "title": "slath admin create-user --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "user",
+        "password"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "user": {
+          "type": "object",
+          "required": [
+            "id",
+            "username",
+            "admin"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "admin": {
+              "type": "boolean"
+            }
+          }
+        },
+        "password": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The generated password, unless --password-stdin was given; shown only here."
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

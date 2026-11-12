@@ -6,6 +6,7 @@
 
 mod apply;
 mod backup;
+mod cli_schemas;
 mod compose;
 mod crash;
 mod doctor;

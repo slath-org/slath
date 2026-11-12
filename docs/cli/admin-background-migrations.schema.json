@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-background-migrations.schema.json",
+  "title": "slath admin background-migrations … --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "background_migrations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "background_migrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "introduced_in",
+              "state",
+              "processed",
+              "total_estimate",
+              "percent",
+              "eta_seconds",
+              "last_error"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "introduced_in": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "running",
+                  "paused",
+                  "done",
+                  "failed"
+                ]
+              },
+              "processed": {
+                "type": "integer"
+              },
+              "total_estimate": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "percent": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "eta_seconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "last_error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

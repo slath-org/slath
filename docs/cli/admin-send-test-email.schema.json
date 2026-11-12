@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-send-test-email.schema.json",
+  "title": "slath admin send-test-email --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "to"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "to": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

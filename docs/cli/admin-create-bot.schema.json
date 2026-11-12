@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-create-bot.schema.json",
+  "title": "slath admin create-bot --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "bot",
+        "token"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "bot": {
+          "type": "object",
+          "required": [
+            "id",
+            "username",
+            "owner"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string",
+              "description": "The owning user or organization."
+            }
+          }
+        },
+        "token": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The new token (slath_bot_…), only with --token-scopes; shown only here."
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

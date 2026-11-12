@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-apply.schema.json",
+  "title": "slath admin apply --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "changes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "changes": {
+          "type": "array",
+          "description": "What this run created or changed; empty when everything existed.",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "name",
+              "action",
+              "file",
+              "password"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "user",
+                  "org",
+                  "org_member",
+                  "bot",
+                  "repo",
+                  "collaborator",
+                  "token"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "description": "The object: a name, namespace/name, or org/member, repository collaborator, or account token."
+              },
+              "action": {
+                "enum": [
+                  "created",
+                  "updated"
+                ]
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The file a generated password or new token was written to (relative to the bootstrap file)."
+              },
+              "password": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "A generated password that had no file; shown only here."
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

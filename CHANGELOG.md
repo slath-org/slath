@@ -141,6 +141,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Commits and merge requests come as plain-text diffs and patches: `.diff` and `.patch` after their address, and `…/diff` and `…/patch` in the API.
 - `slath admin apply FILE` creates the users, organizations, bots, repositories, and tokens a TOML file lists; running it again changes nothing.
 - `slath admin apply` writes generated passwords and new tokens only to the files the bootstrap file names, with mode 0600.
+- Every `slath admin` command's `--output json` has a JSON Schema in `docs/cli/`.
 
 ### Changed
 
