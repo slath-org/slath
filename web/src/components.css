@@ -1006,6 +1006,10 @@ fieldset.field {
   min-height: 0;
   padding-block: 0;
 }
+/* Aligned on the text, a checkbox sits high; center it on the letters. */
+.diff-options .checkbox input {
+  transform: translateY(0.2em);
+}
 .diff-tree ul {
   list-style: none;
   padding: 0;
