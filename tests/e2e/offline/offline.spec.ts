@@ -27,7 +27,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel("Username").fill("ada");
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("link", { name: "ada", exact: true })).toBeVisible();
+  await expect(page.locator("a.nav-avatar[href=\"/ada\"]")).toBeVisible();
 }
 
 test("setup", async ({ page }) => {
