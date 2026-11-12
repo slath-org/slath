@@ -309,6 +309,17 @@ enum AdminCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Apply a bootstrap file: create the users, organizations, bots,
+    /// repositories, and tokens it lists that don't exist yet. Running it
+    /// again changes nothing.
+    Apply {
+        /// The bootstrap file (TOML); paths in it are relative to it.
+        file: PathBuf,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Create a bot account for a user or organization, and optionally a
     /// token for it (printed once).
     CreateBot {
@@ -500,6 +511,14 @@ fn main() -> ExitCode {
             },
             output,
         ),
+        Command::Admin {
+            command:
+                AdminCommand::Apply {
+                    file,
+                    config,
+                    output,
+                },
+        } => admin::apply(&config::resolve_path(config), &file, output),
         Command::Admin {
             command:
                 AdminCommand::CreateBot {

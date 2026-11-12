@@ -154,7 +154,7 @@ impl Services {
 
     /// Creates a bot for an owner the caller has checked; audited as the
     /// subject's action.
-    async fn insert_bot(
+    pub(crate) async fn insert_bot(
         &self,
         subject: &Subject,
         owner: BotOwner,
@@ -265,7 +265,7 @@ pub struct NewBotToken {
 }
 
 /// A validated bot token, ready to store.
-struct CheckedBotToken {
+pub(crate) struct CheckedBotToken {
     name: String,
     scopes: Vec<Scope>,
     repos: Vec<RepoId>,
@@ -295,7 +295,11 @@ impl Services {
 
     /// Checks a new bot token; repositories are resolved as `viewer` sees
     /// them, so a token never names a repository its manager can't read.
-    async fn check_bot_token(&self, viewer: &Subject, t: &NewBotToken) -> Result<CheckedBotToken> {
+    pub(crate) async fn check_bot_token(
+        &self,
+        viewer: &Subject,
+        t: &NewBotToken,
+    ) -> Result<CheckedBotToken> {
         let mut errors = Vec::new();
         let name = t.name.trim();
         if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
@@ -384,7 +388,7 @@ impl Services {
         })
     }
 
-    async fn store_bot_token(
+    pub(crate) async fn store_bot_token(
         &self,
         subject: &Subject,
         bot: &Bot,

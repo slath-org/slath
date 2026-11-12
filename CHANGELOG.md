@@ -139,6 +139,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A Bot badge follows bots' names on issues, merge requests, comments, reviews, statuses, member lists, and the audit log; a bot's profile names its owner.
 - A bot's page changes its avatar and display name.
 - Commits and merge requests come as plain-text diffs and patches: `.diff` and `.patch` after their address, and `…/diff` and `…/patch` in the API.
+- `slath admin apply FILE` creates the users, organizations, bots, repositories, and tokens a TOML file lists; running it again changes nothing.
+- `slath admin apply` writes generated passwords and new tokens only to the files the bootstrap file names, with mode 0600.
 
 ### Changed
 

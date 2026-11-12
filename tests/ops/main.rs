@@ -4,6 +4,7 @@
 //! real instances.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod apply;
 mod backup;
 mod compose;
 mod crash;

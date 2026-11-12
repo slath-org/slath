@@ -196,6 +196,117 @@ pub fn create_bot(path: &Path, args: CreateBot, format: OutputFormat) -> ExitCod
     }
 }
 
+/// Writes a secret to `path` with mode 0600 (directories 0700), replacing
+/// what was there.
+fn write_secret(path: &Path, value: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)
+            .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    // Replace by rename, so a reader never sees a half-written file.
+    let tmp = path.with_extension("tmp-slath");
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    f.write_all(value.as_bytes())
+        .and_then(|()| f.write_all(b"\n"))
+        .and_then(|()| f.sync_all())
+        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("cannot write {}: {e}", path.display()))
+}
+
+/// `slath admin apply FILE`: applies a bootstrap file. Paths in it are
+/// relative to the file. Generated passwords and new tokens go to their
+/// files (mode 0600); a generated password without a file is printed once.
+pub fn apply(path: &Path, file: &Path, format: OutputFormat) -> ExitCode {
+    let text = match std::fs::read_to_string(file) {
+        Ok(t) => t,
+        Err(e) => return fail(format, &format!("cannot read {}: {e}", file.display())),
+    };
+    let mut plan: slath_service::apply::Plan = match toml::from_str(&text) {
+        Ok(p) => p,
+        Err(e) => return fail(format, &format!("{}: {e}", file.display())),
+    };
+    let base = file.parent().unwrap_or_else(|| Path::new("."));
+    let resolve = |p: &str| base.join(p);
+    for u in &mut plan.users {
+        if let Some(f) = &u.password_file
+            && let Ok(pw) = std::fs::read_to_string(resolve(f))
+        {
+            u.password = Some(Secret::new(pw.trim_end_matches(['\r', '\n']).to_owned()));
+        }
+    }
+    for t in &mut plan.tokens {
+        t.file_present = resolve(&t.file).is_file();
+    }
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        svc.apply(plan).await.map_err(|e| describe(&e))
+    });
+    let changes = match result {
+        Ok(c) => c,
+        Err(e) => return fail(format, &e),
+    };
+    let mut out = Vec::new();
+    for c in &changes {
+        let mut printed = None;
+        if let Some(secret) = &c.secret {
+            match &c.file {
+                Some(f) => {
+                    if let Err(e) = write_secret(&resolve(f), secret.expose()) {
+                        return fail(format, &e);
+                    }
+                }
+                None => printed = Some(secret.expose().clone()),
+            }
+        }
+        out.push((c, printed));
+    }
+    match format {
+        OutputFormat::Text => {
+            for (c, printed) in &out {
+                let file = c
+                    .file
+                    .as_deref()
+                    .map_or(String::new(), |f| format!(" (written to {f})"));
+                println!("{} {} {}{file}", c.action, c.kind.replace('_', " "), c.name);
+                if let Some(p) = printed {
+                    println!("  password: {p}  (store it now; it can't be shown again)");
+                }
+            }
+            println!(
+                "{} change{}",
+                changes.len(),
+                if changes.len() == 1 { "" } else { "s" }
+            );
+        }
+        OutputFormat::Json => print_json(&json!({
+            "ok": true,
+            "changes": out.iter().map(|(c, printed)| json!({
+                "kind": c.kind,
+                "name": c.name,
+                "action": c.action,
+                "file": c.file,
+                "password": printed,
+            })).collect::<Vec<_>>(),
+        })),
+    }
+    ExitCode::SUCCESS
+}
+
 /// `slath fsck [--reconcile] [--repo ID]`.
 pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFormat) -> ExitCode {
     let rt = match runtime() {

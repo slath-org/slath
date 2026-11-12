@@ -175,6 +175,10 @@ slath admin create-bot --owner alice --name alice-ci \
 
 The token is printed once. The owner can see and revoke it later.
 
+To set up several accounts, bots, repositories, and tokens at once, and
+repeatably, use a bootstrap file with `slath admin apply`
+([Setting up an instance from a file](bootstrap.md)).
+
 Suspending a person under **Administration → Users** also suspends their
 bots; reactivating the person reactivates those bots. Bots suspended on
 their own stay suspended, and can't be reactivated while their owner is

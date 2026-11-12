@@ -9,6 +9,7 @@
 
 pub mod accounts;
 pub mod admin;
+pub mod apply;
 pub mod attachments;
 pub mod audit;
 pub mod auto_merge;
