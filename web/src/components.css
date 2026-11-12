@@ -843,6 +843,57 @@ fieldset.field {
   width: 1%;
   user-select: none;
 }
+/* Line numbers link to a comment form: plain numbers that underline on
+   hover and focus, so 2,000 rows don't read as 4,000 links. */
+.diff-table .line-no a {
+  color: inherit;
+  text-decoration: none;
+}
+.diff-table .line-no a:hover,
+.diff-table .line-no a:focus-visible {
+  color: var(--link);
+  text-decoration: underline;
+}
+/* In the unified view, the numbers and the marker stay in place while
+   long lines scroll sideways. */
+.diff-unified {
+  --line-no-width: calc(5ch + 2 * var(--space-2));
+}
+.diff-unified .line-no,
+.diff-unified .diff-marker,
+.diff-unified thead th:nth-child(-n + 3) {
+  position: sticky;
+  z-index: 1;
+  background: var(--surface);
+}
+.diff-unified .line-no {
+  min-width: var(--line-no-width);
+  max-width: var(--line-no-width);
+  left: 0;
+}
+.diff-unified .line-no + .line-no,
+.diff-unified thead th:nth-child(2) {
+  left: var(--line-no-width);
+}
+.diff-unified thead th:nth-child(1) {
+  left: 0;
+}
+.diff-unified thead th:nth-child(3) {
+  left: calc(2 * var(--line-no-width));
+}
+.diff-unified .diff-marker {
+  left: calc(2 * var(--line-no-width));
+  min-width: calc(1ch + 2 * var(--space-2));
+  text-align: center;
+}
+.diff-unified .diff-add > .line-no,
+.diff-unified .diff-add > .diff-marker {
+  background: var(--diff-add-bg);
+}
+.diff-unified .diff-del > .line-no,
+.diff-unified .diff-del > .diff-marker {
+  background: var(--diff-del-bg);
+}
 /* The file list above a diff: with changed content only, folded files
    and the directories holding only them are hidden, and a note says how
    many. */

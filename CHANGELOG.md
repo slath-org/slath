@@ -113,6 +113,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Webhooks never reach internal networks unless the site allows them, and only carry what the person they act for can read.
 - The API manages webhooks of repositories and organizations, lists their deliveries with every attempt, and redelivers or pings.
 - Settings → Webhooks (repositories) and Webhooks (organizations) add webhooks, show each one's deliveries and attempts, and redeliver or ping.
+- Diff line numbers are plain until you point at them, and stay in place while long lines scroll sideways.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 
