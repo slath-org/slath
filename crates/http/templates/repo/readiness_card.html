@@ -34,7 +34,7 @@
       {% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span>
       {%- else %}
       <details>
-        <summary>{% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span></summary>
+        <summary>{% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
         {%- if let Some(f) = r.fix %}<p class="requirement-fix">{{ f }}.</p>{% endif %}
         {%- if coverage %}
         <div class="requirement-fix requirement-files">

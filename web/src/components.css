@@ -1469,6 +1469,20 @@ fieldset.field {
 .requirement > details > summary {
   cursor: pointer;
 }
+/* A chevron after the words says the row opens; it turns when open. */
+.disclosure {
+  display: inline-block;
+  margin-inline-start: var(--space-1);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.disclosure svg {
+  display: block;
+  transition: transform var(--motion-fast);
+}
+details[open] > summary .disclosure svg {
+  transform: rotate(180deg);
+}
 .requirement-fix {
   margin: 0 0 var(--space-1) var(--space-6);
   color: var(--text-secondary);

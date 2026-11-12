@@ -107,6 +107,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A push rejected for several secrets can be allowed in one step, with one reason and one period, by whoever may allow findings.
 - Push protection names the type of a private key it finds, such as "OpenSSH private key" or "PGP private key".
 - The allow pages and the allowances list say what each finding is and where it is (file, line, and commit), never the secret.
+- Readiness card lines that open show a chevron after their text.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 
