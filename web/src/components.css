@@ -987,17 +987,24 @@ fieldset.field {
   justify-content: flex-end;
   margin-block-end: var(--space-3);
 }
+/* The view, whitespace, and Apply on one line, aligned on their text. */
 .diff-options {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-3);
 }
 .diff-options .field {
   display: flex;
-  align-items: center;
+  flex-direction: row;
+  align-items: baseline;
   gap: var(--space-2);
   margin: 0;
+}
+.diff-options .checkbox {
+  align-items: baseline;
+  min-height: 0;
+  padding-block: 0;
 }
 .diff-tree ul {
   list-style: none;
@@ -1060,6 +1067,7 @@ fieldset.field {
   }
   .diff-options .diff-view-choice {
     display: flex;
+    flex-direction: row;
     align-items: baseline;
     /* Flex drops the spaces around the separator; the gap puts them back. */
     gap: var(--space-1);

@@ -5,10 +5,10 @@
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <input type="hidden" name="next" value="{{ diff.href }}#diff">
     <div class="field diff-view-choice">
-      <label for="diff-view">View</label>
+      <label for="diff-view" class="visually-hidden">View</label>
       <select id="diff-view" name="view">
-        <option value="unified"{% if !diff.split %} selected{% endif %}>Unified</option>
-        <option value="split"{% if diff.split %} selected{% endif %}>Split</option>
+        <option value="unified"{% if !diff.split %} selected{% endif %}>Unified view</option>
+        <option value="split"{% if diff.split %} selected{% endif %}>Split view</option>
       </select>
     </div>
     <div class="checkbox"><input id="diff-w" type="checkbox" name="w" value="1"{% if diff.ignore_whitespace %} checked{% endif %}><label for="diff-w">Ignore whitespace</label></div>
