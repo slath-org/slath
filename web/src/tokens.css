@@ -15,7 +15,6 @@
   --text-xl: 1.25rem;
   --text-title: 1.625rem;
   --code-size: 0.875rem;
-  /* Code inside text that isn't body size (titles): relative to it. */
   --code-in-text: 0.875em;
   --weight-regular: 400;
   --weight-medium: 500;
