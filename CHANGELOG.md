@@ -122,6 +122,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Merge request lists show each open merge request's checks next to its title.
 - `slath doctor` and `slath upgrade --check` warn when PostgreSQL lacks its latest security release or Slath connects as a superuser.
 - The Compose file gives Slath a database role that only owns its database, and refuses network logins as the PostgreSQL superuser.
+- `slath healthcheck` lets Docker and Podman report the health of the Slath and sshd containers; the Compose file uses it.
+- The Compose setup runs on rootless Podman, with bind mounts labeled for SELinux and setup steps in the install guide.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 

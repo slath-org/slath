@@ -21,6 +21,14 @@ PASSWORD="offline admin password $$"
 cleanup() { "$ENGINE" rm -f "$NAME-app" "$NAME-db" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 [[ -d tests/e2e/node_modules ]] || (cd tests/e2e && npm ci)
+# Run Playwright as the calling user, so results in the checkout stay
+# theirs: rootless Podman maps the user itself (`--userns=keep-id`); with
+# Docker or rootful Podman the IDs are passed.
+if [[ "$ENGINE" == *podman* && "$("$ENGINE" info --format '{{.Host.Security.Rootless}}' 2>/dev/null)" == true ]]; then
+    as_user=(--userns=keep-id)
+else
+    as_user=(--user "$(id -u):$(id -g)")
+fi
 
 "$ENGINE" run -d --name "$NAME-db" --network none \
     -e POSTGRES_USER=slath -e POSTGRES_PASSWORD=slath -e POSTGRES_DB=slath \
@@ -49,9 +57,9 @@ printf '%s' "$PASSWORD" | "$ENGINE" exec -i "$NAME-app" \
 
 playwright() {
     "$ENGINE" run --rm --network "container:$NAME-db" --ipc host --init \
-        --user "$(id -u):$(id -g)" -e HOME=/tmp \
+        "${as_user[@]}" -e HOME=/tmp \
         -e SLATH_OFFLINE_URL=http://127.0.0.1:3000 -e SLATH_OFFLINE_PASSWORD="$PASSWORD" \
-        -v "$ROOT:/work" -w /work/tests/e2e \
+        -v "$ROOT:/work:z" -w /work/tests/e2e \
         "mcr.microsoft.com/playwright:v${PW_VERSION}-noble" \
         npx playwright test -c offline/playwright.config.ts "$@"
 }

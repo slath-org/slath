@@ -8,6 +8,7 @@ mod backup;
 mod check;
 mod config;
 mod doctor;
+mod healthcheck;
 mod hook;
 mod output;
 mod serve;
@@ -128,6 +129,17 @@ enum Command {
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
+    },
+    /// Container health check: exit 0 when the local server is ready
+    /// (`/-/readyz`), or with --ssh when sshd answers. Reads no
+    /// configuration; for Docker, Podman, and Quadlet health checks.
+    Healthcheck {
+        /// Server address (default: SLATH__SERVER__LISTEN, else 127.0.0.1:3000).
+        #[arg(long)]
+        addr: Option<String>,
+        /// Check an SSH server at this address instead, e.g. 127.0.0.1:22.
+        #[arg(long, conflicts_with = "addr")]
+        ssh: Option<String>,
     },
     /// Print version information.
     Version {
@@ -413,6 +425,7 @@ fn main() -> ExitCode {
             command: ConfigCommand::Migrate { file, output },
         } => check::config_migrate(&file, output),
         Command::Version { json, config } => check::version(json, config),
+        Command::Healthcheck { addr, ssh } => healthcheck::run(addr.as_deref(), ssh.as_deref()),
         Command::Admin {
             command: AdminCommand::GenKey { output },
         } => check::gen_key(output.as_deref()),

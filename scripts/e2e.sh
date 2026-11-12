@@ -17,6 +17,15 @@ ENGINE="${SLATH_CONTAINER_ENGINE:-$(command -v docker >/dev/null && echo docker 
 
 [[ -d tests/e2e/node_modules ]] || (cd tests/e2e && npm ci)
 
+# Run Playwright as the calling user, so results in the checkout stay
+# theirs: rootless Podman maps the user itself (`--userns=keep-id`); with
+# Docker or rootful Podman the IDs are passed.
+if [[ "$ENGINE" == *podman* && "$("$ENGINE" info --format '{{.Host.Security.Rootless}}' 2>/dev/null)" == true ]]; then
+    as_user=(--userns=keep-id)
+else
+    as_user=(--user "$(id -u):$(id -g)")
+fi
+
 server_out="$(mktemp)"
 coproc SERVER { exec target/debug/slath-e2e-server >"$server_out"; }
 cleanup() {
@@ -37,9 +46,9 @@ if [[ "${E2E_LOCAL:-0}" == 1 ]]; then
     (cd tests/e2e && SLATH_E2E_URL="$url" npx playwright test "$@")
 else
     "$ENGINE" run --rm --network host --ipc host --init \
-        --user "$(id -u):$(id -g)" -e HOME=/tmp -e CI="${CI:-}" \
+        "${as_user[@]}" -e HOME=/tmp -e CI="${CI:-}" \
         -e SLATH_E2E_URL="$url" \
-        -v "$ROOT:/work" -w /work/tests/e2e \
+        -v "$ROOT:/work:z" -w /work/tests/e2e \
         "mcr.microsoft.com/playwright:v${PW_VERSION}-noble" \
         npx playwright test "$@"
 fi

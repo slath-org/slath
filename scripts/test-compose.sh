@@ -73,6 +73,21 @@ compose logs --no-color slath | grep -q "update applied" || { compose logs slath
 backups=$(compose exec -T slath ls /var/lib/slath/backups)
 [[ "$backups" == pre-upgrade-* ]] || { echo "compose: no pre-upgrade backup: $backups" >&2; exit 1; }
 
+# Both services report health to the engine (Docker or Podman).
+healthy() {
+    local id status=""
+    id=$(compose ps -q "$1")
+    for _ in $(seq 1 90); do
+        status=$("$ENGINE" inspect --format '{{.State.Health.Status}}' "$id" 2>/dev/null || true)
+        [[ "$status" == healthy ]] && return 0
+        sleep 1
+    done
+    echo "compose: $1 is ${status:-without health} instead of healthy" >&2
+    exit 1
+}
+healthy slath
+healthy sshd
+
 # The first administrator: one `docker compose run`.
 printf '%s' "$ADMIN_PASSWORD" | compose run --rm -T slath \
     admin create-user --admin --username ada --email ada@example.org --password-stdin

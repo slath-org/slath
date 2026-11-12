@@ -8,8 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 Slath is one binary, `slath`. It needs PostgreSQL (15 or newer), Git (before
 1.0, the newest stable release; `slath config check` tells you if yours is too
 old), and OpenSSH for Git over SSH. There are two supported ways to run it:
-[containers with Docker Compose](#docker-compose) and [systemd on a Linux
-host](#systemd).
+[containers with Docker Compose](#docker-compose) (or [Podman](#podman)) and
+[systemd on a Linux host](#systemd).
 
 ## Docker Compose
 
@@ -18,13 +18,13 @@ host](#systemd).
 is built on your host. The `sshd` container mounts only the IPC socket's
 volume, not the data volume; see [Users and permissions](#users-and-permissions).
 
-1. Get the three files of the release you install (or the signed
+1. Get the four files of the release you install (or the signed
    `slath-compose-<version>.tar.gz` from the release; see
    [Verifying a release](verify.md)):
 
    ```sh
    mkdir slath && cd slath
-   for f in compose.yml Caddyfile .env.example; do
+   for f in compose.yml Caddyfile postgres-init.sh .env.example; do
        curl -fsSLO "https://raw.githubusercontent.com/slath-org/slath/v0.3.0/deploy/compose/$f"
    done
    cp .env.example .env
@@ -101,12 +101,74 @@ that address to report the client's address (`X-Forwarded-For`). If the
 network's default subnet `172.29.79.0/24` is taken on your host, set
 `SLATH_SUBNET`, `SLATH_DYNAMIC_RANGE`, and `SLATH_PROXY_IP` in `.env`.
 
+### Health checks
+
+Each container reports its health to Docker (and to Podman): `postgres`
+when it accepts connections, `slath` when `/-/readyz` answers (database,
+data directory, and background workers are fine), and `sshd` when it greets
+SSH clients. The checks run `slath healthcheck` inside the container, so
+the image needs no curl.
+
+```sh
+docker compose ps              # STATUS shows (healthy) or (unhealthy)
+docker events --filter event=health_status
+```
+
+A first start that applies an update may take a while; the check allows
+ten minutes before it counts failures. For monitoring from outside,
+`GET /-/readyz` answers 200 when Slath can serve and 503 when it can't, and
+`slath doctor --output json` explains why.
+
 ### Configuration
 
 The image reads `/etc/slath/slath.toml` (see `deploy/docker/slath.toml`).
 Override any key with an environment variable `SLATH__<SECTION>__<KEY>`, or
 mount your own file there. `docker compose exec slath slath config check`
 validates the result.
+
+## Podman
+
+The same Compose file runs on rootless Podman (4.7 or newer; tested with
+Podman 6.1 and Docker Compose 5.6 as its provider). Every step under
+[Docker Compose](#docker-compose) applies, with `podman compose` in place
+of `docker compose`. Set up once, as the user who runs Slath:
+
+```sh
+systemctl --user enable --now podman.socket   # the API that Compose talks to
+loginctl enable-linger "$USER"                # keep running after logout
+systemctl --user enable podman-restart.service  # start the containers at boot
+```
+
+Then, in the directory with the four files:
+
+```sh
+podman compose up -d
+podman compose ps            # (healthy) next to each service
+```
+
+- **Compose provider:** `podman compose` runs `docker-compose` (Compose v2)
+  if it's installed, else `podman-compose`. Use Compose v2: it waits for
+  `postgres` to be healthy before starting `slath`, as the file expects.
+- **Health checks:** Podman runs them with systemd timers of your user
+  session, so they need `systemd --user` (lingering keeps it running).
+  `podman healthcheck run <container>` runs one by hand, and `podman events
+  --filter event=health_status` follows changes.
+- **Ports:** rootless Podman can't bind ports below 1024. HTTP (`3000`) and
+  SSH (`2222`) are fine; for the `tls` profile's `80` and `443`, allow them
+  with `sudo sysctl net.ipv4.ip_unprivileged_port_start=80` (and in
+  `/etc/sysctl.d/`), or put the host's own reverse proxy in front.
+- **SELinux:** the Compose file labels its bind mounts (`Caddyfile`,
+  `postgres-init.sh`) for container access, so it works with SELinux
+  enforcing.
+- **Volumes and users:** the containers run as their own users inside your
+  user namespace; volumes live under `~/.local/share/containers/storage/`.
+  Back them up as described in [Backup](backup.md), not by copying that
+  directory while running.
+- **If networks fail to start** with `netavark: nftables error: "nft" did
+  not return successfully`, the host's nftables doesn't work with
+  netavark's firewall rules. Rootless setups don't need them: set
+  `firewall_driver = "none"` in the `[network]` section of
+  `~/.config/containers/containers.conf`.
 
 ## systemd
 

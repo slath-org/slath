@@ -30,7 +30,7 @@ services:
       SLATH_DB_PASSWORD: ${SLATH_DB_PASSWORD:?set SLATH_DB_PASSWORD in .env}
     volumes:
       - postgres:/var/lib/postgresql
-      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-slath.sh:ro
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-slath.sh:ro,z
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "slath", "-d", "slath"]
       interval: 2s
@@ -62,6 +62,15 @@ services:
         condition: service_completed_successfully
     ports:
       - "${SLATH_HTTP_BIND:-127.0.0.1:3000}:3000"
+    # Ready when /-/readyz says so (database, data directory, workers). The
+    # start period covers a first start that applies an update.
+    healthcheck:
+      test: ["CMD", "slath", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+      start_interval: 2s
     volumes:
       - data:/var/lib/slath
       # Pre-upgrade backups (the newest two are kept); copy them off the host.
@@ -77,6 +86,13 @@ services:
     user: root
     entrypoint: ["/usr/local/lib/slath/sshd-entrypoint"]
     command: []
+    healthcheck:
+      test: ["CMD", "slath", "healthcheck", "--ssh", "127.0.0.1:22"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 1m
+      start_interval: 2s
     depends_on:
       - slath
     ports:
@@ -100,7 +116,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
       - ${SLATH_CERTS_DIR:-./certs}:/etc/caddy/certs:ro
       - caddy:/data
     networks:
