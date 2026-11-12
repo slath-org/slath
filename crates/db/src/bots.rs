@@ -144,3 +144,33 @@ pub async fn list_for_owner(
     .await?;
     Ok(rows.into_iter().map(|r| to_bot!(r)).collect())
 }
+
+/// Suspends the active bots of a user who is being suspended; returns how
+/// many.
+pub async fn suspend_with_owner(exec: impl PgExecutor<'_>, owner: UserId) -> Result<u64, DbError> {
+    let r = sqlx::query!(
+        "UPDATE users SET state = 'suspended', suspended_with_owner = true, updated_at = now()
+         WHERE kind = 'bot' AND bot_owner_kind = 'user' AND bot_owner_id = $1 AND state = 'active'",
+        owner.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected())
+}
+
+/// Reactivates the bots that were suspended with their owner; returns how
+/// many.
+pub async fn reactivate_with_owner(
+    exec: impl PgExecutor<'_>,
+    owner: UserId,
+) -> Result<u64, DbError> {
+    let r = sqlx::query!(
+        "UPDATE users SET state = 'active', suspended_with_owner = false, updated_at = now()
+         WHERE kind = 'bot' AND bot_owner_kind = 'user' AND bot_owner_id = $1
+           AND state = 'suspended' AND suspended_with_owner",
+        owner.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected())
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET state = 'active', suspended_with_owner = false, updated_at = now()\n         WHERE kind = 'bot' AND bot_owner_kind = 'user' AND bot_owner_id = $1\n           AND state = 'suspended' AND suspended_with_owner",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1656c2838cdf5bac450c88c559e457b23029bccae98757d09cc0c6b2666c10e8"
+}

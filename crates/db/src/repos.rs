@@ -185,7 +185,7 @@ pub async fn role_facts(
     let r = sqlx::query!(
         r#"SELECT
              (SELECT c.role FROM repo_collaborators c WHERE c.repo_id = r.id AND c.user_id = $2) AS collaborator,
-             EXISTS (SELECT 1 FROM users u WHERE u.id = $2 AND u.namespace_id = r.namespace_id) AS "namespace_owner!",
+             slath_owns_namespace(r.namespace_id, $2) AS "namespace_owner!",
              (SELECT m.role FROM organizations o JOIN org_members m ON m.org_id = o.id
               WHERE o.namespace_id = r.namespace_id AND m.user_id = $2) AS org_role,
              (SELECT o.default_member_role FROM organizations o WHERE o.namespace_id = r.namespace_id) AS org_default_member_role,

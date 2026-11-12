@@ -348,3 +348,112 @@ fn conf_auth_06_bot_keys_are_managed_by_the_owner() {
     assert_eq!(api.api("DELETE", &path, Some(&tb), None).status, 404);
     assert_eq!(api.api("DELETE", &path, Some(&ta), None).status, 204);
 }
+
+#[test]
+fn conf_auth_06_a_bot_can_do_no_more_than_its_owner() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    s.create_user("bob", PW, false);
+    let mut b = s.login("bob", PW);
+    slath_tests::http::create_repo(&mut b, "bob", "lib", "private");
+    slath_tests::http::create_repo(&mut b, "bob", "secret", "private");
+    let tb = create_token(&mut b, "t", &["repo:write"]);
+    let bot = cli_bot(
+        &s,
+        "alice",
+        "alice-ci",
+        &[
+            "--token-scopes",
+            "repo:read,issues:write",
+            "--repo",
+            "bob/lib",
+            "--repo",
+            "bob/secret",
+        ],
+    )
+    .unwrap();
+    let mut api = s.client();
+    let role = |api: &mut Client, repo: &str, user: &str, role: &str| {
+        let r = api.api(
+            "PUT",
+            &format!("/api/v1/repos/bob/{repo}/collaborators/{user}"),
+            Some(&tb),
+            Some(&json!({"role": role})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    };
+    role(&mut api, "lib", "alice-ci", "maintain");
+    role(&mut api, "lib", "alice", "read");
+    role(&mut api, "secret", "alice-ci", "read");
+    let label = |api: &mut Client, name: &str| {
+        api.api(
+            "POST",
+            "/api/v1/repos/bob/lib/labels",
+            Some(&bot),
+            Some(&json!({"name": name, "color": "#112233"})),
+        )
+        .status
+    };
+    // Maintain for the bot, but its owner only reads: the bot only reads.
+    assert_eq!(
+        api.api("GET", "/api/v1/repos/bob/lib", Some(&bot), None)
+            .status,
+        200
+    );
+    assert_eq!(label(&mut api, "capped"), 403);
+    // Its owner can't see bob/secret at all, so neither can the bot, in
+    // listings included.
+    assert_eq!(
+        api.api("GET", "/api/v1/repos/bob/secret", Some(&bot), None)
+            .status,
+        404
+    );
+    let list = api.api("GET", "/api/v1/repos", Some(&bot), None);
+    assert!(!list.body.contains("\"secret\""), "{}", list.body);
+    assert!(list.body.contains("\"lib\""), "{}", list.body);
+    // Once the owner maintains too, so does the bot.
+    role(&mut api, "lib", "alice", "maintain");
+    assert_eq!(label(&mut api, "allowed"), 201);
+    role(&mut api, "secret", "alice", "read");
+    assert_eq!(
+        api.api("GET", "/api/v1/repos/bob/secret", Some(&bot), None)
+            .status,
+        200
+    );
+}
+
+#[test]
+fn conf_auth_06_suspending_the_owner_suspends_their_bots() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    s.create_user("boss", PW, true);
+    let mut a = s.login("alice", PW);
+    slath_tests::http::create_repo(&mut a, "alice", "app", "private");
+    let args = ["--token-scopes", "user:read", "--repo", "alice/app"];
+    let ci = cli_bot(&s, "alice", "alice-ci", &args).unwrap();
+    let other = cli_bot(&s, "alice", "alice-other", &args).unwrap();
+    let mut api = s.client();
+    let works =
+        |api: &mut Client, t: &str| api.api("GET", "/api/v1/user", Some(t), None).status == 200;
+    let mut r = s.login("boss", PW);
+    let post = |r: &mut Client, path: &str| submit(r, "/-/admin/users", path, &[]).status;
+
+    // A bot suspended on its own stays suspended through its owner's
+    // suspension and reactivation.
+    assert_eq!(post(&mut r, "/-/admin/users/alice-other/suspend"), 303);
+    assert!(!works(&mut api, &other));
+
+    assert_eq!(post(&mut r, "/-/admin/users/alice/suspend"), 303);
+    assert!(!works(&mut api, &ci));
+    let audit = s.db.query_one(
+        "SELECT data->>'bots' FROM audit_events WHERE action = 'admin.user.suspend' ORDER BY created_at DESC LIMIT 1",
+    );
+    assert_eq!(audit, "1");
+    // Nobody reactivates a bot while its owner is suspended.
+    assert_ne!(post(&mut r, "/-/admin/users/alice-ci/unsuspend"), 303);
+    assert!(!works(&mut api, &ci));
+
+    assert_eq!(post(&mut r, "/-/admin/users/alice/unsuspend"), 303);
+    assert!(works(&mut api, &ci), "the bot's token works again");
+    assert!(!works(&mut api, &other));
+}

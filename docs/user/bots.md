@@ -87,6 +87,24 @@ curl -X POST https://git.example.org/api/v1/bots/alice-ci/keys \
 `GET /api/v1/bots/{name}/keys` lists them and
 `DELETE /api/v1/bots/{name}/keys/{id}` removes one.
 
+## Roles and their limits
+
+A bot gets roles on repositories like anyone else: as a collaborator or
+through a team. A bot that belongs to a person can never do more than
+that person on the same repository: its role is the lower of its own and
+its owner's. A bot with maintain access to a repository where its owner
+only reads can only read; a repository its owner can't see doesn't exist
+for the bot either, in lists and search included. An organization's bot
+isn't limited this way, since organization owners manage it.
+
+The owner of a bot also owns what's in the bot's namespace, such as forks
+the bot made; for an organization's bot, the organization's owners do.
+
+When a site administrator suspends a person, their bots are suspended
+too, and they come back when the person is reactivated. A bot that was
+suspended on its own stays suspended, and a bot can't be reactivated
+while its owner is suspended.
+
 ## Rate limits
 
 Bots make at most 2,000 API requests per hour (site setting

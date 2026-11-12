@@ -10,10 +10,10 @@
 //! can read it.
 
 use slath_core::authz::{
-    self, Action, Credential, Decision, RepoState, ResourceCtx, Role, Scope, Subject, UserState,
-    Visibility,
+    self, Action, Credential, Decision, RepoState, ResourceCtx, Role, Scope, Subject, UserKind,
+    UserState, Visibility,
 };
-use slath_core::ids::RepoId;
+use slath_core::ids::{RepoId, UserId};
 use slath_core::names::RepoName;
 use slath_db::orgs::NamespaceKind;
 use slath_db::repos::Repo;
@@ -120,6 +120,30 @@ impl Services {
         let (user, site_admin) = match subject {
             Subject::User {
                 id,
+                kind: UserKind::Bot,
+                state: UserState::Active,
+                ..
+            } => {
+                // A user's bot can do no more than its owner (an
+                // organization's bot isn't capped).
+                let role = self.granted_role(repo, *id).await?;
+                let Some(owner) = slath_db::users::bot_owner_user(&self.pool, *id).await? else {
+                    return Ok(role);
+                };
+                let owner_role = match slath_db::users::get(&self.pool, owner).await? {
+                    Some(o) if o.state == UserState::Active => {
+                        if o.is_admin && self.admin_mfa_satisfied(o.id, None).await? {
+                            Some(Role::Admin)
+                        } else {
+                            self.granted_role(repo, o.id).await?
+                        }
+                    }
+                    _ => None,
+                };
+                return Ok(authz::capped_bot_role(role, owner_role));
+            }
+            Subject::User {
+                id,
                 state: UserState::Active,
                 is_site_admin,
                 ..
@@ -138,6 +162,11 @@ impl Services {
         if site_admin {
             return Ok(Some(Role::Admin));
         }
+        self.granted_role(repo, user).await
+    }
+
+    /// The role `user`'s grants give on a repository (not site administration).
+    async fn granted_role(&self, repo: &Repo, user: UserId) -> Result<Option<Role>> {
         let f = slath_db::repos::role_facts(&self.pool, repo.id, user).await?;
         Ok(authz::effective_role(&authz::RoleGrants {
             site_admin: false,

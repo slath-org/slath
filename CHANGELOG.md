@@ -131,6 +131,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Bot tokens start with `slath_bot_`, name the repositories they work for, can't manage accounts, and expire after 30 days by default (90 at most).
 - `slath admin create-bot` creates a bot and, with `--token-scopes` and `--repo`, a token for it, printed once.
 - The API lists and revokes a bot's tokens and manages its SSH keys; bots get their own, lower API rate limit.
+- A person's bot can do no more than the person on any repository, in lists and search too; owners also own their bots' repositories.
+- Suspending a person suspends their bots, and reactivating the person brings back exactly those bots.
 
 ### Changed
 

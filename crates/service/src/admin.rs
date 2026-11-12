@@ -77,12 +77,28 @@ impl Services {
         }
         let user = self.admin_target(name).await?;
         Self::not_self(subject, user)?;
+        // A bot can't be active while the person who owns it isn't.
+        if !suspended
+            && let Some(owner) = slath_db::users::bot_owner_user(&self.pool, user).await?
+            && slath_db::users::get(&self.pool, owner)
+                .await?
+                .is_none_or(|o| o.state != UserState::Active)
+        {
+            return Err(ServiceError::Conflict(
+                "This bot's owner is suspended; reactivate the owner first.".to_owned(),
+            ));
+        }
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         slath_db::users::set_state(&mut *tx, user, !suspended).await?;
-        if suspended {
+        // The person's bots are suspended and reactivated with them; their
+        // credentials stay and fail while the bot is suspended.
+        let bots = if suspended {
             slath_db::sessions::delete_all_for_user(&mut *tx, user, None).await?;
             slath_db::tokens::revoke_all_for_user(&mut *tx, user).await?;
-        }
+            slath_db::bots::suspend_with_owner(&mut *tx, user).await?
+        } else {
+            slath_db::bots::reactivate_with_owner(&mut *tx, user).await?
+        };
         tx.commit().await.map_err(ServiceError::internal)?;
         let action = if suspended {
             "admin.user.suspend"
@@ -93,7 +109,7 @@ impl Services {
             subject,
             action,
             Target::new("user", Some(*user.as_uuid())),
-            serde_json::json!({"username": name}),
+            serde_json::json!({"username": name, "bots": bots}),
         )
         .await;
         Ok(())

@@ -652,6 +652,13 @@ pub fn effective_role(g: &RoleGrants) -> Option<Role> {
         .max()
 }
 
+/// A user's bot can do no more than its owner on a repository: the lower
+/// of the two roles, none if either has none.
+#[must_use]
+pub fn capped_bot_role(bot: Option<Role>, owner: Option<Role>) -> Option<Role> {
+    bot.min(owner)
+}
+
 impl FromStr for Role {
     type Err = UnknownRole;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -688,6 +695,21 @@ mod tests {
         assert!(!Scope::RepoRead.implies(Scope::RepoWrite));
         assert!(Scope::UserWrite.implies(Scope::UserRead));
         assert_eq!("repo".parse::<Scope>(), Err(UnknownScope));
+    }
+
+    #[test]
+    fn bots_are_capped_by_their_owner() {
+        use Role as R;
+        assert_eq!(
+            capped_bot_role(Some(R::Admin), Some(R::Read)),
+            Some(R::Read)
+        );
+        assert_eq!(
+            capped_bot_role(Some(R::Read), Some(R::Admin)),
+            Some(R::Read)
+        );
+        assert_eq!(capped_bot_role(Some(R::Write), None), None);
+        assert_eq!(capped_bot_role(None, Some(R::Admin)), None);
     }
 
     #[test]
