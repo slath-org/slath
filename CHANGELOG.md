@@ -133,6 +133,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The API lists and revokes a bot's tokens and manages its SSH keys; bots get their own, lower API rate limit.
 - A person's bot can do no more than the person on any repository, in lists and search too; owners also own their bots' repositories.
 - Suspending a person suspends their bots, and reactivating the person brings back exactly those bots.
+- Branch protection lists the bots that may merge into and push to its branches; other bots can't, whatever their role.
+- A bot's approval never counts for its owner's merge request, even where bot approvals count.
 
 ### Changed
 

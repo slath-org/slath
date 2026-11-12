@@ -31,6 +31,8 @@ pub struct Protection {
     pub status_reporters: serde_json::Value,
     /// Any new revision makes earlier approvals stale.
     pub dismiss_approvals_on_new_revision: bool,
+    /// Bots that may merge into and push to matching branches.
+    pub bot_merge_allowlist: Vec<uuid::Uuid>,
     pub created_at: OffsetDateTime,
 }
 
@@ -49,6 +51,7 @@ pub struct NewProtection<'a> {
     pub statuses_on_head_ok: bool,
     pub status_reporters: &'a serde_json::Value,
     pub dismiss_approvals_on_new_revision: bool,
+    pub bot_merge_allowlist: &'a [uuid::Uuid],
 }
 
 pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Protection>, DbError> {
@@ -57,7 +60,7 @@ pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Protect
         "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,
                 required_approvals, dismiss_stale_approvals, require_resolved_threads,
                 require_up_to_date, bots_count_as_approvers, required_status_contexts,
-                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, created_at
+                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, bot_merge_allowlist, created_at
          FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
         repo.as_uuid()
     )
@@ -76,8 +79,8 @@ pub async fn upsert(
         "INSERT INTO branch_protections (id, repo_id, pattern, block_force_push, block_deletion, require_mr, push_role,
              required_approvals, dismiss_stale_approvals, require_resolved_threads, require_up_to_date,
              bots_count_as_approvers, required_status_contexts, statuses_on_head_ok, status_reporters,
-             dismiss_approvals_on_new_revision)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+             dismiss_approvals_on_new_revision, bot_merge_allowlist)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (repo_id, pattern) DO UPDATE SET block_force_push = EXCLUDED.block_force_push,
              block_deletion = EXCLUDED.block_deletion, require_mr = EXCLUDED.require_mr,
              push_role = EXCLUDED.push_role, required_approvals = EXCLUDED.required_approvals,
@@ -88,7 +91,8 @@ pub async fn upsert(
              required_status_contexts = EXCLUDED.required_status_contexts,
              statuses_on_head_ok = EXCLUDED.statuses_on_head_ok,
              status_reporters = EXCLUDED.status_reporters,
-             dismiss_approvals_on_new_revision = EXCLUDED.dismiss_approvals_on_new_revision
+             dismiss_approvals_on_new_revision = EXCLUDED.dismiss_approvals_on_new_revision,
+             bot_merge_allowlist = EXCLUDED.bot_merge_allowlist
          RETURNING id",
         uuid::Uuid::now_v7(),
         repo.as_uuid(),
@@ -105,7 +109,8 @@ pub async fn upsert(
         p.required_status_contexts,
         p.statuses_on_head_ok,
         p.status_reporters,
-        p.dismiss_approvals_on_new_revision
+        p.dismiss_approvals_on_new_revision,
+        p.bot_merge_allowlist
     )
     .fetch_one(exec)
     .await?;

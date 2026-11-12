@@ -619,7 +619,10 @@ impl Services {
             let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.clone()) else {
                 continue;
             };
+            // Neither the author nor the author's bots approve the author's work.
             if m.author_id == Some(u)
+                || (m.author_id.is_some()
+                    && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id)
                 || !self
                     .verdict_counts(a, u, eff.bots_count_as_approvers)
                     .await?

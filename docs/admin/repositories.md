@@ -122,12 +122,15 @@ branch, the strictest setting of each applies.
 - **Require merge requests** refuses direct pushes. Repository admins may
   still push; Git tells them so, and each such push is recorded in the
   audit log (`protection.bypass`).
+- **Bots that may merge and push:** bot names, separated by commas. Bots
+  not listed can't push to the branch or merge into it (by hand, when
+  ready, or by updating a merge request's branch), whatever their role.
 
 For merging merge requests into a protected branch:
 
 - **Approvals needed** (default 1): approvals from people with write
   access, not counting the author, or bots unless **Count approvals by
-  bots** is on.
+  bots** is on. Bots the author owns never count.
 - **Dismiss approvals when the changes change** (on by default): a new
   revision makes earlier approvals stale, unless it's a rebase that keeps
   every change's patch the same.
@@ -147,7 +150,8 @@ For merging merge requests into a protected branch:
   head's statuses.
 
 With several matching rules, the highest number of approvals applies, any
-rule can turn on a requirement, bots count only if every rule allows it,
+rule can turn on a requirement, bots count only if every rule allows it
+and may merge only if every rule lists them,
 and the required checks of all rules apply (with reporter lists, only
 reporters on every list count).
 

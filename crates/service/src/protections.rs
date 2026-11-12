@@ -47,7 +47,30 @@ pub struct Effective {
     pub statuses_on_head_ok: bool,
     /// Any rule's: every new revision makes earlier approvals stale.
     pub dismiss_approvals_on_new_revision: bool,
+    /// Bots that may merge into and push to the branch: those every
+    /// matching rule lists.
+    pub bot_mergers: Vec<UserId>,
 }
+
+impl Effective {
+    /// Whether `subject` is a bot that the protection keeps from merging
+    /// into or pushing to the branch.
+    #[must_use]
+    pub fn denies_bot(&self, subject: &Subject) -> bool {
+        match subject {
+            Subject::User {
+                id,
+                kind: slath_core::authz::UserKind::Bot,
+                ..
+            } => self.protected && !self.bot_mergers.contains(id),
+            _ => false,
+        }
+    }
+}
+
+/// Why a bot can't merge or push.
+pub const BOT_DENIED: &str =
+    "bots can merge into or push to this protected branch only if its protection lists them";
 
 /// The reporter lists of a rule: context -> user IDs.
 fn reporters_of(p: &Protection) -> std::collections::HashMap<String, Vec<UserId>> {
@@ -111,10 +134,21 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         statuses_on_head_ok: true,
         ..Effective::default()
     };
+    let mut bots: Option<Vec<UserId>> = None;
     for r in rules
         .iter()
         .filter(|r| glob_match(r.pattern.as_bytes(), branch))
     {
+        let listed: Vec<UserId> = r
+            .bot_merge_allowlist
+            .iter()
+            .copied()
+            .map(UserId::from_uuid)
+            .collect();
+        bots = Some(match bots {
+            None => listed,
+            Some(b) => b.into_iter().filter(|u| listed.contains(u)).collect(),
+        });
         e.protected = true;
         e.required_approvals = e.required_approvals.max(r.required_approvals);
         e.dismiss_stale_approvals |= r.dismiss_stale_approvals;
@@ -149,6 +183,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
             None => e.nobody = true,
         }
     }
+    e.bot_mergers = bots.unwrap_or_default();
     if !e.protected {
         e.bots_count_as_approvers = false;
     }
@@ -193,6 +228,8 @@ pub struct RuleInput {
     pub required_checks: Vec<(String, Vec<String>)>,
     pub statuses_on_head_ok: bool,
     pub dismiss_approvals_on_new_revision: bool,
+    /// Names of the bots that may merge into and push to matching branches.
+    pub bot_merge_allowlist: Vec<String>,
 }
 
 /// Whether `s` is a valid status context.
@@ -287,6 +324,24 @@ impl Services {
             }
         }
         let reporters = serde_json::Value::Object(reporters);
+        let mut bot_mergers: Vec<uuid::Uuid> = Vec::new();
+        for n in r
+            .bot_merge_allowlist
+            .iter()
+            .map(|n| n.trim().trim_start_matches('@'))
+            .filter(|n| !n.is_empty())
+        {
+            let Some(bot) = slath_db::bots::find(&self.pool, n).await? else {
+                return Err(ServiceError::invalid(
+                    "bot_merge_allowlist",
+                    "unknown",
+                    format!("{n} isn't a bot."),
+                ));
+            };
+            if !bot_mergers.contains(bot.id.as_uuid()) {
+                bot_mergers.push(*bot.id.as_uuid());
+            }
+        }
         slath_db::protections::upsert(
             &self.pool,
             a.repo.id,
@@ -305,6 +360,7 @@ impl Services {
                 statuses_on_head_ok: r.statuses_on_head_ok,
                 status_reporters: &reporters,
                 dismiss_approvals_on_new_revision: r.dismiss_approvals_on_new_revision,
+                bot_merge_allowlist: &bot_mergers,
             },
         )
         .await?;
@@ -327,6 +383,7 @@ impl Services {
                 "status_reporters": reporters,
                 "statuses_on_head_ok": r.statuses_on_head_ok,
                 "dismiss_approvals_on_new_revision": r.dismiss_approvals_on_new_revision,
+                "bot_merge_allowlist": bot_mergers,
             }),
         )
         .await;
@@ -349,6 +406,18 @@ impl Services {
             out.insert(ctx, names);
         }
         Ok(out)
+    }
+
+    /// The names of the bots a rule lets merge.
+    pub async fn bot_merger_names(&self, p: &Protection) -> Result<Vec<String>> {
+        let mut names = Vec::new();
+        for id in &p.bot_merge_allowlist {
+            if let Some(u) = slath_db::users::get(&self.pool, UserId::from_uuid(*id)).await? {
+                names.push(u.name);
+            }
+        }
+        names.sort();
+        Ok(names)
     }
 
     /// Removes a rule. Audited.
@@ -417,8 +486,41 @@ mod tests {
             statuses_on_head_ok: true,
             status_reporters: serde_json::json!({}),
             dismiss_approvals_on_new_revision: false,
+            bot_merge_allowlist: Vec::new(),
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
+    }
+
+    #[test]
+    fn bots_merge_only_where_every_rule_lists_them() {
+        let (b1, b2) = (uuid::Uuid::from_u128(1), uuid::Uuid::from_u128(2));
+        let mut a = rule("main", false, false, false, "write");
+        a.bot_merge_allowlist = vec![b1, b2];
+        let mut b = rule("*", false, false, false, "write");
+        b.bot_merge_allowlist = vec![b2];
+        let bot = |id| Subject::User {
+            id: UserId::from_uuid(id),
+            kind: slath_core::authz::UserKind::Bot,
+            state: slath_core::authz::UserState::Active,
+            is_site_admin: false,
+            credential: slath_core::authz::Credential::Session,
+        };
+        let e = effective(&[a.clone(), b], b"main");
+        assert!(e.denies_bot(&bot(b1)));
+        assert!(!e.denies_bot(&bot(b2)));
+        assert!(!effective(&[a.clone()], b"main").denies_bot(&bot(b1)));
+        // Unprotected branches and people are never affected.
+        assert!(!effective(&[a], b"dev").denies_bot(&bot(b1)));
+        let person = Subject::User {
+            id: UserId::from_uuid(b1),
+            kind: slath_core::authz::UserKind::Human,
+            state: slath_core::authz::UserState::Active,
+            is_site_admin: false,
+            credential: slath_core::authz::Credential::Session,
+        };
+        assert!(
+            !effective(&[rule("main", false, false, false, "write")], b"main").denies_bot(&person)
+        );
     }
 
     #[test]

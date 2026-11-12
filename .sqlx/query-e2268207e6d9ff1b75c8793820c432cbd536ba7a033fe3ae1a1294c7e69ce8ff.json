@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
+  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, bot_merge_allowlist, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
   "describe": {
     "columns": [
       {
@@ -170,6 +170,17 @@
       },
       {
         "ordinal": 15,
+        "name": "bot_merge_allowlist",
+        "type_info": "UuidArray",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "bot_merge_allowlist"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -201,8 +212,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "553150cf06f18205a14e3dac7134e4b252be04142854c3255198c03483fe4510"
+  "hash": "e2268207e6d9ff1b75c8793820c432cbd536ba7a033fe3ae1a1294c7e69ce8ff"
 }

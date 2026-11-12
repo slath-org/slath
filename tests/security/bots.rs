@@ -457,3 +457,208 @@ fn conf_auth_06_suspending_the_owner_suspends_their_bots() {
     assert!(works(&mut api, &ci), "the bot's token works again");
     assert!(!works(&mut api, &other));
 }
+
+#[test]
+fn conf_auth_06_bots_merge_and_push_to_protected_branches_only_if_listed() {
+    use slath_tests::server::{DEMO, GitClient};
+    let s = TestServer::start();
+    let git = GitClient::new();
+    let work = tempfile::tempdir().unwrap();
+    let src = work.path().join("src");
+    std::fs::create_dir(&src).unwrap();
+    let commit = |file: &str, text: &str| {
+        std::fs::write(src.join(file), text).unwrap();
+        git.ok(&src, &["add", "."]);
+        git.ok(&src, &["commit", "-q", "-m", text]);
+    };
+    git.ok(&src, &["init", "-q", "-b", "main"]);
+    commit("a.txt", "one");
+    git.ok(&src, &["push", "-q", &s.url(&DEMO), "main"]);
+
+    let bot = cli_bot(
+        &s,
+        "alice",
+        "alice-ci",
+        &[
+            "--token-scopes",
+            "repo:write,mrs:write",
+            "--repo",
+            "alice/demo",
+        ],
+    )
+    .unwrap();
+    let mut api = s.client();
+    let r = api.api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/alice-ci",
+        Some(&s.token),
+        Some(&json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let protect = |api: &mut Client, bots: serde_json::Value| {
+        api.api(
+            "POST",
+            "/api/v1/repos/alice/demo/protections",
+            Some(&s.token),
+            Some(&json!({"pattern": "main", "required_approvals": 0, "bot_merge_allowlist": bots})),
+        )
+    };
+    // Only bots can be listed.
+    assert_eq!(protect(&mut api, json!(["alice"])).status, 422);
+    let r = protect(&mut api, json!([]));
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("POST", "/api/v1/repos/{ns}/{repo}/protections", &r);
+
+    let bot_url = format!("http://git:{bot}@{}/alice/demo.git", s.addr);
+    // The bot pushes to an unprotected branch, but not to main.
+    commit("b.txt", "two");
+    git.ok(&src, &["push", "-q", &bot_url, "main:topic"]);
+    let err = git.fails(&src, &["push", "-q", &bot_url, "main"]);
+    assert!(
+        err.contains(
+            "bots can merge into or push to this protected branch only if its protection lists them"
+        ),
+        "{err}"
+    );
+    // Nor does it merge into main, by hand or when ready.
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&bot),
+        Some(&json!({"source_branch": "topic", "title": "Two"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let mr = r.json();
+    let (n, head) = (
+        mr["number"].as_i64().unwrap(),
+        mr["head_oid"].as_str().unwrap().to_owned(),
+    );
+    let merge = |api: &mut Client| {
+        api.api(
+            "POST",
+            &format!("/api/v1/repos/alice/demo/merge-requests/{n}/merge"),
+            Some(&bot),
+            Some(&json!({"expected_head_oid": head, "strategy": "fast-forward"})),
+        )
+    };
+    let r = merge(&mut api);
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(
+        r.body.contains("only if its protection lists them"),
+        "{}",
+        r.body
+    );
+    let r = api.api(
+        "PUT",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}/auto-merge"),
+        Some(&bot),
+        Some(&json!({})),
+    );
+    assert_eq!(r.status, 409, "{}", r.body);
+
+    // Listed, it may do both.
+    let r = protect(&mut api, json!(["alice-ci"]));
+    assert_eq!(r.json()["bot_merge_allowlist"], json!(["alice-ci"]));
+    let r = merge(&mut api);
+    assert!(r.status < 300, "{}", r.body);
+    commit("c.txt", "three");
+    git.ok(&src, &["push", "-q", &bot_url, "main"]);
+}
+
+#[test]
+fn conf_auth_06_bot_approvals_count_only_if_enabled_and_never_for_their_owner() {
+    use slath_tests::server::{DEMO, GitClient};
+    let s = TestServer::start();
+    s.create_user("carol", PW, false);
+    let git = GitClient::new();
+    let work = tempfile::tempdir().unwrap();
+    let src = work.path().join("src");
+    std::fs::create_dir(&src).unwrap();
+    git.ok(&src, &["init", "-q", "-b", "main"]);
+    std::fs::write(src.join("a.txt"), "one").unwrap();
+    git.ok(&src, &["add", "."]);
+    git.ok(&src, &["commit", "-q", "-m", "one"]);
+    git.ok(&src, &["push", "-q", &s.url(&DEMO), "main"]);
+    std::fs::write(src.join("a.txt"), "two").unwrap();
+    git.ok(&src, &["commit", "-q", "-am", "two"]);
+    git.ok(&src, &["push", "-q", &s.url(&DEMO), "main:topic"]);
+
+    let mut api = s.client();
+    let args = [
+        "--token-scopes",
+        "repo:read,mrs:write",
+        "--repo",
+        "alice/demo",
+    ];
+    let own = cli_bot(&s, "alice", "alice-ci", &args).unwrap();
+    let other = cli_bot(&s, "carol", "carol-ci", &args).unwrap();
+    for who in ["carol", "alice-ci", "carol-ci"] {
+        let r = api.api(
+            "PUT",
+            &format!("/api/v1/repos/alice/demo/collaborators/{who}"),
+            Some(&s.token),
+            Some(&json!({"role": "write"})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    let protect = |api: &mut Client, bots: bool| {
+        let r = api.api(
+            "POST",
+            "/api/v1/repos/alice/demo/protections",
+            Some(&s.token),
+            Some(&json!({"pattern": "main", "required_approvals": 1, "bots_count_as_approvers": bots})),
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+    };
+    protect(&mut api, false);
+    let mut a = s.login("alice", slath_tests::server::PASSWORD);
+    let ta = create_token(&mut a, "mr", &["repo:write", "mrs:write"]);
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&ta),
+        Some(&json!({"source_branch": "topic", "title": "Two"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    for t in [&own, &other] {
+        let r = api.api(
+            "POST",
+            &format!("/api/v1/repos/alice/demo/merge-requests/{n}/reviews"),
+            Some(t),
+            Some(&json!({"verdict": "approve"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+    }
+    let approvals = |api: &mut Client| {
+        let m = api
+            .api(
+                "GET",
+                &format!("/api/v1/repos/alice/demo/merge-requests/{n}/mergeability"),
+                Some(&s.token),
+                None,
+            )
+            .json();
+        let r = m["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["key"] == "approvals")
+            .unwrap()
+            .clone();
+        (
+            r["state"].as_str().unwrap().to_owned(),
+            r["reason"].as_str().unwrap().to_owned(),
+        )
+    };
+    // Bot approvals don't count by default.
+    assert_eq!(approvals(&mut api).0, "unmet");
+    // Enabled, carol's bot counts, but never the author's own bot.
+    protect(&mut api, true);
+    let (state, reason) = approvals(&mut api);
+    assert_eq!(state, "met", "{reason}");
+    assert!(
+        reason.contains("carol-ci") && !reason.contains("alice-ci"),
+        "{reason}"
+    );
+}

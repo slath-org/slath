@@ -375,6 +375,7 @@ impl Services {
         let role = a.ctx.role;
         if rule.protected
             && (rule.nobody
+                || rule.denies_bot(subject)
                 || rule.require_mr
                 || rule
                     .push_role

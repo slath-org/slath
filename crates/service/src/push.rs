@@ -392,6 +392,10 @@ impl Services {
             if !p.protected {
                 continue;
             }
+            if p.denies_bot(&grant.subject) {
+                deny(DenyReason::Protected, crate::protections::BOT_DENIED);
+                continue;
+            }
             if is_zero(&u.new) {
                 if p.block_deletion {
                     deny(

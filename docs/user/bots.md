@@ -105,6 +105,22 @@ too, and they come back when the person is reactivated. A bot that was
 suspended on its own stays suspended, and a bot can't be reactivated
 while its owner is suspended.
 
+## Guardrails on protected branches
+
+Branch protection (repository **Settings → Branch protection**, or
+`POST /api/v1/repos/{ns}/{repo}/protections`) keeps bots in check:
+
+- **Approvals by bots don't count** toward the approvals a protected branch
+  needs, unless the rule has **Count approvals by bots** on
+  (`bots_count_as_approvers`). Even then, a bot never approves its own
+  owner's merge request, just as its statuses never count for its owner's
+  required checks.
+- **Bots don't merge into or push to protected branches**, whatever their
+  role, unless the rule lists them under **Bots that may merge and push**
+  (`bot_merge_allowlist`). This covers merging by hand, merging when ready,
+  updating a merge request's branch, and pushing directly. When several
+  rules match a branch, every one of them must list the bot.
+
 ## Rate limits
 
 Bots make at most 2,000 API requests per hour (site setting

@@ -779,6 +779,9 @@ pub struct ProtectionRule {
     pub statuses_on_head_ok: bool,
     /// Any new revision makes earlier approvals stale, even a rebase.
     pub dismiss_approvals_on_new_revision: bool,
+    /// Bots that may merge into and push to matching branches; other bots
+    /// can't (bots must be listed by every matching rule).
+    pub bot_merge_allowlist: Vec<String>,
 }
 
 impl ProtectionRule {
@@ -787,8 +790,10 @@ impl ProtectionRule {
         p: slath_db::protections::Protection,
     ) -> Result<Self, AppError> {
         let status_reporters = state.services.reporter_names(&p).await?;
+        let bot_merge_allowlist = state.services.bot_merger_names(&p).await?;
         Ok(Self {
             status_reporters,
+            bot_merge_allowlist,
             ..p.into()
         })
     }
@@ -799,6 +804,7 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
         Self {
             required_status_contexts: p.required_status_contexts.clone(),
             status_reporters: std::collections::BTreeMap::new(),
+            bot_merge_allowlist: Vec::new(),
             statuses_on_head_ok: p.statuses_on_head_ok,
             dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
             id: p.id.to_string(),
@@ -961,6 +967,9 @@ pub struct PostProtection {
     pub statuses_on_head_ok: bool,
     #[serde(default)]
     pub dismiss_approvals_on_new_revision: bool,
+    /// Names of the bots that may merge into and push to matching branches.
+    #[serde(default)]
+    pub bot_merge_allowlist: Vec<String>,
 }
 
 const fn one() -> i32 {
@@ -1014,6 +1023,7 @@ pub async fn post_protection(
                     .collect(),
                 statuses_on_head_ok: p.statuses_on_head_ok,
                 dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
+                bot_merge_allowlist: p.bot_merge_allowlist,
             },
         )
         .await?;

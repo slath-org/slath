@@ -11285,6 +11285,13 @@
           "block_force_push": {
             "type": "boolean"
           },
+          "bot_merge_allowlist": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of the bots that may merge into and push to matching branches."
+          },
           "bots_count_as_approvers": {
             "type": "boolean"
           },
@@ -11423,7 +11430,8 @@
           "required_status_contexts",
           "status_reporters",
           "statuses_on_head_ok",
-          "dismiss_approvals_on_new_revision"
+          "dismiss_approvals_on_new_revision",
+          "bot_merge_allowlist"
         ],
         "properties": {
           "block_deletion": {
@@ -11431,6 +11439,13 @@
           },
           "block_force_push": {
             "type": "boolean"
+          },
+          "bot_merge_allowlist": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Bots that may merge into and push to matching branches; other bots\ncan't (bots must be listed by every matching rule)."
           },
           "bots_count_as_approvers": {
             "type": "boolean"

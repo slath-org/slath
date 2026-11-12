@@ -136,7 +136,7 @@ impl Services {
             )));
         }
         if let Some(why) = self
-            .source_protection_refusal(&w, method == "rebase")
+            .source_protection_refusal(subject, &w, method == "rebase")
             .await?
         {
             let why = if method == "rebase" && why.contains("force pushes") {
@@ -273,6 +273,7 @@ impl Services {
     /// contain the old one.
     pub(crate) async fn source_protection_refusal(
         &self,
+        subject: &Subject,
         w: &SourceWrite,
         force: bool,
     ) -> Result<Option<&'static str>> {
@@ -286,7 +287,9 @@ impl Services {
         if !p.protected {
             return Ok(None);
         }
-        Ok(if force && p.block_force_push {
+        Ok(if p.denies_bot(subject) {
+            Some("its branch protection doesn't list this bot")
+        } else if force && p.block_force_push {
             Some("its branch protection doesn't allow force pushes")
         } else if p.nobody || p.require_mr {
             Some("its branch protection only allows changes through merge requests")

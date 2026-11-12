@@ -190,7 +190,7 @@ impl Services {
                 .map_err(|_| "the push couldn't be checked; try again".to_owned())?,
         };
         if let Some(why) = self
-            .source_protection_refusal(&w, force)
+            .source_protection_refusal(subject, &w, force)
             .await
             .map_err(|_| "the push couldn't be checked; try again".to_owned())?
         {

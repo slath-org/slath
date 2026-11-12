@@ -24,7 +24,7 @@
       <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
       <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
-      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}</td>
+      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
       <td>{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
@@ -81,6 +81,15 @@
     <div class="checkbox"><input id="require_resolved_threads" type="checkbox" name="require_resolved_threads" value="1"><label for="require_resolved_threads">Require resolved threads</label></div>
     <div class="checkbox"><input id="require_up_to_date" type="checkbox" name="require_up_to_date" value="1"><label for="require_up_to_date">Require the branch to be up to date with the target</label></div>
     <div class="checkbox"><input id="bots_count_as_approvers" type="checkbox" name="bots_count_as_approvers" value="1"><label for="bots_count_as_approvers">Count approvals by bots</label></div>
+    <div class="field">
+      <label for="bot_merge_allowlist">Bots that may merge and push</label>
+      <input id="bot_merge_allowlist" name="bot_merge_allowlist" type="text" autocapitalize="none" spellcheck="false" aria-describedby="bot_merge_allowlist-hint{% if self.error("bot_merge_allowlist").is_some() %} bot_merge_allowlist-error{% endif %}"
+        {%- if self.error("bot_merge_allowlist").is_some() %} aria-invalid="true"{% endif %}>
+      <p id="bot_merge_allowlist-hint" class="hint">Bot names, separated by commas. Other bots can't merge into or push to these branches, whatever their role.</p>
+      {%- if let Some(e) = self.error("bot_merge_allowlist") %}
+      <p id="bot_merge_allowlist-error" class="field-error">{{ e }}</p>
+      {%- endif %}
+    </div>
     <div class="field">
       <label for="required_checks">Required status checks</label>
       <textarea id="required_checks" name="required_checks" rows="3" autocapitalize="none" spellcheck="false" aria-describedby="required_checks-hint{% if self.error("required_checks").is_some() %} required_checks-error{% endif %}"

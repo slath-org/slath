@@ -254,7 +254,7 @@ impl Services {
             }
         };
         if let Some(why) = self
-            .source_protection_refusal(&w, mode == ApplyMode::Fold)
+            .source_protection_refusal(subject, &w, mode == ApplyMode::Fold)
             .await?
         {
             return Err(ServiceError::Conflict(format!(

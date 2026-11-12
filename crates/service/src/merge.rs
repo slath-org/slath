@@ -141,6 +141,23 @@ impl Services {
         }
     }
 
+    /// Refuses a bot that the target branch's protection doesn't list.
+    pub(crate) async fn check_bot_merge(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        branch: &str,
+    ) -> Result<()> {
+        let rules = slath_db::protections::list(&self.pool, a.repo.id).await?;
+        if crate::protections::effective(&rules, branch.as_bytes()).denies_bot(subject) {
+            return Err(ServiceError::Conflict(
+                "Bots can merge into this protected branch only if its protection lists them."
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Merges a merge request: checks the head and the requirements,
     /// builds the result, and moves the target by compare-and-swap.
     pub async fn merge_mr(
@@ -153,6 +170,7 @@ impl Services {
         if !a.can(subject, Action::MrMerge) {
             return Err(ServiceError::Forbidden);
         }
+        self.check_bot_merge(subject, &a, &m.target_branch).await?;
         let user = match subject {
             Subject::User { id, .. } => *id,
             _ => return Err(ServiceError::Unauthenticated),

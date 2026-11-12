@@ -1087,6 +1087,8 @@ struct ProtectionsSettings<'a> {
     rules: Vec<slath_db::protections::Protection>,
     /// Per rule: its required checks as text ("ci/build by bob; lint").
     checks: Vec<String>,
+    /// Per rule: the bots it lets merge and push ("ci-bot, release-bot").
+    bot_mergers: Vec<String>,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
     pattern: String,
@@ -1117,7 +1119,9 @@ async fn protections_page(
         StatusCode::UNPROCESSABLE_ENTITY
     };
     let mut checks = Vec::new();
+    let mut bot_mergers = Vec::new();
     for r in &rules {
+        bot_mergers.push(state.services.bot_merger_names(r).await?.join(", "));
         let names = state.services.reporter_names(r).await?;
         checks.push(
             r.required_status_contexts
@@ -1134,6 +1138,7 @@ async fn protections_page(
         ctx,
         header: RepoHeader::load(state, a, subject, "settings").await,
         checks,
+        bot_mergers,
         rules,
         message,
         errors,
@@ -1184,6 +1189,9 @@ struct RuleForm {
     required_checks: String,
     statuses_on_head_ok: Option<String>,
     dismiss_approvals_on_new_revision: Option<String>,
+    /// Bot names, separated by commas or spaces.
+    #[serde(default)]
+    bot_merge_allowlist: String,
 }
 
 /// Parses the required checks field: one per line, `context` or
@@ -1238,6 +1246,12 @@ async fn save_protection(
                 required_checks: parse_checks(&f.required_checks),
                 statuses_on_head_ok: f.statuses_on_head_ok.is_some(),
                 dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
+                bot_merge_allowlist: f
+                    .bot_merge_allowlist
+                    .split(|c: char| c == ',' || c.is_whitespace())
+                    .filter(|n| !n.is_empty())
+                    .map(str::to_owned)
+                    .collect(),
             },
         )
         .await

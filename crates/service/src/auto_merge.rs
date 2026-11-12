@@ -59,6 +59,7 @@ impl Services {
         if !a.can(subject, Action::MrAutoMerge) {
             return Err(ServiceError::Forbidden);
         }
+        self.check_bot_merge(subject, &a, &m.target_branch).await?;
         let user = subject_user(subject).ok_or(ServiceError::Unauthenticated)?;
         if m.state != "open" {
             return Err(ServiceError::Conflict(
