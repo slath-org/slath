@@ -1499,6 +1499,70 @@ details[open] > summary .disclosure svg {
   display: block;
   font-size: var(--text-sm);
 }
+/* A checkbox's label with a plain explanation under its name. */
+.checkbox-hint {
+  display: block;
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+}
+/* Webhook pages: each part (deliveries, settings, deleting) is its own
+   section, apart from the others; a delivery's attempts are listed one
+   under the other. */
+.webhook-section {
+  margin-block: var(--space-6);
+}
+.webhook-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+.delivery-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.delivery-state.tone-done > svg {
+  color: var(--success);
+}
+.delivery-state.tone-waiting > svg {
+  color: var(--warning);
+}
+.delivery-state.tone-blocking > svg {
+  color: var(--danger);
+}
+.delivery-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin-block: var(--space-4);
+}
+.delivery-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.attempt-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.attempt {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.attempt > p {
+  margin: 0 0 var(--space-1);
+}
+.attempt-response {
+  margin: var(--space-2) 0 0;
+  max-height: 16rem;
+  overflow: auto;
+}
 /* A requirement's list of files: the label and its files as one group. */
 .requirement-files > p,
 .requirement-files > ul {

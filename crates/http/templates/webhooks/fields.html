@@ -1,0 +1,34 @@
+{#- The webhook form's fields; `url`, `events`, `active`, and `secret_hint` are set by the page. -#}
+  <div class="field">
+    <label for="url">Payload URL</label>
+    <input id="url" name="url" type="url" value="{{ url }}" required maxlength="2048" autocapitalize="none" spellcheck="false" aria-describedby="url-hint{% if self.error("url").is_some() %} url-error{% endif %}"
+      {%- if self.error("url").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="url-hint" class="hint">Where Slath sends the events, an <code>https://</code> address outside internal networks.</p>
+    {%- if let Some(e) = self.error("url") %}
+    <p id="url-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <fieldset class="field" id="events"{% if self.error("events").is_some() %} aria-invalid="true" aria-describedby="events-error"{% endif %}>
+    <legend>Events</legend>
+    {%- if let Some(e) = self.error("events") %}
+    <p id="events-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+    {%- for e in events %}
+    <div class="checkbox">
+      <input id="event-{{ e.name }}" type="checkbox" name="events" value="{{ e.name }}"{% if e.checked %} checked{% endif %}>
+      <label for="event-{{ e.name }}"><code>{{ e.name }}</code><span class="checkbox-hint">{{ e.label }}</span></label>
+    </div>
+    {%- endfor %}
+  </fieldset>
+  <div class="field">
+    <label for="secret">Secret</label>
+    <input id="secret" name="secret" type="password" value="" minlength="16" maxlength="256" autocomplete="new-password" spellcheck="false" aria-describedby="secret-hint{% if self.error("secret").is_some() %} secret-error{% endif %}"
+      {%- if self.error("secret").is_some() %} aria-invalid="true"{% endif %}>
+    <p id="secret-hint" class="hint">{{ secret_hint }}</p>
+    {%- if let Some(e) = self.error("secret") %}
+    <p id="secret-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div class="field">
+    <div class="checkbox"><input id="active" type="checkbox" name="active" value="1"{% if active %} checked{% endif %}><label for="active">Active</label></div>
+  </div>

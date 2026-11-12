@@ -9,6 +9,7 @@
 {%- call m::side_item(ctx, base ~ "/-/teams", "users", "Teams", org_area == "teams") %}{% endcall %}
 {%- endif %}
 {%- if org_manage %}
+{%- call m::side_item(ctx, base ~ "/-/webhooks", "webhook", "Webhooks", org_area == "webhooks") %}{% endcall %}
 {%- call m::side_item(ctx, base ~ "/-/settings", "settings", "Settings", org_area == "settings") %}{% endcall %}
 {%- endif %}
 {%- endcall %}

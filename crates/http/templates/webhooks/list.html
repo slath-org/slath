@@ -1,0 +1,41 @@
+<h1>Webhooks</h1>
+{%- if let Some(m) = v.message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{%- let errors = v.errors.clone() %}
+{% include "settings/errors.html" %}
+<p>A webhook sends an HTTP request to a URL of your choice when something happens here, signed with a secret you share with the receiver. See the <a href="https://slath.org/docs/">webhooks guide</a> for the events and how to check the signature.</p>
+{%- if v.hooks.is_empty() %}
+<p class="text-secondary empty-state">No webhooks yet.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="hooks-caption">
+<table class="table">
+  <caption id="hooks-caption" class="visually-hidden">Webhooks</caption>
+  <thead><tr><th scope="col">Payload URL</th><th scope="col">Events</th><th scope="col">State</th></tr></thead>
+  <tbody>
+  {%- for h in v.hooks %}
+    <tr>
+      <td><a href="{{ v.base }}/{{ h.id }}"><bdi>{{ h.url }}</bdi></a></td>
+      <td>{{ h.events }}</td>
+      <td>{% if !h.active %}Off{% if let Some(r) = h.disabled_reason %}: {{ r }}{% endif %}{% else if h.failures > 0 %}On, {{ h.failures }} failed attempt{% if h.failures != 1 %}s{% endif %} in a row{% else %}On{% endif %}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+
+<h2>Add a webhook</h2>
+{%- if v.hooks.len() >= v.max %}
+<p class="text-secondary">There can be at most {{ v.max }} webhooks here.</p>
+{%- else %}
+<form method="post" action="{{ v.base }}" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let url = v.url.clone() %}
+  {%- let events = &v.events %}
+  {%- let active = v.active %}
+  {%- let secret_hint = "16 to 256 characters. Leave it empty to have one generated; it's shown once." %}
+  {% include "webhooks/fields.html" %}
+  <div><button type="submit" class="button button-primary">Add webhook</button></div>
+</form>
+{%- endif %}

@@ -1,0 +1,72 @@
+<p><a href="{{ v.base }}">All webhooks</a></p>
+<h1>Webhook</h1>
+<p class="text-secondary"><bdi>{{ v.url }}</bdi></p>
+{%- if let Some(secret) = v.new_secret %}
+<div class="success-summary" role="status">
+  <h2>Webhook added</h2>
+  <p>This is its secret. Copy it to the receiver now; it won't be shown again.</p>
+  <p><label for="new-secret" class="visually-hidden">Secret</label>
+  <input id="new-secret" class="token-value" type="text" value="{{ secret }}" readonly autocomplete="off" spellcheck="false"></p>
+</div>
+{%- else if let Some(m) = v.message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+{%- if !v.active %}
+<div class="notice" role="note"><p>This webhook is off{% if let Some(r) = v.disabled_reason %}: Slath switched it off after {{ r }}. Check the receiver, then turn it on again below{% endif %}.</p></div>
+{%- else if v.failures > 0 %}
+<div class="notice" role="note"><p>{% if v.failures == 1 %}The last attempt failed{% else %}The last {{ v.failures }} attempts failed{% endif %}. After 50 failures in a row, Slath switches the webhook off.</p></div>
+{%- endif %}
+{%- let errors = v.errors.clone() %}
+{% include "settings/errors.html" %}
+
+<section class="webhook-section" aria-labelledby="deliveries-title">
+<div class="webhook-section-head">
+  <h2 id="deliveries-title">Recent deliveries</h2>
+  <form method="post" action="{{ v.base }}/{{ v.id }}/ping" class="inline-form">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button">Send a ping</button>
+  </form>
+</div>
+{%- if v.deliveries.is_empty() %}
+<p class="text-secondary empty-state">Nothing sent yet.</p>
+{%- else %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="deliveries-title">
+<table class="table">
+  <thead><tr><th scope="col">Event</th><th scope="col">Result</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Delivery</th></tr></thead>
+  <tbody>
+  {%- for d in v.deliveries %}
+    <tr>
+      <td>{{ d.event }}</td>
+      <td><span class="delivery-state tone-{{ d.tone }}">{% call m::tone_icon(ctx, d.tone) %}{% endcall %}{{ d.state }}</span>{% if d.attempts > 1 %} <span class="text-secondary">({{ d.attempts }} attempts)</span>{% endif %}</td>
+      <td>{% if let Some(s) = d.status %}{{ s }}{% else %}<span class="text-secondary">none</span>{% endif %}</td>
+      <td><time datetime="{{ d.created.iso }}">{{ d.created.text }}</time></td>
+      <td><a href="{{ v.base }}/{{ v.id }}/deliveries/{{ d.id }}"><code>…{{ d.short }}</code></a></td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+</div>
+{%- endif %}
+</section>
+
+<section class="webhook-section" aria-labelledby="settings-title">
+<h2 id="settings-title">Settings</h2>
+<form method="post" action="{{ v.base }}/{{ v.id }}" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let url = v.url.clone() %}
+  {%- let events = &v.events %}
+  {%- let active = v.active %}
+  {%- let secret_hint = "Leave it empty to keep the current secret." %}
+  {% include "webhooks/fields.html" %}
+  <div><button type="submit" class="button button-primary">Save webhook</button></div>
+</form>
+</section>
+
+<section class="webhook-section" aria-labelledby="delete-title">
+<h2 id="delete-title">Delete this webhook</h2>
+<p>It stops sending events, and its deliveries are deleted with it.</p>
+<form method="post" action="{{ v.base }}/{{ v.id }}/delete" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button button-danger">Delete webhook</button>
+</form>
+</section>

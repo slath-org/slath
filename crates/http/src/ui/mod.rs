@@ -26,6 +26,7 @@ pub mod search;
 pub mod secret_scan;
 pub mod settings;
 pub mod teams;
+pub mod webhooks;
 
 use askama::Template;
 use axum::extract::{FromRequestParts, Request};
@@ -446,6 +447,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(settings::router())
         .merge(profiles::router())
         .merge(repos::router())
+        .merge(webhooks::router())
         .merge(browse::router())
         .merge(admin::router())
         .merge(crate::attachments::ui_router())

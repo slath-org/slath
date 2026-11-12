@@ -1,0 +1,38 @@
+<p><a href="{{ v.base }}/{{ v.hook }}">Webhook to <bdi>{{ v.hook_url }}</bdi></a></p>
+<h1>Delivery <code>…{{ v.d.short }}</code></h1>
+{%- if let Some(m) = v.message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+<dl class="delivery-facts">
+  <dt>Event</dt><dd>{{ v.d.event }}</dd>
+  <dt>Result</dt><dd><span class="delivery-state tone-{{ v.d.tone }}">{% call m::tone_icon(ctx, v.d.tone) %}{% endcall %}{{ v.d.state }}</span>{% if let Some(n) = v.d.next %}; next attempt <time datetime="{{ n.iso }}">{{ n.text }}</time>{% endif %}</dd>
+  <dt>Delivery ID</dt><dd><code>{{ v.d.id }}</code> (<code>X-Slath-Delivery</code>, the same on every attempt)</dd>
+  <dt>Created</dt><dd><time datetime="{{ v.d.created.iso }}">{{ v.d.created.text }}</time></dd>
+  {%- if let Some(r) = v.redelivery_of %}
+  <dt>Sends again</dt><dd><a href="{{ v.base }}/{{ v.hook }}/deliveries/{{ r }}"><code>{{ r }}</code></a></dd>
+  {%- endif %}
+</dl>
+<form method="post" action="{{ v.base }}/{{ v.hook }}/deliveries/{{ v.d.id }}/redeliver" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <button type="submit" class="button">Redeliver</button>
+</form>
+
+<h2>Attempts</h2>
+{%- if v.attempts.is_empty() %}
+<p class="text-secondary empty-state">Not attempted yet.</p>
+{%- else %}
+<ol class="attempt-list">
+{%- for a in v.attempts %}
+  <li class="attempt">
+    <p class="attempt-head"><strong>Attempt {{ a.attempt }}</strong> <span class="text-secondary"><time datetime="{{ a.started.iso }}">{{ a.started.text }}</time>, {{ a.duration_ms }} ms</span></p>
+    <p>{% if let Some(s) = a.status %}Answered {{ s }}.{% if *s >= 300 && *s < 400 %} Redirects aren't followed.{% endif %}{% else if let Some(e) = a.error %}No answer: {{ e }}{% else %}No answer.{% endif %}</p>
+    {%- if let Some(r) = a.response %}
+    <pre class="code-view attempt-response" tabindex="0" role="region" aria-label="Response to attempt {{ a.attempt }}"><code>{{ r }}</code></pre>
+    {%- endif %}
+  </li>
+{%- endfor %}
+</ol>
+{%- endif %}
+
+<h2 id="payload-title">Payload</h2>
+<pre class="code-view" tabindex="0" role="region" aria-labelledby="payload-title"><code>{{ v.payload }}</code></pre>

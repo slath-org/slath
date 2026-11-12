@@ -121,7 +121,8 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
 fn main() {
     // alice/demo (private) with content; accounts as in tests/e2e/fixtures.ts.
     // A host name, not an IP address: passkeys (WebAuthn) need one.
-    let inst = Instance::new("");
+    // Webhooks may reach a local receiver (nothing listens there).
+    let inst = Instance::new("[webhooks]\nallow_http = true\nallow_networks = [\"127.0.0.0/8\"]\n");
     let origin = inst.use_localhost();
     let mut server = inst.start(&[]);
     server.seed_repos(&[DEMO]);

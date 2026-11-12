@@ -628,3 +628,117 @@ fn conf_api_02_the_documented_signature_checks_pass() {
         assert_eq!(js, ("True".into(), "False".into()));
     }
 }
+
+/// The settings pages: adding without a secret shows the generated one
+/// once, the delivery log and a delivery's page work, and only
+/// administrators (owners for organizations) see any of it.
+#[test]
+fn webhook_pages_for_administrators_and_owners_only() {
+    use slath_tests::http::submit;
+    let s = TestServer::start_full(&[DEMO], LOCAL);
+    s.create_user("bob", PASSWORD, false);
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "t", &["repo:write", "user:write"]);
+    let r = api(
+        &s,
+        &token,
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/bob",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let (port, got) = receiver(vec![200]);
+    let base = "/alice/demo/settings/webhooks";
+    let url = format!("http://127.0.0.1:{port}/ui");
+    let r = submit(
+        &mut alice,
+        base,
+        base,
+        &[
+            ("url", url.as_str()),
+            ("events", "push"),
+            ("events", "issue"),
+            ("active", "1"),
+        ],
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("it won't be shown again"), "{}", r.body);
+    let secret = r
+        .body
+        .split("id=\"new-secret\"")
+        .nth(1)
+        .and_then(|t| t.split("value=\"").nth(1))
+        .and_then(|t| t.split('"').next())
+        .unwrap()
+        .to_owned();
+    assert!(secret.len() >= 16);
+    let list = alice.get(base).body;
+    assert!(
+        list.contains(&url) && list.contains("push, issue"),
+        "{list}"
+    );
+    assert!(!list.contains(&secret));
+    let hook = s.db.query_one("SELECT id::text FROM webhooks");
+    let page = format!("{base}/{hook}");
+    assert!(!alice.get(&page).body.contains(&secret), "shown once only");
+    // A ping shows in the log and has its own page.
+    let r = submit(&mut alice, &page, &format!("{page}/ping"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    wait_for("no ping", &s, || !got.lock().unwrap().is_empty());
+    let g = got.lock().unwrap()[0].clone();
+    assert_eq!(
+        g.header("X-Slath-Signature-256"),
+        expected_signature(&secret, g.header("X-Slath-Timestamp"), &g.body)
+    );
+    let delivery = g.header("X-Slath-Delivery").to_owned();
+    wait_for("not delivered", &s, || {
+        alice.get(&page).body.contains("Delivered")
+    });
+    let d = alice.get(&format!("{page}/deliveries/{delivery}"));
+    assert_eq!(d.status, 200);
+    assert!(
+        d.body.contains("Answered 200.") && d.body.contains("Small changes, reviewed well."),
+        "{}",
+        d.body
+    );
+    // Changing the events keeps the secret unless a new one is given.
+    let r = submit(
+        &mut alice,
+        &page,
+        &page,
+        &[("url", url.as_str()), ("events", "status"), ("active", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(alice.get(base).body.contains(">status<"));
+    // Writers who aren't administrators, and strangers, see nothing.
+    let mut bob = s.login("bob", PASSWORD);
+    for path in [
+        base.to_owned(),
+        page.clone(),
+        format!("{page}/deliveries/{delivery}"),
+    ] {
+        assert_eq!(bob.get(&path).status, 404, "{path}");
+    }
+    let r = submit(
+        &mut bob,
+        "/-/settings/profile",
+        &format!("{page}/delete"),
+        &[],
+    );
+    assert_eq!(r.status, 404, "{}", r.body);
+    // Organizations: owners only.
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/orgs",
+        Some(json!({"name": "acme"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(alice.get("/acme/-/webhooks").status, 200);
+    assert_eq!(bob.get("/acme/-/webhooks").status, 404);
+    // Deleting removes it.
+    let r = submit(&mut alice, &page, &format!("{page}/delete"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(alice.get(base).body.contains("No webhooks yet."));
+}

@@ -68,5 +68,6 @@ trash-2
 triangle-alert
 user
 users
+webhook
 wrench
 x
