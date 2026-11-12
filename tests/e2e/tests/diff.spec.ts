@@ -91,3 +91,24 @@ test("conf_diff_01_changed_characters_are_marked", async ({ page }) => {
   await page.emulateMedia({ forcedColors: "none" });
   await expectAccessible(page);
 });
+
+test("conf_a11y_04_hunk_navigation_by_link_and_key", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await openCommit(page);
+  const hunks = page.locator(".diff-hunk");
+  const first = hunks.first();
+  // The links are the equivalents of the keys.
+  const next = first.locator("a", { hasText: "Next change" }).first();
+  await expect(next).toHaveAttribute("aria-keyshortcuts", "n");
+  // While the diff has focus, n and p move between changes.
+  await first.locator(".code-wrap.diff-unified").focus();
+  await page.keyboard.press("n");
+  await expect(hunks.nth(1).locator(".code-wrap.diff-unified")).toBeFocused();
+  await page.keyboard.press("p");
+  await expect(first.locator(".code-wrap.diff-unified")).toBeFocused();
+  // Outside the diff, n is just a key.
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("n");
+  await expect(first.locator(".code-wrap.diff-unified")).not.toBeFocused();
+  await expectAccessible(page);
+});

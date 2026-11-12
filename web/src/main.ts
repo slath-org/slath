@@ -19,6 +19,8 @@ import { installSuggestions } from "./suggest";
 import { installCopyButtons } from "./copy";
 import { installChoices } from "./choice";
 import { installNavigation } from "./nav";
+import { installReplies } from "./replies";
+import { installHunkNavigation } from "./hunknav";
 
 installCsrf();
 installA11ySwaps();
@@ -27,6 +29,8 @@ installToastButtons();
 installTheme();
 installMenus();
 installSidebar();
+installReplies();
+installHunkNavigation();
 installDialogs();
 installPasskeys();
 installEditors();

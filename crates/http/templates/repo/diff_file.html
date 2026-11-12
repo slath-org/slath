@@ -1,3 +1,11 @@
+{#- Previous and next change of a hunk: the hunks of its file, then the
+    next file. They're also n and p while the diff has focus. -#}
+{%- macro hunk_nav(anchor, i, first, last, more_files, next_file) -%}
+{%- if !first || !last || more_files %}<span class="hunk-nav">
+{%- if !first %}<a href="#{{ anchor }}-h{{ i - 1 }}" aria-keyshortcuts="p" title="Previous change (p)">Previous change</a>{% endif %}
+{%- if !last %}<a href="#{{ anchor }}-h{{ i + 1 }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% else if more_files %}<a href="#diff-{{ next_file }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% endif -%}
+</span>{% endif %}
+{%- endmacro -%}
 <section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
   <header class="diff-file-head">
   <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }} · <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></h3>
@@ -24,9 +32,10 @@
   <p class="diff-placeholder text-secondary">Binary file not shown.</p>
   {%- endif %}
   {%- for h in f.hunks %}
+  <div class="diff-hunk" id="{{ f.anchor }}-h{{ loop.index0 }}">
   <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head">{{ h.head }}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}</th></tr></thead>
     <tbody>
     {%- for l in h.lines %}
       {%- let href = diff.comment_href(f.path, l.kind, l.old_no, l.new_no) %}
@@ -49,7 +58,7 @@
   {%- if diff.split %}
   <div class="code-wrap diff-split" tabindex="0" role="region" aria-label="Changes side by side in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table diff-split-table">
-    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head">{{ h.head }}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}</th></tr></thead>
     <tbody>
     {%- for r in h.rows %}
       <tr>
@@ -78,6 +87,7 @@
   </table>
   </div>
   {%- endif %}
+  </div>
   {%- endfor %}
   {%- endif %}
 </section>

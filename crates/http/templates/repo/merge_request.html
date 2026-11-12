@@ -105,19 +105,24 @@
         </li>
       {%- endfor %}
       </ol>
+      {%- if (h.perms.comment && !t.resolved) || t.can_resolve %}
+      <div class="thread-actions">
       {%- if h.perms.comment && !t.resolved %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/comments" class="form thread-reply" novalidate>
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
-        <div class="field">
-          <label for="reply-{{ t.id }}">Reply</label>
-          <textarea id="reply-{{ t.id }}" name="body" rows="2" autocomplete="off"></textarea>
-        </div>
-        <div class="button-row">
-          <button type="submit" class="button">Reply</button>
-          <button type="submit" name="mode" value="pending" class="button button-quiet">Add to my review</button>
-        </div>
-      </form>
+      <details class="thread-reply-box">
+        <summary class="button button-quiet">Reply</summary>
+        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/comments" class="form thread-reply" novalidate>
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
+          <div class="field">
+            <label for="reply-{{ t.id }}">Your reply</label>
+            <textarea id="reply-{{ t.id }}" name="body" rows="3" autocomplete="off"></textarea>
+          </div>
+          <div class="button-row">
+            <button type="submit" class="button">Send reply</button>
+            <button type="submit" name="mode" value="pending" class="button">Add to my review</button>
+          </div>
+        </form>
+      </details>
       {%- endif %}
       {%- if t.can_resolve %}
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/resolve" class="inline-form thread-resolve">
@@ -126,6 +131,8 @@
         <input type="hidden" name="resolved" value="{% if t.resolved %}false{% else %}true{% endif %}">
         <button type="submit" class="button button-quiet">{% if t.resolved %}Reopen thread{% else %}Resolve thread{% endif %}</button>
       </form>
+      {%- endif %}
+      </div>
       {%- endif %}
     </article>
   </li>

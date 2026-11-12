@@ -843,6 +843,18 @@ fieldset.field {
   width: 1%;
   user-select: none;
 }
+/* A hunk's header: its range, then links to the previous and next
+   change (also n and p while the diff has focus). */
+.diff-hunk-head .hunk-nav {
+  display: inline-flex;
+  gap: var(--space-3);
+  margin-inline-start: var(--space-4);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+.diff-hunk {
+  scroll-margin-top: var(--space-4);
+}
 /* Line numbers link to a comment form: plain numbers that underline on
    hover and focus, so 2,000 rows don't read as 4,000 links. */
 .diff-table .line-no a {
@@ -1797,9 +1809,29 @@ details[open] > summary .disclosure svg {
 .timeline-thread .markdown > :last-child {
   margin-block-end: 0;
 }
-.thread-reply,
-.thread-resolve {
+/* A thread's actions: Reply (opening its form in place) and Resolve on
+   one line; an open reply form takes the full width. */
+.thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-3);
+}
+.thread-reply-box[open] {
+  flex-basis: 100%;
+}
+.thread-reply-box > summary {
+  list-style: none;
+}
+.thread-reply-box > summary::-webkit-details-marker {
+  display: none;
+}
+.thread-reply-box[open] > summary {
+  display: none;
+}
+.thread-reply {
+  margin-block-start: var(--space-2);
 }
 .evidence-chip {
   display: inline-block;

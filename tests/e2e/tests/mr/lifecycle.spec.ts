@@ -202,8 +202,11 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await expectAccessible(page);
   // A reply lands in the thread.
   const text = `Reply from ${testInfo.project.name}`;
-  await seeded().getByLabel("Reply").fill(text);
-  await tapOrClick(page, seeded().getByRole("button", { name: "Reply", exact: true }));
+  await expect(seeded().getByLabel("Your reply")).toBeHidden();
+  await tapOrClick(page, seeded().locator("summary", { hasText: "Reply" }));
+  await expect(seeded().getByLabel("Your reply")).toBeFocused();
+  await seeded().getByLabel("Your reply").fill(text);
+  await tapOrClick(page, seeded().getByRole("button", { name: "Send reply" }));
   await expect(seeded()).toContainText(text);
 });
 
