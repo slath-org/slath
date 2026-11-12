@@ -429,6 +429,7 @@ fn schema_and_update(cfg: &Loaded) -> Vec<Finding> {
                 let fix = "see `slath upgrade --check`";
                 let code = match item {
                     "postgres" => "update.postgres",
+                    "role" => "postgres.superuser",
                     "extensions" => "update.extensions",
                     "git" => "update.git",
                     "source" => "update.source",

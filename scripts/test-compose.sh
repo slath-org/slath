@@ -98,6 +98,21 @@ compose exec -T -u git sshd slath ssh-keys --socket /run/slath/slath.sock \
 denied -u nobody sshd slath ssh-keys --socket /run/slath/slath.sock \
     SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
+# Slath's database role only owns its database, the superuser can't log in
+# over the network, and `slath doctor` agrees. (Whether the image has the
+# newest PostgreSQL release depends on upstream timing, so it isn't checked.)
+[[ "$(compose exec -T postgres psql -At -U slath -d slath -c 'SELECT rolsuper OR rolcreaterole OR rolcreatedb FROM pg_roles WHERE rolname = current_user')" == f ]] ||
+    { echo "compose: slath's database role is privileged" >&2; exit 1; }
+pw=$(sed -n 's/^SLATH_DB_PASSWORD=//p' "$ENV_FILE")
+denied -e PGPASSWORD="$pw" postgres psql -h 127.0.0.1 -U postgres -d postgres -c 'SELECT 1'
+# (Doctor exits 1 for any failure; only this code matters here.)
+doctor=$(compose exec -T slath slath doctor --output json || true)
+python3 -c '
+import json, sys
+bad = [c for c in json.loads(sys.argv[1])["checks"]
+       if c["code"] == "postgres.superuser" and c["status"] != "ok"]
+sys.exit(f"compose: doctor reports {bad}" if bad else 0)' "$doctor"
+
 SLATH_COMPOSE_URL="$SLATH_PUBLIC_URL" SLATH_COMPOSE_SSH_PORT="$SSH_PORT" \
     SLATH_COMPOSE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
     cargo nextest run --locked --profile ci -p slath-tests --test ops --run-ignored only -E 'test(conf_ops_01)'

@@ -33,5 +33,6 @@ list of checks with `code`, `status` (`ok`, `warn`, `fail`), `detail`, and
 | `disk.low` | Free space on the data directory's file system (warning below 15%, failure below 5% or 1 GiB) |
 | `backup.none`, `backup.stale` | A backup exists in the backup directory and is at most a week old |
 | `schema.state` | The database schema matches this version (behind: a restart updates it) |
-| `update.*` | The update preflight, as in `slath upgrade --check`: PostgreSQL and extensions, Git, source version, required manual steps, configuration, data directory, upgrade lock |
+| `postgres.superuser` | Slath's database role isn't a superuser (warning): it should only own Slath's database |
+| `update.*` | The update preflight, as in `slath upgrade --check`: PostgreSQL (a supported major version, and a warning if it lacks the latest security release Slath knows of) and extensions, Git, source version, required manual steps, configuration, data directory, upgrade lock |
 | `tls.expiry`, `tls.trust`, `tls.unreachable` | For an `https` public URL: the certificate is valid for at least 14 more days and trusted by the public roots (a private CA gives a warning) |

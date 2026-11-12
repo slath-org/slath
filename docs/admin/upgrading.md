@@ -116,6 +116,42 @@ is up, so the upgrade itself stays short. **Administration → Upgrades** and
 time left; you can pause, resume, or retry them there. Features that need
 one show a notice until it has finished.
 
+## PostgreSQL
+
+Keep PostgreSQL on the newest minor release of its major version: minor
+releases are security and bug fixes, and installing one is just replacing
+the binaries (your distribution's packages, or the image) and restarting.
+`slath doctor` and `slath upgrade --check` warn when the server lacks the
+latest security release Slath knows of.
+
+- **Compose:** `docker compose pull postgres && docker compose up -d`. The
+  image tag `postgres:18` follows the newest 18.x.
+- **Packages:** update the PostgreSQL packages and restart the service.
+
+After updating to 18.7, 17.12, 16.16, or 15.20 (security release of
+2026-11-12), rebuild Slath's GIN indexes, which those releases fix
+corruption in. It takes no lock that stops Slath:
+
+```sh
+psql -d slath -c 'REINDEX INDEX CONCURRENTLY repositories_name_trgm' \
+  -c 'REINDEX INDEX CONCURRENTLY repositories_description_trgm' \
+  -c 'REINDEX INDEX CONCURRENTLY issues_search' \
+  -c 'REINDEX INDEX CONCURRENTLY merge_requests_search'
+```
+
+With Compose: `docker compose exec postgres psql -U slath -d slath -c …`.
+
+**Slath's role is never a superuser.** `slath setup` creates a role that
+only owns Slath's database, and so does the Compose file for a new
+installation (the superuser `postgres` logs in only through the container's
+socket). Then a bug in Slath, or a PostgreSQL flaw that needs a privileged
+role, can't take over the database server. `slath doctor` warns
+(`postgres.superuser`) if the role is one. An installation from an older
+Compose file has `slath` as the image's built-in superuser, which can't be
+demoted; move it to a new database with a backup and restore
+(`slath backup create`, then `slath backup restore` into a new Compose
+installation).
+
 ## Configuration across releases
 
 A configuration file written for an earlier release keeps working. When a

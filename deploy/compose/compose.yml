@@ -21,12 +21,16 @@ services:
   postgres:
     image: docker.io/library/postgres:18
     restart: unless-stopped
+    # Slath's role only owns its database; the superuser `postgres` logs
+    # in only through the container's socket (postgres-init.sh). Updating
+    # PostgreSQL within 18: `docker compose pull postgres && docker compose up -d`.
     environment:
-      POSTGRES_USER: slath
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${SLATH_DB_PASSWORD:?set SLATH_DB_PASSWORD in .env}
-      POSTGRES_DB: slath
+      SLATH_DB_PASSWORD: ${SLATH_DB_PASSWORD:?set SLATH_DB_PASSWORD in .env}
     volumes:
       - postgres:/var/lib/postgresql
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-slath.sh:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "slath", "-d", "slath"]
       interval: 2s

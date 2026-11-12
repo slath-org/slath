@@ -120,6 +120,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The diff options read "Unified view" or "Split view", next to Ignore whitespace and Apply on one line.
 - Text in backticks in merge request and issue titles shows as code in headings, lists, search, and the inbox.
 - Merge request lists show each open merge request's checks next to its title.
+- `slath doctor` and `slath upgrade --check` warn when PostgreSQL lacks its latest security release or Slath connects as a superuser.
+- The Compose file gives Slath a database role that only owns its database, and refuses network logins as the PostgreSQL superuser.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 

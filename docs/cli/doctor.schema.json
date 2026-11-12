@@ -20,7 +20,7 @@
             "enum": [
               "config.invalid", "config.deprecated", "git.version", "storage.writable",
               "ssh.boundary", "db.unreachable", "keys.unreadable", "check.other", "disk.low",
-              "backup.none", "backup.stale", "backup.failed", "schema.state", "update.postgres",
+              "backup.none", "backup.stale", "backup.failed", "schema.state", "postgres.superuser", "update.postgres",
               "update.extensions", "update.git", "update.source", "update.action", "update.config",
               "update.data_dir", "update.lock", "update.other", "tls.expiry", "tls.trust",
               "tls.unreachable"

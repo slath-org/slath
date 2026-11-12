@@ -27,6 +27,22 @@ use crate::upgrade_notes::{self as notes, Notes, Version};
 const UPGRADE_LOCK: i64 = 0x736c_6174_6875_7067; // "slathupg"
 /// Oldest supported PostgreSQL major version.
 const MIN_POSTGRES: i64 = 15;
+/// Per supported major version, the minor release with the latest security
+/// fixes Slath knows of (PostgreSQL 18.7, 17.12, 16.16, 15.20 of
+/// 2026-11-12: 52 CVEs). Raised with each PostgreSQL security release.
+const PATCHED_POSTGRES: &[(i64, i64)] = &[(15, 20), (16, 16), (17, 12), (18, 7)];
+
+/// What to say about a server at `version_num` (`server_version_num`), if
+/// it lacks the known security fixes of its major version.
+fn postgres_outdated(version_num: i64) -> Option<String> {
+    let (major, minor) = (version_num / 10_000, version_num % 10_000);
+    let (_, patched) = PATCHED_POSTGRES.iter().find(|(m, _)| *m == major)?;
+    (minor < *patched).then(|| {
+        format!(
+            "PostgreSQL {major}.{minor} lacks security fixes; update it to {major}.{patched} or newer (a minor update: replace the binaries or pull the image, and restart)"
+        )
+    })
+}
 
 pub struct Opts {
     pub check: bool,
@@ -109,6 +125,14 @@ async fn postgres_major(pool: &PgPool) -> Result<i64, String> {
         .await
         .map_err(|e| e.to_string())?;
     Ok(n.parse::<i64>().unwrap_or(0) / 10_000)
+}
+
+async fn postgres_version_num(pool: &PgPool) -> Result<i64, String> {
+    let n: String = sqlx::query_scalar("SHOW server_version_num")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(n.parse::<i64>().unwrap_or(0))
 }
 
 async fn table_exists(pool: &PgPool, table: &str) -> bool {
@@ -330,6 +354,26 @@ async fn preflight(
             format!("PostgreSQL {v} is too old; {MIN_POSTGRES} or newer is required"),
         ),
         Err(e) => p.push("postgres", Mark::Fail, e),
+    }
+    if let Some(why) = postgres_version_num(pool)
+        .await
+        .ok()
+        .and_then(postgres_outdated)
+    {
+        p.push("postgres", Mark::Warn, why);
+    }
+    // A superuser role turns any SQL bug into control of the database server.
+    let superuser: bool =
+        sqlx::query_scalar("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(false);
+    if superuser {
+        p.push(
+            "role",
+            Mark::Warn,
+            "Slath connects to PostgreSQL as a superuser; give it a role that only owns its database (docs/admin/upgrading.md, \"PostgreSQL\")",
+        );
     }
     // Extensions the migrations enable (PostgreSQL's contrib modules).
     let missing: Vec<String> = sqlx::query_scalar(
@@ -1118,6 +1162,17 @@ pub(crate) fn prune_backups_named(newest: &Path, keep: u32, prefix: &str) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn outdated_postgres_minors_are_named() {
+        assert!(super::postgres_outdated(180_006).unwrap().contains("18.7"));
+        assert_eq!(super::postgres_outdated(180_007), None);
+        assert!(super::postgres_outdated(150_019).unwrap().contains("15.20"));
+        assert_eq!(super::postgres_outdated(170_012), None);
+        // Majors without a known release: nothing to say.
+        assert_eq!(super::postgres_outdated(190_000), None);
+    }
+
     use super::unused_name;
 
     #[test]
