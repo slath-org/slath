@@ -768,7 +768,10 @@ fieldset.field {
   border: var(--border-width) solid var(--border);
   padding: var(--space-1) var(--space-2);
 }
+/* Positioned, so screen-reader-only text inside (absolutely positioned)
+   stays within the scrolling box instead of widening the page. */
 .code-wrap {
+  position: relative;
   overflow-x: auto;
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
@@ -1057,6 +1060,9 @@ fieldset.field {
   }
   .diff-options .diff-view-choice {
     display: flex;
+    align-items: baseline;
+    /* Flex drops the spaces around the separator; the gap puts them back. */
+    gap: var(--space-1);
   }
 }
 .commit-list {
@@ -1434,6 +1440,10 @@ fieldset.field {
   background: var(--surface-subtle);
   border-start-start-radius: var(--radius-md);
   border-start-end-radius: var(--radius-md);
+}
+/* An icon leading a header keeps its distance from the words. */
+.comment-header > .icon:first-child {
+  margin-inline-end: var(--space-1);
 }
 .timeline-comment .markdown,
 .timeline-comment article > p {

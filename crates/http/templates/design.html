@@ -24,6 +24,106 @@
   <p>Inline: <code id="inline-code">git push --force-with-lease</code>, commit <code>3f2db758</code>.</p>
 </section>
 
+<section aria-labelledby="review-heading">
+  <h2 id="review-heading">Code review</h2>
+  <p class="text-secondary">The diff below is rendered by the same code as every diff: each file in its frame, folded files with their reason, changed characters marked (not by color alone), the line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. <a href="/-/design?view=split#review-heading">Side by side</a> on wide screens.</p>
+  {% include "repo/diff_files.html" %}
+
+  <h3>Readiness card and requirement rows</h3>
+  <p class="text-secondary">Three tones only, each with an icon and words: done, waiting (normal, nothing wrong yet), blocking (something must change). Lines that open end with a chevron.</p>
+  <section class="readiness tone-waiting" aria-labelledby="demo-card-title">
+    <div class="readiness-head">
+      <span class="readiness-icon">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}</span>
+      <div class="readiness-text">
+        <h4 id="demo-card-title" class="readiness-title">Approval required</h4>
+        <p class="readiness-reason">1 of 2 required approvals.</p>
+      </div>
+      <div class="readiness-action"><a class="button button-primary" href="#review-heading">{% call m::icon(ctx, "eye") %}{% endcall %}Review</a></div>
+    </div>
+    <ul class="requirements">
+      <li class="requirement tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>It's ready for review.</span></li>
+      <li class="requirement tone-waiting">
+        <details>
+          <summary>{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span>1 of 2 required approvals: alice (r3, 12 of 15 files viewed).<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+          <p class="requirement-fix">Ask a reviewer with write access.</p>
+          <div class="requirement-fix requirement-files">
+            <p>Not viewed by an approver when approving {% call m::evidence("Observed") %}{% endcall %}</p>
+            <ul class="plain-list"><li>src/config.rs</li><li>assets/logo.png</li><li>docs/new.md</li></ul>
+          </div>
+        </details>
+      </li>
+      <li class="requirement tone-blocking">
+        <details>
+          <summary>{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>The check build failed.<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+          <p class="requirement-fix">Fix the failure and push again.</p>
+        </details>
+      </li>
+    </ul>
+  </section>
+
+  <h3>Threads, suggestions, verdicts</h3>
+  <ol class="timeline">
+    <li class="since-marker"><span>New since your review</span></li>
+    <li class="timeline-comment timeline-thread">
+      <article aria-label="Thread on src/config.rs, line 3">
+        <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}<code>src/config.rs, line 3</code> <span class="text-secondary">revision 2</span> <span class="text-secondary">· still current, from revision 1</span></header>
+        <div class="code-wrap" tabindex="0" role="region" aria-label="Code at src/config.rs, line 3">
+        <table class="code-view diff-table thread-snippet"><tbody>
+          <tr><td class="line-no">2</td><td><code>    pub timeout_secs: u32,</code></td></tr>
+          <tr class="snippet-anchor"><td class="line-no">3</td><td><code>    pub retries: u8,</code></td></tr>
+        </tbody></table>
+        </div>
+        <ol class="thread-comments">
+          <li>
+            <p class="thread-comment-head"><strong>bob</strong> <span class="text-secondary"><time datetime="2026-11-01T10:00:00Z">yesterday</time></span></p>
+            <div class="markdown"><p>Name the unit here too:</p></div>
+            <div class="suggestion">
+              <p class="suggestion-title">Suggested change</p>
+              <div class="code-wrap" tabindex="0" role="region" aria-label="Suggested change">
+              <table class="code-view diff-table"><tbody>
+                <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>    pub retries: u8,</code></td></tr>
+                <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>    pub max_retries: u8,</code></td></tr>
+              </tbody></table>
+              </div>
+              <div class="button-row">
+                <button type="button" class="button">Apply suggestion</button>
+                <div class="checkbox"><input id="demo-batch" type="checkbox"><label for="demo-batch">Add to batch</label></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <p class="thread-comment-head"><strong>ci-bot</strong> {% call m::evidence("Claimed by a bot") %}{% endcall %} <span class="badge">Pending</span> <span class="text-secondary"><time datetime="2026-11-01T11:00:00Z">yesterday</time></span></p>
+            <div class="markdown"><p>The build passes with this change.</p></div>
+          </li>
+        </ol>
+        <div class="thread-actions">
+          <details class="thread-reply-box">
+            <summary class="button button-quiet">Reply</summary>
+            <form class="form thread-reply" action="#review-heading">
+              <div class="field"><label for="demo-reply">Your reply</label><textarea id="demo-reply" rows="3"></textarea></div>
+              <div class="button-row"><button type="button" class="button">Send reply</button><button type="button" class="button">Add to my review</button></div>
+            </form>
+          </details>
+          <button type="button" class="button button-quiet">Resolve thread</button>
+        </div>
+      </article>
+    </li>
+    <li class="timeline-comment timeline-review">
+      <article aria-label="Review by alice">
+        <header class="comment-header">{% call m::icon(ctx, "circle-check") %}{% endcall %}<strong>alice</strong> approved revision 3 <span class="text-secondary"><time datetime="2026-11-01T12:00:00Z">yesterday</time></span></header>
+      </article>
+    </li>
+    <li class="timeline-comment timeline-review">
+      <article aria-label="Review by carol">
+        <header class="comment-header">{% call m::icon(ctx, "circle-x") %}{% endcall %}<strong>carol</strong> requested changes on revision 2 <span class="text-secondary"><time datetime="2026-10-31T12:00:00Z">Oct 31</time> · stale: the changes changed since</span></header>
+      </article>
+    </li>
+  </ol>
+
+  <h3>Fork merge requests</h3>
+  <p class="text-secondary"><a href="#review-heading">bob</a> wants to merge 2 revisions of <code class="branch-name"><bdi>bob/demo:fix-timeouts</bdi></code> into <code class="branch-name"><bdi>main</bdi></code> · opened <time datetime="2026-11-01T09:00:00Z">yesterday</time></p>
+</section>
+
 <section aria-labelledby="buttons-heading">
   <h2 id="buttons-heading">Buttons</h2>
   <div class="catalog-row">

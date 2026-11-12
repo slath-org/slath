@@ -116,6 +116,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Diff line numbers are plain until you point at them, and stay in place while long lines scroll sideways.
 - Review threads show a Reply button that opens the reply form in place; a started reply opens again by itself.
 - Each change in a diff links to the previous and next change; with the diff focused, n and p do the same.
+- On phones, a long changed line in a diff no longer makes the whole page scroll sideways.
 - Merge and squash messages and applied suggestions honor the repository's secret allowances and allowlist, as pushes do.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 
