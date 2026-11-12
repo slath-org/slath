@@ -63,10 +63,15 @@ jobs:
       - run: just migrate
       - run: just check
 
+  # Three shards (Playwright --shard), so each stays well within its time.
   e2e:
-    name: browser tests
+    name: browser tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:18
@@ -101,11 +106,11 @@ jobs:
       - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
         with:
           tool: just
-      - run: just test-e2e
+      - run: just test-e2e --shard=${{ matrix.shard }}/3
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-results
+          name: e2e-results-${{ matrix.shard }}
           path: target/e2e/
           retention-days: 7
 
@@ -137,7 +142,7 @@ jobs:
       - run: docker build -t slath:test .
       - run: just test-compose
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-results
           path: |
