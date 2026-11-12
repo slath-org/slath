@@ -12,7 +12,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::authz::{Action, Subject};
-use slath_service::push_protection::ALLOWANCE_DAYS;
+use slath_service::push_protection::{ALLOWANCE_DAYS, RejectedFinding};
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -27,6 +27,8 @@ use crate::routes::{Access, RouteExt};
 struct AllowanceView {
     fingerprint: String,
     rule: String,
+    /// What the finding is ("OpenSSH private key").
+    description: String,
     by: String,
     reason: Option<String>,
     expires: Time,
@@ -39,13 +41,19 @@ struct AllowPage {
     header: RepoHeader,
     fingerprint: String,
     rule: String,
+    /// What the finding is, and where each of its occurrences in the
+    /// rejected push is (when the push is remembered).
+    description: String,
+    places: Vec<String>,
     days: Vec<i64>,
     message: Option<&'static str>,
     errors: Vec<FieldError>,
     allowances: Vec<AllowanceView>,
-    /// The rejected push the finding came from, when it had several, and
-    /// how many: they can be allowed at once.
+    /// The rejected push the finding came from, and how many different
+    /// findings it had: several can be allowed at once.
     push: Option<(uuid::Uuid, usize)>,
+    /// The rejected push, when it's remembered and the viewer may see it.
+    push_id: Option<uuid::Uuid>,
 }
 
 impl AllowPage {
@@ -60,7 +68,9 @@ struct AcceptPage {
     ctx: PageCtx,
     header: RepoHeader,
     id: uuid::Uuid,
-    findings: Vec<(String, String)>,
+    findings: Vec<RejectedFinding>,
+    /// Different values among the findings (a secret found twice is one).
+    values: usize,
     /// A first push into an empty repository (administrators, one day);
     /// otherwise a push with several findings (a period and a reason).
     first_push: bool,
@@ -99,6 +109,9 @@ struct AllowForm {
     fingerprint: String,
     #[serde(default)]
     rule: String,
+    /// The rejected push the finding came from.
+    #[serde(default)]
+    push: String,
     #[serde(default)]
     days: String,
     #[serde(default)]
@@ -128,23 +141,41 @@ async fn allow_page(
     message: Option<&'static str>,
     errors: Vec<FieldError>,
 ) -> Result<Response, AppError> {
-    // The push's other findings, if the viewer may allow them.
-    let push = match push {
+    // The rejected push's findings, if the viewer may allow them: what
+    // this one is and where, and whether there are others.
+    let findings = match push {
         Some(id) => state
             .services
             .push_findings(subject, a, id)
             .await
-            .ok()
-            .filter(|f| f.len() > 1)
-            .map(|f| (id, f.len())),
-        None => None,
+            .unwrap_or_default(),
+        None => Vec::new(),
     };
+    let mine: Vec<&RejectedFinding> = findings
+        .iter()
+        .filter(|f| f.fingerprint == fingerprint)
+        .collect();
+    let description = mine.first().map_or_else(
+        || state.services.rule_description(&rule),
+        |f| f.description.clone(),
+    );
+    let places = mine.iter().filter_map(|f| f.place.clone()).collect();
+    let values = findings
+        .iter()
+        .map(|f| &f.fingerprint)
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    let push_id = push.filter(|_| !findings.is_empty());
+    let push = push_id.filter(|_| values > 1).map(|id| (id, values));
     let allowances = state
         .services
         .secret_allowances(subject, a)
         .await?
         .into_iter()
         .map(|x| AllowanceView {
+            description: x
+                .description
+                .unwrap_or_else(|| state.services.rule_description(&x.rule)),
             fingerprint: x.fingerprint,
             rule: x.rule,
             by: x.created_by.unwrap_or_else(|| "a deleted user".into()),
@@ -161,11 +192,14 @@ async fn allow_page(
         header: RepoHeader::load(state, a, subject, "push").await,
         fingerprint,
         rule,
+        description,
+        places,
         days: ALLOWANCE_DAYS.to_vec(),
         message,
         errors,
         allowances,
         push,
+        push_id,
         ctx,
     });
     *res.status_mut() = status;
@@ -213,9 +247,16 @@ async fn save_allow(
 ) -> Result<Response, AppError> {
     let a = access(&state, &s.subject, &ns, &repo, Action::RepoPush).await?;
     let days = f.days.parse().unwrap_or(0);
+    let push: Option<uuid::Uuid> = f.push.parse().ok();
     match state
         .services
-        .allow_secret(&s.subject, &a, &f.fingerprint, &f.rule, days, &f.reason)
+        .allow_secret(
+            &s.subject,
+            &a,
+            (&f.fingerprint, &f.rule, push),
+            days,
+            &f.reason,
+        )
         .await
     {
         Ok(()) => Ok(
@@ -228,7 +269,7 @@ async fn save_allow(
                 ctx,
                 &s.subject,
                 &a,
-                (f.fingerprint, f.rule, None),
+                (f.fingerprint, f.rule, push),
                 None,
                 errors,
             )
@@ -269,10 +310,16 @@ async fn accept_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let values = findings
+        .iter()
+        .map(|f| &f.fingerprint)
+        .collect::<std::collections::HashSet<_>>()
+        .len();
     let mut res = render(&AcceptPage {
         header: RepoHeader::load(state, &a, subject, "push").await,
         id,
         findings,
+        values,
         first_push,
         days: ALLOWANCE_DAYS.to_vec(),
         errors,

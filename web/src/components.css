@@ -1473,6 +1473,18 @@ fieldset.field {
   margin: 0 0 var(--space-1) var(--space-6);
   color: var(--text-secondary);
 }
+/* Findings of a rejected push: what and where, then its identifiers on
+   their own line, with space between findings. */
+.finding-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-5);
+}
+.finding-id {
+  display: block;
+  font-size: var(--text-sm);
+}
 /* A requirement's list of files: the label and its files as one group. */
 .requirement-files > p,
 .requirement-files > ul {

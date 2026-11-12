@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT a.id, a.fingerprint, a.rule, n.name::text AS \"created_by?\", a.reason, a.created_at, a.expires_at\n             FROM secret_allowances a\n             LEFT JOIN users u ON u.id = a.created_by\n             LEFT JOIN namespaces n ON n.id = u.namespace_id\n            WHERE a.repo_id = $1 AND a.expires_at > now()\n            ORDER BY a.created_at DESC\n            LIMIT 200",
+  "query": "SELECT a.id, a.fingerprint, a.rule, a.description, n.name::text AS \"created_by?\", a.reason, a.created_at, a.expires_at\n             FROM secret_allowances a\n             LEFT JOIN users u ON u.id = a.created_by\n             LEFT JOIN namespaces n ON n.id = u.namespace_id\n            WHERE a.repo_id = $1 AND a.expires_at > now()\n            ORDER BY a.created_at DESC\n            LIMIT 200",
   "describe": {
     "columns": [
       {
@@ -38,12 +38,23 @@
       },
       {
         "ordinal": 3,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "secret_allowances",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "created_by?",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "reason",
         "type_info": "Text",
         "origin": {
@@ -54,7 +65,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -65,7 +76,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "expires_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -85,11 +96,12 @@
       false,
       false,
       false,
+      true,
       null,
       true,
       false,
       false
     ]
   },
-  "hash": "d41f72eb719c7da58c47005157ccca996150409cb715c1d30cdea57db58b8f95"
+  "hash": "edc2cff5a3208693e281e9448eb36fc97b9aa6d5238da07dd2eadb5a1d2a9cd1"
 }

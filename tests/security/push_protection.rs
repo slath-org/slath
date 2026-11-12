@@ -629,9 +629,15 @@ fn conf_sec_08_intentional_secrets_one_step_allows_all_findings_of_a_push() {
     let one = allow_link(&err);
     assert!(one.contains("&push="), "{one}");
     let mut carol = s.login("carol", PASSWORD);
+    // The output and the pages say what each finding is, and where.
+    assert!(err.contains(": OpenSSH private key (private-key)"), "{err}");
+    let page = carol.get(&one).body;
     assert!(
-        carol.get(&one).body.contains("Allow all 10 at once"),
-        "the allow page offers the batch"
+        page.contains("Allow all 10 at once")
+            && page.contains("<strong>OpenSSH private key</strong>")
+            && page.contains("Found in:")
+            && page.contains(" line 2 in commit "),
+        "{page}"
     );
     let allowances = || {
         s.db.query_one("SELECT count(*)::text FROM secret_allowances")
@@ -673,7 +679,14 @@ fn conf_sec_08_intentional_secrets_one_step_allows_all_findings_of_a_push() {
     // The writer allows all ten with one reason and one period.
     let page = carol.get(&link);
     assert_eq!(page.status, 200);
-    assert!(page.body.contains("Allow 10 findings"), "{}", page.body);
+    assert!(
+        page.body.contains("Allow 10 findings")
+            && page.body.contains(
+                "<strong>OpenSSH private key</strong> in tests/keys/key3.pem line 2 in commit "
+            ),
+        "{}",
+        page.body
+    );
     let r = submit(&mut carol, &link, &link, &[("days", "5")]);
     assert_eq!(r.status, 422, "{}", r.body);
     let r = submit(
@@ -684,6 +697,13 @@ fn conf_sec_08_intentional_secrets_one_step_allows_all_findings_of_a_push() {
     );
     assert_eq!(r.status, 303, "{}", r.body);
     assert_eq!(allowances(), "10");
+    let page = carol.get("/alice/demo/-/secret-scan/allow").body;
+    assert!(
+        page.contains(
+            "OpenSSH private key <span class=\"text-secondary\">(<code>private-key</code>)"
+        ),
+        "{page}"
+    );
     let out = git.cmd(&w).args(["push", &url, "main"]).output().unwrap();
     assert!(
         out.status.success(),

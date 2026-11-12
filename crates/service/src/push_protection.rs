@@ -600,9 +600,11 @@ impl Services {
         Ok(found.into_iter().map(|(_, f)| f).collect())
     }
 
-    /// The links for a rejection. A first push into an empty repository,
-    /// or a push with several findings, is remembered so its findings can
-    /// be allowed in one step.
+    /// The links for a rejection. Every rejected push is remembered for a
+    /// day (its findings' rules, names, places, and fingerprints, never the
+    /// secrets), so the allow pages can say what and where each finding
+    /// is; a first push into an empty repository, or a push with several
+    /// findings, can be allowed in one step.
     pub(crate) async fn rejection_links(
         &self,
         repo: &slath_db::repos::Repo,
@@ -623,13 +625,28 @@ impl Services {
             .is_empty();
         let blocking: Vec<serde_json::Value> = report
             .blocking()
-            .map(|f| serde_json::json!({"fingerprint": f.finding.fingerprint, "rule": f.finding.rule}))
+            .map(|f| {
+                let (place, object, path) = match &f.place {
+                    Place::File { commit, path } => ("file", commit, Some(path)),
+                    Place::CommitMessage { commit } => ("commit_message", commit, None),
+                    Place::TagMessage { tag } => ("tag_message", tag, None),
+                };
+                serde_json::json!({
+                    "fingerprint": f.finding.fingerprint,
+                    "rule": f.finding.rule,
+                    "description": f.finding.description,
+                    "place": place,
+                    "object": object,
+                    "path": path,
+                    "line": f.finding.line,
+                })
+            })
             .collect();
         let distinct: std::collections::HashSet<&str> = report
             .blocking()
             .map(|f| f.finding.fingerprint.as_str())
             .collect();
-        if !blocking.is_empty() && (empty || distinct.len() >= 2) {
+        if !blocking.is_empty() {
             let kind = if empty { "first_push" } else { "push" };
             let id = slath_db::secret_allowances::insert_rejection(
                 &self.pool,
@@ -639,7 +656,9 @@ impl Services {
                 time::OffsetDateTime::now_utc() + time::Duration::hours(ACCEPT_HOURS),
             )
             .await?;
-            links.accept = Some(format!("{base}/accept/{id}"));
+            if empty || distinct.len() >= 2 {
+                links.accept = Some(format!("{base}/accept/{id}"));
+            }
             links.push = (!empty).then_some(id);
         }
         Ok(links)
@@ -676,13 +695,58 @@ impl Services {
         subject: &slath_core::authz::Subject,
         a: &crate::repos::RepoAccess,
         id: uuid::Uuid,
-    ) -> Result<Vec<(String, String)>> {
+    ) -> Result<Vec<RejectedFinding>> {
         let need_admin = self.allowances_need_admin(a.repo.id).await?;
         self.may_allow(subject, a, need_admin)?;
         match slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await? {
-            Some((kind, v)) if kind == "push" => Ok(findings_of(&v)),
+            Some((kind, v)) if kind == "push" => Ok(self.findings_of(&v)),
             _ => Err(ServiceError::NotFound),
         }
+    }
+
+    /// The rejected findings of a remembered push, by meaning: rule names
+    /// fall back to the rule set for records without one.
+    fn findings_of(&self, v: &serde_json::Value) -> Vec<RejectedFinding> {
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|f| {
+                let rule = f["rule"].as_str()?.to_owned();
+                let description = f["description"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .or_else(|| self.scan_rules.description(&rule).map(str::to_owned))
+                    .unwrap_or_else(|| rule.clone());
+                let object = f["object"].as_str().map(short).unwrap_or_default();
+                let line = f["line"].as_u64().unwrap_or(0);
+                let place = match (f["place"].as_str(), f["path"].as_str()) {
+                    (Some("file"), Some(path)) => {
+                        Some(format!("{path} line {line} in commit {object}"))
+                    }
+                    (Some("commit_message"), _) => {
+                        Some(format!("message of commit {object}, line {line}"))
+                    }
+                    (Some("tag_message"), _) => {
+                        Some(format!("message of tag {object}, line {line}"))
+                    }
+                    _ => None,
+                };
+                Some(RejectedFinding {
+                    fingerprint: f["fingerprint"].as_str()?.to_owned(),
+                    rule,
+                    description,
+                    place,
+                })
+            })
+            .collect()
+    }
+
+    /// What a rule finds, in words.
+    #[must_use]
+    pub fn rule_description(&self, rule: &str) -> String {
+        self.scan_rules
+            .description(rule)
+            .map_or_else(|| rule.to_owned(), str::to_owned)
     }
 
     /// Whether a remembered rejection is a first push (`Some(true)`), a
@@ -718,13 +782,14 @@ impl Services {
         }
         let reason = reason.trim();
         let expires = time::OffsetDateTime::now_utc() + time::Duration::days(days);
+        let findings = distinct(findings);
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        for (fp, rule) in &findings {
+        for f in &findings {
             slath_db::secret_allowances::insert(
                 &mut *tx,
                 a.repo.id,
-                fp,
-                rule,
+                &f.fingerprint,
+                (&f.rule, Some(&f.description)),
                 user,
                 (!reason.is_empty()).then_some(reason),
                 expires,
@@ -732,8 +797,8 @@ impl Services {
             .await?;
         }
         tx.commit().await.map_err(ServiceError::internal)?;
-        let fingerprints: Vec<&str> = findings.iter().map(|(f, _)| f.as_str()).collect();
-        let rules: Vec<&str> = findings.iter().map(|(_, r)| r.as_str()).collect();
+        let fingerprints: Vec<&str> = findings.iter().map(|f| f.fingerprint.as_str()).collect();
+        let rules: Vec<&str> = findings.iter().map(|f| f.rule.as_str()).collect();
         self.audit(
             subject,
             "secret_scan.allow_push",
@@ -756,12 +821,22 @@ impl Services {
         &self,
         subject: &slath_core::authz::Subject,
         a: &crate::repos::RepoAccess,
-        fingerprint: &str,
-        rule: &str,
+        (fingerprint, rule, push): (&str, &str, Option<uuid::Uuid>),
         days: i64,
         reason: &str,
     ) -> Result<()> {
         let id = &self.may_allow(subject, a, self.allowances_need_admin(a.repo.id).await?)?;
+        // What it is, as the rejected push's scan named it.
+        let description = match push {
+            Some(p) => self
+                .push_findings(subject, a, p)
+                .await
+                .ok()
+                .and_then(|fs| fs.into_iter().find(|f| f.fingerprint == fingerprint))
+                .map(|f| f.description),
+            None => None,
+        }
+        .unwrap_or_else(|| self.rule_description(rule));
         let mut errors = Vec::new();
         if fingerprint.len() != 32
             || !fingerprint
@@ -796,7 +871,7 @@ impl Services {
             &self.pool,
             a.repo.id,
             fingerprint,
-            rule,
+            (rule, Some(&description)),
             *id,
             (!reason.is_empty()).then_some(reason),
             expires,
@@ -820,10 +895,10 @@ impl Services {
         subject: &slath_core::authz::Subject,
         a: &crate::repos::RepoAccess,
         id: uuid::Uuid,
-    ) -> Result<Vec<(String, String)>> {
+    ) -> Result<Vec<RejectedFinding>> {
         self.authorize(subject, a, slath_core::authz::Action::RepoSettings)?;
         match slath_db::secret_allowances::rejection(&self.pool, a.repo.id, id).await? {
-            Some((kind, v)) if kind == "first_push" => Ok(findings_of(&v)),
+            Some((kind, v)) if kind == "first_push" => Ok(self.findings_of(&v)),
             _ => Err(ServiceError::NotFound),
         }
     }
@@ -848,12 +923,13 @@ impl Services {
             return Err(ServiceError::Forbidden);
         };
         let expires = time::OffsetDateTime::now_utc() + time::Duration::days(1);
-        for (fp, rule) in &findings {
+        let findings = distinct(findings);
+        for f in &findings {
             slath_db::secret_allowances::insert(
                 &self.pool,
                 a.repo.id,
-                fp,
-                rule,
+                &f.fingerprint,
+                (&f.rule, Some(&f.description)),
                 *user,
                 Some("accepted with the repository's first push"),
                 expires,
@@ -887,17 +963,26 @@ impl Services {
     }
 }
 
-/// The `(fingerprint, rule)` pairs of a remembered rejection.
-fn findings_of(v: &serde_json::Value) -> Vec<(String, String)> {
-    v.as_array()
+/// A finding of a rejected push, as the allow pages show it: what it is
+/// and where, never the secret.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RejectedFinding {
+    pub fingerprint: String,
+    pub rule: String,
+    /// What it is ("OpenSSH private key", "GitHub token").
+    pub description: String,
+    /// Where it is ("tests/keys/a.pem line 1 in commit 3f2a9c81d0e4");
+    /// `None` for records without it.
+    pub place: Option<String>,
+}
+
+/// One finding per fingerprint (the same secret in several places is
+/// one allowance).
+fn distinct(findings: Vec<RejectedFinding>) -> Vec<RejectedFinding> {
+    let mut seen = std::collections::HashSet::new();
+    findings
         .into_iter()
-        .flatten()
-        .filter_map(|f| {
-            Some((
-                f["fingerprint"].as_str()?.to_owned(),
-                f["rule"].as_str()?.to_owned(),
-            ))
-        })
+        .filter(|f| seen.insert(f.fingerprint.clone()))
         .collect()
 }
 

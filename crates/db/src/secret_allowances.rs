@@ -16,6 +16,9 @@ pub struct Allowance {
     pub id: uuid::Uuid,
     pub fingerprint: String,
     pub rule: String,
+    /// What the finding is, as the scan named it; `None` for allowances
+    /// made without that.
+    pub description: Option<String>,
     pub created_by: Option<String>,
     pub reason: Option<String>,
     pub created_at: OffsetDateTime,
@@ -26,19 +29,21 @@ pub async fn insert(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     fingerprint: &str,
-    rule: &str,
+    (rule, description): (&str, Option<&str>),
     by: UserId,
     reason: Option<&str>,
     expires_at: OffsetDateTime,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO secret_allowances (id, repo_id, fingerprint, rule, created_by, reason, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO secret_allowances
+           (id, repo_id, fingerprint, rule, description, created_by, reason, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         id,
         repo.as_uuid(),
         fingerprint,
         rule,
+        description,
         by.as_uuid(),
         reason,
         expires_at
@@ -63,7 +68,7 @@ pub async fn active(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<HashSet<S
 /// Allowances in force, newest first.
 pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Allowance>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT a.id, a.fingerprint, a.rule, n.name::text AS "created_by?", a.reason, a.created_at, a.expires_at
+        r#"SELECT a.id, a.fingerprint, a.rule, a.description, n.name::text AS "created_by?", a.reason, a.created_at, a.expires_at
              FROM secret_allowances a
              LEFT JOIN users u ON u.id = a.created_by
              LEFT JOIN namespaces n ON n.id = u.namespace_id
@@ -80,6 +85,7 @@ pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Allowan
             id: r.id,
             fingerprint: r.fingerprint,
             rule: r.rule,
+            description: r.description,
             created_by: r.created_by,
             reason: r.reason,
             created_at: r.created_at,

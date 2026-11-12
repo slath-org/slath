@@ -120,7 +120,9 @@ only decides what gets in. To keep such a repository usable:
    or a token) allows them all with one reason for 1, 7, or 30 days. One
    audit event, `secret_scan.allow_push`, lists every fingerprint. The
    link stays valid for 24 hours. Each finding's own allow link leads to
-   it as well.
+   it as well. Both pages say what each finding is (for example "OpenSSH
+   private key") and where it is (file, line, and commit), never the
+   secret itself.
 3. **Forks** copy the history without scanning it again, and the
    allowlist comes along with the default branch.
 4. **Imports** count findings covered by the imported default branch's
@@ -169,7 +171,7 @@ characters, and similar) are ignored.
 | Rule | Tier | Finds |
 |---|---|---|
 | `slath-token` | block | Slath's own tokens (`slath_pat_`, `slath_bot_`, `slath_tsk_`, `slath_rnr_`), exactly, by prefix and checksum |
-| `private-key` | block | PEM private key blocks with key material (RSA, DSA, EC, OpenSSH, PGP, PKCS #8) |
+| `private-key` | block | PEM private key blocks with key material (RSA, DSA, EC, OpenSSH, PGP, PKCS #8); findings name the key type, such as "OpenSSH private key" |
 | `github-token` | block | GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`) |
 | `github-fine-grained-token` | block | GitHub fine-grained tokens (`github_pat_`) |
 | `gitlab-token` | block | GitLab personal access tokens (`glpat-`) |

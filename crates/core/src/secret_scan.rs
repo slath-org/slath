@@ -87,13 +87,14 @@ pub struct CustomRule {
 }
 
 /// The built-in rules: `(id, tier, description, pattern)`. A pattern's
-/// `secret` group is the secret; without one, the whole match is.
+/// `secret` group is the secret; without one, the whole match is. A
+/// `kind` group names what was found more exactly (see [`kind_name`]).
 const BUILT_IN: &[(&str, Tier, &str, &str)] = &[
     (
         "private-key",
         Tier::Block,
         "Private key",
-        r"-----BEGIN (?:RSA |DSA |EC |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----\r?\n(?:[A-Za-z0-9-]+: [^\r\n]*\r?\n)*\r?\n?(?P<secret>[A-Za-z0-9+/=]{40,})",
+        r"-----BEGIN (?:(?P<kind>RSA|DSA|EC|OPENSSH|ENCRYPTED|PGP) )?PRIVATE KEY(?: BLOCK)?-----\r?\n(?:[A-Za-z0-9-]+: [^\r\n]*\r?\n)*\r?\n?(?P<secret>[A-Za-z0-9+/=]{40,})",
     ),
     (
         "github-token",
@@ -280,15 +281,24 @@ impl RuleSet {
         &self.rules
     }
 
+    /// The description of rule `id`, if there is one.
+    #[must_use]
+    pub fn description(&self, id: &str) -> Option<&str> {
+        self.rules
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| r.description.as_str())
+    }
+
     /// Every finding in `text`, ordered by position.
     #[must_use]
     pub fn scan(&self, text: &[u8]) -> Vec<Finding> {
-        let mut found: Vec<(usize, usize, &Rule)> = Vec::new();
+        let mut found: Vec<(usize, usize, &Rule, Option<&'static str>)> = Vec::new();
         for rule in &self.rules {
             match &rule.matcher {
                 Matcher::SlathToken => {
                     for f in credential::find_all(text) {
-                        found.push((f.start, f.start + credential::TOKEN_LEN, rule));
+                        found.push((f.start, f.start + credential::TOKEN_LEN, rule, None));
                     }
                 }
                 Matcher::Regex { re, boundary } => {
@@ -301,20 +311,41 @@ impl RuleSet {
                         // patterns keep a literal prefix for fast searching.
                         let ok = !*boundary || start == 0 || !is_word(text[start - 1]);
                         if ok && !is_placeholder(m.as_bytes()) {
-                            found.push((m.start(), m.end(), rule));
+                            let kind = c.name("kind").and_then(|k| kind_name(k.as_bytes()));
+                            found.push((m.start(), m.end(), rule, kind));
                         }
                     }
                 }
             }
         }
-        found.sort_by_key(|(start, _, r)| (*start, std::cmp::Reverse(r.tier)));
+        found.sort_by_key(|(start, _, r, _)| (*start, std::cmp::Reverse(r.tier)));
         // The same secret matched by several rules counts once (the strictest).
-        found.dedup_by_key(|(start, _, _)| *start);
+        found.dedup_by_key(|(start, _, _, _)| *start);
         found
             .into_iter()
-            .map(|(start, end, rule)| finding(text, start, end, rule))
+            .map(|(start, end, rule, kind)| {
+                let mut f = finding(text, start, end, rule);
+                if let Some(k) = kind {
+                    k.clone_into(&mut f.description);
+                }
+                f
+            })
             .collect()
     }
+}
+
+/// The name of what a built-in rule's `kind` group matched: the type of
+/// a private key.
+fn kind_name(kind: &[u8]) -> Option<&'static str> {
+    Some(match kind {
+        b"RSA" => "RSA private key",
+        b"DSA" => "DSA private key",
+        b"EC" => "EC private key",
+        b"OPENSSH" => "OpenSSH private key",
+        b"ENCRYPTED" => "Encrypted private key",
+        b"PGP" => "PGP private key",
+        _ => return None,
+    })
 }
 
 fn finding(text: &[u8], start: usize, end: usize, rule: &Rule) -> Finding {
@@ -453,6 +484,25 @@ mod tests {
             .into_iter()
             .map(|f| f.rule)
             .collect()
+    }
+
+    #[test]
+    fn private_keys_are_named_by_type() {
+        let body = "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz";
+        let named = |kind: &str| {
+            let text = format!("-----BEGIN {kind}PRIVATE KEY-----\n{body}\n");
+            let f = RuleSet::built_in().scan(text.as_bytes());
+            assert_eq!(f[0].rule, "private-key");
+            f[0].description.clone()
+        };
+        assert_eq!(named("OPENSSH "), "OpenSSH private key");
+        assert_eq!(named("RSA "), "RSA private key");
+        assert_eq!(named("PGP "), "PGP private key");
+        assert_eq!(named(""), "Private key");
+        assert_eq!(
+            RuleSet::built_in().description("github-token"),
+            Some("GitHub token")
+        );
     }
 
     #[test]
