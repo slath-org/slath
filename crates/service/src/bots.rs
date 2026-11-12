@@ -197,6 +197,26 @@ impl Services {
         Ok(slath_db::bots::list_for_owner(&self.pool, owner).await?)
     }
 
+    /// Changes a bot's display name (empty removes it). Audited.
+    pub async fn set_bot_display_name(
+        &self,
+        subject: &Subject,
+        name: &str,
+        display_name: &str,
+    ) -> Result<()> {
+        let bot = self.managed_bot(subject, name, Scope::UserWrite).await?;
+        let display = clean_display_name(display_name)?;
+        slath_db::users::update_profile(&self.pool, bot.id, display.as_deref()).await?;
+        self.audit(
+            subject,
+            "bot.update",
+            Target::new("user", Some(*bot.id.as_uuid())),
+            serde_json::json!({"name": bot.name, "display_name": display}),
+        )
+        .await;
+        Ok(())
+    }
+
     /// A bot the subject manages: its owner, or for an organization's bot,
     /// one of the organization's owners. Everyone else gets "not found".
     pub async fn managed_bot(&self, subject: &Subject, name: &str, scope: Scope) -> Result<Bot> {

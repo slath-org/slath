@@ -34,6 +34,9 @@ fn message(s: Option<&str>) -> Option<&'static str> {
         "token-revoked" => "Token revoked.",
         "key-added" => "SSH key added.",
         "key-removed" => "SSH key removed.",
+        "profile-saved" => "Profile saved.",
+        "avatar-saved" => "Avatar saved.",
+        "avatar-removed" => "Avatar removed. The generated avatar is shown again.",
         _ => return None,
     })
 }
@@ -286,6 +289,10 @@ struct BotPage {
     /// The owning organization, for an organization's bot.
     org: Option<String>,
     owner: String,
+    avatar_url: String,
+    has_avatar: bool,
+    /// The display name field (as saved, or as submitted after an error).
+    display_value: String,
     tokens: Vec<TokenView>,
     keys: Vec<KeyView>,
     message: Option<&'static str>,
@@ -311,6 +318,8 @@ impl BotPage {
 #[derive(Default)]
 struct BotExtras {
     message: Option<&'static str>,
+    /// A submitted display name that wasn't saved.
+    display_name: Option<String>,
     errors: Vec<FieldError>,
     created: Option<String>,
     token: TokenForm,
@@ -392,7 +401,15 @@ async fn bot_page(
         StatusCode::UNPROCESSABLE_ENTITY
     };
     let created = x.created.is_some();
+    let avatar_url = state.services.avatar_url(&bot.name).await;
+    let display_value = x
+        .display_name
+        .clone()
+        .unwrap_or_else(|| bot.display_name.clone().unwrap_or_default());
     let mut res = render(&BotPage {
+        has_avatar: avatar_url.ends_with(".png"),
+        avatar_url,
+        display_value,
         ctx,
         tab: "bots",
         org: matches!(bot.owner, BotOwner::Org(_)).then(|| bot.owner_name.clone()),
@@ -560,6 +577,88 @@ async fn remove_key(
     Ok(Redirect::to(&format!("/-/bots/{name}?status=key-removed")).into_response())
 }
 
+#[derive(Deserialize)]
+struct ProfileForm {
+    #[serde(default)]
+    display_name: String,
+}
+
+async fn save_profile(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path(name): Path<String>,
+    Form(f): Form<ProfileForm>,
+) -> Result<Response, AppError> {
+    match state
+        .services
+        .set_bot_display_name(&s.subject, &name, &f.display_name)
+        .await
+    {
+        Ok(()) => Ok(Redirect::to(&format!("/-/bots/{name}?status=profile-saved")).into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            let x = BotExtras {
+                errors,
+                display_name: Some(f.display_name),
+                ..BotExtras::default()
+            };
+            bot_page(&state, ctx, &s.subject, &name, x).await
+        }
+        Err(e) => Err(hide(e)),
+    }
+}
+
+/// Uploads (multipart field `avatar`) or removes a bot's avatar.
+async fn save_avatar(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path(name): Path<String>,
+    form: axum::extract::Multipart,
+) -> Result<Response, AppError> {
+    let bot = state
+        .services
+        .managed_bot(&s.subject, &name, Scope::UserWrite)
+        .await
+        .map_err(hide)?;
+    let f = crate::attachments::avatar_form(form).await?;
+    let upload = if f.remove { None } else { f.image };
+    let removed = upload.is_none();
+    if !f.remove && removed {
+        let x = BotExtras {
+            errors: vec![FieldError::new("avatar", "required", "Choose an image.")],
+            ..BotExtras::default()
+        };
+        return bot_page(&state, ctx, &s.subject, &name, x).await;
+    }
+    match state
+        .services
+        .set_avatar(
+            &s.subject,
+            slath_service::avatars::AvatarOwner::Bot(bot.id),
+            upload,
+        )
+        .await
+    {
+        Ok(()) => {
+            let status = if removed {
+                "avatar-removed"
+            } else {
+                "avatar-saved"
+            };
+            Ok(Redirect::to(&format!("/-/bots/{}?status={status}", bot.name)).into_response())
+        }
+        Err(ServiceError::Invalid(errors)) => {
+            let x = BotExtras {
+                errors,
+                ..BotExtras::default()
+            };
+            bot_page(&state, ctx, &s.subject, &name, x).await
+        }
+        Err(e) => Err(hide(e)),
+    }
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
@@ -574,6 +673,12 @@ pub fn router() -> Router<AppState> {
             get(org_bots).post(org_bots_create),
         )
         .route_as("/-/bots/{name}", Access::Resource, get(bot))
+        .route_as(
+            "/-/bots/{name}/profile",
+            Access::Resource,
+            post(save_profile),
+        )
+        .route_as("/-/bots/{name}/avatar", Access::Resource, post(save_avatar))
         .route_as(
             "/-/bots/{name}/tokens",
             Access::Resource,

@@ -74,6 +74,8 @@ pub enum AvatarOwner {
     /// The signed-in user.
     Me,
     Org(OrgId),
+    /// A bot the subject manages.
+    Bot(slath_core::ids::UserId),
 }
 
 impl Services {
@@ -85,8 +87,18 @@ impl Services {
         upload: Option<Vec<u8>>,
     ) -> Result<()> {
         let user = crate::tokens::user_with_scope(subject, Scope::UserWrite)?;
-        if let AvatarOwner::Org(org) = owner {
-            self.require_org_owner(subject, org).await?;
+        match owner {
+            AvatarOwner::Me => {}
+            AvatarOwner::Org(org) => {
+                self.require_org_owner(subject, org).await?;
+            }
+            AvatarOwner::Bot(bot) => {
+                let name = slath_db::users::get(&self.pool, bot)
+                    .await?
+                    .ok_or(ServiceError::NotFound)?
+                    .name;
+                self.managed_bot(subject, &name, Scope::UserWrite).await?;
+            }
         }
         let png = match upload {
             Some(data) => {
@@ -128,6 +140,9 @@ impl Services {
             }
             AvatarOwner::Org(org) => {
                 slath_db::blobs::set_org_avatar(&mut tx, org, sha.as_deref()).await?;
+            }
+            AvatarOwner::Bot(bot) => {
+                slath_db::blobs::set_user_avatar(&mut tx, bot, sha.as_deref()).await?;
             }
         }
         tx.commit().await.map_err(ServiceError::internal)?;

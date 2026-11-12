@@ -137,6 +137,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A bot's approval never counts for its owner's merge request, even where bot approvals count.
 - Settings → Bots and an organization's Bots page list and create bots; each bot's page manages its tokens and SSH keys.
 - A Bot badge follows bots' names on issues, merge requests, comments, reviews, statuses, member lists, and the audit log; a bot's profile names its owner.
+- A bot's page changes its avatar and display name.
 
 ### Changed
 

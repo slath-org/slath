@@ -20,6 +20,41 @@
 {%- endif %}
 {% include "settings/errors.html" %}
 
+<h2>Profile</h2>
+<div class="profile-avatar">
+  <img src="{{ avatar_url }}" alt="" width="64" height="64">
+  <form method="post" action="/-/bots/{{ bot.name }}/avatar" enctype="multipart/form-data" class="form" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <div class="field">
+      <label for="avatar">Avatar</label>
+      <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="avatar-hint{% if self.error("avatar").is_some() %} avatar-error{% endif %}"
+        {%- if self.error("avatar").is_some() %} aria-invalid="true"{% endif %}>
+      <p id="avatar-hint" class="hint">PNG, JPEG, or WebP. It is cropped to a square and stored without its metadata.{% if !has_avatar %} Without one, an avatar is generated from the bot's name.{% endif %}</p>
+      {%- if let Some(e) = self.error("avatar") %}
+      <p id="avatar-error" class="field-error">{{ e }}</p>
+      {%- endif %}
+    </div>
+    <div class="button-row">
+      <button type="submit" class="button">Upload avatar</button>
+      {%- if has_avatar %}
+      <button type="submit" name="remove" value="1" class="button">Remove avatar</button>
+      {%- endif %}
+    </div>
+  </form>
+</div>
+<form method="post" action="/-/bots/{{ bot.name }}/profile" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="display_name">Display name</label>
+    <input id="display_name" name="display_name" type="text" value="{{ display_value }}" maxlength="100"
+      {%- if let Some(e) = self.error("display_name") %} aria-invalid="true" aria-describedby="display_name-error"{% endif %}>
+    {%- if let Some(e) = self.error("display_name") %}
+    <p id="display_name-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button">Save profile</button></div>
+</form>
+
 <h2>Tokens</h2>
 <p>Bot tokens start with <code>slath_bot_</code>, work only for the repositories they name, and expire after at most {{ max_days }} days. The bot also needs a role on those repositories.</p>
 {%- if tokens.is_empty() %}

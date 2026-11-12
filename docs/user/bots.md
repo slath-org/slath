@@ -38,6 +38,10 @@ bot. `GET /api/v1/user/bots`, `GET /api/v1/orgs/{org}/bots`, and
 `GET /api/v1/bots/{name}` list and show the bots you manage. Other
 people's bots don't appear there.
 
+A bot's page also changes its avatar (PNG, JPEG, or WebP, cropped to a
+square and stored without metadata) and its display name. Without an
+uploaded avatar, one is generated from the bot's name.
+
 ## Tokens
 
 A bot works through tokens that start with `slath_bot_`. They are like

@@ -22,6 +22,13 @@ test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Bot created." })).toBeVisible();
   await expectAccessible(page);
 
+  // Its profile can be changed on its page.
+  await page.getByLabel("Display name").fill("Release automation");
+  await tapOrClick(page, page.getByRole("button", { name: "Save profile" }));
+  await expect(page.getByRole("status").filter({ hasText: "Profile saved." })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toHaveValue("Release automation");
+  await expectAccessible(page);
+
   // A token without repositories is refused; with one, it's shown once.
   await page.getByLabel("Name", { exact: true }).fill("release job");
   await tapOrClick(page, page.getByRole("button", { name: "Create token" }));

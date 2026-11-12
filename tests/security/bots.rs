@@ -811,3 +811,62 @@ fn conf_auth_06_bots_are_marked_wherever_they_appear() {
     );
     assert!(!s.client().get("/alice").body.contains(badge));
 }
+
+#[test]
+fn conf_auth_06_bot_profiles_are_changed_by_their_managers_only() {
+    use slath_tests::http::{csrf_token, multipart};
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    s.create_user("bob", PW, false);
+    let mut a = s.login("alice", PW);
+    let r = submit(
+        &mut a,
+        "/-/settings/bots",
+        "/-/settings/bots",
+        &[("username", "alice-ci"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(80, 80, image::Rgb([200, 60, 20]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let upload = |c: &mut Client, page: &str| {
+        let csrf = csrf_token(&c.get(page).body).unwrap();
+        let (ct, body) = multipart(&[
+            ("_csrf", None, csrf.as_bytes()),
+            ("avatar", Some("bot.png"), &png),
+        ]);
+        c.request("POST", "/-/bots/alice-ci/avatar", &[], Some((&ct, body)))
+    };
+
+    // Bob can change neither the avatar nor the display name.
+    let mut b = s.login("bob", PW);
+    assert_eq!(upload(&mut b, "/-/settings/bots").status, 404);
+    let csrf = csrf_token(&b.get("/-/settings/bots").body).unwrap();
+    let r = b.post_form(
+        "/-/bots/alice-ci/profile",
+        &[("_csrf", csrf.as_str()), ("display_name", "Hijacked")],
+    );
+    assert_eq!(r.status, 404);
+    assert!(
+        s.client()
+            .get("/alice-ci")
+            .body
+            .contains("/-/avatars/alice-ci.svg")
+    );
+
+    // Alice can.
+    let r = upload(&mut a, "/-/bots/alice-ci");
+    assert_eq!(r.status, 303, "{}", r.body);
+    let r = submit(
+        &mut a,
+        "/-/bots/alice-ci",
+        "/-/bots/alice-ci/profile",
+        &[("display_name", "Alice's CI")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let profile = s.client().get("/alice-ci").body;
+    assert!(!profile.contains("/-/avatars/alice-ci.svg"), "{profile}");
+    assert!(profile.contains("Alice&#39;s CI"), "{profile}");
+    assert!(!profile.contains("Hijacked"));
+}
