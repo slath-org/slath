@@ -174,3 +174,13 @@ pub async fn reactivate_with_owner(
     .await?;
     Ok(r.rows_affected())
 }
+
+/// Every bot's name, lowercased (for marking bots wherever names appear).
+pub async fn all_names(exec: impl PgExecutor<'_>) -> Result<Vec<String>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT lower(n.name::text) AS "name!" FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           WHERE u.kind = 'bot'"#
+    )
+    .fetch_all(exec)
+    .await?)
+}

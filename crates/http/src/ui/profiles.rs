@@ -41,6 +41,8 @@ struct UserProfile {
     avatar_url: String,
     display_name: Option<String>,
     joined: Time,
+    /// For a bot: its owner (a user or organization).
+    bot_owner: Option<String>,
     orgs: Vec<String>,
     repos: Vec<super::repos::RepoCard>,
 }
@@ -85,12 +87,22 @@ pub async fn profile(
                 .into_iter()
                 .map(|(n, _)| n)
                 .collect();
+            // A bot's owner is public, like the bot itself.
+            let bot_owner = if user.kind == slath_core::authz::UserKind::Bot {
+                slath_db::bots::find(&state.pool, &name)
+                    .await
+                    .map_err(|e| AppError::internal(&e))?
+                    .map(|b| b.owner_name)
+            } else {
+                None
+            };
             Ok(render(&UserProfile {
                 ctx,
                 name,
                 avatar_url,
                 display_name: user.display_name,
                 joined: user.created_at.into(),
+                bot_owner,
                 orgs,
                 repos,
             }))

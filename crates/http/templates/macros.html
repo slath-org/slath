@@ -95,3 +95,6 @@ hx-boost:inherited="target:#{{ id }} select:#{{ id }} swap:outerHTML selectOOB:'
   </div>
 </div>
 {%- endmacro -%}
+
+{#- A badge after an account's name if it's a bot's. -#}
+{%- macro bot_badge(ctx, name) -%}{% if ctx.is_bot(name) %} <span class="badge">Bot</span>{% endif %}{%- endmacro -%}

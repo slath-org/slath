@@ -5,8 +5,8 @@
 <div class="profile-head">
   <img src="{{ avatar_url }}" alt="" width="64" height="64">
   <div>
-    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}</h1>
-    <p class="text-secondary">Joined <time datetime="{{ joined.iso }}">{{ joined.text }}</time></p>
+    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}{% if bot_owner.is_some() %} <span class="badge">Bot</span>{% endif %}</h1>
+    <p class="text-secondary">{% if let Some(o) = bot_owner %}A bot of <a href="/{{ o }}">{{ o }}</a>, created{% else %}Joined{% endif %} <time datetime="{{ joined.iso }}">{{ joined.text }}</time></p>
   </div>
 </div>
 {%- if !orgs.is_empty() %}

@@ -18,7 +18,7 @@
   {%- for e in events %}
     <tr>
       <td><time datetime="{{ e.time.iso }}">{{ e.time.text }}</time></td>
-      <td>{{ e.actor }}{% if !e.ip.is_empty() %} <span class="text-secondary">{{ e.ip }}</span>{% endif %}</td>
+      <td>{{ e.actor }}{% call m::bot_badge(ctx, e.actor) %}{% endcall %}{% if !e.ip.is_empty() %} <span class="text-secondary">{{ e.ip }}</span>{% endif %}</td>
       <td><code>{{ e.action }}</code></td>
       <td>{{ e.target }}</td>
       <td><code>{{ e.data }}</code></td>

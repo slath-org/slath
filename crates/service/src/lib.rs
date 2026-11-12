@@ -96,6 +96,8 @@ pub struct Services {
     pub reference_limiter: Arc<references::Limiter>,
     /// Push protection's rules (built-in plus the configuration's).
     pub scan_rules: Arc<slath_core::secret_scan::RuleSet>,
+    /// The names of all bots, cached.
+    pub bot_names: Arc<bots::BotNames>,
 }
 
 impl Services {
@@ -133,6 +135,7 @@ impl Services {
             blobs,
             reference_limiter: Arc::default(),
             oidc_cache: Arc::default(),
+            bot_names: Arc::default(),
         }
     }
 

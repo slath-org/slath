@@ -74,7 +74,7 @@
         {%- endfor %}
       </span>
       {%- endif %}
-      <p class="item-meta text-secondary">#{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% else %}a deleted user{% endif %}{% if !i.assignees.is_empty() %} · assigned to {{ i.assignees|join(", ") }}{% endif %}</p>
+      <p class="item-meta text-secondary">#{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}a deleted user{% endif %}{% if !i.assignees.is_empty() %} · assigned to {{ i.assignees|join(", ") }}{% endif %}</p>
     </div>
     {%- if i.comments > 0 %}
     <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>

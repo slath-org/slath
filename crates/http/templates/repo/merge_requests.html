@@ -73,7 +73,7 @@
         {%- endfor %}
       </span>
       {%- endif %}
-      <p class="item-meta text-secondary">!{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% else %}a deleted user{% endif %} · <code class="branch-name"><bdi>{{ i.source }}</bdi></code> into <code class="branch-name"><bdi>{{ i.target }}</bdi></code></p>
+      <p class="item-meta text-secondary">!{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}a deleted user{% endif %} · <code class="branch-name"><bdi>{{ i.source }}</bdi></code> into <code class="branch-name"><bdi>{{ i.target }}</bdi></code></p>
     </div>
     {%- if i.comments > 0 %}
     <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>

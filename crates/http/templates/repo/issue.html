@@ -11,7 +11,7 @@
 </div>
 <p class="issue-status">
   <span class="state-label state-{{ issue.state }}">{% call m::icon(ctx, state_icon) %}{% endcall %}{% if issue.state == "open" %}Open{% else %}Closed{% if let Some(r) = issue.state_reason %} ({{ reason_text }}){% endif %}{% endif %}</span>
-  <span class="text-secondary">{% if let Some(a) = issue.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} opened this <time datetime="{{ created.iso }}">{{ created.text }}</time>{% if let Some(u) = updated %} · updated <time datetime="{{ u.iso }}">{{ u.text }}</time>{% endif %} · {{ issue.comments }} comment{% if issue.comments != 1 %}s{% endif %}</span>
+  <span class="text-secondary">{% if let Some(a) = issue.author %}<a href="/{{ a }}">{{ a }}</a>{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}A deleted user{% endif %} opened this <time datetime="{{ created.iso }}">{{ created.text }}</time>{% if let Some(u) = updated %} · updated <time datetime="{{ u.iso }}">{{ u.text }}</time>{% endif %} · {{ issue.comments }} comment{% if issue.comments != 1 %}s{% endif %}</span>
 </p>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -22,7 +22,7 @@
 <ol class="timeline">
   <li class="timeline-comment">
     <article aria-label="Description">
-      <header class="comment-header">{% if let Some(a) = issue.author %}<a href="/{{ a }}"><strong>{{ a }}</strong></a>{% else %}<strong>A deleted user</strong>{% endif %} <span class="text-secondary">wrote <time datetime="{{ created.iso }}">{{ created.text }}</time></span></header>
+      <header class="comment-header">{% if let Some(a) = issue.author %}<a href="/{{ a }}"><strong>{{ a }}</strong></a>{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}<strong>A deleted user</strong>{% endif %} <span class="text-secondary">wrote <time datetime="{{ created.iso }}">{{ created.text }}</time></span></header>
       <div class="markdown" hx-ignore>{% if body_empty %}<p class="text-secondary">No description.</p>{% else %}{{ body_html }}{% endif %}</div>
     </article>
   </li>
@@ -31,7 +31,7 @@
   {%- when TimelineView::Comment with (c) %}
   <li class="timeline-comment" id="comment-{{ c.id }}">
     <article aria-label="Comment by {{ c.author_text }}">
-      <header class="comment-header"><strong>{{ c.author_text }}</strong> <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
+      <header class="comment-header"><strong>{{ c.author_text }}</strong>{% call m::bot_badge(ctx, c.author_text) %}{% endcall %} <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
       {%- if c.deleted %}
       <p class="text-secondary">This comment was deleted.</p>
       {%- else if c.html_empty %}
@@ -59,7 +59,7 @@
     </article>
   </li>
   {%- when TimelineView::Event with (e) %}
-  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some(href) = e.link %} <a href="{{ href }}">{{ e.link_text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some(href) = e.link %} <a href="{{ href }}">{{ e.link_text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
   {%- endmatch %}
   {%- endfor %}
 </ol>

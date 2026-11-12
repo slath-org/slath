@@ -21,6 +21,47 @@ use crate::sessions::Session;
 use crate::tokens::{TokenInfo, user_with_scope};
 use time::OffsetDateTime;
 
+/// The names of all bots, for marking them wherever names appear. Reloaded
+/// when older than [`BotNames::MAX_AGE`] and after a bot is created here.
+#[derive(Debug, Default)]
+pub struct BotNames {
+    inner: std::sync::RwLock<(
+        Option<std::time::Instant>,
+        std::sync::Arc<std::collections::HashSet<String>>,
+    )>,
+}
+
+impl BotNames {
+    pub const MAX_AGE: std::time::Duration = std::time::Duration::from_secs(10);
+
+    fn fresh(&self) -> Option<std::sync::Arc<std::collections::HashSet<String>>> {
+        let g = self.inner.read().ok()?;
+        g.0.filter(|t| t.elapsed() < Self::MAX_AGE)
+            .map(|_| g.1.clone())
+    }
+
+    fn current(&self) -> std::sync::Arc<std::collections::HashSet<String>> {
+        self.inner.read().map(|g| g.1.clone()).unwrap_or_default()
+    }
+
+    fn store(
+        &self,
+        names: std::collections::HashSet<String>,
+    ) -> std::sync::Arc<std::collections::HashSet<String>> {
+        let names = std::sync::Arc::new(names);
+        if let Ok(mut g) = self.inner.write() {
+            *g = (Some(std::time::Instant::now()), names.clone());
+        }
+        names
+    }
+
+    fn invalidate(&self) {
+        if let Ok(mut g) = self.inner.write() {
+            g.0 = None;
+        }
+    }
+}
+
 /// Whose bots: the acting person's own, or an organization's.
 #[derive(Debug, Clone, Copy)]
 pub enum Owner<'a> {
@@ -58,6 +99,21 @@ fn clean_display_name(v: &str) -> Result<Option<String>> {
 }
 
 impl Services {
+    /// The lowercased names of all bots (cached; at most
+    /// [`BotNames::MAX_AGE`] old). On a database error, the last known set.
+    pub async fn bot_names(&self) -> std::sync::Arc<std::collections::HashSet<String>> {
+        if let Some(n) = self.bot_names.fresh() {
+            return n;
+        }
+        match slath_db::bots::all_names(&self.pool).await {
+            Ok(v) => self.bot_names.store(v.into_iter().collect()),
+            Err(e) => {
+                tracing::warn!(error = %e, "loading bot names failed");
+                self.bot_names.current()
+            }
+        }
+    }
+
     /// Resolves an owner for managing its bots: the person themselves, or an
     /// organization they own (site administrators may manage any
     /// organization's bots). Anything else is "not found".
@@ -121,6 +177,7 @@ impl Services {
                 other => other.into(),
             })?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.bot_names.invalidate();
         let bot = slath_db::bots::find(&self.pool, name.as_str())
             .await?
             .ok_or_else(|| ServiceError::internal("new bot not found"))?;

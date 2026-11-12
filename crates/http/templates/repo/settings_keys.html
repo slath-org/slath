@@ -25,7 +25,7 @@
       <td>{{ k.title }}</td>
       <td><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
       <td>{% if k.can_push %}Read and push{% else %}Read only{% endif %}</td>
-      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time> <span class="text-secondary">by {{ k.added_by }}</span></td>
+      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time> <span class="text-secondary">by {{ k.added_by }}{% call m::bot_badge(ctx, k.added_by) %}{% endcall %}</span></td>
       <td>{% if let Some(u) = k.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/keys/{{ k.id }}/delete" class="inline-form">

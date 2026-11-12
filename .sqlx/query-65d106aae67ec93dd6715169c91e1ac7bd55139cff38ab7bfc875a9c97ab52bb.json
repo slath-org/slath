@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT lower(n.name::text) AS \"name!\" FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           WHERE u.kind = 'bot'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "65d106aae67ec93dd6715169c91e1ac7bd55139cff38ab7bfc875a9c97ab52bb"
+}

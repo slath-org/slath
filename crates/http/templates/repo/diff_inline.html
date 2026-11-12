@@ -7,7 +7,7 @@
     {%- if t.resolved %}<p class="text-secondary">Resolved</p>{% endif %}
     {%- if let Some(r) = t.from %}<p class="text-secondary">From revision {{ r }}</p>{% endif %}
     {%- for (author, html, pending) in t.comments %}
-    <div class="inline-comment"><p class="thread-comment-head"><strong>{{ author }}</strong>{% if *pending %} <span class="badge">Pending</span>{% endif %}</p><div class="markdown" hx-ignore>{{ html }}</div></div>
+    <div class="inline-comment"><p class="thread-comment-head"><strong>{{ author }}</strong>{% call m::bot_badge(ctx, author) %}{% endcall %}{% if *pending %} <span class="badge">Pending</span>{% endif %}</p><div class="markdown" hx-ignore>{{ html }}</div></div>
     {%- endfor %}
     <p><a href="{{ t.link }}">Reply in the conversation</a></p>
   </div>

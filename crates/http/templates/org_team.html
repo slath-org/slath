@@ -17,7 +17,7 @@
 {%- else %}
 <ul class="plain-list">
 {%- for mem in members %}
-  <li><a href="/{{ mem }}">{{ mem }}</a>
+  <li><a href="/{{ mem }}">{{ mem }}</a>{% call m::bot_badge(ctx, mem) %}{% endcall %}
   {%- if can_manage %}
     <form method="post" action="/{{ org }}/-/teams/{{ team }}/members/{{ mem }}/remove" class="inline-form">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

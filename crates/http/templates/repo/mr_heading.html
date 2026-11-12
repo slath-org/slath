@@ -65,7 +65,7 @@
 </div>
 <p class="issue-status">
   <span class="state-label state-{{ h.state }}">{% call m::icon(ctx, h.icon) %}{% endcall %}{{ h.state_text }}</span>
-  <span class="text-secondary">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}">{{ a }}</a>{% else %}A deleted user{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code class="branch-name"><bdi>{% if let Some(r) = h.source_repo %}{{ r }}:{% endif %}{{ h.source }}</bdi></code> into <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> · opened <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span>
+  <span class="text-secondary">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}">{{ a }}</a>{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}A deleted user{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code class="branch-name"><bdi>{% if let Some(r) = h.source_repo %}{{ r }}:{% endif %}{{ h.source }}</bdi></code> into <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> · opened <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span>
 </p>
 {%- if let Some(held) = h.held %}
 <div class="notice held-source" role="note">

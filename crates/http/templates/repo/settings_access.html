@@ -20,7 +20,7 @@
   <tbody>
   {%- for c in collaborators %}
     <tr>
-      <td><a href="/{{ c.name }}">{{ c.name }}</a></td>
+      <td><a href="/{{ c.name }}">{{ c.name }}</a>{% call m::bot_badge(ctx, c.name) %}{% endcall %}</td>
       <td>{{ c.role }}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/access/{{ c.name }}/remove" class="inline-form">

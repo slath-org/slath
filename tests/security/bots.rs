@@ -744,3 +744,70 @@ fn conf_auth_06_bot_pages_are_for_their_managers_only() {
         "0"
     );
 }
+
+#[test]
+fn conf_auth_06_bots_are_marked_wherever_they_appear() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    let mut a = s.login("alice", PW);
+    slath_tests::http::create_repo(&mut a, "alice", "app", "public");
+    let ta = create_token(&mut a, "t", &["user:write", "repo:write", "issues:write"]);
+    let mut api = s.client();
+    let token = cli_bot(
+        &s,
+        "alice",
+        "alice-triage",
+        &[
+            "--token-scopes",
+            "repo:read,issues:write",
+            "--repo",
+            "alice/app",
+        ],
+    )
+    .unwrap();
+    let r = api.api(
+        "PUT",
+        "/api/v1/repos/alice/app/collaborators/alice-triage",
+        Some(&ta),
+        Some(&json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/app/issues",
+        Some(&ta),
+        Some(&json!({"title": "Flaky test"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/app/issues/1/comments",
+        Some(&token),
+        Some(&json!({"body": "Reproduced on main."})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    // A bot created in the server itself refreshes what pages know at once
+    // (the CLI's bot above shows up with it).
+    let r = api.api(
+        "POST",
+        "/api/v1/user/bots",
+        Some(&ta),
+        Some(&json!({"username": "alice-ci"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+
+    let badge = "<span class=\"badge\">Bot</span>";
+    let page = s.client().get("/alice/app/issues/1").body;
+    assert!(
+        page.contains(&format!("<strong>alice-triage</strong> {badge}")),
+        "{page}"
+    );
+    assert!(!page.contains(&format!("alice</a> {badge}")), "{page}");
+    let profile = s.client().get("/alice-ci").body;
+    assert!(profile.contains(badge), "{profile}");
+    assert!(
+        profile.contains("A bot of <a href=\"/alice\">alice</a>"),
+        "{profile}"
+    );
+    assert!(!s.client().get("/alice").body.contains(badge));
+}

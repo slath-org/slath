@@ -134,6 +134,14 @@ Bots make at most 2,000 API requests per hour (site setting
 `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` say where a
 bot stands.
 
+## How bots appear
+
+A **Bot** badge follows a bot's name wherever Slath shows it: as the author
+of issues, merge requests, and comments, in reviews, review threads, the
+timeline, commit statuses, member and collaborator lists, and the audit
+log. A bot's profile says who owns it. Comments by bots are also marked as
+claims: Slath shows what a bot says, not that it's true.
+
 ## What a bot can't do
 
 - **Sign in.** A bot has no password, no session, no second factor, and

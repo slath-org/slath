@@ -14,7 +14,7 @@
   <tbody>
   {%- for mem in members %}
     <tr>
-      <td><a href="/{{ mem.name }}">{{ mem.name }}</a>{% if let Some(d) = mem.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td><a href="/{{ mem.name }}">{{ mem.name }}</a>{% call m::bot_badge(ctx, mem.name) %}{% endcall %}{% if let Some(d) = mem.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
       <td>
       {%- if can_manage %}
         <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/role" class="inline-form role-form">

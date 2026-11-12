@@ -57,7 +57,7 @@
         <span class="text-secondary">revision {{ t.revision }}</span>
         {%- if t.outdated %} <span class="badge">Outdated</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
-        {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% endif %}
+        {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% if let Some(by) = t.resolved_by %}{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}{% endif %}
       </header>
       {%- if !t.snippet.is_empty() %}
       <div class="code-wrap" tabindex="0" role="region" aria-label="Code{% if let Some(l) = t.location %} at {{ l }}{% endif %}">
@@ -73,7 +73,7 @@
       <ol class="thread-comments">
       {%- for c in t.comments %}
         <li>
-          <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
+          <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% call m::bot_badge(ctx, c.author) %}{% endcall %}{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
           {%- if !c.html_empty %}
           <div class="markdown" hx-ignore>{{ c.html }}</div>
           {%- endif %}
@@ -139,7 +139,7 @@
   {%- when TimelineView::Comment with (c) %}
   <li class="timeline-comment" id="comment-{{ c.id }}">
     <article aria-label="Comment by {{ c.author_text }}">
-      <header class="comment-header"><strong>{{ c.author_text }}</strong>{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %} <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
+      <header class="comment-header"><strong>{{ c.author_text }}</strong>{% call m::bot_badge(ctx, c.author_text) %}{% endcall %}{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %} <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
       {%- if c.deleted %}
       <p class="text-secondary">This comment was deleted.</p>
       {%- else if c.html_empty %}
@@ -167,11 +167,11 @@
     </article>
   </li>
   {%- when TimelineView::Event with (e) %}
-  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
   {%- when TimelineView::Review with (r) %}
   <li class="timeline-comment timeline-review" id="review-{{ r.id }}">
     <article aria-label="Review by {{ r.reviewer }}">
-      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}<strong>{{ r.reviewer }}</strong> {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}"><time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
+      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}<strong>{{ r.reviewer }}</strong>{% call m::bot_badge(ctx, r.reviewer) %}{% endcall %} {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}"><time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
       {%- if !r.body_empty %}
       <div class="markdown" hx-ignore>{{ r.body_html }}</div>
       {%- endif %}
@@ -183,13 +183,13 @@
       <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{{ summary }}</span></summary>
       <ul class="plain-list">
       {%- for e in events %}
-        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong> {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
       {%- endfor %}
       </ul>
     </details>
   </li>
   {%- when TimelineView::Revision with (r) %}
-  <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong> {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
+  <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong>{% call m::bot_badge(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
   {%- endmatch %}
   {%- endfor %}
 </ol>
@@ -257,7 +257,7 @@
   <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/auto-merge/cancel" class="form notice merge-step auto-merge" id="auto-merge" aria-labelledby="auto-merge-title">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <h3 id="auto-merge-title" class="merge-step-title">Merge when ready</h3>
-    <p class="notice-line">{% call m::icon(ctx, "clock") %}{% endcall %}<span>It merges ({{ strategy|lower }}) as soon as every requirement is met. Set by <strong>{{ by }}</strong>; a new revision pushed by anyone else cancels it.</span></p>
+    <p class="notice-line">{% call m::icon(ctx, "clock") %}{% endcall %}<span>It merges ({{ strategy|lower }}) as soon as every requirement is met. Set by <strong>{{ by }}</strong>{% call m::bot_badge(ctx, by) %}{% endcall %}; a new revision pushed by anyone else cancels it.</span></p>
     {%- if am.may_cancel %}
     <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Cancel merge when ready</button></div>
     {%- endif %}

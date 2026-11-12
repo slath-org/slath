@@ -125,6 +125,9 @@ pub struct PageCtx {
     pub diff_ignore_whitespace: bool,
     /// User content may load images from other sites.
     pub external_images: bool,
+    /// The lowercased names of all bots, to mark them wherever names
+    /// appear (empty on error pages).
+    pub bots: std::sync::Arc<std::collections::HashSet<String>>,
 }
 
 /// Returns the value of cookie `name`.
@@ -208,7 +211,14 @@ impl PageCtx {
             needs_confirmation: session.is_some_and(|s| {
                 !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
             }),
+            bots: std::sync::Arc::default(),
         }
+    }
+
+    /// Whether `name` is a bot's (templates mark it as one).
+    #[must_use]
+    pub fn is_bot(&self, name: &str) -> bool {
+        !self.bots.is_empty() && self.bots.contains(&name.to_lowercase())
     }
 
     #[must_use]
@@ -230,12 +240,9 @@ impl FromRequestParts<AppState> for PageCtx {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        Ok(Self::build(
-            state,
-            &parts.extensions,
-            &parts.headers,
-            &parts.uri,
-        ))
+        let mut ctx = Self::build(state, &parts.extensions, &parts.headers, &parts.uri);
+        ctx.bots = state.services.bot_names().await;
+        Ok(ctx)
     }
 }
 
