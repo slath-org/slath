@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `/user/bots`, `/orgs/{org}/bots`, `/bots/{name}`.
+//! `/user/bots`, `/orgs/{org}/bots`, `/bots/{name}`, and a bot's tokens
+//! and SSH keys.
 
 use axum::extract::{OriginalUri, Path, Query, State};
 use axum::http::{StatusCode, header};
@@ -181,8 +182,115 @@ pub async fn get_bot(
     Ok(Json(bot.into()))
 }
 
+/// A bot's tokens, never the secrets (`user:read`).
+#[utoipa::path(get, path = "/api/v1/bots/{name}/tokens", tag = "bots", security(("token" = ["user:read"])), params(("name" = String, Path), PageParams),
+    responses((status = 200, body = super::user::TokenPage), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn list_bot_tokens(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+    OriginalUri(uri): OriginalUri,
+    Query(p): Query<PageParams>,
+) -> Result<Response, AppError> {
+    let (offset, limit) = (p.offset(&state)?, p.limit(state.config.limits.api_page_max));
+    let tokens: Vec<super::user::Token> = state
+        .services
+        .list_bot_tokens(&subject, &name)
+        .await?
+        .into_iter()
+        .skip(offset)
+        .take(limit + 1)
+        .map(Into::into)
+        .collect();
+    Ok(page(&state, &uri, tokens, offset, limit))
+}
+
+/// Bot tokens can't be created through the API, only on the bot's settings
+/// page in sudo mode or with `slath admin create-bot`.
+#[utoipa::path(post, path = "/api/v1/bots/{name}/tokens", tag = "bots", security(("token" = [])), params(("name" = String, Path)),
+    responses((status = 403, body = super::Problem), (status = 401, body = super::Problem)))]
+pub async fn create_bot_token(ApiUser(_subject): ApiUser) -> AppError {
+    AppError::forbidden().detail(
+        "Bot tokens can only be created on the bot's settings page or with `slath admin create-bot`.",
+    )
+}
+
+/// Revokes one of a bot's tokens (`user:write`).
+#[utoipa::path(delete, path = "/api/v1/bots/{name}/tokens/{id}", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn revoke_bot_token(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path((name, id)): Path<(String, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state.services.revoke_bot_token(&subject, &name, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// A bot's SSH keys (`user:read`).
+#[utoipa::path(get, path = "/api/v1/bots/{name}/keys", tag = "bots", security(("token" = ["user:read"])), params(("name" = String, Path), PageParams),
+    responses((status = 200, body = super::user::SshKeyPage), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn list_bot_keys(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+    OriginalUri(uri): OriginalUri,
+    Query(p): Query<PageParams>,
+) -> Result<Response, AppError> {
+    let (offset, limit) = (p.offset(&state)?, p.limit(state.config.limits.api_page_max));
+    let keys: Vec<super::user::SshKey> = state
+        .services
+        .list_bot_keys(&subject, &name)
+        .await?
+        .into_iter()
+        .skip(offset)
+        .take(limit + 1)
+        .map(Into::into)
+        .collect();
+    Ok(page(&state, &uri, keys, offset, limit))
+}
+
+/// Adds an SSH key to a bot (`user:write`).
+#[utoipa::path(post, path = "/api/v1/bots/{name}/keys", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path)), request_body = super::user::NewSshKey,
+    responses((status = 201, body = super::user::SshKey), (status = 401, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn add_bot_key(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+    Json(k): Json<super::user::NewSshKey>,
+) -> Result<Response, AppError> {
+    let key = state
+        .services
+        .add_bot_key(
+            &subject,
+            false,
+            &name,
+            k.title.as_deref().unwrap_or(""),
+            &k.key,
+        )
+        .await?;
+    Ok((StatusCode::CREATED, Json(super::user::SshKey::from(key))).into_response())
+}
+
+/// Removes one of a bot's SSH keys (`user:write`).
+#[utoipa::path(delete, path = "/api/v1/bots/{name}/keys/{id}", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn remove_bot_key(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path((name, id)): Path<(String, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .remove_bot_key(&subject, false, &name, id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn router() -> Router<AppState> {
-    use axum::routing::get;
+    use axum::routing::{delete, get};
     Router::new()
         .route_as(
             "/api/v1/user/bots",
@@ -195,4 +303,24 @@ pub fn router() -> Router<AppState> {
             get(list_org_bots).post(create_org_bot),
         )
         .route_as("/api/v1/bots/{name}", Access::Resource, get(get_bot))
+        .route_as(
+            "/api/v1/bots/{name}/tokens",
+            Access::Resource,
+            get(list_bot_tokens).post(create_bot_token),
+        )
+        .route_as(
+            "/api/v1/bots/{name}/tokens/{id}",
+            Access::Resource,
+            delete(revoke_bot_token),
+        )
+        .route_as(
+            "/api/v1/bots/{name}/keys",
+            Access::Resource,
+            get(list_bot_keys).post(add_bot_key),
+        )
+        .route_as(
+            "/api/v1/bots/{name}/keys/{id}",
+            Access::Resource,
+            delete(remove_bot_key),
+        )
 }

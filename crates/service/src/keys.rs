@@ -4,7 +4,7 @@
 
 use slath_auth::ssh_key;
 use slath_core::authz::{Credential, Scope, Subject};
-use slath_core::ids::SshKeyId;
+use slath_core::ids::{SshKeyId, UserId};
 use time::OffsetDateTime;
 
 use crate::Services;
@@ -23,7 +23,7 @@ pub struct KeyInfo {
 
 /// Adding or removing keys from a browser needs sudo mode; tokens need the
 /// `user:write` scope instead.
-fn check_sudo(subject: &Subject, sudo: bool) -> Result<()> {
+pub(crate) fn check_sudo(subject: &Subject, sudo: bool) -> Result<()> {
     match subject {
         Subject::User {
             credential: Credential::Session,
@@ -36,6 +36,11 @@ fn check_sudo(subject: &Subject, sudo: bool) -> Result<()> {
 impl Services {
     pub async fn list_keys(&self, subject: &Subject) -> Result<Vec<KeyInfo>> {
         let user = user_with_scope(subject, Scope::UserRead)?;
+        self.list_keys_of(user).await
+    }
+
+    /// The keys of `user`'s account (the subject is authorized already).
+    pub(crate) async fn list_keys_of(&self, user: UserId) -> Result<Vec<KeyInfo>> {
         Ok(slath_db::ssh_keys::list_for_user(&self.pool, user)
             .await?
             .into_iter()
@@ -61,6 +66,17 @@ impl Services {
     ) -> Result<KeyInfo> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
         check_sudo(subject, sudo)?;
+        self.add_key_for(subject, user, title, key).await
+    }
+
+    /// Adds a key to `user`'s account (the subject is authorized already).
+    pub(crate) async fn add_key_for(
+        &self,
+        subject: &Subject,
+        user: UserId,
+        title: &str,
+        key: &str,
+    ) -> Result<KeyInfo> {
         let mut errors = Vec::new();
         let parsed = match ssh_key::parse(key) {
             Ok(k) => Some(k),
@@ -130,6 +146,16 @@ impl Services {
     pub async fn remove_key(&self, subject: &Subject, sudo: bool, id: SshKeyId) -> Result<()> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
         check_sudo(subject, sudo)?;
+        self.remove_key_of(subject, user, id).await
+    }
+
+    /// Removes a key of `user`'s account (the subject is authorized already).
+    pub(crate) async fn remove_key_of(
+        &self,
+        subject: &Subject,
+        user: UserId,
+        id: SshKeyId,
+    ) -> Result<()> {
         if slath_db::ssh_keys::delete_for_user(&self.pool, user, id).await? {
             self.audit(
                 subject,

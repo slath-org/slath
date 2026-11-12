@@ -145,7 +145,8 @@ pub async fn remove_key(
 pub struct Token {
     pub id: String,
     pub name: String,
-    /// The first characters after `slath_pat_`, for recognizing the token.
+    /// The first characters after the prefix (`slath_pat_` or `slath_bot_`),
+    /// for recognizing the token.
     pub prefix: String,
     pub scopes: Vec<String>,
     pub expires_at: Option<String>,
@@ -153,6 +154,22 @@ pub struct Token {
     pub created_at: String,
     pub revoked: bool,
     pub expired: bool,
+}
+
+impl From<slath_service::tokens::TokenInfo> for Token {
+    fn from(t: slath_service::tokens::TokenInfo) -> Self {
+        Self {
+            id: t.id.to_string(),
+            name: t.name,
+            prefix: t.prefix,
+            scopes: t.scopes.iter().map(|s| s.as_str().to_owned()).collect(),
+            expires_at: t.expires_at.map(ts),
+            last_used_at: t.last_used_at.map(ts),
+            created_at: ts(t.created_at),
+            revoked: t.revoked,
+            expired: t.expired,
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
@@ -178,17 +195,7 @@ pub async fn list_tokens(
         .into_iter()
         .skip(offset)
         .take(limit + 1)
-        .map(|t| Token {
-            id: t.id.to_string(),
-            name: t.name,
-            prefix: t.prefix,
-            scopes: t.scopes.iter().map(|s| s.as_str().to_owned()).collect(),
-            expires_at: t.expires_at.map(ts),
-            last_used_at: t.last_used_at.map(ts),
-            created_at: ts(t.created_at),
-            revoked: t.revoked,
-            expired: t.expired,
-        })
+        .map(Into::into)
         .collect();
     Ok(page(&state, &uri, tokens, offset, limit))
 }

@@ -4,8 +4,10 @@
 //! organization's owners. Bots never sign in; they act only through the
 //! tokens and SSH keys their owner gives them.
 
+use slath_core::Secret;
 use slath_core::authz::{Scope, Subject, UserKind, UserState};
-use slath_core::ids::UserId;
+use slath_core::credential::CredentialKind;
+use slath_core::ids::{RepoId, SshKeyId, TokenId, UserId};
 use slath_core::names::NamespaceName;
 use slath_db::bots::{Bot, BotOwner};
 use slath_db::orgs::NamespaceKind;
@@ -13,8 +15,11 @@ use slath_db::orgs::NamespaceKind;
 use crate::Services;
 use crate::accounts::name_error;
 use crate::audit::Target;
-use crate::error::{Result, ServiceError};
-use crate::tokens::user_with_scope;
+use crate::error::{FieldError, Result, ServiceError};
+use crate::keys::{KeyInfo, check_sudo};
+use crate::sessions::Session;
+use crate::tokens::{TokenInfo, user_with_scope};
+use time::OffsetDateTime;
 
 /// Whose bots: the acting person's own, or an organization's.
 #[derive(Debug, Clone, Copy)]
@@ -88,6 +93,18 @@ impl Services {
     ) -> Result<Bot> {
         let owner = self.bot_owner(subject, owner, Scope::UserWrite).await?;
         self.require_confirmed(subject).await?;
+        self.insert_bot(subject, owner, name, display_name).await
+    }
+
+    /// Creates a bot for an owner the caller has checked; audited as the
+    /// subject's action.
+    async fn insert_bot(
+        &self,
+        subject: &Subject,
+        owner: BotOwner,
+        name: &str,
+        display_name: &str,
+    ) -> Result<Bot> {
         let name = NamespaceName::parse(name.trim()).map_err(|e| {
             let mut f = name_error(&e);
             f.field = "name".to_owned();
@@ -142,5 +159,277 @@ impl Services {
         } else {
             Err(ServiceError::NotFound)
         }
+    }
+}
+
+/// Scopes a bot token may have: never `user:write` (a bot doesn't manage
+/// its own credentials) or `admin`.
+pub const BOT_SCOPES: &[Scope] = &[
+    Scope::RepoRead,
+    Scope::RepoWrite,
+    Scope::IssuesWrite,
+    Scope::MrsWrite,
+    Scope::StatusesWrite,
+    Scope::UserRead,
+];
+
+/// Most repositories one bot token can name.
+pub const BOT_TOKEN_MAX_REPOS: usize = 50;
+
+/// A new bot token.
+#[derive(Debug, Clone)]
+pub struct NewBotToken {
+    pub name: String,
+    pub scopes: Vec<String>,
+    /// `namespace/name` of each repository the token is restricted to.
+    pub repos: Vec<String>,
+    /// `None`: the configured default.
+    pub expires_in_days: Option<u32>,
+}
+
+/// A validated bot token, ready to store.
+struct CheckedBotToken {
+    name: String,
+    scopes: Vec<Scope>,
+    repos: Vec<RepoId>,
+    expires_at: OffsetDateTime,
+}
+
+impl Services {
+    /// The default and the longest validity of bot tokens, in days.
+    #[must_use]
+    pub fn bot_token_days(&self) -> (u32, u32) {
+        let max = self.config.auth.bot_token_max_days.max(1);
+        (self.config.auth.bot_token_default_days.clamp(1, max), max)
+    }
+
+    /// Validity choices offered for bot tokens, in days.
+    #[must_use]
+    pub fn bot_token_expiry_choices(&self) -> Vec<u32> {
+        let (default, max) = self.bot_token_days();
+        let mut v: Vec<u32> = [7, 30, 90, default, max]
+            .into_iter()
+            .filter(|d| *d <= max)
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v
+    }
+
+    /// Checks a new bot token; repositories are resolved as `viewer` sees
+    /// them, so a token never names a repository its manager can't read.
+    async fn check_bot_token(&self, viewer: &Subject, t: &NewBotToken) -> Result<CheckedBotToken> {
+        let mut errors = Vec::new();
+        let name = t.name.trim();
+        if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
+            errors.push(FieldError::new(
+                "name",
+                "invalid",
+                "Enter a name of 1 to 100 characters.",
+            ));
+        }
+        let mut scopes: Vec<Scope> = Vec::new();
+        for raw in &t.scopes {
+            match raw.trim().parse::<Scope>() {
+                Ok(s) if BOT_SCOPES.contains(&s) => {
+                    if !scopes.contains(&s) {
+                        scopes.push(s);
+                    }
+                }
+                Ok(s) => errors.push(FieldError::new(
+                    "scopes",
+                    "not_for_bots",
+                    format!("Bot tokens can't have the {s} scope."),
+                )),
+                Err(_) => errors.push(FieldError::new(
+                    "scopes",
+                    "unknown",
+                    format!("Unknown scope {raw:?}."),
+                )),
+            }
+        }
+        if scopes.is_empty() {
+            errors.push(FieldError::new(
+                "scopes",
+                "required",
+                "Choose at least one scope.",
+            ));
+        }
+        let mut repos: Vec<RepoId> = Vec::new();
+        for raw in t.repos.iter().map(|r| r.trim()).filter(|r| !r.is_empty()) {
+            let found = match raw.split_once('/') {
+                Some((ns, name)) => match self.resolve_repo(viewer, ns, name).await {
+                    Ok(crate::repos::Resolved::Repo(a)) => Some(a.repo.id),
+                    _ => None,
+                },
+                None => None,
+            };
+            match found {
+                Some(id) if !repos.contains(&id) => repos.push(id),
+                Some(_) => {}
+                None => errors.push(FieldError::new(
+                    "repos",
+                    "unknown",
+                    format!("There's no repository {raw:?} you can see."),
+                )),
+            }
+        }
+        if repos.is_empty() {
+            errors.push(FieldError::new(
+                "repos",
+                "required",
+                "Name at least one repository: bot tokens work only for the repositories they name.",
+            ));
+        } else if repos.len() > BOT_TOKEN_MAX_REPOS {
+            errors.push(FieldError::new(
+                "repos",
+                "too_many",
+                format!("Name at most {BOT_TOKEN_MAX_REPOS} repositories."),
+            ));
+        }
+        let (default, max) = self.bot_token_days();
+        let days = t.expires_in_days.unwrap_or(default);
+        if days == 0 || days > max {
+            errors.push(FieldError::new(
+                "expires",
+                "invalid",
+                format!("Bot tokens expire after 1 to {max} days."),
+            ));
+        }
+        if !errors.is_empty() {
+            return Err(ServiceError::Invalid(errors));
+        }
+        Ok(CheckedBotToken {
+            name: name.to_owned(),
+            scopes,
+            repos,
+            expires_at: OffsetDateTime::now_utc() + time::Duration::days(i64::from(days)),
+        })
+    }
+
+    async fn store_bot_token(
+        &self,
+        subject: &Subject,
+        bot: &Bot,
+        t: CheckedBotToken,
+    ) -> Result<(Secret<String>, TokenId)> {
+        self.store_token(
+            subject,
+            bot.id,
+            CredentialKind::BotToken,
+            &t.name,
+            t.scopes,
+            Some(&t.repos),
+            Some(t.expires_at),
+        )
+        .await
+    }
+
+    /// Creates a token for a bot the session's user manages (sudo mode).
+    /// Returns the token, which is shown once.
+    pub async fn create_bot_token(
+        &self,
+        session: &Session,
+        bot: &str,
+        t: &NewBotToken,
+    ) -> Result<(Secret<String>, TokenId)> {
+        let bot = self
+            .managed_bot(&session.subject, bot, Scope::UserWrite)
+            .await?;
+        self.require_sudo(session)?;
+        let checked = self.check_bot_token(&session.subject, t).await?;
+        self.store_bot_token(&session.subject, &bot, checked).await
+    }
+
+    /// A bot's tokens, never the secrets.
+    pub async fn list_bot_tokens(&self, subject: &Subject, bot: &str) -> Result<Vec<TokenInfo>> {
+        let bot = self.managed_bot(subject, bot, Scope::UserRead).await?;
+        self.tokens_of(bot.id).await
+    }
+
+    /// Revokes one of a bot's tokens.
+    pub async fn revoke_bot_token(&self, subject: &Subject, bot: &str, id: TokenId) -> Result<()> {
+        let bot = self.managed_bot(subject, bot, Scope::UserWrite).await?;
+        self.revoke_token_of(subject, bot.id, id).await
+    }
+
+    /// A bot's SSH keys.
+    pub async fn list_bot_keys(&self, subject: &Subject, bot: &str) -> Result<Vec<KeyInfo>> {
+        let bot = self.managed_bot(subject, bot, Scope::UserRead).await?;
+        self.list_keys_of(bot.id).await
+    }
+
+    /// Adds an SSH key to a bot (browser sessions need sudo mode).
+    pub async fn add_bot_key(
+        &self,
+        subject: &Subject,
+        sudo: bool,
+        bot: &str,
+        title: &str,
+        key: &str,
+    ) -> Result<KeyInfo> {
+        let bot = self.managed_bot(subject, bot, Scope::UserWrite).await?;
+        check_sudo(subject, sudo)?;
+        self.add_key_for(subject, bot.id, title, key).await
+    }
+
+    /// Removes one of a bot's SSH keys (browser sessions need sudo mode).
+    pub async fn remove_bot_key(
+        &self,
+        subject: &Subject,
+        sudo: bool,
+        bot: &str,
+        id: SshKeyId,
+    ) -> Result<()> {
+        let bot = self.managed_bot(subject, bot, Scope::UserWrite).await?;
+        check_sudo(subject, sudo)?;
+        self.remove_key_of(subject, bot.id, id).await
+    }
+
+    /// `slath admin create-bot`: creates a bot for the user or organization
+    /// `owner` and, if asked, a token (repositories as a site administrator
+    /// would see them). Acts as the system.
+    pub async fn create_bot_as_system(
+        &self,
+        owner: &str,
+        name: &str,
+        display_name: &str,
+        token: Option<NewBotToken>,
+    ) -> Result<(Bot, Option<Secret<String>>)> {
+        let owner = match slath_db::orgs::resolve_namespace(&self.pool, owner.trim()).await? {
+            Some((_, _, NamespaceKind::Org(o))) => BotOwner::Org(o),
+            Some((_, _, NamespaceKind::User(u))) => {
+                let human = slath_db::users::get(&self.pool, u)
+                    .await?
+                    .is_some_and(|u| u.kind == UserKind::Human && u.state == UserState::Active);
+                if !human {
+                    return Err(ServiceError::invalid(
+                        "owner",
+                        "invalid",
+                        "A bot's owner must be an active person or an organization.",
+                    ));
+                }
+                BotOwner::User(u)
+            }
+            None => {
+                return Err(ServiceError::invalid(
+                    "owner",
+                    "unknown",
+                    "There's no user or organization with this name.",
+                ));
+            }
+        };
+        let checked = match &token {
+            Some(t) => Some(self.check_bot_token(&Subject::System, t).await?),
+            None => None,
+        };
+        let bot = self
+            .insert_bot(&Subject::System, owner, name, display_name)
+            .await?;
+        let secret = match checked {
+            Some(c) => Some(self.store_bot_token(&Subject::System, &bot, c).await?.0),
+            None => None,
+        };
+        Ok((bot, secret))
     }
 }

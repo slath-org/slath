@@ -35,6 +35,65 @@ bot. `GET /api/v1/user/bots`, `GET /api/v1/orgs/{org}/bots`, and
 `GET /api/v1/bots/{name}` list and show the bots you manage. Other
 people's bots don't appear there.
 
+## Tokens
+
+A bot works through tokens that start with `slath_bot_`. They are like
+personal access tokens, with stricter rules:
+
+- **Restricted to repositories.** Each token names 1 to 50 repositories,
+  and works for nothing else. Name only repositories the bot needs.
+- **Limited scopes.** `repo:read`, `repo:write`, `issues:write`,
+  `mrs:write`, `statuses:write`, and `user:read`. Never `user:write` or
+  `admin`: a bot can't change its own keys or tokens.
+- **Short-lived.** A bot token expires after 30 days unless its owner
+  picks another period, and after 90 days at the most. Site
+  administrators can change both (see
+  [Accounts](../admin/accounts.md#bots)).
+
+The token is shown once, when it's created. A site administrator creates
+one on the server:
+
+```sh
+slath admin create-bot --owner alice --name alice-ci \
+  --token-scopes repo:write,mrs:write,statuses:write --repo alice/app
+```
+
+`slath admin create-bot` creates the bot, and with `--token-scopes` also a
+token for the repositories given with `--repo` (repeat it for several);
+`--token-days` sets the validity and `--output json` prints the result as
+JSON. Tokens can't be created through the API, just as personal tokens
+can't.
+
+`GET /api/v1/bots/{name}/tokens` lists a bot's tokens (never the
+secrets), and `DELETE /api/v1/bots/{name}/tokens/{id}` revokes one. A
+`slath_bot_` token only ever authenticates a bot, and a `slath_pat_` token
+only a person.
+
+A bot still needs a role on each repository, like anyone else: add it as
+a collaborator or to a team. The token's repositories only narrow what
+that role allows.
+
+## SSH keys
+
+For Git over SSH, give the bot its own key pair. Its owner adds the public
+key through the API with a token that has `user:write`:
+
+```sh
+curl -X POST https://git.example.org/api/v1/bots/alice-ci/keys \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d "{\"title\": \"ci runner\", \"key\": \"$(cat ci.pub)\"}"
+```
+
+`GET /api/v1/bots/{name}/keys` lists them and
+`DELETE /api/v1/bots/{name}/keys/{id}` removes one.
+
+## Rate limits
+
+Bots make at most 2,000 API requests per hour (site setting
+`[limits] bot_requests_per_hour`), fewer than people. The response headers
+`RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` say where a
+bot stands.
+
 ## What a bot can't do
 
 - **Sign in.** A bot has no password, no session, no second factor, and

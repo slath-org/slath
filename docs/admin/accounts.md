@@ -148,3 +148,29 @@ any grant takes effect on the next request.
   authentication**. With the requirement, members and collaborators
   without a second factor lose access to the organization's repositories
   until they set one up (public repositories stay readable).
+
+## Bots
+
+Bots are accounts for automation and AI agents, owned by a person or an
+organization ([Bots](../user/bots.md)). They never sign in and work only
+through the tokens and SSH keys their owner gives them. These settings
+apply to all of them:
+
+```toml
+[auth]
+bot_token_default_days = 30   # validity of a new bot token
+bot_token_max_days = 90       # the longest validity an owner can choose
+
+[limits]
+bot_requests_per_hour = 2000  # API requests per bot and hour
+```
+
+To create a bot and a token on the server, for example while setting up an
+instance for agents:
+
+```sh
+slath admin create-bot --owner alice --name alice-ci \
+  --token-scopes repo:write,mrs:write --repo alice/app --output json
+```
+
+The token is printed once. The owner can see and revoke it later.

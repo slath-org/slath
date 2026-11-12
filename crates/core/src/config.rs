@@ -216,6 +216,12 @@ pub struct Auth {
     /// Whether any user may create organizations (otherwise site admins only).
     #[serde(default = "yes")]
     pub users_can_create_orgs: bool,
+    /// Days a new bot token is valid unless its owner chooses otherwise.
+    #[serde(default = "default_bot_token_days")]
+    pub bot_token_default_days: u32,
+    /// The longest validity a bot token can have, in days.
+    #[serde(default = "default_bot_token_max_days")]
+    pub bot_token_max_days: u32,
     /// OpenID Connect providers people can sign in with.
     #[serde(default)]
     pub oidc: Vec<OidcProvider>,
@@ -268,6 +274,14 @@ const fn default_absolute_days() -> u32 {
     30
 }
 
+const fn default_bot_token_days() -> u32 {
+    30
+}
+
+const fn default_bot_token_max_days() -> u32 {
+    90
+}
+
 impl Default for Auth {
     fn default() -> Self {
         Self {
@@ -276,6 +290,8 @@ impl Default for Auth {
             session_idle_days: default_idle_days(),
             session_absolute_days: default_absolute_days(),
             users_can_create_orgs: true,
+            bot_token_default_days: default_bot_token_days(),
+            bot_token_max_days: default_bot_token_max_days(),
             oidc: Vec::new(),
         }
     }
@@ -386,6 +402,8 @@ pub struct Limits {
     pub api_requests_per_hour: u32,
     /// API requests per hour per IP for anonymous clients.
     pub api_anonymous_requests_per_hour: u32,
+    /// API requests per hour for a bot account (lower than for people).
+    pub bot_requests_per_hour: u32,
     /// Failed logins per account per 15 minutes before throttling.
     pub login_failures_per_account: u32,
     /// Failed logins per IP per 15 minutes before throttling.
@@ -434,6 +452,7 @@ impl Default for Limits {
             archive_max_concurrent: 4,
             api_requests_per_hour: 5000,
             api_anonymous_requests_per_hour: 300,
+            bot_requests_per_hour: 2000,
             login_failures_per_account: 10,
             login_failures_per_ip: 50,
             ssh_key_lookups_per_second: 200,

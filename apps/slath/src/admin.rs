@@ -135,6 +135,67 @@ pub fn create_user(path: &Path, args: CreateUser, format: OutputFormat) -> ExitC
     }
 }
 
+pub struct CreateBot {
+    pub owner: String,
+    pub name: String,
+    pub display_name: Option<String>,
+    pub token_scopes: Vec<String>,
+    pub repos: Vec<String>,
+    pub token_days: Option<u32>,
+}
+
+/// `slath admin create-bot`: creates a bot for a user or organization and,
+/// with `--token-scopes`, a token printed once.
+pub fn create_bot(path: &Path, args: CreateBot, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        let token = (!args.token_scopes.is_empty()).then(|| slath_service::bots::NewBotToken {
+            name: "created by slath admin create-bot".to_owned(),
+            scopes: args.token_scopes.clone(),
+            repos: args.repos.clone(),
+            expires_in_days: args.token_days,
+        });
+        if token.is_none() && !args.repos.is_empty() {
+            return Err("--repo needs --token-scopes".to_owned());
+        }
+        svc.create_bot_as_system(
+            &args.owner,
+            &args.name,
+            args.display_name.as_deref().unwrap_or(""),
+            token,
+        )
+        .await
+        .map_err(|e| describe(&e))
+    });
+    match result {
+        Ok((bot, token)) => {
+            match format {
+                OutputFormat::Text => {
+                    println!(
+                        "created bot {} ({}) owned by {}",
+                        bot.name, bot.id, bot.owner_name
+                    );
+                    if let Some(t) = &token {
+                        println!("token: {}", t.expose());
+                        println!("Store it now; it can't be shown again.");
+                    }
+                }
+                OutputFormat::Json => print_json(&json!({
+                    "ok": true,
+                    "bot": {"id": bot.id.to_string(), "username": bot.name, "owner": bot.owner_name},
+                    "token": token.as_ref().map(|t| t.expose().clone()),
+                })),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
 /// `slath fsck [--reconcile] [--repo ID]`.
 pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFormat) -> ExitCode {
     let rt = match runtime() {

@@ -507,14 +507,28 @@ fn conf_review_11_who_may_satisfy_required_checks() {
         "{reason}"
     );
     // Nor a bot the author owns.
-    u.s.create_user("alicebot", PASSWORD, false);
-    let bot = token(&u.s, "alicebot");
-    let alice_id = u.s.db.query_one("SELECT u.id::text FROM users u JOIN namespaces n ON n.id = u.namespace_id WHERE n.name = 'alice'");
-    // Bot accounts can't be created yet; turn a user into one.
-    let _bot_id = u.s.db.query_one(&format!(
-        "UPDATE users u SET kind = 'bot', bot_owner_kind = 'user', bot_owner_id = '{alice_id}', password_hash = NULL
-           FROM namespaces n WHERE n.id = u.namespace_id AND n.name = 'alicebot' RETURNING u.id::text"
-    ));
+    let (ok, out, err) = u.s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alicebot",
+            "--token-scopes",
+            "repo:write,statuses:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let bot = serde_json::from_str::<Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let r = api(
         &u,
         &u.alice,

@@ -128,6 +128,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Import reports count findings the imported allowlist covers apart, as allowed by the repository, not as secrets to revoke.
 - Bot accounts for automation: people create their own and organization owners their organization's through the API; bots never sign in.
 - Bots can be organization members but not owners, and can't create organizations or bots.
+- Bot tokens start with `slath_bot_`, name the repositories they work for, can't manage accounts, and expire after 30 days by default (90 at most).
+- `slath admin create-bot` creates a bot and, with `--token-scopes` and `--repo`, a token for it, printed once.
+- The API lists and revokes a bot's tokens and manages its SSH keys; bots get their own, lower API rate limit.
 
 ### Changed
 

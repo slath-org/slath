@@ -5,7 +5,8 @@
 
 use slath_auth::token;
 use slath_core::Secret;
-use slath_core::authz::{Credential, Scope, Subject, UserState};
+use slath_core::authz::{Credential, Scope, Subject, UserKind, UserState};
+use slath_core::credential::CredentialKind;
 use slath_core::ids::{RepoId, TokenId, UserId};
 use time::OffsetDateTime;
 
@@ -107,33 +108,75 @@ impl Services {
         if !errors.is_empty() {
             return Err(ServiceError::Invalid(errors));
         }
+        let expires_at = t
+            .expires_in_days
+            .map(|d| OffsetDateTime::now_utc() + time::Duration::days(i64::from(d)));
+        self.store_token(
+            &session.subject,
+            session.user_id(),
+            CredentialKind::PersonalAccessToken,
+            name,
+            scopes,
+            t.repo_ids.as_deref(),
+            expires_at,
+        )
+        .await
+    }
+
+    /// Stores a new token of `kind` for `user` and returns it (validated
+    /// and authorized by the caller). Audited as the subject's action.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn store_token(
+        &self,
+        subject: &Subject,
+        user: UserId,
+        kind: CredentialKind,
+        name: &str,
+        mut scopes: Vec<Scope>,
+        repo_ids: Option<&[RepoId]>,
+        expires_at: Option<OffsetDateTime>,
+    ) -> Result<(Secret<String>, TokenId)> {
         scopes.sort();
-        let secret = token::new_pat().map_err(ServiceError::internal)?;
+        let secret = token::new_credential(kind).map_err(ServiceError::internal)?;
         let id = TokenId::new();
         let scope_strings: Vec<String> = scopes.iter().map(|s| s.as_str().to_owned()).collect();
         slath_db::tokens::insert(
             &self.pool,
             &slath_db::tokens::NewToken {
                 id,
-                user_id: session.user_id(),
+                user_id: user,
                 name,
                 prefix: &token::pat_display_prefix(secret.expose()),
                 hash: &token::storage_hash(secret.expose()),
                 scopes: &scope_strings,
-                repo_ids: t.repo_ids.as_deref(),
-                expires_at: t
-                    .expires_in_days
-                    .map(|d| OffsetDateTime::now_utc() + time::Duration::days(i64::from(d))),
+                repo_ids,
+                expires_at,
             },
         )
         .await?;
-        self.audit(&session.subject, "token.create", crate::audit::Target::new("token", Some(*id.as_uuid())), serde_json::json!({"name": name, "scopes": scope_strings, "expires_in_days": t.expires_in_days})).await;
+        self.audit(
+            subject,
+            "token.create",
+            crate::audit::Target::new("token", Some(*id.as_uuid())),
+            serde_json::json!({
+                "user": user.to_string(),
+                "name": name,
+                "scopes": scope_strings,
+                "expires_at": expires_at.map(|e| e.unix_timestamp()),
+            }),
+        )
+        .await;
         Ok((secret, id))
     }
 
     /// The user's tokens. Needs a session, or a token with `user:read`.
     pub async fn list_tokens(&self, subject: &Subject) -> Result<Vec<TokenInfo>> {
         let user = user_with_scope(subject, Scope::UserRead)?;
+        self.tokens_of(user).await
+    }
+
+    /// The tokens of `user`'s account (the subject is authorized already).
+    pub(crate) async fn tokens_of(&self, user: UserId) -> Result<Vec<TokenInfo>> {
         let now = OffsetDateTime::now_utc();
         Ok(slath_db::tokens::list_for_user(&self.pool, user)
             .await?
@@ -156,6 +199,16 @@ impl Services {
     /// Revokes one of the user's tokens. Other users' tokens are "not found".
     pub async fn revoke_token(&self, subject: &Subject, id: TokenId) -> Result<()> {
         let user = user_with_scope(subject, Scope::UserWrite)?;
+        self.revoke_token_of(subject, user, id).await
+    }
+
+    /// Revokes a token of `user`'s account (the subject is authorized already).
+    pub(crate) async fn revoke_token_of(
+        &self,
+        subject: &Subject,
+        user: UserId,
+        id: TokenId,
+    ) -> Result<()> {
         if slath_db::tokens::revoke(&self.pool, user, id).await? {
             self.audit(
                 subject,
@@ -174,9 +227,11 @@ impl Services {
     /// tokens and tokens of inactive users all give `None`. A token whose
     /// prefix or checksum is wrong is rejected before any database lookup.
     pub async fn authenticate_token(&self, raw: &str) -> Result<Option<TokenAuth>> {
-        if !token::is_pat(raw) {
+        let Some(kind @ (CredentialKind::PersonalAccessToken | CredentialKind::BotToken)) =
+            token::token_kind(raw)
+        else {
             return Ok(None);
-        }
+        };
         let Some(row) =
             slath_db::tokens::find_active(&self.pool, &token::storage_hash(raw)).await?
         else {
@@ -185,7 +240,9 @@ impl Services {
         let Some(user) = slath_db::users::get(&self.pool, row.user_id).await? else {
             return Ok(None);
         };
-        if user.state != UserState::Active {
+        // A bot's token authenticates only the bot, a person's only them.
+        let bot_token = kind == CredentialKind::BotToken;
+        if user.state != UserState::Active || bot_token != (user.kind == UserKind::Bot) {
             return Ok(None);
         }
         if row

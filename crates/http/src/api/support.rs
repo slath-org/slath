@@ -68,6 +68,11 @@ pub async fn api_context(State(state): State<AppState>, req: Request, next: Next
     let ip = ClientIp::from_parts(&state, &parts.extensions, &parts.headers);
     let limits = &state.config.limits;
     let (key, per_hour) = match &subject {
+        Subject::User {
+            id,
+            kind: slath_core::authz::UserKind::Bot,
+            ..
+        } => (format!("u:{id}"), limits.bot_requests_per_hour),
         Subject::User { id, .. } => (format!("u:{id}"), limits.api_requests_per_hour),
         _ => (
             format!(

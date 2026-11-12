@@ -27,7 +27,9 @@ fn every_operation_documents_its_errors() {
         for (method, op) in item.as_object().unwrap() {
             let responses = op["responses"].as_object().unwrap();
             // Token creation is deliberately browser-only.
-            if !(path == "/api/v1/user/tokens" && method == "post") {
+            let browser_only = method == "post"
+                && (path == "/api/v1/user/tokens" || path == "/api/v1/bots/{name}/tokens");
+            if !browser_only {
                 assert!(
                     responses
                         .keys()

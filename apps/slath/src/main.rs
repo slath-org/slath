@@ -309,6 +309,33 @@ enum AdminCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Create a bot account for a user or organization, and optionally a
+    /// token for it (printed once).
+    CreateBot {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// The user or organization that owns the bot.
+        #[arg(long)]
+        owner: String,
+        /// The bot's username.
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        display_name: Option<String>,
+        /// Also create a token with these scopes (comma-separated).
+        #[arg(long, value_delimiter = ',')]
+        token_scopes: Vec<String>,
+        /// A repository (`namespace/name`) the token is restricted to;
+        /// repeat for several. Bot tokens need at least one.
+        #[arg(long = "repo")]
+        repos: Vec<String>,
+        /// Days until the token expires (default and maximum from the
+        /// [auth] settings).
+        #[arg(long)]
+        token_days: Option<u32>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
 }
 
 #[derive(Subcommand)]
@@ -470,6 +497,30 @@ fn main() -> ExitCode {
                 display_name,
                 admin,
                 password_stdin,
+            },
+            output,
+        ),
+        Command::Admin {
+            command:
+                AdminCommand::CreateBot {
+                    config,
+                    owner,
+                    name,
+                    display_name,
+                    token_scopes,
+                    repos,
+                    token_days,
+                    output,
+                },
+        } => admin::create_bot(
+            &config::resolve_path(config),
+            admin::CreateBot {
+                owner,
+                name,
+                display_name,
+                token_scopes,
+                repos,
+                token_days,
             },
             output,
         ),
