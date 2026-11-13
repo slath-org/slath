@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sensitive paths: bots can't push commits that change them, nor apply
-//! suggestions to them.
+//! Sensitive paths: the built-in ones plus a repository's own globs. Bots
+//! can't push commits that change them, nor apply suggestions to them.
 
-use slath_core::authz::{Subject, UserKind};
+use slath_core::authz::{Action, Subject, UserKind};
 use slath_core::ids::RepoId;
-use slath_core::sensitive_paths::SensitivePaths;
+use slath_core::sensitive_paths::{MAX_EXTRA, SensitivePaths, invalid_glob};
 use slath_git::ipc::{Quarantine, RefUpdate};
 
 use crate::Services;
@@ -23,9 +23,68 @@ pub struct Touched {
 }
 
 impl Services {
-    /// A repository's sensitive paths.
-    pub async fn sensitive_paths(&self, _repo: RepoId) -> Result<SensitivePaths> {
-        Ok(SensitivePaths::default())
+    /// A repository's sensitive paths: the defaults and its own globs.
+    pub async fn sensitive_paths(&self, repo: RepoId) -> Result<SensitivePaths> {
+        Ok(SensitivePaths::new(
+            slath_db::repos::sensitive_paths(&self.pool, repo).await?,
+        ))
+    }
+
+    /// A repository's sensitive paths, for whoever can read it.
+    pub async fn repo_sensitive_paths(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+    ) -> Result<SensitivePaths> {
+        let a = self
+            .repo_access(subject, ns, repo, Action::RepoRead)
+            .await?;
+        self.sensitive_paths(a.repo.id).await
+    }
+
+    /// Replaces a repository's own globs (whoever manages its branch
+    /// protection); audited. Blank entries are dropped, duplicates kept
+    /// once.
+    pub async fn set_sensitive_paths(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+        globs: &[String],
+    ) -> Result<SensitivePaths> {
+        let a = self
+            .repo_access(subject, ns, repo, Action::ProtectionManage)
+            .await?;
+        let mut list: Vec<String> = Vec::new();
+        for g in globs.iter().map(|g| g.trim()).filter(|g| !g.is_empty()) {
+            if let Some(why) = invalid_glob(g) {
+                return Err(ServiceError::invalid(
+                    "paths",
+                    "invalid",
+                    format!("{g} {why}."),
+                ));
+            }
+            if !list.iter().any(|x| x == g) {
+                list.push(g.to_owned());
+            }
+        }
+        if list.len() > MAX_EXTRA {
+            return Err(ServiceError::invalid(
+                "paths",
+                "too_many",
+                format!("Add at most {MAX_EXTRA} paths."),
+            ));
+        }
+        slath_db::repos::set_sensitive_paths(&self.pool, a.repo.id, &list).await?;
+        self.audit(
+            subject,
+            "repo.sensitive_paths",
+            crate::audit::Target::repo(*a.repo.id.as_uuid()),
+            serde_json::json!({"paths": list}),
+        )
+        .await;
+        Ok(SensitivePaths::new(list))
     }
 
     /// For a bot's push: rejects it if a commit it adds changes a

@@ -8341,6 +8341,150 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/sensitive-paths": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Files bots can't change and merge requests need a maintainer's approval\nfor: the built-in defaults and the repository's own globs.",
+        "operationId": "get_sensitive_paths",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensitivePathsBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Replaces the repository's own sensitive paths (admins); the defaults\nalways apply. Audited.",
+        "operationId": "put_sensitive_paths",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutSensitivePaths"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensitivePathsBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/statuses/{oid}": {
       "post": {
         "tags": [
@@ -12897,6 +13041,19 @@
           }
         }
       },
+      "PutSensitivePaths": {
+        "type": "object",
+        "description": "The repository's own sensitive paths to set.",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "At most 100 globs of at most 255 bytes; they replace the current ones."
+          }
+        }
+      },
       "Queued": {
         "type": "object",
         "required": [
@@ -13195,6 +13352,30 @@
             "type": "integer",
             "format": "int32",
             "description": "1 for the first revision, counting up."
+          }
+        }
+      },
+      "SensitivePathsBody": {
+        "type": "object",
+        "description": "A repository's sensitive paths.",
+        "required": [
+          "defaults",
+          "paths"
+        ],
+        "properties": {
+          "defaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Built in; they always apply."
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The repository's own globs (`**`, `*`, `?`)."
           }
         }
       },

@@ -704,6 +704,34 @@ pub async fn set_push_protection(
     Ok(())
 }
 
+/// A repository's own sensitive path globs.
+pub async fn sensitive_paths(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+) -> Result<Vec<String>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT sensitive_paths FROM repositories WHERE id = $1",
+        id.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}
+
+pub async fn set_sensitive_paths(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    paths: &[String],
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET sensitive_paths = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        paths
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 /// Who may allow push protection findings: `write` or `admin`.
 pub async fn secret_allowance_role(
     exec: impl PgExecutor<'_>,

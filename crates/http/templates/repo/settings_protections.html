@@ -104,4 +104,27 @@
   </fieldset>
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>
+<h2 id="sensitive-paths">Sensitive paths</h2>
+<p>Bots can't change these files on any branch: pushes and suggestions that would are refused. Names match regardless of upper and lower case.</p>
+<details class="sensitive-defaults">
+  <summary>Built-in paths ({{ sensitive_defaults.len() }})</summary>
+  <ul>
+  {%- for p in sensitive_defaults %}
+    <li><code>{{ p }}</code></li>
+  {%- endfor %}
+  </ul>
+</details>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/sensitive-paths" class="form" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <div class="field">
+    <label for="sensitive_paths">This repository's own paths</label>
+    <textarea id="sensitive_paths" name="paths" rows="4" autocapitalize="none" spellcheck="false" aria-describedby="sensitive_paths-hint{% if self.error("paths").is_some() %} sensitive_paths-error{% endif %}"
+      {%- if self.error("paths").is_some() %} aria-invalid="true"{% endif %}>{{ sensitive_paths }}</textarea>
+    <p id="sensitive_paths-hint" class="hint">One per line, from the repository root, for example <code>deploy/**</code> or <code>Makefile</code>: <code>**</code> matches any path, <code>*</code> anything within a folder name, <code>?</code> one character. They add to the built-in paths; at most 100.</p>
+    {%- if let Some(e) = self.error("paths") %}
+    <p id="sensitive_paths-error" class="field-error">{{ e }}</p>
+    {%- endif %}
+  </div>
+  <div><button type="submit" class="button button-primary">Save sensitive paths</button></div>
+</form>
 {% endblock %}

@@ -262,3 +262,127 @@ fn conf_agent_11_bots_cannot_apply_suggestions_to_sensitive_paths() {
     );
     assert_eq!(r.status, 200, "{}", r.body);
 }
+
+#[test]
+fn conf_agent_11_repositories_add_sensitive_paths() {
+    use slath_tests::contract;
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let bot = setup(&s, w);
+    let token = |user: &str| {
+        let mut c = s.login(user, PASSWORD);
+        slath_tests::http::create_token(&mut c, user, &["repo:write"])
+    };
+    let (alice, bob) = (token("alice"), token("bob"));
+    let r = s.client().api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/bob",
+        Some(&alice),
+        Some(&json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let path = "/api/v1/repos/alice/demo/sensitive-paths";
+    let put = |t: &str, paths: serde_json::Value| {
+        s.client()
+            .api("PUT", path, Some(t), Some(&json!({ "paths": paths })))
+    };
+
+    // Readers see the defaults; the repository has none of its own yet.
+    let r = s.client().api("GET", path, Some(&bob), None);
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("GET", "/api/v1/repos/{ns}/{repo}/sensitive-paths", &r);
+    assert_eq!(r.json()["paths"], json!([]));
+    assert!(
+        r.json()["defaults"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("**/AGENTS.md"))
+    );
+
+    // Only those who manage protection set them; globs are checked.
+    assert_eq!(put(&bob, json!(["deploy/**"])).status, 403);
+    for bad in [json!(["../up"]), json!(["/abs"]), json!(["a//b"])] {
+        let r = put(&alice, bad.clone());
+        assert_eq!(r.status, 422, "{bad}: {}", r.body);
+        assert_eq!(r.json()["errors"][0]["field"], "paths");
+    }
+    let many: Vec<String> = (0..101).map(|i| format!("dir{i}/**")).collect();
+    assert_eq!(put(&alice, json!(many)).status, 422);
+    let r = put(&alice, json!(["deploy/**", " Makefile ", "", "deploy/**"]));
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("PUT", "/api/v1/repos/{ns}/{repo}/sensitive-paths", &r);
+    assert_eq!(r.json()["paths"], json!(["deploy/**", "Makefile"]));
+    assert_eq!(
+        s.db.query_one(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'repo.sensitive_paths'"
+        ),
+        "1"
+    );
+
+    // Bots can't change them; the defaults still apply.
+    for (i, p) in ["deploy/prod/values.yaml", "makefile", "AGENTS.md"]
+        .iter()
+        .enumerate()
+    {
+        let branch = format!("agent/{i}");
+        git.ok(w, &["switch", "-q", "-c", &branch, "main"]);
+        write(w, p, "x\n");
+        git.ok(w, &["add", "."]);
+        git.ok(w, &["commit", "-q", "-m", "change"]);
+        let err = git.fails(w, &["push", "-q", &bot, &branch]);
+        assert!(
+            err.contains("bots can't change sensitive paths"),
+            "{p}: {err}"
+        );
+    }
+    git.ok(w, &["switch", "-q", "-c", "agent/ok", "main"]);
+    write(w, "src/deploy.rs", "x\n");
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "fine"]);
+    git.ok(w, &["push", "-q", &bot, "agent/ok"]);
+
+    // The settings page shows and saves them.
+    let mut web = s.login("alice", PASSWORD);
+    let page = "/alice/demo/settings/protections";
+    let html = web.get(page).body;
+    assert!(
+        html.contains("Sensitive paths") && html.contains("**/CLAUDE.md"),
+        "{html}"
+    );
+    assert!(html.contains("deploy/**\nMakefile</textarea>"), "{html}");
+    let r = slath_tests::http::submit(
+        &mut web,
+        page,
+        "/alice/demo/settings/sensitive-paths",
+        &[("paths", "infra/**\n../bad")],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("../bad has an empty, . or .. segment."),
+        "{}",
+        r.body
+    );
+    assert!(
+        r.body.contains("infra/**\n../bad</textarea>"),
+        "kept what was typed"
+    );
+    let r = slath_tests::http::submit(
+        &mut web,
+        page,
+        "/alice/demo/settings/sensitive-paths",
+        &[("paths", "infra/**")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(
+        web.get(&format!("{page}?status=sensitive-saved"))
+            .body
+            .contains("Sensitive paths saved.")
+    );
+    assert_eq!(
+        s.client().api("GET", path, Some(&bob), None).json()["paths"],
+        json!(["infra/**"])
+    );
+}

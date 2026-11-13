@@ -941,6 +941,69 @@ pub async fn remove_deploy_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// A repository's sensitive paths.
+#[derive(Serialize, ToSchema)]
+pub struct SensitivePathsBody {
+    /// Built in; they always apply.
+    pub defaults: Vec<&'static str>,
+    /// The repository's own globs (`**`, `*`, `?`).
+    pub paths: Vec<String>,
+}
+
+impl From<slath_core::sensitive_paths::SensitivePaths> for SensitivePathsBody {
+    fn from(s: slath_core::sensitive_paths::SensitivePaths) -> Self {
+        Self {
+            defaults: slath_core::sensitive_paths::DEFAULTS.to_vec(),
+            paths: s.extra().to_vec(),
+        }
+    }
+}
+
+/// Files bots can't change and merge requests need a maintainer's approval
+/// for: the built-in defaults and the repository's own globs.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/sensitive-paths", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    responses((status = 200, body = SensitivePathsBody), (status = 404, body = super::Problem)))]
+pub async fn get_sensitive_paths(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo)): Path<(String, String)>,
+) -> Result<Json<SensitivePathsBody>, AppError> {
+    Ok(Json(
+        state
+            .services
+            .repo_sensitive_paths(&s, &ns, &repo)
+            .await?
+            .into(),
+    ))
+}
+
+/// The repository's own sensitive paths to set.
+#[derive(Deserialize, ToSchema)]
+pub struct PutSensitivePaths {
+    /// At most 100 globs of at most 255 bytes; they replace the current ones.
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+/// Replaces the repository's own sensitive paths (admins); the defaults
+/// always apply. Audited.
+#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/sensitive-paths", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)), request_body = PutSensitivePaths,
+    responses((status = 200, body = SensitivePathsBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn put_sensitive_paths(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    Json(b): Json<PutSensitivePaths>,
+) -> Result<Json<SensitivePathsBody>, AppError> {
+    Ok(Json(
+        state
+            .services
+            .set_sensitive_paths(&s, &ns, &repo, &b.paths)
+            .await?
+            .into(),
+    ))
+}
+
 /// A repository's branch protection rules (admins).
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/protections", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
     responses((status = 200, body = Vec<ProtectionRule>), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
@@ -1302,6 +1365,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/protections",
             Access::Resource,
             get(list_protections).post(post_protection),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/sensitive-paths",
+            Access::Resource,
+            get(get_sensitive_paths).put(put_sensitive_paths),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/protections/{id}",

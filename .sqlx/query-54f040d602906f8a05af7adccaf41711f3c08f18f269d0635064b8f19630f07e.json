@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT sensitive_paths FROM repositories WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sensitive_paths",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "sensitive_paths"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "54f040d602906f8a05af7adccaf41711f3c08f18f269d0635064b8f19630f07e"
+}

@@ -502,6 +502,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "team-saved" => "Team access saved.",
         "rule-saved" => "Protection rule saved.",
         "rule-removed" => "Protection rule removed.",
+        "sensitive-saved" => "Sensitive paths saved.",
         "team-removed" => "Team access removed.",
         "key-added" => "Deploy key added.",
         "key-removed" => "Deploy key removed.",
@@ -1092,6 +1093,10 @@ struct ProtectionsSettings<'a> {
     message: Option<&'a str>,
     errors: Vec<FieldError>,
     pattern: String,
+    /// Built-in sensitive paths.
+    sensitive_defaults: &'static [&'static str],
+    /// The repository's own, one per line.
+    sensitive_paths: String,
 }
 
 impl ProtectionsSettings<'_> {
@@ -1107,12 +1112,22 @@ async fn protections_page(
     a: &RepoAccess,
     message: Option<&str>,
     errors: Vec<FieldError>,
-    pattern: String,
+    // What the forms held: the rule's pattern, the sensitive paths.
+    (pattern, sensitive): (String, Option<String>),
 ) -> Result<Response, AppError> {
     let rules = state
         .services
         .protections(subject, &a.repo.namespace, &a.repo.name)
         .await?;
+    let sensitive_paths = match sensitive {
+        Some(text) => text,
+        None => state
+            .services
+            .repo_sensitive_paths(subject, &a.repo.namespace, &a.repo.name)
+            .await?
+            .extra()
+            .join("\n"),
+    };
     let status = if errors.is_empty() {
         StatusCode::OK
     } else {
@@ -1143,6 +1158,8 @@ async fn protections_page(
         message,
         errors,
         pattern,
+        sensitive_defaults: slath_core::sensitive_paths::DEFAULTS,
+        sensitive_paths,
     });
     *res.status_mut() = status;
     Ok(res)
@@ -1164,7 +1181,7 @@ async fn settings_protections_page(
         &a,
         status_message(q.status.as_deref()),
         Vec::new(),
-        String::new(),
+        (String::new(), None),
     )
     .await
 }
@@ -1260,7 +1277,49 @@ async fn save_protection(
             Redirect::to(&repo_url(&a, "/settings/protections?status=rule-saved")).into_response(),
         ),
         Err(ServiceError::Invalid(errors)) => {
-            protections_page(&state, ctx, &s.subject, &a, None, errors, f.pattern).await
+            protections_page(&state, ctx, &s.subject, &a, None, errors, (f.pattern, None)).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[derive(Deserialize)]
+struct SensitivePathsForm {
+    /// One glob per line.
+    #[serde(default)]
+    paths: String,
+}
+
+async fn save_sensitive_paths(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<SensitivePathsForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let globs: Vec<String> = f.paths.lines().map(str::to_owned).collect();
+    match state
+        .services
+        .set_sensitive_paths(&s.subject, &a.repo.namespace, &a.repo.name, &globs)
+        .await
+    {
+        Ok(_) => Ok(Redirect::to(&repo_url(
+            &a,
+            "/settings/protections?status=sensitive-saved#sensitive-paths",
+        ))
+        .into_response()),
+        Err(ServiceError::Invalid(errors)) => {
+            protections_page(
+                &state,
+                ctx,
+                &s.subject,
+                &a,
+                None,
+                errors,
+                (String::new(), Some(f.paths)),
+            )
+            .await
         }
         Err(e) => Err(e.into()),
     }
@@ -1449,6 +1508,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/protections",
             Access::Resource,
             get(settings_protections_page).post(save_protection),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/sensitive-paths",
+            Access::Resource,
+            post(save_sensitive_paths),
         )
         .route_as(
             "/{ns}/{repo}/settings/protections/{id}/delete",

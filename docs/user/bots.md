@@ -149,6 +149,14 @@ what agents are told. Bots can't change them, on any branch:
   `.cursorrules`, `.cursor/rules/`, `.windsurfrules`, `.clinerules`, and
   `REVIEW.md`.
 
+A repository adds its own paths under **Settings → Branch protection →
+Sensitive paths**, one glob per line (`deploy/**`, `Makefile`; `**` any
+path, `*` within a folder name, `?` one character), or with
+`PUT /api/v1/repos/{ns}/{repo}/sensitive-paths` and `{"paths": [...]}`.
+Whoever manages branch protection can change them; anyone who can read the
+repository sees the list at `GET …/sensitive-paths`. The built-in paths
+always apply.
+
 Names match regardless of upper and lower case. A bot's push is rejected
 when a commit it adds creates, changes, renames, or deletes one of these
 files; the rejection names each file and commit:

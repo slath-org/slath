@@ -158,6 +158,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - `GET …/merge-requests/{n}/iteration?since=` returns the current revision, the interdiff since an earlier one, failing required checks, unresolved threads, and mergeability in one call.
 - Bots can't push changes to CI workflows, `.slath/` files, code owners, or agent instructions such as `AGENTS.md`; the rejection names each file and commit.
 - Bots can't apply review suggestions to those files either.
+- Repositories add their own sensitive paths in the branch protection settings or through `…/sensitive-paths` in the API.
 
 ### Changed
 

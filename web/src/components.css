@@ -486,6 +486,22 @@ fieldset.field {
   gap: var(--space-2);
   min-height: var(--target-min);
 }
+/* The built-in sensitive paths, folded above the repository's own. */
+.sensitive-defaults {
+  margin: 0 0 var(--space-5);
+}
+.sensitive-defaults summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
+}
+.sensitive-defaults ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+}
 .token-value {
   width: 100%;
   font-family: var(--font-mono);
