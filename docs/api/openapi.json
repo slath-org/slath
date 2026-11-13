@@ -5989,6 +5989,99 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/interdiff": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Two revisions compared, as plain text (`git range-diff`). It pairs\ncommits by similarity, so it's a heuristic. 404 when a revision is\nunknown or has no merge base.",
+        "operationId": "get_interdiff",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "The earlier revision.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "The later revision (default: the current one).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/inventory": {
       "get": {
         "tags": [
@@ -6659,6 +6752,73 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/revisions": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "A merge request's revisions, oldest first.",
+        "operationId": "list_revisions",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionBody"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack": {
       "get": {
         "tags": [
@@ -6982,6 +7142,15 @@
             "schema": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "resolved",
+            "in": "query",
+            "description": "Only resolved (`true`) or unresolved (`false`) threads.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -12805,6 +12974,64 @@
               "type": "string"
             },
             "description": "User names, and `org/team` for teams of the repository's\norganization."
+          }
+        }
+      },
+      "RevisionBody": {
+        "type": "object",
+        "description": "One revision: what the source branch held after a push that changed it.",
+        "required": [
+          "seq",
+          "head_oid",
+          "base_oid",
+          "commit_count",
+          "mode",
+          "created_at"
+        ],
+        "properties": {
+          "base_oid": {
+            "type": "string",
+            "description": "The target branch's head when the revision was made."
+          },
+          "commit_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "head_oid": {
+            "type": "string"
+          },
+          "merge_base_oid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` when source and target share no history."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`per-change` or `whole-only`."
+          },
+          "mode_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the revision is `whole-only`."
+          },
+          "pushed_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` when it wasn't a push by a known account."
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 for the first revision, counting up."
           }
         }
       },

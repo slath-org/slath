@@ -143,6 +143,10 @@ that came from the target.
 Some merge requests can only be reviewed as a whole, for example when the
 branch contains merge commits. The timeline says so at the revision.
 
+The API lists them at `GET …/merge-requests/{n}/revisions`, oldest first,
+with each revision's head, base, merge base, commit count, and who pushed
+it.
+
 ## Changes
 
 Slath tracks each commit of a merge request as a **change**, so reviews
@@ -204,7 +208,10 @@ versions:
 **Compare with previous** on a revision in the timeline compares two
 revisions with `git range-diff`. That's marked **heuristic**: it pairs
 commits by similarity and may pair them differently than the change IDs.
-The tree diff between both revisions is one link away.
+The tree diff between both revisions is one link away. The API serves the
+same comparison as plain text at
+`GET …/merge-requests/{n}/interdiff?from=<revision>&to=<revision>` (`to`
+defaults to the current revision).
 
 On the same page you can also **split** a commit off into a new change,
 when it was matched wrongly, or attach a new change to one that was
@@ -297,7 +304,7 @@ timeline narrows the conversation to **Unresolved** threads or to what you
 wrote (**Mine**).
 
 The API has `GET …/merge-requests/{n}/threads` (with each thread's current
-position), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
+position; `?resolved=false` lists only the unresolved ones), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
 `pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`
 with `{"resolved": true}`.
 

@@ -154,6 +154,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - `deploy/compose/agent-sandbox/` starts a throwaway Slath for AI agents in one command, with an administrator, an organization, a repository, and a bot token.
 - The guide "Working with AI agents" covers the sandbox, one bot per agent, least privilege, branch- or fork-based work, and the API for programs.
 - The release's Compose bundle includes the agent sandbox.
+- The API lists a merge request's revisions, serves the interdiff between two of them as plain text, and filters threads by whether they're resolved.
 
 ### Changed
 

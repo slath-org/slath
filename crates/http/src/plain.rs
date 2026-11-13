@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Plain-text diffs and patches of commits and merge requests, for tools
 //! and agents: `…/commit/{oid}.diff` and `.patch`,
-//! `…/merge-requests/{n}.diff` and `.patch` in the web UI, and the same as
-//! `…/diff` and `…/patch` under the API.
+//! `…/merge-requests/{n}.diff` and `.patch` in the web UI, the same as
+//! `…/diff` and `…/patch` under the API, and revision interdiffs.
 
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -136,6 +136,25 @@ pub async fn merge_request(
         Format::Patch => state.services.mr_patch(&m).await?,
     };
     let (data, too_big) = out.unwrap_or_default();
+    Ok(respond(data, too_big, a.repo.visibility))
+}
+
+/// Two revisions of a merge request compared with `git range-diff`;
+/// `to` defaults to the current revision.
+pub async fn interdiff(
+    state: &AppState,
+    subject: &Subject,
+    (ns, repo, number): (&str, &str, i32),
+    from: i32,
+    to: Option<i32>,
+) -> Result<Response, AppError> {
+    let (a, m) = state.services.mr(subject, ns, repo, number).await?;
+    let to = to.unwrap_or(m.revisions);
+    let (data, too_big) = state
+        .services
+        .mr_revision_interdiff(&m, from, to)
+        .await?
+        .ok_or_else(AppError::not_found)?;
     Ok(respond(data, too_big, a.repo.visibility))
 }
 

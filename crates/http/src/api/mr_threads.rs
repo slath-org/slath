@@ -3,12 +3,12 @@
 //! Review threads of merge requests: line comments, replies, pending
 //! comments, and resolving.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use slath_service::mr_threads::{NewThread, Position, ThreadView};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use super::{ApiSubject, ApiUser};
 use crate::AppState;
@@ -143,18 +143,34 @@ impl From<ThreadView> for ThreadBody {
     }
 }
 
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ThreadQuery {
+    /// Only resolved (`true`) or unresolved (`false`) threads.
+    pub resolved: Option<bool>,
+}
+
 /// The threads the caller may see, with their position in the current
 /// revision.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ThreadQuery),
     responses((status = 200, body = Vec<ThreadBody>), (status = 404, body = super::Problem)))]
 pub async fn list_threads(
     State(state): State<AppState>,
     ApiSubject(s): ApiSubject,
     Path((ns, repo, number)): Path<(String, String, i32)>,
+    Query(q): Query<ThreadQuery>,
 ) -> Result<Json<Vec<ThreadBody>>, AppError> {
     let (a, m) = state.services.mr(&s, &ns, &repo, number).await?;
     let list = state.services.mr_threads(&s, &a, &m).await?;
-    Ok(Json(list.into_iter().map(Into::into).collect()))
+    Ok(Json(
+        list.into_iter()
+            .filter(|t| {
+                q.resolved
+                    .is_none_or(|r| t.thread.resolved_at.is_some() == r)
+            })
+            .map(Into::into)
+            .collect(),
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
