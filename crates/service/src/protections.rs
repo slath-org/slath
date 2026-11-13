@@ -50,6 +50,9 @@ pub struct Effective {
     /// Bots that may merge into and push to the branch: those every
     /// matching rule lists.
     pub bot_mergers: Vec<UserId>,
+    /// Any rule's: a bot's merge request marked ready reaches its
+    /// reviewers only once the required checks pass on its head.
+    pub ready_waits_for_checks: bool,
 }
 
 impl Effective {
@@ -157,6 +160,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.bots_count_as_approvers &= r.bots_count_as_approvers;
         e.statuses_on_head_ok &= r.statuses_on_head_ok;
         e.dismiss_approvals_on_new_revision |= r.dismiss_approvals_on_new_revision;
+        e.ready_waits_for_checks |= r.ready_waits_for_checks;
         let lists = reporters_of(r);
         for ctx in &r.required_status_contexts {
             let list = lists.get(ctx).filter(|l| !l.is_empty()).cloned();
@@ -230,6 +234,7 @@ pub struct RuleInput {
     pub dismiss_approvals_on_new_revision: bool,
     /// Names of the bots that may merge into and push to matching branches.
     pub bot_merge_allowlist: Vec<String>,
+    pub ready_waits_for_checks: bool,
 }
 
 /// Whether `s` is a valid status context.
@@ -361,6 +366,7 @@ impl Services {
                 status_reporters: &reporters,
                 dismiss_approvals_on_new_revision: r.dismiss_approvals_on_new_revision,
                 bot_merge_allowlist: &bot_mergers,
+                ready_waits_for_checks: r.ready_waits_for_checks,
             },
         )
         .await?;
@@ -384,6 +390,7 @@ impl Services {
                 "statuses_on_head_ok": r.statuses_on_head_ok,
                 "dismiss_approvals_on_new_revision": r.dismiss_approvals_on_new_revision,
                 "bot_merge_allowlist": bot_mergers,
+                "ready_waits_for_checks": r.ready_waits_for_checks,
             }),
         )
         .await;
@@ -487,6 +494,7 @@ mod tests {
             status_reporters: serde_json::json!({}),
             dismiss_approvals_on_new_revision: false,
             bot_merge_allowlist: Vec::new(),
+            ready_waits_for_checks: true,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

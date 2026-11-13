@@ -36,6 +36,10 @@ pub struct MergeRequest {
     /// `open`, `merged`, or `closed`.
     pub state: String,
     pub draft: bool,
+    /// The attention gate: `iterating` (a bot's merge request, until it's
+    /// marked ready), `waiting_for_checks` (marked ready; reviewers are
+    /// asked once the required checks pass on the head), or `ready`.
+    pub attention: String,
     /// `None` for deleted accounts.
     pub author: Option<String>,
     /// `ns/name` of the source repository: this repository or a fork in
@@ -140,6 +144,7 @@ fn mr_json(
         description_html: html,
         state: m.state,
         draft: m.draft,
+        attention: m.attention,
         author: m.author,
         target_branch: m.target_branch,
         head_oid: m.head_oid,
@@ -705,7 +710,7 @@ pub async fn put_reviewers(
 /// One requirement of the merge box.
 #[derive(Serialize, ToSchema)]
 pub struct Requirement {
-    /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
+    /// `open`, `draft`, `iterating`, `approvals`, `changes_requested`, `up_to_date`,
     /// `threads`, or `identity`.
     pub key: String,
     /// `met`, `unmet`, or `pending`.

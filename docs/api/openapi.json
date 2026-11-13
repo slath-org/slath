@@ -11807,6 +11807,7 @@
           "description_html",
           "state",
           "draft",
+          "attention",
           "source_branch",
           "target_branch",
           "allow_maintainer_edits",
@@ -11819,6 +11820,10 @@
           "allow_maintainer_edits": {
             "type": "boolean",
             "description": "Fork merge requests: writers of this repository may push to the\nsource branch while the merge request is open."
+          },
+          "attention": {
+            "type": "string",
+            "description": "The attention gate: `iterating` (a bot's merge request, until it's\nmarked ready), `waiting_for_checks` (marked ready; reviewers are\nasked once the required checks pass on the head), or `ready`."
           },
           "author": {
             "type": [
@@ -12815,6 +12820,10 @@
             "type": "string",
             "description": "`write` (default), `maintain`, `admin`, or `nobody`."
           },
+          "ready_waits_for_checks": {
+            "type": "boolean",
+            "description": "A bot's merge request marked ready reaches its reviewers only once\nthe required checks pass on its head."
+          },
           "require_mr": {
             "type": "boolean"
           },
@@ -12938,7 +12947,8 @@
           "status_reporters",
           "statuses_on_head_ok",
           "dismiss_approvals_on_new_revision",
-          "bot_merge_allowlist"
+          "bot_merge_allowlist",
+          "ready_waits_for_checks"
         ],
         "properties": {
           "block_deletion": {
@@ -12975,6 +12985,10 @@
           "push_role": {
             "type": "string",
             "description": "`write`, `maintain`, `admin`, or `nobody`."
+          },
+          "ready_waits_for_checks": {
+            "type": "boolean",
+            "description": "A bot's merge request marked ready reaches its reviewers only once\nthe required checks pass on its head."
           },
           "require_mr": {
             "type": "boolean"
@@ -13274,7 +13288,7 @@
           },
           "key": {
             "type": "string",
-            "description": "`open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,\n`threads`, or `identity`."
+            "description": "`open`, `draft`, `iterating`, `approvals`, `changes_requested`, `up_to_date`,\n`threads`, or `identity`."
           },
           "reason": {
             "type": "string"

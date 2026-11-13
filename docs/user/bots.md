@@ -179,6 +179,33 @@ an approval from a person with the maintain role (see
 [reviews](merge-requests.md#reviews)); bot approvals
 never count for it.
 
+## Iterating merge requests
+
+A merge request a bot opens starts out **iterating**: the bot can push as
+often as it needs to without taking anyone's attention. Reviewers it asks
+for are recorded, but they aren't notified, and the merge request isn't in
+their review requests yet. Watchers, mentioned people, and assignees hear
+about it as usual, CI runs as usual, and an iterating merge request can't
+be merged.
+
+When the work is ready, the bot marks it ready (`PATCH
+/api/v1/repos/{ns}/{repo}/merge-requests/{n}` with `{"draft": false}`), or
+a person who can edit the merge request does, with **Mark as ready**. On a
+protected branch it then waits until every required check passes on its
+latest revision; until then its `attention` in the API is
+`waiting_for_checks`. Its reviewers are asked once, when it's ready:
+
+| `attention` | What it means |
+|---|---|
+| `iterating` | The bot is still working; nobody is asked to review. |
+| `waiting_for_checks` | Marked ready; reviewers are asked once the required checks pass. |
+| `ready` | Reviewers were asked, as for anyone's merge request. |
+
+A failing check doesn't send it back to iterating, and later pushes don't
+either. To ask reviewers as soon as a bot's merge request is marked ready,
+turn off **Ask reviewers of a bot's merge request only once the required
+checks pass** in the branch protection rule (`ready_waits_for_checks`).
+
 ## Rate limits
 
 Bots make at most 2,000 API requests per hour (site setting

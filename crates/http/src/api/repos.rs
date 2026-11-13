@@ -806,6 +806,9 @@ pub struct ProtectionRule {
     /// Bots that may merge into and push to matching branches; other bots
     /// can't (bots must be listed by every matching rule).
     pub bot_merge_allowlist: Vec<String>,
+    /// A bot's merge request marked ready reaches its reviewers only once
+    /// the required checks pass on its head.
+    pub ready_waits_for_checks: bool,
 }
 
 impl ProtectionRule {
@@ -831,6 +834,7 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
             bot_merge_allowlist: Vec::new(),
             statuses_on_head_ok: p.statuses_on_head_ok,
             dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
+            ready_waits_for_checks: p.ready_waits_for_checks,
             id: p.id.to_string(),
             pattern: p.pattern,
             block_force_push: p.block_force_push,
@@ -1061,6 +1065,10 @@ pub struct PostProtection {
     /// Names of the bots that may merge into and push to matching branches.
     #[serde(default)]
     pub bot_merge_allowlist: Vec<String>,
+    /// A bot's merge request marked ready reaches its reviewers only once
+    /// the required checks pass on its head.
+    #[serde(default = "yes")]
+    pub ready_waits_for_checks: bool,
 }
 
 const fn one() -> i32 {
@@ -1115,6 +1123,7 @@ pub async fn post_protection(
                 statuses_on_head_ok: p.statuses_on_head_ok,
                 dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
                 bot_merge_allowlist: p.bot_merge_allowlist,
+                ready_waits_for_checks: p.ready_waits_for_checks,
             },
         )
         .await?;

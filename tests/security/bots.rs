@@ -556,9 +556,16 @@ fn conf_auth_06_bots_merge_and_push_to_protected_branches_only_if_listed() {
     );
     assert_eq!(r.status, 409, "{}", r.body);
 
-    // Listed, it may do both.
+    // Listed, it may do both, once it marks its merge request ready.
     let r = protect(&mut api, json!(["alice-ci"]));
     assert_eq!(r.json()["bot_merge_allowlist"], json!(["alice-ci"]));
+    let r = api.api(
+        "PATCH",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}"),
+        Some(&bot),
+        Some(&json!({"draft": false})),
+    );
+    assert!(r.status < 300, "{}", r.body);
     let r = merge(&mut api);
     assert!(r.status < 300, "{}", r.body);
     commit("c.txt", "three");

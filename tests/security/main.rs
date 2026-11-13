@@ -7,6 +7,7 @@
 mod admin;
 mod api;
 mod attachments;
+mod attention;
 mod auth;
 mod bot_stop;
 mod bots;

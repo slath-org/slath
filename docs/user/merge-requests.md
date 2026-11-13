@@ -629,7 +629,8 @@ hear about a merge request when:
 
 - you're asked to review it (**Review requested**). A draft asks no one
   yet: its requested reviewers hear about it once it's marked ready
-  (**Ready for your review**);
+  (**Ready for your review**). So does a bot's merge request while it's
+  [iterating](bots.md#iterating-merge-requests);
 - you opened it (**You opened it**), or took part: commented, reviewed,
   wrote in a review thread, are assigned, or are a requested reviewer
   (**You took part**);

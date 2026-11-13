@@ -161,6 +161,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repositories add their own sensitive paths in the branch protection settings or through `…/sensitive-paths` in the API.
 - On protected branches, merge requests that change sensitive paths need an approval from a maintainer other than the author; bot approvals never count.
 - Administrators add sensitive paths for every repository with `[sensitive_paths] extra` in the configuration; the built-in paths can't be removed.
+- A bot's merge request iterates without notifying its reviewers, and can't be merged, until the bot or a person marks it ready.
+- On protected branches, a bot's merge request marked ready asks its reviewers once its required checks pass on the latest revision.
+- Merge requests in the API and in webhooks show this as `attention`: `iterating`, `waiting_for_checks`, or `ready`.
 
 ### Changed
 

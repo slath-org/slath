@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT DISTINCT m.id, m.repo_id, m.number, m.title, n.name::text AS \"namespace!\",\n                  p.name::text AS \"repo_name!\", an.name::text AS author, m.updated_at\n           FROM mr_reviewers r\n           JOIN merge_requests m ON m.id = r.mr_id\n           JOIN repositories p ON p.id = m.repo_id AND p.deleted_at IS NULL\n           JOIN namespaces n ON n.id = p.namespace_id\n           LEFT JOIN users a ON a.id = m.author_id\n           LEFT JOIN namespaces an ON an.id = a.namespace_id\n           WHERE r.state = 'requested' AND m.state = 'open' AND NOT m.draft\n             AND m.author_id IS DISTINCT FROM $1\n             AND (r.user_id = $1 OR r.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))\n           ORDER BY m.updated_at DESC\n           LIMIT $2",
+  "query": "SELECT DISTINCT m.id, m.repo_id, m.number, m.title, n.name::text AS \"namespace!\",\n                  p.name::text AS \"repo_name!\", an.name::text AS author, m.updated_at\n           FROM mr_reviewers r\n           JOIN merge_requests m ON m.id = r.mr_id\n           JOIN repositories p ON p.id = m.repo_id AND p.deleted_at IS NULL\n           JOIN namespaces n ON n.id = p.namespace_id\n           LEFT JOIN users a ON a.id = m.author_id\n           LEFT JOIN namespaces an ON an.id = a.namespace_id\n           WHERE r.state = 'requested' AND m.state = 'open' AND NOT m.draft AND m.attention = 'ready'\n             AND m.author_id IS DISTINCT FROM $1\n             AND (r.user_id = $1 OR r.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))\n           ORDER BY m.updated_at DESC\n           LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -94,5 +94,5 @@
       false
     ]
   },
-  "hash": "9425b377fdbea3932c5b03b28c1b1310dc6e0705f288c511525e95a15050b93a"
+  "hash": "7aa67e682abd71c6f3a9bf826064d7c7fee54902985b28ef19d967b937d9396a"
 }

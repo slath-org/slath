@@ -117,7 +117,8 @@ pub async fn commenters(
 }
 
 /// Everyone else taking part in a merge request: authors of published
-/// review comments, reviewers, assignees, and (unless it's a draft) the
+/// review comments, reviewers, assignees, and (unless it's held: a draft,
+/// or a bot's merge request that isn't ready) the
 /// users asked to review it.
 pub async fn mr_participants(
     exec: impl PgExecutor<'_>,
@@ -129,7 +130,8 @@ pub async fn mr_participants(
            UNION SELECT reviewer_id FROM mr_reviews WHERE mr_id = $1 AND reviewer_id IS NOT NULL
            UNION SELECT user_id FROM mr_assignees WHERE mr_id = $1
            UNION SELECT r.user_id FROM mr_reviewers r JOIN merge_requests m ON m.id = r.mr_id
-            WHERE r.mr_id = $1 AND r.user_id IS NOT NULL AND r.state <> 'removed' AND NOT m.draft"#,
+            WHERE r.mr_id = $1 AND r.user_id IS NOT NULL AND r.state <> 'removed' AND NOT m.draft
+              AND m.attention = 'ready'"#,
         mr.as_uuid()
     )
     .fetch_all(exec)

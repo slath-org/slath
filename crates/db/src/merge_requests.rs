@@ -71,6 +71,8 @@ pub struct MergeRequest {
     pub title: String,
     pub description: String,
     pub draft: bool,
+    /// `iterating`, `waiting_for_checks`, or `ready` (the attention gate).
+    pub attention: String,
     pub target_branch: String,
     pub source_repo_id: Option<RepoId>,
     /// Full ref name in the source repository.
@@ -94,6 +96,13 @@ pub struct MergeRequest {
 }
 
 impl MergeRequest {
+    /// Whether it keeps its reviewers' attention for now: a draft, or a
+    /// bot's merge request that isn't ready yet.
+    #[must_use]
+    pub fn held(&self) -> bool {
+        self.draft || self.attention != "ready"
+    }
+
     /// The source branch's short name (lossy for non-UTF-8 names).
     #[must_use]
     pub fn source_branch(&self) -> String {
@@ -113,6 +122,7 @@ macro_rules! to_mr {
             title: $r.title,
             description: $r.description,
             draft: $r.draft,
+            attention: $r.attention,
             target_branch: $r.target_branch,
             source_repo_id: $r.source_repo_id.map(RepoId::from_uuid),
             source_ref: $r.source_ref,
@@ -141,6 +151,8 @@ pub struct NewMergeRequest<'a> {
     pub title: &'a str,
     pub description: &'a str,
     pub draft: bool,
+    /// `iterating` for a bot's merge request, else `ready`.
+    pub attention: &'a str,
     pub target_branch: &'a str,
     pub source_repo: RepoId,
     pub source_ref: &'a [u8],
@@ -159,8 +171,8 @@ pub async fn insert(
     let r = sqlx::query!(
         "INSERT INTO merge_requests (id, repo_id, number, author_id, title, description, draft,
              target_branch, source_repo_id, source_ref, allow_maintainer_edits,
-             delete_source_on_merge, milestone_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+             delete_source_on_merge, milestone_id, attention)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         id.as_uuid(),
         m.repo.as_uuid(),
         m.number,
@@ -173,7 +185,8 @@ pub async fn insert(
         m.source_ref,
         m.allow_maintainer_edits,
         m.delete_source_on_merge,
-        m.milestone
+        m.milestone,
+        m.attention
     )
     .execute(&mut *tx)
     .await;
@@ -194,7 +207,7 @@ pub async fn get(
 ) -> Result<Option<MergeRequest>, DbError> {
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -219,7 +232,7 @@ pub async fn get_by_id(
 ) -> Result<Option<MergeRequest>, DbError> {
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -247,7 +260,7 @@ pub async fn list(
 ) -> Result<Vec<MergeRequest>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -363,6 +376,46 @@ pub async fn set_draft(
     .await?
     .rows_affected()
         == 1)
+}
+
+/// Moves the attention state from one of `from` to `to`; returns false if
+/// it wasn't in any of them (so concurrent moves happen once).
+pub async fn set_attention(
+    exec: impl PgExecutor<'_>,
+    id: MergeRequestId,
+    from: &[&str],
+    to: &str,
+) -> Result<bool, DbError> {
+    let from: Vec<String> = from.iter().map(|s| (*s).to_owned()).collect();
+    Ok(sqlx::query!(
+        "UPDATE merge_requests SET attention = $3, updated_at = now()
+         WHERE id = $1 AND attention = ANY($2) AND state = 'open'",
+        id.as_uuid(),
+        &from,
+        to
+    )
+    .execute(exec)
+    .await?
+    .rows_affected()
+        == 1)
+}
+
+/// Open merge requests of a repository waiting for their required checks
+/// before they reach their reviewers.
+pub async fn waiting_for_checks(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT id FROM merge_requests
+         WHERE repo_id = $1 AND attention = 'waiting_for_checks' AND state = 'open'",
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(MergeRequestId::from_uuid)
+    .collect())
 }
 
 /// Closes or reopens an open/closed merge request; false if unchanged.

@@ -588,8 +588,9 @@ impl Services {
                 who.add(u, "auto_merge_result");
             }
         } else if activity == "review_requested" {
-            // Only the people asked; never while it's a draft.
-            if !m.draft && m.state == "open" {
+            // Only the people asked; never while it's held (a draft, or a
+            // bot's merge request that isn't ready).
+            if !m.held() && m.state == "open" {
                 let asked = payload_users(&job.payload, "users");
                 let now = slath_db::notifications::requested_reviewers(&self.pool, m.id)
                     .await
@@ -618,7 +619,7 @@ impl Services {
             if let Some(a) = m.author_id {
                 who.add(a, "author");
             }
-            if matches!(activity, "opened" | "ready") && !m.draft {
+            if matches!(activity, "opened" | "ready") && !m.held() {
                 let reason = if activity == "opened" {
                     "review_requested"
                 } else {

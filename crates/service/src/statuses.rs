@@ -288,6 +288,7 @@ impl Services {
         tx.commit().await.map_err(ServiceError::internal)?;
         if s.state == "success" {
             self.queue_auto_merges_in(a.repo.id).await;
+            self.queue_attention_in(a.repo.id).await;
         }
         self.emit_webhook(
             a.repo.id,

@@ -11,7 +11,7 @@
 //! target holds nothing of the fork. Numbers are shared with issues. Permissions follow the matrix (spec/04): `mr.create` opens,
 //! authors edit and close their own, `mr.triage` edits and closes any.
 
-use slath_core::authz::{Action, Subject};
+use slath_core::authz::{Action, Subject, UserKind};
 use slath_core::ids::{MergeRequestId, RepoId, UserId};
 use slath_db::merge_requests::{MergeRequest, NewMergeRequest, NewRevision, Revision};
 use slath_git::ObjectId;
@@ -532,6 +532,18 @@ impl Services {
                 title: &title,
                 description: &m.description,
                 draft: m.draft,
+                // A bot's work reaches its reviewers once it's ready.
+                attention: if matches!(
+                    subject,
+                    Subject::User {
+                        kind: UserKind::Bot,
+                        ..
+                    }
+                ) {
+                    "iterating"
+                } else {
+                    "ready"
+                },
                 target_branch: &target,
                 source_repo: src_id,
                 source_ref: source_ref.as_bytes(),
@@ -571,6 +583,7 @@ impl Services {
             slath_db::merge_requests::add_label(&mut *tx, id, *l).await?;
         }
         if !m.draft {
+            // A bot's are recorded too, and asked once it's ready.
             for u in reviewers.iter().filter(|u| **u != author) {
                 slath_db::merge_requests::add_reviewer(&mut *tx, id, *u, author).await?;
             }
@@ -964,7 +977,10 @@ impl Services {
         Ok(())
     }
 
-    /// Marks a merge request as draft or ready (author or triage).
+    /// Marks a merge request as draft or ready (author or triage). Ready
+    /// also ends a bot's iterating: it then waits for the required checks
+    /// on its head, if the protection says so, before its reviewers are
+    /// asked.
     pub async fn set_mr_draft(
         &self,
         subject: &Subject,
@@ -978,7 +994,18 @@ impl Services {
             return Err(ServiceError::Forbidden);
         }
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        let changed = slath_db::merge_requests::set_draft(&mut *tx, m.id, draft).await?;
+        let was_held = m.held();
+        let mut changed = slath_db::merge_requests::set_draft(&mut *tx, m.id, draft).await?;
+        if !draft && m.attention == "iterating" {
+            let eff = self.effective_for(&m).await?;
+            let to = if eff.ready_waits_for_checks && !self.checks_pass_on_head(&m, &eff).await? {
+                "waiting_for_checks"
+            } else {
+                "ready"
+            };
+            changed |=
+                slath_db::merge_requests::set_attention(&mut *tx, m.id, &["iterating"], to).await?;
+        }
         if changed {
             slath_db::issues::insert_event(
                 &mut *tx,
@@ -997,8 +1024,10 @@ impl Services {
                 .await?
                 .ok_or(ServiceError::NotFound)?;
             self.queue_auto_merge(m.id).await;
-            self.notify_mr(subject_user(subject), &m, MrActivity::Ready)
-                .await;
+            if was_held && !m.held() {
+                self.notify_mr(subject_user(subject), &m, MrActivity::Ready)
+                    .await;
+            }
         }
         Ok(())
     }
@@ -1212,6 +1241,8 @@ impl Services {
             self.notify_mr(pusher, &m, MrActivity::Revision(seq)).await;
         }
         self.sync_mr_branch_by_id(id).await;
+        // The new head may already have its checks.
+        self.queue_attention(id).await;
         // Merge when ready survives only the setter's own pushes.
         if let Some(am) = slath_db::merge_requests::auto_merge(&self.pool, id).await? {
             if pusher.is_some() && am.by_id == pusher {

@@ -918,6 +918,7 @@ impl Services {
             "description": text(&m.description),
             "state": m.state,
             "draft": m.draft,
+            "attention": m.attention,
             "author": m.author,
             "source_branch": m.source_branch(),
             "target_branch": m.target_branch,

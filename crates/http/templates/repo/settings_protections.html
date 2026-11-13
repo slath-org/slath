@@ -24,7 +24,7 @@
       <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
       <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
-      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
+      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !r.ready_waits_for_checks %}, bots' merge requests don't wait for checks{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
       <td>{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
       <td>
         <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
@@ -101,6 +101,8 @@
     </div>
     <div class="checkbox"><input id="statuses_on_head_ok" type="checkbox" name="statuses_on_head_ok" value="1" checked aria-describedby="statuses_on_head_ok-hint"><label for="statuses_on_head_ok">Accept statuses on the merge request's head for rebase and merge commits</label></div>
     <p id="statuses_on_head_ok-hint" class="hint">Otherwise only a fast-forward merge can use them; other merges need statuses on the new commit.</p>
+    <div class="checkbox"><input id="ready_waits_for_checks" type="checkbox" name="ready_waits_for_checks" value="1" checked aria-describedby="ready_waits_for_checks-hint"><label for="ready_waits_for_checks">Ask reviewers of a bot's merge request only once the required checks pass</label></div>
+    <p id="ready_waits_for_checks-hint" class="hint">A bot's merge request stays iterating until it's marked ready. With this, its reviewers are asked only when the required checks also pass on its latest revision.</p>
   </fieldset>
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>

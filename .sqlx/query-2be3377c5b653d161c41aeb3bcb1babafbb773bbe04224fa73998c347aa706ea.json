@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests SET attention = $3, updated_at = now()\n         WHERE id = $1 AND attention = ANY($2) AND state = 'open'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2be3377c5b653d161c41aeb3bcb1babafbb773bbe04224fa73998c347aa706ea"
+}

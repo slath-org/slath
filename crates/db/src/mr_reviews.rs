@@ -265,7 +265,7 @@ pub async fn waiting_for(
            JOIN namespaces n ON n.id = p.namespace_id
            LEFT JOIN users a ON a.id = m.author_id
            LEFT JOIN namespaces an ON an.id = a.namespace_id
-           WHERE r.state = 'requested' AND m.state = 'open' AND NOT m.draft
+           WHERE r.state = 'requested' AND m.state = 'open' AND NOT m.draft AND m.attention = 'ready'
              AND m.author_id IS DISTINCT FROM $1
              AND (r.user_id = $1 OR r.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
            ORDER BY m.updated_at DESC

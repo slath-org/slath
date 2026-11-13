@@ -63,7 +63,7 @@ pub struct ReviewView {
 /// One requirement of the merge box.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
-    /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
+    /// `open`, `draft`, `iterating`, `approvals`, `changes_requested`, `up_to_date`,
     /// `sensitive_paths`, `statuses` (one per required check), `threads`,
     /// `conflicts`, or `identity`.
     pub key: &'static str,
@@ -136,7 +136,7 @@ fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement
     Requirement {
         key,
         state: "unmet",
-        tone: if matches!(key, "draft" | "approvals" | "sensitive_paths") {
+        tone: if matches!(key, "draft" | "iterating" | "approvals" | "sensitive_paths") {
             "waiting"
         } else {
             "blocking"
@@ -222,7 +222,7 @@ pub fn counting_with(
 }
 
 impl Services {
-    async fn effective_for(&self, m: &MergeRequest) -> Result<Effective> {
+    pub(crate) async fn effective_for(&self, m: &MergeRequest) -> Result<Effective> {
         let rules = slath_db::protections::list(&self.pool, m.repo_id).await?;
         Ok(crate::protections::effective(
             &rules,
@@ -716,6 +716,13 @@ impl Services {
         } else {
             met("draft", "It's ready for review.")
         });
+        if m.attention == "iterating" {
+            reqs.push(unmet(
+                "iterating",
+                "The bot is still iterating.",
+                "Mark it as ready",
+            ));
+        }
         let views = self.mr_reviews(m).await?;
         let mut approvers = Vec::new();
         let mut approvals = Vec::new();
