@@ -191,6 +191,20 @@
       </ul>
     </details>
   </li>
+  {%- when TimelineView::Iterations with (g) %}
+  <li class="timeline-event timeline-group">
+    <details>
+      <summary>{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ g.pusher }}</strong>{% call m::bot_badge(ctx, g.pusher) %}{% endcall %} pushed {{ g.revisions.len() }} iterations (revisions {{ g.first }}–{{ g.last }})</span></summary>
+      {%- if let Some(href) = g.compare_href %}
+      <p><a href="{{ href }}">Compare revision {{ g.first - 1 }} with {{ g.last }}</a></p>
+      {%- endif %}
+      <ul class="plain-list">
+      {%- for r in g.revisions %}
+        <li id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong>{% call m::bot_badge(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
+      {%- endfor %}
+      </ul>
+    </details>
+  </li>
   {%- when TimelineView::Revision with (r) %}
   <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong>{% call m::bot_badge(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
   {%- endmatch %}
@@ -371,6 +385,11 @@
   </section>
   <section aria-labelledby="side-reviewers">
     <h2 id="side-reviewers" class="sidebar-heading">Reviewers</h2>
+    {%- if h.mr.attention == "iterating" %}
+    <p class="hint">They're asked once this is marked as ready.</p>
+    {%- else if h.mr.attention == "waiting_for_checks" %}
+    <p class="hint">They're asked once the required checks pass.</p>
+    {%- endif %}
     {%- if reviewers.is_empty() %}
     <p class="text-secondary">No one</p>
     {%- else %}

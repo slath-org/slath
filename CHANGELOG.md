@@ -164,6 +164,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A bot's merge request iterates without notifying its reviewers, and can't be merged, until the bot or a person marks it ready.
 - On protected branches, a bot's merge request marked ready asks its reviewers once its required checks pass on the latest revision.
 - Merge requests in the API and in webhooks show this as `attention`: `iterating`, `waiting_for_checks`, or `ready`.
+- Merge request pages and lists show a bot's merge request as "Iterating", with "Mark as ready", and fold its consecutive revisions into one timeline entry.
 
 ### Changed
 

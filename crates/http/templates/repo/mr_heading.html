@@ -33,8 +33,9 @@
       {%- if h.perms.edit && h.mr.state == "open" %}
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/draft">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="draft" value="{% if h.mr.draft %}false{% else %}true{% endif %}">
-        <button type="submit" class="button button-quiet menu-item">{% if h.mr.draft %}Mark as ready{% else %}Mark as draft{% endif %}</button>
+        {%- let unready = h.mr.draft || h.mr.attention == "iterating" %}
+        <input type="hidden" name="draft" value="{% if unready %}false{% else %}true{% endif %}">
+        <button type="submit" class="button button-quiet menu-item">{% if unready %}Mark as ready{% else %}Mark as draft{% endif %}</button>
       </form>
       {%- endif %}
       {%- if h.can_set_edits %}

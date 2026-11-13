@@ -248,3 +248,26 @@ test("conf_a11y_04_line_comments_on_the_changes_tab", async ({ page }, testInfo)
   const mine = page.locator(".diff-thread-row").filter({ hasText: text });
   await expect(mine).toContainText("Pending");
 });
+
+test("conf_agent_09_a_bot_merge_request_iterates", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  const row = page.locator(".item-row").filter({ hasText: "Agent fixture" });
+  await expect(row.locator(".badge", { hasText: "Iterating" })).toBeVisible();
+  await tapOrClick(page, row.getByRole("link", { name: "Agent fixture" }));
+  await expect(page.locator(".state-label")).toHaveText("Iterating");
+  // The readiness card says what's next, without doing it here (the
+  // fixture stays iterating for every project).
+  const card = page.locator(".readiness").first();
+  await expect(card).toContainText("Iterating");
+  await expect(card.getByRole("button", { name: "Mark as ready" })).toBeVisible();
+  await expect(page.getByText("They're asked once this is marked as ready.")).toBeVisible();
+  // The bot's three revisions are one timeline entry, each still listed.
+  const group = page.locator(".timeline-group").filter({ hasText: "pushed 3 iterations (revisions 1–3)" });
+  await expect(group).toBeVisible();
+  await expectAccessible(page);
+  await tapOrClick(page, group.locator("summary"));
+  await expect(group.locator("#revision-2")).toContainText("pushed revision 2");
+  await expect(group.locator("#revision-3").getByRole("link", { name: "Compare with previous" })).toBeVisible();
+  await expectAccessible(page);
+});

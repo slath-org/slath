@@ -149,6 +149,68 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         ),
     );
     assert_eq!(r.status, 201, "{}", r.body);
+    // "Agent fixture": a bot's merge request with three iterations, left
+    // iterating (no test marks it ready).
+    let (ok, out, err) = server.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "e2e-agent",
+            "--token-scopes",
+            "repo:write,mrs:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let agent: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let agent_token = agent["token"].as_str().unwrap().to_owned();
+    let r = api.api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/e2e-agent",
+        Some(&token),
+        Some(&serde_json::json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let agent_url = format!("http://git:{agent_token}@{}/alice/demo.git", server.addr);
+    git.ok(w, &["switch", "-q", "-c", "agent", "main"]);
+    let mut agent_mr = None;
+    for (k, text) in [
+        (1, "First try.\n"),
+        (2, "Second try.\n"),
+        (3, "Third try.\n"),
+    ] {
+        std::fs::write(w.join("agent-notes.txt"), text).unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", &format!("Agent iteration {k}")]);
+        git.ok(w, &["push", "-q", &agent_url, "agent"]);
+        let n = *agent_mr.get_or_insert_with(|| {
+            let r = api.api(
+                "POST",
+                "/api/v1/repos/alice/demo/merge-requests",
+                Some(&agent_token),
+                Some(&serde_json::json!({"source_branch": "agent", "title": "Agent fixture"})),
+            );
+            assert_eq!(r.status, 201, "{}", r.body);
+            r.json()["number"].as_i64().unwrap()
+        });
+        let path = format!("/api/v1/repos/alice/demo/merge-requests/{n}");
+        let start = std::time::Instant::now();
+        while api.api("GET", &path, Some(&token), None).json()["revisions"] != k {
+            assert!(
+                start.elapsed().as_secs() < 60,
+                "no revision {k}\n{}",
+                server.log()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();

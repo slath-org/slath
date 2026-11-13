@@ -1404,7 +1404,8 @@ fieldset.field {
   color: var(--success);
 }
 .item-state-closed,
-.item-state-draft {
+.item-state-draft,
+.item-state-iterating {
   color: var(--text-secondary);
 }
 .item-state-merged {
@@ -1466,7 +1467,8 @@ fieldset.field {
   color: var(--success-fg);
 }
 .state-closed,
-.state-draft {
+.state-draft,
+.state-iterating {
   border-color: var(--border);
   background: var(--surface-subtle);
   color: var(--text);

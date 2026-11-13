@@ -60,6 +60,7 @@ fn state_view(m: &MergeRequest) -> (&'static str, &'static str, &'static str) {
         ("merged", _) => ("git-merge", "merged", "Merged"),
         ("closed", _) => ("git-pull-request-closed", "closed", "Closed"),
         (_, true) => ("git-pull-request-draft", "draft", "Draft"),
+        _ if m.attention == "iterating" => ("bot", "iterating", "Iterating"),
         _ => ("git-pull-request", "open", "Open"),
     }
 }
@@ -693,6 +694,8 @@ struct EventView {
 struct RevisionView {
     seq: i32,
     pusher: String,
+    /// Pushed by a bot: consecutive ones fold into an iteration group.
+    bot: bool,
     commits: i32,
     short: String,
     oid: String,
@@ -811,6 +814,69 @@ enum TimelineView {
     Review(ReviewItem),
     /// Consecutive quiet events in one line: the summary and the events.
     Group(String, Vec<EventView>),
+    /// Consecutive revisions pushed by the same bot, nothing between them.
+    Iterations(IterationGroup),
+}
+
+struct IterationGroup {
+    pusher: String,
+    first: i32,
+    last: i32,
+    /// Compares the revision before the group with its last one.
+    compare_href: Option<String>,
+    revisions: Vec<RevisionView>,
+}
+
+/// Folds runs of two or more consecutive revisions by the same bot into
+/// one entry, moving the "new since your review" position along.
+fn fold_iterations(
+    items: Vec<TimelineView>,
+    since_at: &mut Option<usize>,
+    compare: impl Fn(i32, i32) -> String,
+) -> Vec<TimelineView> {
+    let mut out: Vec<TimelineView> = Vec::new();
+    let mut run: Vec<RevisionView> = Vec::new();
+    let mut new_since = None;
+    let flush = |run: &mut Vec<RevisionView>, out: &mut Vec<TimelineView>| match run.len() {
+        0 => {}
+        1 => out.push(TimelineView::Revision(run.remove(0))),
+        _ => {
+            let revisions = std::mem::take(run);
+            let (first, last) = (revisions[0].seq, revisions[revisions.len() - 1].seq);
+            out.push(TimelineView::Iterations(IterationGroup {
+                pusher: revisions[0].pusher.clone(),
+                first,
+                last,
+                compare_href: (first > 1).then(|| compare(first - 1, last)),
+                revisions,
+            }));
+        }
+    };
+    for (i, item) in items.into_iter().enumerate() {
+        if *since_at == Some(i) {
+            flush(&mut run, &mut out);
+            new_since = Some(out.len());
+        }
+        match item {
+            TimelineView::Revision(r)
+                if r.bot && run.last().is_none_or(|p| p.pusher == r.pusher) =>
+            {
+                run.push(r);
+            }
+            other => {
+                flush(&mut run, &mut out);
+                match other {
+                    TimelineView::Revision(r) if r.bot => run.push(r),
+                    other => out.push(other),
+                }
+            }
+        }
+    }
+    flush(&mut run, &mut out);
+    if since_at.is_some() {
+        *since_at = new_since;
+    }
+    out
 }
 
 /// Folds runs of two or more quiet events into one expandable line,
@@ -885,6 +951,10 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         "ready" => (
             "git-pull-request",
             "marked this as ready for review".to_owned(),
+        ),
+        "attention_released" => (
+            "users",
+            "asked the reviewers: the required checks passed".to_owned(),
         ),
         "source_deleted" => (
             "git-branch",
@@ -1005,7 +1075,10 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
         ),
         _ => return None,
     };
-    let system = matches!(e.kind.as_str(), "approvals_carried" | "approvals_stale");
+    let system = matches!(
+        e.kind.as_str(),
+        "approvals_carried" | "approvals_stale" | "attention_released"
+    );
     let quiet = matches!(
         e.kind.as_str(),
         "labeled"
@@ -1234,6 +1307,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
     };
     let headline = match r.key {
         "draft" => "Draft".to_owned(),
+        "iterating" => "Iterating".to_owned(),
         "approvals" => "Approval required".to_owned(),
         "sensitive_paths" => "Maintainer approval required".to_owned(),
         "changes_requested" => "Changes requested".to_owned(),
@@ -1246,7 +1320,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         _ => "Not ready".to_owned(),
     };
     let action = match r.key {
-        "draft" if v.edit => Some(NextAction {
+        "draft" | "iterating" if v.edit => Some(NextAction {
             label: "Mark as ready",
             icon: "git-pull-request",
             href: None,
@@ -1811,6 +1885,7 @@ async fn mr_page_showing(
                 previous_head,
             } => timeline.push(TimelineView::Revision(RevisionView {
                 seq: r.seq,
+                bot: r.pushed_by.as_deref().is_some_and(|p| ctx.is_bot(p)),
                 pusher: r.pushed_by.unwrap_or_else(|| "Someone".to_owned()),
                 commits: r.commit_count,
                 short: r.head_oid.chars().take(12).collect(),
@@ -1851,6 +1926,14 @@ async fn mr_page_showing(
         });
     }
     let pending = state.services.pending_comments(subject, &m).await?;
+    let timeline = fold_iterations(timeline, &mut since_at, |from, to| {
+        mr_url(
+            ns,
+            repo,
+            m.number,
+            &format!("/interdiff?from={from}&to={to}"),
+        )
+    });
     let timeline = fold_events(timeline, &mut since_at);
     let (assignees, requested, labels, milestone) = state.services.mr_details(&m).await?;
     // Each reviewer's state: their current verdict, else the request.
