@@ -156,6 +156,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The release's Compose bundle includes the agent sandbox.
 - The API lists a merge request's revisions, serves the interdiff between two of them as plain text, and filters threads by whether they're resolved.
 - `GET …/merge-requests/{n}/iteration?since=` returns the current revision, the interdiff since an earlier one, failing required checks, unresolved threads, and mergeability in one call.
+- Bots can't push changes to CI workflows, `.slath/` files, code owners, or agent instructions such as `AGENTS.md`; the rejection names each file and commit.
+- Bots can't apply review suggestions to those files either.
 
 ### Changed
 

@@ -133,6 +133,38 @@ Branch protection (repository **Settings → Branch protection**, or
   updating a merge request's branch, and pushing directly. When several
   rules match a branch, every one of them must list the bot.
 
+## Sensitive paths
+
+Some files steer what runs, who reviews, what the secret scanner allows, or
+what agents are told. Bots can't change them, on any branch:
+
+- CI workflows: `.slath/workflows/`, `.github/workflows/`,
+  `.gitea/workflows/`, `.forgejo/workflows/`;
+- everything under `.slath/`, such as the reviewer file and the secret-scan
+  allowlist `.slath/secret-scan.toml`;
+- code owners: `CODEOWNERS`, `.github/CODEOWNERS`, `.gitea/CODEOWNERS`,
+  `docs/CODEOWNERS`;
+- agent instructions: `AGENTS.md`, `AGENT.md`, `CLAUDE.md`, and `GEMINI.md`
+  in any folder, `.github/copilot-instructions.md`, `.github/instructions/`,
+  `.cursorrules`, `.cursor/rules/`, `.windsurfrules`, `.clinerules`, and
+  `REVIEW.md`.
+
+Names match regardless of upper and lower case. A bot's push is rejected
+when a commit it adds creates, changes, renames, or deletes one of these
+files; the rejection names each file and commit:
+
+```text
+remote: slath: bots can't change sensitive paths:
+remote: slath:   .slath/workflows/ci.yml (commit 3f2a9c1d0e)
+remote: slath: ask a person to make this change
+remote: slath: push rejected
+```
+
+Commits the repository already has, such as a person's work merged into
+the bot's branch, don't count. Bots can't apply review suggestions to these
+files either. People's pushes aren't affected. Each rejection is recorded
+in the audit log.
+
 ## Rate limits
 
 Bots make at most 2,000 API requests per hour (site setting

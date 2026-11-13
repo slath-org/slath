@@ -17,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-use slath_core::authz::{Action, Subject};
+use slath_core::authz::{Action, Subject, UserKind};
 use slath_db::merge_requests::MergeRequest;
 use slath_git::ObjectId;
 use slath_git::merge;
@@ -230,6 +230,32 @@ impl Services {
                     blocking.join(", ")
                 ),
             ));
+        }
+
+        // Bots can't change sensitive paths, through suggestions neither.
+        if matches!(
+            subject,
+            Subject::User {
+                kind: UserKind::Bot,
+                ..
+            }
+        ) {
+            let sensitive = self.sensitive_paths(a.repo.id).await?;
+            let hit: Vec<&str> = files
+                .keys()
+                .filter(|p| sensitive.matches(p.as_bytes()))
+                .map(String::as_str)
+                .collect();
+            if !hit.is_empty() {
+                return Err(ServiceError::invalid(
+                    "comments",
+                    "sensitive_path",
+                    format!(
+                        "Bots can't change sensitive paths ({}); ask a person to apply these suggestions.",
+                        hit.join(", ")
+                    ),
+                ));
+            }
         }
 
         let dir = self.repo_path(a.repo.id);

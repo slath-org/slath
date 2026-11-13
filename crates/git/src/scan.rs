@@ -4,6 +4,7 @@
 //! reachable from any existing ref, and the blobs they introduce that the
 //! repository doesn't have yet, each with the commit and path it first
 //! appears in. Content the repository already has is never rescanned.
+//! Also the paths each new commit changes, for sensitive paths.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -135,4 +136,69 @@ pub async fn new_content(
         blobs,
         tags,
     })
+}
+
+/// The paths each commit of a push changes, for the commits the push adds
+/// (`tips --not --all`), oldest first. A root commit changes every path it
+/// has; a merge commit only the paths that differ from every parent; a
+/// rename changes its old and its new path.
+pub async fn changed_paths(
+    runner: &Runner,
+    git_dir: &Path,
+    quarantine: Option<&Path>,
+    tips: &[ObjectId],
+) -> Result<Vec<(ObjectId, Vec<Vec<u8>>)>, GitError> {
+    if tips.is_empty() {
+        return Ok(Vec::new());
+    }
+    let inv = || {
+        let i = runner.repo(git_dir);
+        match quarantine {
+            Some(q) => i.quarantine(git_dir, q),
+            None => Ok(i),
+        }
+    };
+    let commits = inv()?
+        .args(["rev-list", "--reverse"])
+        .args(tips.iter().map(ObjectId::as_str))
+        .args(["--not", "--all"])
+        .run()
+        .await?;
+    let commits = oids(&commits.stdout)?;
+    if commits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut input = Vec::new();
+    for c in &commits {
+        input.extend_from_slice(c.as_str().as_bytes());
+        input.push(b'\n');
+    }
+    let out = inv()?
+        .args([
+            "diff-tree",
+            "--stdin",
+            "-r",
+            "--diff-merges=combined",
+            "--root",
+            "--no-renames",
+            "--name-only",
+            "-z",
+        ])
+        .stdin(input)
+        .run()
+        .await?;
+    // "<commit>\0<path>\0<path>\0<commit>\0…", in input order: a field is
+    // the next commit's ID only where that commit is due.
+    let mut result: Vec<(ObjectId, Vec<Vec<u8>>)> = Vec::with_capacity(commits.len());
+    let mut next = commits.iter().peekable();
+    for field in out.stdout.split(|&b| b == 0).filter(|f| !f.is_empty()) {
+        if next.peek().is_some_and(|c| c.as_str().as_bytes() == field) {
+            if let Some(c) = next.next() {
+                result.push((c.clone(), Vec::new()));
+            }
+        } else if let Some((_, paths)) = result.last_mut() {
+            paths.push(field.to_vec());
+        }
+    }
+    Ok(result)
 }

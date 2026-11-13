@@ -55,6 +55,7 @@ pub mod registration;
 pub mod repos;
 pub mod search;
 pub mod secrets;
+pub mod sensitive_paths;
 pub mod sessions;
 pub mod settings;
 pub mod statuses;

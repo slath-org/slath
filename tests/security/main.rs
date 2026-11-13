@@ -33,6 +33,7 @@ mod registration;
 mod repos;
 mod routes;
 mod search;
+mod sensitive_paths;
 mod settings;
 mod ssh;
 mod surfaces;

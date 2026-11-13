@@ -15,5 +15,6 @@ pub mod names;
 pub mod net;
 pub mod secret;
 pub mod secret_scan;
+pub mod sensitive_paths;
 
 pub use secret::Secret;

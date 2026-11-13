@@ -82,6 +82,11 @@ and their approvals don't count unless the rule allows it. A bot's
 approval never counts for its own owner's merge request, and its statuses
 never count for its owner's required checks.
 
+Bots can't change CI workflows, code owners, Slath's `.slath/` files, or
+agent instruction files such as `AGENTS.md` and `CLAUDE.md`: such pushes
+are rejected (see [sensitive paths](bots.md#sensitive-paths)). Change
+them yourself.
+
 ## Branches or forks
 
 - **Branch-based:** the bot has the write role and pushes to its own

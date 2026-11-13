@@ -64,6 +64,8 @@ pub enum DenyReason {
     Protected,
     /// Push protection found a secret, or couldn't finish its scan.
     Secret,
+    /// A bot's push changes a sensitive path, or couldn't be checked.
+    SensitivePath,
 }
 
 impl DenyReason {
@@ -79,6 +81,7 @@ impl DenyReason {
             Self::TagMove => "tag_move",
             Self::Protected => "protected",
             Self::Secret => "secret",
+            Self::SensitivePath => "sensitive_path",
         }
     }
 }
@@ -467,6 +470,10 @@ impl Services {
                     );
                 }
             }
+        }
+        if v.denied.is_empty() {
+            self.check_sensitive_paths(grant, updates, quarantine, &mut v)
+                .await;
         }
         if v.denied.is_empty() {
             self.push_protection(grant, updates, quarantine, &mut v)
