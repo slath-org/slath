@@ -32,6 +32,8 @@ h2,
 h3 {
   margin: 0 0 var(--space-4);
   font-weight: var(--weight-semibold);
+  /* Short lines of similar length instead of a single last word. */
+  text-wrap: balance;
 }
 h1 {
   font-size: var(--text-title);

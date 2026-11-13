@@ -766,6 +766,13 @@ fieldset.field {
   line-height: var(--leading-long);
   overflow-wrap: anywhere;
 }
+/* Long text written by people: no lone word on a paragraph's last line.
+   Only here, since it costs more layout work than the default. */
+.markdown p,
+.markdown li,
+.markdown blockquote {
+  text-wrap: pretty;
+}
 .markdown img {
   max-width: 100%;
 }
