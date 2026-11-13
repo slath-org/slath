@@ -13,6 +13,7 @@ file or runtime dependency is missing from this list.
 | JetBrains Mono | 2.304 | OFL-1.1 ([text](LICENSES/OFL-1.1.txt)) | Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono) | `JetBrainsMono-Upright.woff2`, `JetBrainsMono-Italic.woff2` (subsets of the variable fonts) | https://github.com/JetBrains/JetBrainsMono/releases/tag/v2.304 |
 | Lucide | 1.66.0 | ISC ([text](LICENSES/ISC.txt)); icons derived from Feather: MIT (below) | Copyright (c) 2026 Lucide Icons and Contributors; Feather: Copyright (c) 2013-present Cole Bemis | `icons.svg` (sprite of the icons in `web/src/icons/icons.txt`) | https://lucide.dev, npm `lucide-static` |
 | htmx | 4.0.0 | 0BSD ([text](LICENSES/0BSD.txt)) | Big Sky Software | part of `app.js` (with the `hx-csp` extension) | https://htmx.org, npm `htmx.org` |
+| invokers-polyfill | 1.0.4 | MIT ([text](LICENSES/MIT.txt)) | Copyright (c) 2025 Keith Cirkel | `invokers-polyfill.js`, loaded only by browsers without invoker commands | https://github.com/keithamus/invokers-polyfill, npm `invokers-polyfill` |
 | Milkdown | 7.23.0 | MIT ([text](LICENSES/MIT.txt)) | Copyright (c) 2021 Mirone | the rich-text editor in `wysiwyg.js` (npm `@milkdown/kit`; its parts are listed below) | https://milkdown.dev |
 | @milkdown/kit | 7.23.0 | MIT ([text](LICENSES/MIT.txt)) | Copyright (c) 2021 Mirone | `wysiwyg.js` | npm `@milkdown/kit` |
 | @codemirror/commands | 6.11.1 | MIT ([text](LICENSES/MIT.txt)) | Copyright (C) 2018-2021 by Marijn Haverbeke and others | `source.js` | https://codemirror.net |

@@ -194,8 +194,8 @@
         </div>
       </div>
     </details>
-    <button type="button" class="button" data-dialog-open="demo-dialog">Open dialog</button>
-    <button type="button" class="button" data-dialog-open="demo-drawer">Open drawer</button>
+    <button type="button" class="button" commandfor="demo-dialog" command="show-modal">Open dialog</button>
+    <button type="button" class="button" commandfor="demo-drawer" command="show-modal">Open drawer</button>
     <button type="button" class="button" data-toast="Settings saved.">Show toast</button>
   </div>
   <dialog class="dialog" id="demo-dialog" aria-labelledby="demo-dialog-title">
@@ -204,8 +204,8 @@
       <p>The branch <code>feature</code> will be deleted. Its commits stay reachable from other refs.</p>
     </div>
     <div class="dialog-actions">
-      <button type="button" class="button" data-dialog-close>Cancel</button>
-      <button type="button" class="button button-danger" data-dialog-close>Delete</button>
+      <button type="button" class="button" commandfor="demo-dialog" command="close">Cancel</button>
+      <button type="button" class="button button-danger" commandfor="demo-dialog" command="close">Delete</button>
     </div>
   </dialog>
   <dialog class="dialog drawer" id="demo-drawer" aria-labelledby="demo-drawer-title">
@@ -213,7 +213,7 @@
       <h2 id="demo-drawer-title">Files</h2>
       <ul class="file-list"><li><a href="#menus-heading">README.md</a></li><li><a href="#menus-heading">src/main.rs</a></li></ul>
     </div>
-    <div class="dialog-actions"><button type="button" class="button" data-dialog-close>Close</button></div>
+    <div class="dialog-actions"><button type="button" class="button" commandfor="demo-drawer" command="close">Close</button></div>
   </dialog>
   <div class="toast"><p>Static toast example.</p><button type="button" class="button button-quiet">Dismiss</button></div>
 </section>

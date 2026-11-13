@@ -160,6 +160,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Text areas grow with what you type, up to most of the screen, in browsers that support it.
 - Headings wrap into lines of similar length, and paragraphs in comments and descriptions avoid a lone last word.
 - Full-height layouts and the side menu follow the visible screen on phones as the browser's address bar shows and hides.
+- Dialogs open and close through the browser's own button commands; older browsers load a small polyfill.
 - Updating means installing the new version and restarting: Slath checks, backs up, and migrates when it starts, and refuses to start, changing nothing, when it can't update safely.
 - Pre-upgrade backups are on by default everywhere, and only the newest two are kept (`[upgrade] backups_kept`).
 - `slath serve` has no `--migrate` flag any more; it always applies a pending update first.
