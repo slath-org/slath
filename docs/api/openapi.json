@@ -270,6 +270,125 @@
         ]
       }
     },
+    "/api/v1/bots/{name}/start": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Re-enables a stopped bot, without credentials: create new tokens and\nkeys for it (`user:write`). A bot suspended by an administrator or with\nits owner stays suspended (409).",
+        "operationId": "start_bot",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bot"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/bots/{name}/stop": {
+      "post": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Stops a bot at once: it's suspended, its tokens are revoked, its SSH\nkeys removed, and its pushes refused (`user:write`; its managers and\nsite administrators).",
+        "operationId": "stop_bot",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotStopped"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/bots/{name}/tokens": {
       "get": {
         "tags": [
@@ -9510,7 +9629,14 @@
           },
           "state": {
             "type": "string",
-            "description": "`active` or `suspended`."
+            "description": "`active`, `stopped`, or `suspended`."
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was stopped, while it is."
           },
           "username": {
             "type": "string"
@@ -9551,6 +9677,35 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "BotStopped": {
+        "type": "object",
+        "description": "What stopping a bot removed.",
+        "required": [
+          "bot",
+          "changed",
+          "tokens_revoked",
+          "keys_removed"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/Bot"
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "False if it was stopped already."
+          },
+          "keys_removed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "tokens_revoked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },

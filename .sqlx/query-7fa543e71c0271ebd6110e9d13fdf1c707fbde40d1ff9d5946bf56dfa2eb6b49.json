@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET state = 'active', stopped_at = NULL, stopped_by = NULL, updated_at = now()\n         WHERE id = $1 AND kind = 'bot' AND stopped_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7fa543e71c0271ebd6110e9d13fdf1c707fbde40d1ff9d5946bf56dfa2eb6b49"
+}

@@ -272,6 +272,11 @@ enum AdminCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Stop or re-enable a bot.
+    Bot {
+        #[command(subcommand)]
+        command: BotCommand,
+    },
     /// Inspect and control background migrations.
     BackgroundMigrations {
         #[command(subcommand)]
@@ -344,6 +349,28 @@ enum AdminCommand {
         /// [auth] settings).
         #[arg(long)]
         token_days: Option<u32>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BotCommand {
+    /// Stop a bot at once: suspend it, revoke its tokens, remove its SSH
+    /// keys, and refuse its pushes.
+    Stop {
+        name: String,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// Re-enable a stopped bot. It has no credentials afterwards; its
+    /// owner creates new ones.
+    Start {
+        name: String,
+        #[arg(long)]
+        config: Option<PathBuf>,
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
@@ -481,6 +508,9 @@ fn main() -> ExitCode {
         Command::Admin {
             command: AdminCommand::BackgroundMigrations { command },
         } => admin::background_migrations(command),
+        Command::Admin {
+            command: AdminCommand::Bot { command },
+        } => admin::bot(command),
         Command::Admin {
             command:
                 AdminCommand::RotateKey {

@@ -33,9 +33,11 @@ pub struct Bot {
     pub username: String,
     pub display_name: Option<String>,
     pub owner: BotOwnerRef,
-    /// `active` or `suspended`.
+    /// `active`, `stopped`, or `suspended`.
     pub state: String,
     pub created_at: String,
+    /// When it was stopped, while it is.
+    pub stopped_at: Option<String>,
 }
 
 impl From<slath_db::bots::Bot> for Bot {
@@ -52,12 +54,14 @@ impl From<slath_db::bots::Bot> for Bot {
                 .to_owned(),
                 name: b.owner_name,
             },
-            state: match b.state {
-                UserState::Active => "active",
+            state: match (b.state, b.stopped_at) {
+                (UserState::Active, _) => "active",
+                (_, Some(_)) => "stopped",
                 _ => "suspended",
             }
             .to_owned(),
             created_at: crate::ui::Time::from(b.created_at).iso,
+            stopped_at: b.stopped_at.map(|t| crate::ui::Time::from(t).iso),
         }
     }
 }
@@ -289,8 +293,53 @@ pub async fn remove_bot_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// What stopping a bot removed.
+#[derive(Serialize, ToSchema)]
+pub struct BotStopped {
+    pub bot: Bot,
+    /// False if it was stopped already.
+    pub changed: bool,
+    pub tokens_revoked: u64,
+    pub keys_removed: u64,
+}
+
+/// Stops a bot at once: it's suspended, its tokens are revoked, its SSH
+/// keys removed, and its pushes refused (`user:write`; its managers and
+/// site administrators).
+#[utoipa::path(post, path = "/api/v1/bots/{name}/stop", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path)),
+    responses((status = 200, body = BotStopped), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn stop_bot(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+) -> Result<Json<BotStopped>, AppError> {
+    let done = state.services.stop_bot(&subject, &name).await?;
+    let bot = state.services.controlled_bot(&subject, &name).await?;
+    Ok(Json(BotStopped {
+        bot: bot.into(),
+        changed: done.changed,
+        tokens_revoked: done.tokens_revoked,
+        keys_removed: done.keys_removed,
+    }))
+}
+
+/// Re-enables a stopped bot, without credentials: create new tokens and
+/// keys for it (`user:write`). A bot suspended by an administrator or with
+/// its owner stays suspended (409).
+#[utoipa::path(post, path = "/api/v1/bots/{name}/start", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path)),
+    responses((status = 200, body = Bot), (status = 401, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
+pub async fn start_bot(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+) -> Result<Json<Bot>, AppError> {
+    state.services.start_bot(&subject, &name).await?;
+    let bot = state.services.controlled_bot(&subject, &name).await?;
+    Ok(Json(bot.into()))
+}
+
 pub fn router() -> Router<AppState> {
-    use axum::routing::{delete, get};
+    use axum::routing::{delete, get, post};
     Router::new()
         .route_as(
             "/api/v1/user/bots",
@@ -322,5 +371,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/bots/{name}/keys/{id}",
             Access::Resource,
             delete(remove_bot_key),
+        )
+        .route_as("/api/v1/bots/{name}/stop", Access::Resource, post(stop_bot))
+        .route_as(
+            "/api/v1/bots/{name}/start",
+            Access::Resource,
+            post(start_bot),
         )
 }

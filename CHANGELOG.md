@@ -140,6 +140,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A bot's approval never counts for its owner's merge request, even where bot approvals count.
 - Settings → Bots and an organization's Bots page list and create bots; each bot's page manages its tokens and SSH keys.
 - A Bot badge follows bots' names on issues, merge requests, comments, reviews, statuses, member lists, and the audit log; a bot's profile names its owner.
+- Stop a bot through the API or `slath admin bot stop`: it's suspended, its tokens are revoked, its SSH keys are removed, and its pushes are refused at once.
+- Re-enable a stopped bot through the API or `slath admin bot start`; it comes back without credentials. Both are audited.
 - A bot's page changes its avatar and display name.
 - Commits and merge requests come as plain-text diffs and patches: `.diff` and `.patch` after their address, and `…/diff` and `…/patch` in the API.
 - `slath admin apply FILE` creates the users, organizations, bots, repositories, and tokens a TOML file lists; running it again changes nothing.

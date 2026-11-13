@@ -140,6 +140,27 @@ Bots make at most 2,000 API requests per hour (site setting
 `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` say where a
 bot stands.
 
+## Stopping a bot
+
+If a bot misbehaves or one of its credentials may have leaked, stop it:
+
+```sh
+curl -X POST https://git.example.org/api/v1/bots/alice-ci/stop \
+  -H "Authorization: Bearer $TOKEN"     # a token with user:write
+```
+
+A stop takes effect at once: the bot is suspended, every token of it is
+revoked, its SSH keys are removed, and a push it has already started is
+refused before it changes anything. Its memberships, merge requests,
+comments, and statuses stay. The bot's managers and site administrators
+can stop it; on a server, `slath admin bot stop alice-ci` does the same.
+
+`POST /api/v1/bots/alice-ci/start` (or `slath admin bot start alice-ci`)
+re-enables a stopped bot. It comes back without credentials, so create new
+tokens and keys for it. A bot that a site administrator suspended, or that
+was suspended with its owner, can't be re-enabled this way. Stops and
+re-enables are in the audit log (`bot.stop`, `bot.start`).
+
 ## How bots appear
 
 A **Bot** badge follows a bot's name wherever Slath shows it: as the author

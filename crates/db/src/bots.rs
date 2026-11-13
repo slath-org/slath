@@ -44,6 +44,8 @@ pub struct Bot {
     /// The owner's namespace name (user or organization).
     pub owner_name: String,
     pub created_at: OffsetDateTime,
+    /// Set while it's stopped by a manager or an administrator.
+    pub stopped_at: Option<OffsetDateTime>,
 }
 
 /// Creates the namespace and the bot; run it in a transaction. A taken or
@@ -99,6 +101,7 @@ macro_rules! to_bot {
             owner: BotOwner::from_parts(&$r.owner_kind, $r.owner_id),
             owner_name: $r.owner_name,
             created_at: $r.created_at,
+            stopped_at: $r.stopped_at,
         }
     };
 }
@@ -108,7 +111,7 @@ pub async fn find(exec: impl PgExecutor<'_>, name: &str) -> Result<Option<Bot>, 
     let r = sqlx::query!(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
                   u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
-                  o.name::text AS "owner_name!", u.created_at
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            JOIN namespaces o ON o.id = CASE u.bot_owner_kind
                 WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
@@ -130,7 +133,7 @@ pub async fn list_for_owner(
     let rows = sqlx::query!(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
                   u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
-                  o.name::text AS "owner_name!", u.created_at
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            JOIN namespaces o ON o.id = CASE u.bot_owner_kind
                 WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
@@ -183,4 +186,45 @@ pub async fn all_names(exec: impl PgExecutor<'_>) -> Result<Vec<String>, DbError
     )
     .fetch_all(exec)
     .await?)
+}
+
+/// Stops a bot: suspends it and removes its tokens and SSH keys, in the
+/// caller's transaction. Returns (tokens revoked, keys removed), or `None`
+/// if it was stopped already.
+pub async fn stop(
+    tx: &mut sqlx::PgConnection,
+    bot: UserId,
+    by: Option<UserId>,
+) -> Result<Option<(u64, u64)>, DbError> {
+    let r = sqlx::query!(
+        "UPDATE users SET state = 'suspended', suspended_with_owner = false, stopped_at = now(),
+             stopped_by = $2, updated_at = now()
+         WHERE id = $1 AND kind = 'bot' AND state <> 'deleted' AND stopped_at IS NULL",
+        bot.as_uuid(),
+        by.map(|u| *u.as_uuid())
+    )
+    .execute(&mut *tx)
+    .await?;
+    if r.rows_affected() == 0 {
+        return Ok(None);
+    }
+    let tokens = crate::tokens::revoke_all_for_user(&mut *tx, bot).await?;
+    let keys = sqlx::query!("DELETE FROM ssh_keys WHERE user_id = $1", bot.as_uuid())
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    Ok(Some((tokens, keys)))
+}
+
+/// Re-enables a stopped bot (without credentials); false if it wasn't
+/// stopped.
+pub async fn start(exec: impl PgExecutor<'_>, bot: UserId) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "UPDATE users SET state = 'active', stopped_at = NULL, stopped_by = NULL, updated_at = now()
+         WHERE id = $1 AND kind = 'bot' AND stopped_at IS NOT NULL",
+        bot.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() > 0)
 }

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/cli/admin-bot.schema.json",
+  "title": "slath admin bot \u2026 --output json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "bot",
+        "changed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "bot": {
+          "type": "string",
+          "description": "The bot's username."
+        },
+        "changed": {
+          "type": "boolean",
+          "description": "False if the bot was in that state already."
+        },
+        "tokens_revoked": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "stop: tokens revoked."
+        },
+        "keys_removed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "stop: SSH keys removed."
+        }
+      }
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ],
+  "$defs": {
+    "error": {
+      "type": "object",
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "type": "string",
+          "description": "What went wrong, for people."
+        }
+      }
+    }
+  }
+}

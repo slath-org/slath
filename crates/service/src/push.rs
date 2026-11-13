@@ -228,6 +228,22 @@ impl Services {
         quarantine: &Quarantine,
     ) -> Verdict {
         let mut v = Verdict::default();
+        // A bot stopped, suspended, or frozen since it authenticated.
+        match self.bot_push_refusal(&grant.subject).await {
+            Ok(None) => {}
+            Ok(Some(why)) => {
+                v.denied.push(DenyReason::NoPermission);
+                v.messages.push(why.to_owned());
+                return v;
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "pre-receive: checking the pusher failed");
+                v.denied.push(DenyReason::NoPermission);
+                v.messages
+                    .push("slath: push rejected: internal error, try again".to_owned());
+                return v;
+            }
+        }
         // Permissions are re-checked now, with the push's own credential.
         let access = match self
             .repo_access_by_id(&grant.subject, grant.repo_id, Action::RepoRead)

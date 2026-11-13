@@ -8,6 +8,7 @@ mod admin;
 mod api;
 mod attachments;
 mod auth;
+mod bot_stop;
 mod bots;
 mod browse;
 mod email;

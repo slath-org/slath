@@ -58,8 +58,9 @@ Give every agent its own [bot](bots.md) instead of a person's token:
   organization's bot only what its owners grant it.
 - Its tokens are restricted to repositories and expire after 30 days by
   default, so a leaked token has a small reach.
-- Stopping one agent means revoking one bot's token, without touching
-  anyone else's access.
+- Stopping one agent means stopping one bot, which revokes all its
+  credentials at once (see [Stopping a bot](bots.md#stopping-a-bot)),
+  without touching anyone else's access.
 
 For a set of agents that a team runs, create the bots in the team's
 organization; for your own assistant, a bot of your own is enough.

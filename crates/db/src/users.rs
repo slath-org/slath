@@ -256,7 +256,9 @@ pub async fn list_all(
 pub async fn set_state(exec: impl PgExecutor<'_>, id: UserId, active: bool) -> Result<(), DbError> {
     let s = if active { "active" } else { "suspended" };
     sqlx::query!(
-        "UPDATE users SET state = $2, suspended_with_owner = false, updated_at = now()
+        "UPDATE users SET state = $2, suspended_with_owner = false, updated_at = now(),
+             stopped_at = CASE WHEN $2 = 'active' THEN NULL ELSE stopped_at END,
+             stopped_by = CASE WHEN $2 = 'active' THEN NULL ELSE stopped_by END
          WHERE id = $1 AND state <> 'deleted'",
         id.as_uuid(),
         s

@@ -461,6 +461,69 @@ fn bg_json(s: &slath_db::bgmigrations::Status) -> serde_json::Value {
 }
 
 /// `slath admin background-migrations …`.
+/// `slath admin bot stop|start`.
+pub fn bot(cmd: crate::BotCommand) -> ExitCode {
+    use crate::BotCommand as B;
+    let (B::Stop {
+        name,
+        config,
+        output,
+    }
+    | B::Start {
+        name,
+        config,
+        output,
+    }) = &cmd;
+    let (name, format) = (name.clone(), *output);
+    let path = config::resolve_path(config.clone());
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let stop = matches!(cmd, B::Stop { .. });
+    let result = rt.block_on(async {
+        let svc = services(&path).await?;
+        if stop {
+            svc.stop_bot_as_system(&name).await.map(|s| {
+                (
+                    s.changed,
+                    json!({"tokens_revoked": s.tokens_revoked, "keys_removed": s.keys_removed}),
+                )
+            })
+        } else {
+            svc.start_bot_as_system(&name)
+                .await
+                .map(|changed| (changed, json!({})))
+        }
+        .map_err(|e| describe(&e))
+    });
+    match result {
+        Ok((changed, mut detail)) => {
+            match format {
+                OutputFormat::Text => match (stop, changed) {
+                    (true, true) => println!(
+                        "stopped bot {name}: {} tokens revoked, {} SSH keys removed",
+                        detail["tokens_revoked"], detail["keys_removed"]
+                    ),
+                    (true, false) => println!("bot {name} was stopped already"),
+                    (false, true) => println!(
+                        "re-enabled bot {name}; it has no tokens or keys until its owner adds them"
+                    ),
+                    (false, false) => println!("bot {name} is active already"),
+                },
+                OutputFormat::Json => {
+                    detail["ok"] = json!(true);
+                    detail["bot"] = json!(name);
+                    detail["changed"] = json!(changed);
+                    print_json(&detail);
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
 pub fn background_migrations(cmd: crate::BgCommand) -> ExitCode {
     use crate::BgCommand as B;
     use slath_db::bgmigrations::Control;

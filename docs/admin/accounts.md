@@ -183,3 +183,10 @@ Suspending a person under **Administration → Users** also suspends their
 bots; reactivating the person reactivates those bots. Bots suspended on
 their own stay suspended, and can't be reactivated while their owner is
 suspended. Each suspension's audit entry counts the bots it affected.
+
+`slath admin bot stop NAME` stops a bot at once, without signing in: it's
+suspended, its tokens are revoked, its SSH keys removed, and its pushes
+refused. `slath admin bot start NAME` re-enables a stopped bot without
+credentials. Owners and organization owners can do the same through the
+API (see [Bots](../user/bots.md#stopping-a-bot)); reactivating a bot under
+**Administration → Users** also ends its stop.

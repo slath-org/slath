@@ -82,6 +82,18 @@ fn conf_ops_08_admin_commands_print_schema_valid_json() {
         .0
     );
 
+    for (args, changed) in [
+        (["admin", "bot", "stop", "ada-ci"], true),
+        (["admin", "bot", "stop", "ada-ci"], false),
+        (["admin", "bot", "start", "ada-ci"], true),
+        (["admin", "bot", "start", "ada-ci"], false),
+    ] {
+        let (ok, v) = run(&s, "admin-bot", &args, None);
+        assert!(ok, "{v}");
+        assert_eq!(v["changed"], changed, "{args:?}: {v}");
+    }
+    assert!(!run(&s, "admin-bot", &["admin", "bot", "stop", "nobody"], None).0);
+
     let reset = ["admin", "reset-mfa", "--username"];
     run(
         &s,
