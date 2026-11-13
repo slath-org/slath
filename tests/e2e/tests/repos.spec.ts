@@ -20,4 +20,13 @@ test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(section);
     await expectAccessible(page);
   }
+  // Sensitive paths: the built-in ones fold open, the repository's own save.
+  await tapOrClick(page, page.getByRole("navigation", { name: "Repository settings" }).getByRole("link", { name: "Branch protection" }));
+  await tapOrClick(page, page.getByText(/^Built-in paths/));
+  await expect(page.getByText("**/AGENTS.md", { exact: true })).toBeVisible();
+  await page.getByLabel("This repository's own paths").fill("deploy/**");
+  await tapOrClick(page, page.getByRole("button", { name: "Save sensitive paths" }));
+  await expect(page.getByText("Sensitive paths saved.")).toBeVisible();
+  await expect(page.getByLabel("This repository's own paths")).toHaveValue("deploy/**");
+  await expectAccessible(page);
 });
