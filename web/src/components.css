@@ -77,7 +77,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  padding-left: var(--space-5);
+  padding-inline-start: var(--space-5);
 }
 .qr-code {
   display: block;
@@ -94,7 +94,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   gap: var(--space-2) var(--space-5);
-  padding-left: var(--space-5);
+  padding-inline-start: var(--space-5);
 }
 
 /* Forms */
@@ -173,7 +173,7 @@ textarea[aria-invalid="true"] {
   padding: var(--space-3) var(--space-4);
   margin: 0 0 var(--space-4);
   border: var(--border-width) solid;
-  border-left-width: calc(var(--space-1));
+  border-inline-start-width: calc(var(--space-1));
   border-radius: var(--radius-sm);
 }
 .error-summary {
@@ -392,7 +392,7 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
 }
 .table th,
 .table td {
-  text-align: left;
+  text-align: start;
   vertical-align: middle;
   padding: var(--space-2) var(--space-3);
   border-bottom: var(--border-width) solid var(--border);
@@ -437,7 +437,7 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
 
 .error-summary ul {
   margin: 0;
-  padding-left: var(--space-5);
+  padding-inline-start: var(--space-5);
 }
 .error-summary li a,
 .error-summary p a {
@@ -726,7 +726,7 @@ fieldset.field {
 .crumbs li + li::before {
   content: "/";
   color: var(--text-secondary);
-  margin-right: var(--space-1);
+  margin-inline-end: var(--space-1);
 }
 .crumbs a {
   display: inline-flex;
@@ -800,6 +800,8 @@ fieldset.field {
   margin: 0 0 var(--space-4);
   background: var(--surface);
 }
+/* Code reads left to right in every interface language, so code and diff
+   tables use physical sides (left, right) where the rest uses logical ones. */
 .code-table,
 .diff-table {
   border-collapse: collapse;
@@ -1794,7 +1796,7 @@ h1 > bdi code,
   border: 0;
 }
 .choice-options legend {
-  float: left;
+  float: inline-start;
   margin-inline-end: var(--space-2);
   padding: 0;
   padding-block: var(--space-1);

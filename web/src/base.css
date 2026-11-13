@@ -117,7 +117,7 @@ pre {
 
 .skip-link {
   position: absolute;
-  left: var(--space-2);
+  inset-inline-start: var(--space-2);
   top: calc(-1 * var(--space-7) * 2);
   z-index: 100;
   padding: var(--space-2) var(--space-3);
@@ -185,7 +185,7 @@ pre {
   min-width: var(--target-min);
 }
 .site-nav .nav-end {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -223,7 +223,7 @@ main {
 /* Toasts (filled by scripts; the region is a polite live region). */
 .toasts {
   position: fixed;
-  right: var(--space-4);
+  inset-inline-end: var(--space-4);
   bottom: var(--space-4);
   display: flex;
   flex-direction: column;
