@@ -1095,6 +1095,8 @@ struct ProtectionsSettings<'a> {
     pattern: String,
     /// Built-in sensitive paths.
     sensitive_defaults: &'static [&'static str],
+    /// Sensitive paths the instance adds.
+    sensitive_instance: Vec<String>,
     /// The repository's own, one per line.
     sensitive_paths: String,
 }
@@ -1119,15 +1121,12 @@ async fn protections_page(
         .services
         .protections(subject, &a.repo.namespace, &a.repo.name)
         .await?;
-    let sensitive_paths = match sensitive {
-        Some(text) => text,
-        None => state
-            .services
-            .repo_sensitive_paths(subject, &a.repo.namespace, &a.repo.name)
-            .await?
-            .extra()
-            .join("\n"),
-    };
+    let current = state
+        .services
+        .repo_sensitive_paths(subject, &a.repo.namespace, &a.repo.name)
+        .await?;
+    let sensitive_instance = current.instance().to_vec();
+    let sensitive_paths = sensitive.unwrap_or_else(|| current.extra().join("\n"));
     let status = if errors.is_empty() {
         StatusCode::OK
     } else {
@@ -1159,6 +1158,7 @@ async fn protections_page(
         errors,
         pattern,
         sensitive_defaults: slath_core::sensitive_paths::DEFAULTS,
+        sensitive_instance,
         sensitive_paths,
     });
     *res.status_mut() = status;

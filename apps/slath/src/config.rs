@@ -250,6 +250,7 @@ fn describe(e: &figment::Error) -> String {
 
 fn validate(cfg: &Config) -> Result<(), String> {
     cfg.push_protection.rule_set()?;
+    cfg.sensitive_paths.validate()?;
     for (what, p) in [
         ("storage.data_dir", &cfg.storage.data_dir),
         ("storage.run_dir", &cfg.storage.run_dir),
@@ -572,6 +573,27 @@ mod tests {
         assert!(err.contains("bogus_limit"), "{err}");
         let err = load_str(MINIMAL, &[("LIMITS__NOPE", "1")]).unwrap_err();
         assert!(err.contains("nope"), "{err}");
+    }
+
+    #[test]
+    fn sensitive_paths_are_checked() {
+        let cfg = load_str(
+            &format!("{MINIMAL}\n[sensitive_paths]\nextra = [\"infra/**\", \"*.tf\"]\n"),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(cfg.sensitive_paths.extra, ["infra/**", "*.tf"]);
+        for bad in ["\"../up\"", "\"/abs\"", "\"\""] {
+            let err = load_str(
+                &format!("{MINIMAL}\n[sensitive_paths]\nextra = [{bad}]\n"),
+                &[],
+            )
+            .unwrap_err();
+            assert!(err.contains("sensitive_paths.extra"), "{err}");
+        }
+        let err =
+            load_str(&format!("{MINIMAL}\n[sensitive_paths]\nremove = []\n"), &[]).unwrap_err();
+        assert!(err.contains("remove"), "{err}");
     }
 
     #[test]

@@ -107,12 +107,20 @@
 <h2 id="sensitive-paths">Sensitive paths</h2>
 <p>Bots can't change these files on any branch: pushes and suggestions that would are refused. On protected branches, a merge request that changes them needs an approval by a maintainer. Names match regardless of upper and lower case.</p>
 <details class="sensitive-defaults">
-  <summary>Built-in paths ({{ sensitive_defaults.len() }})</summary>
-  <ul>
+  <summary>Built-in paths ({{ sensitive_defaults.len() }}){% if !sensitive_instance.is_empty() %} and paths of this instance ({{ sensitive_instance.len() }}){% endif %}</summary>
+  <ul aria-label="Built-in paths">
   {%- for p in sensitive_defaults %}
     <li><code>{{ p }}</code></li>
   {%- endfor %}
   </ul>
+  {%- if !sensitive_instance.is_empty() %}
+  <p class="sensitive-instance-note">Added for every repository by the administrators of this instance:</p>
+  <ul aria-label="Paths of this instance">
+  {%- for p in sensitive_instance %}
+    <li><code>{{ p }}</code></li>
+  {%- endfor %}
+  </ul>
+  {%- endif %}
 </details>
 <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/sensitive-paths" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

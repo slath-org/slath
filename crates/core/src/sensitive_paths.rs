@@ -3,7 +3,8 @@
 //! Sensitive paths: files that steer what runs, who reviews, what the
 //! secret scanner allows, or what agents are told. Bots can't change them,
 //! and on a protected target a merge request that changes them needs a
-//! maintainer's approval.
+//! maintainer's approval. Instances and repositories add to the
+//! built-in list; nothing takes from it.
 
 use crate::secret_scan::glob_match;
 
@@ -64,16 +65,25 @@ pub fn invalid_glob(glob: &str) -> Option<&'static str> {
     None
 }
 
-/// The defaults plus a repository's own globs.
+/// The defaults, the instance's globs, and a repository's own.
 #[derive(Debug, Clone, Default)]
 pub struct SensitivePaths {
+    instance: Vec<String>,
     extra: Vec<String>,
 }
 
 impl SensitivePaths {
+    /// `instance`: `[sensitive_paths] extra` of the configuration;
+    /// `extra`: the repository's own.
     #[must_use]
-    pub fn new(extra: Vec<String>) -> Self {
-        Self { extra }
+    pub fn new(instance: Vec<String>, extra: Vec<String>) -> Self {
+        Self { instance, extra }
+    }
+
+    /// The globs the instance adds for every repository.
+    #[must_use]
+    pub fn instance(&self) -> &[String] {
+        &self.instance
     }
 
     /// The repository's own globs.
@@ -91,6 +101,7 @@ impl SensitivePaths {
         DEFAULTS
             .iter()
             .copied()
+            .chain(self.instance.iter().map(String::as_str))
             .chain(self.extra.iter().map(String::as_str))
             .any(|g| glob_match(g.to_ascii_lowercase().as_bytes(), &path))
     }
@@ -141,7 +152,11 @@ mod tests {
 
     #[test]
     fn repositories_add_globs() {
-        let s = SensitivePaths::new(vec!["deploy/**".into(), "Makefile".into()]);
+        let s = SensitivePaths::new(
+            vec!["infra/**".into()],
+            vec!["deploy/**".into(), "Makefile".into()],
+        );
+        assert!(s.matches(b"infra/main.tf"), "the instance's");
         assert!(s.matches(b"deploy/prod/values.yaml"));
         assert!(s.matches(b"makefile"));
         assert!(s.matches(b"AGENTS.md"), "defaults stay");

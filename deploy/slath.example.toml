@@ -53,6 +53,12 @@ ssh_port = 22
 # backups_kept = 2            # newest pre-upgrade backups to keep (0 keeps all)
 # check_for_updates = false   # opt-in: ask for new releases once a day
 
+# Sensitive paths for every repository, on top of the built-in ones (CI
+# workflows, .slath/, code owners, agent instructions): bots can't change
+# them, and merge requests that do need a maintainer's approval.
+# [sensitive_paths]
+# extra = [".buildkite/**", "**/CONVENTIONS.md"]
+
 [log]
 format = "json"
 level = "info"

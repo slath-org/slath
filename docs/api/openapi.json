@@ -13360,6 +13360,7 @@
         "description": "A repository's sensitive paths.",
         "required": [
           "defaults",
+          "instance",
           "paths"
         ],
         "properties": {
@@ -13369,6 +13370,13 @@
               "type": "string"
             },
             "description": "Built in; they always apply."
+          },
+          "instance": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Added for every repository by the instance's administrators\n(`[sensitive_paths] extra`); they always apply too."
           },
           "paths": {
             "type": "array",

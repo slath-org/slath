@@ -494,6 +494,9 @@ fieldset.field {
   cursor: pointer;
   padding-block: var(--space-2);
 }
+.sensitive-defaults .sensitive-instance-note {
+  margin: var(--space-4) 0 0;
+}
 .sensitive-defaults ul {
   display: flex;
   flex-wrap: wrap;

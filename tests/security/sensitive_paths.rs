@@ -529,3 +529,36 @@ fn conf_agent_11_merge_requests_changing_sensitive_paths_need_a_maintainer() {
     assert!(html.contains("Maintainer approval required"), "{html}");
     assert!(html.contains(".slath/REVIEWERS"), "{html}");
 }
+
+#[test]
+fn conf_agent_11_instances_add_sensitive_paths() {
+    let s = TestServer::start_full(&[DEMO], "[sensitive_paths]\nextra = [\"infra/**\"]\n");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let bot = setup(&s, w);
+    let r = s.client().api(
+        "GET",
+        "/api/v1/repos/alice/demo/sensitive-paths",
+        Some(&s.token),
+        None,
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    slath_tests::contract::check("GET", "/api/v1/repos/{ns}/{repo}/sensitive-paths", &r);
+    assert_eq!(r.json()["instance"], json!(["infra/**"]));
+    assert_eq!(r.json()["paths"], json!([]));
+
+    // They apply to bot pushes like the built-in ones.
+    git.ok(w, &["switch", "-q", "-c", "agent/infra", "main"]);
+    write(w, "infra/main.tf", "x\n");
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "infra"]);
+    let err = git.fails(w, &["push", "-q", &bot, "agent/infra"]);
+    assert!(err.contains("infra/main.tf"), "{err}");
+
+    // The settings page lists them apart from the built-in ones.
+    let mut web = s.login("alice", PASSWORD);
+    let html = web.get("/alice/demo/settings/protections").body;
+    assert!(html.contains("paths of this instance (1)"), "{html}");
+    assert!(html.contains("<code>infra/**</code>"), "{html}");
+}

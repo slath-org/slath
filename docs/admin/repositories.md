@@ -155,6 +155,34 @@ and may merge only if every rule lists them,
 and the required checks of all rules apply (with reporter lists, only
 reporters on every list count).
 
+### Sensitive paths
+
+Bots can't change sensitive paths on any branch, and on protected branches
+a merge request that changes one needs a maintainer's approval (see
+[sensitive paths](../user/bots.md#sensitive-paths)). Slath has a built-in
+list: CI workflows, `.slath/`, code-owner files, and agent instruction
+files such as `AGENTS.md`. Repository administrators add their own under
+**Settings → Branch protection → Sensitive paths**.
+
+To add paths for every repository of the instance, for example another
+CI system's files or the instruction files your teams' agents read, list
+them in the configuration:
+
+```toml
+[sensitive_paths]
+extra = [".buildkite/**", ".gitlab-ci.yml", "**/CONVENTIONS.md"]
+```
+
+The globs use the same syntax as a repository's own: from the repository
+root, `**` any path (`**/` whole folders), `*` within a folder name, `?`
+one character, at most 100 globs of at most 255 bytes, matched regardless
+of upper and lower case. An invalid glob stops `slath serve` from starting
+and names it. The paths apply after a restart, to bot pushes and merge
+requirements alike. Neither the configuration nor repositories can remove
+a built-in path; repository settings and
+`GET /api/v1/repos/{ns}/{repo}/sensitive-paths` (`instance`) show the
+instance's paths next to the built-in ones.
+
 A refused push changes nothing: no ref moves and nothing is recorded. Tags
 aren't affected by branch rules (moving or deleting a tag needs the
 maintain role). Changes to rules are recorded in the audit log.

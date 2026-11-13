@@ -49,6 +49,8 @@ pub struct Config {
     #[serde(default)]
     pub push_protection: PushProtection,
     #[serde(default)]
+    pub sensitive_paths: SensitivePathsConfig,
+    #[serde(default)]
     pub backup: Backup,
     #[serde(default)]
     pub log: Log,
@@ -670,6 +672,31 @@ impl ScanMode {
             "block" => Some(Self::Block),
             _ => None,
         }
+    }
+}
+
+/// Sensitive paths for every repository, on top of the built-in ones.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SensitivePathsConfig {
+    /// Globs added for every repository; nothing removes built-in paths.
+    #[serde(default)]
+    pub extra: Vec<String>,
+}
+
+impl SensitivePathsConfig {
+    /// Checks the globs as repositories' own are checked.
+    pub fn validate(&self) -> Result<(), String> {
+        use crate::sensitive_paths::{MAX_EXTRA, invalid_glob};
+        if self.extra.len() > MAX_EXTRA {
+            return Err(format!("sensitive_paths.extra: at most {MAX_EXTRA} globs"));
+        }
+        for g in &self.extra {
+            if let Some(why) = invalid_glob(g) {
+                return Err(format!("sensitive_paths.extra: {g:?} {why}"));
+            }
+        }
+        Ok(())
     }
 }
 

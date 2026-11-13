@@ -946,6 +946,9 @@ pub async fn remove_deploy_key(
 pub struct SensitivePathsBody {
     /// Built in; they always apply.
     pub defaults: Vec<&'static str>,
+    /// Added for every repository by the instance's administrators
+    /// (`[sensitive_paths] extra`); they always apply too.
+    pub instance: Vec<String>,
     /// The repository's own globs (`**`, `*`, `?`).
     pub paths: Vec<String>,
 }
@@ -954,6 +957,7 @@ impl From<slath_core::sensitive_paths::SensitivePaths> for SensitivePathsBody {
     fn from(s: slath_core::sensitive_paths::SensitivePaths) -> Self {
         Self {
             defaults: slath_core::sensitive_paths::DEFAULTS.to_vec(),
+            instance: s.instance().to_vec(),
             paths: s.extra().to_vec(),
         }
     }

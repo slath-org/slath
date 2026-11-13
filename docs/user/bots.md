@@ -155,7 +155,8 @@ path, `*` within a folder name, `?` one character), or with
 `PUT /api/v1/repos/{ns}/{repo}/sensitive-paths` and `{"paths": [...]}`.
 Whoever manages branch protection can change them; anyone who can read the
 repository sees the list at `GET …/sensitive-paths`. The built-in paths
-always apply.
+always apply, and so do paths the instance's administrators add for every
+repository (listed next to the built-in ones).
 
 Names match regardless of upper and lower case. A bot's push is rejected
 when a commit it adds creates, changes, renames, or deletes one of these

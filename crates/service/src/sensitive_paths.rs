@@ -23,9 +23,11 @@ pub struct Touched {
 }
 
 impl Services {
-    /// A repository's sensitive paths: the defaults and its own globs.
+    /// A repository's sensitive paths: the defaults, the instance's, and
+    /// its own globs.
     pub async fn sensitive_paths(&self, repo: RepoId) -> Result<SensitivePaths> {
         Ok(SensitivePaths::new(
+            self.config.sensitive_paths.extra.clone(),
             slath_db::repos::sensitive_paths(&self.pool, repo).await?,
         ))
     }
@@ -84,7 +86,10 @@ impl Services {
             serde_json::json!({"paths": list}),
         )
         .await;
-        Ok(SensitivePaths::new(list))
+        Ok(SensitivePaths::new(
+            self.config.sensitive_paths.extra.clone(),
+            list,
+        ))
     }
 
     /// For a bot's push: rejects it if a commit it adds changes a
