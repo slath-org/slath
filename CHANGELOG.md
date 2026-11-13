@@ -157,6 +157,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Changed
 
+- Text areas grow with what you type, up to most of the screen, in browsers that support it.
 - Updating means installing the new version and restarting: Slath checks, backs up, and migrates when it starts, and refuses to start, changing nothing, when it can't update safely.
 - Pre-upgrade backups are on by default everywhere, and only the newest two are kept (`[upgrade] backups_kept`).
 - `slath serve` has no `--migrate` flag any more; it always applies a pending update first.

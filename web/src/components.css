@@ -139,10 +139,25 @@ textarea {
   color: var(--text);
   font: inherit;
 }
+/* Text areas grow with what's typed, from their rows (3 unless set) up to
+   most of the screen, then scroll. Where field-sizing isn't supported they
+   keep their rows and scroll, as before. */
 textarea {
-  min-height: calc(var(--control-height) * 3);
+  --rows: 3;
+  min-block-size: calc(var(--rows) * 1lh + 2 * var(--space-1) + 2 * var(--border-width));
+  max-block-size: 70dvh;
+  field-sizing: content;
   font-family: var(--font-mono);
   font-size: var(--code-size);
+}
+textarea[rows="4"] {
+  --rows: 4;
+}
+textarea[rows="6"] {
+  --rows: 6;
+}
+textarea[rows="12"] {
+  --rows: 12;
 }
 input[aria-invalid="true"],
 select[aria-invalid="true"],
