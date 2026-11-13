@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO status_annotations (status_id, ordinal, path, line_start, line_end, severity,\n                 category, message)\n             SELECT $1, * FROM UNNEST($2::int[], $3::text[], $4::int[], $5::int[], $6::text[],\n                 $7::text[], $8::text[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4Array",
+        "TextArray",
+        "Int4Array",
+        "Int4Array",
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dd7fb479afd41725a7b993ad3aa741bc1c59aca222f4eb7f8dca198f6a77cbdf"
+}

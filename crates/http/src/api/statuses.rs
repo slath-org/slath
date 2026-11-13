@@ -6,7 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use slath_service::statuses::StatusInput;
+use slath_service::statuses::{AnnotationInput, StatusInput};
 use utoipa::ToSchema;
 
 use super::{ApiSubject, ApiUser};
@@ -30,6 +30,23 @@ pub struct CommitStatus {
     /// ran.
     pub evidence: &'static str,
     pub created_at: String,
+    /// Its line annotations (findings), in the order reported.
+    pub annotations: Vec<StatusAnnotation>,
+}
+
+/// A line annotation (finding) of a status. Its message is plain text
+/// from the reporter.
+#[derive(Serialize, ToSchema)]
+pub struct StatusAnnotation {
+    pub path: String,
+    pub line_start: i32,
+    pub line_end: i32,
+    /// `notice`, `warning`, or `failure`.
+    pub severity: String,
+    /// `correctness`, `security`, `tests`, `dependencies`, `scope`,
+    /// `maintainability`, `docs`, or `other`.
+    pub category: String,
+    pub message: String,
 }
 
 impl From<slath_db::statuses::Status> for CommitStatus {
@@ -44,6 +61,18 @@ impl From<slath_db::statuses::Status> for CommitStatus {
             reporter: s.reporter,
             evidence: "reported",
             created_at: crate::ui::Time::from(s.created_at).iso,
+            annotations: s
+                .annotations
+                .into_iter()
+                .map(|a| StatusAnnotation {
+                    path: a.path,
+                    line_start: a.line_start,
+                    line_end: a.line_end,
+                    severity: a.severity,
+                    category: a.category,
+                    message: a.message,
+                })
+                .collect(),
         }
     }
 }
@@ -61,6 +90,32 @@ pub struct NewStatus {
     pub description: Option<String>,
     /// An `https://` URL (`http://` only for localhost).
     pub target_url: Option<String>,
+    /// Line annotations (findings), at most `limits.status_annotations`
+    /// (50 by default). Merge requests whose revision head is this commit
+    /// show them as threads.
+    #[serde(default)]
+    pub annotations: Vec<NewAnnotation>,
+}
+
+/// A line annotation to report.
+#[derive(Deserialize, ToSchema)]
+pub struct NewAnnotation {
+    /// A file of the commit, relative to its root.
+    #[serde(default)]
+    pub path: String,
+    /// The first line, from 1.
+    pub line_start: Option<i32>,
+    /// The last line (default `line_start`); at most 500 lines in all.
+    pub line_end: Option<i32>,
+    /// `notice`, `warning`, or `failure`.
+    #[serde(default)]
+    pub severity: String,
+    /// `correctness`, `security`, `tests`, `dependencies`, `scope`,
+    /// `maintainability`, `docs`, or `other` (default).
+    pub category: Option<String>,
+    /// Plain text, up to `limits.status_annotation_max_bytes` (4 KiB).
+    #[serde(default)]
+    pub message: String,
 }
 
 /// Reports a status on a commit (scope `statuses:write`). The latest
@@ -84,6 +139,18 @@ pub async fn create_status(
                 context: b.context,
                 description: b.description,
                 target_url: b.target_url,
+                annotations: b
+                    .annotations
+                    .into_iter()
+                    .map(|a| AnnotationInput {
+                        path: a.path,
+                        line_start: a.line_start,
+                        line_end: a.line_end,
+                        severity: a.severity,
+                        category: a.category,
+                        message: a.message,
+                    })
+                    .collect(),
             },
         )
         .await?;

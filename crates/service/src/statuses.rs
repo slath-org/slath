@@ -8,7 +8,7 @@
 use slath_core::authz::{Action, Subject};
 use slath_core::ids::UserId;
 use slath_db::merge_requests::MergeRequest;
-use slath_db::statuses::{NewStatus, Status};
+use slath_db::statuses::{Annotation, NewStatus, Status};
 use slath_git::ObjectId;
 
 use crate::Services;
@@ -26,6 +26,98 @@ pub struct StatusInput {
     pub context: String,
     pub description: Option<String>,
     pub target_url: Option<String>,
+    pub annotations: Vec<AnnotationInput>,
+}
+
+/// A line annotation as reported; every field is checked.
+#[derive(Debug, Clone, Default)]
+pub struct AnnotationInput {
+    pub path: String,
+    pub line_start: Option<i32>,
+    pub line_end: Option<i32>,
+    pub severity: String,
+    pub category: Option<String>,
+    pub message: String,
+}
+
+/// The neutral categories of findings.
+pub const CATEGORIES: [&str; 8] = [
+    "correctness",
+    "security",
+    "tests",
+    "dependencies",
+    "scope",
+    "maintainability",
+    "docs",
+    "other",
+];
+
+/// The most lines one annotation may span.
+const MAX_LINES: i32 = 500;
+
+/// Checks one annotation's fields (not yet whether its lines exist).
+fn check_annotation(i: usize, a: &AnnotationInput, max_bytes: usize) -> Result<Annotation> {
+    let bad = |field: &str, msg: &str| {
+        ServiceError::invalid(&format!("annotations[{i}].{field}"), "invalid", msg)
+    };
+    if a.path.is_empty()
+        || a.path.len() > 4096
+        || a.path.starts_with('/')
+        || a.path.chars().any(char::is_control)
+        || a.path
+            .split('/')
+            .any(|c| c.is_empty() || c == "." || c == "..")
+    {
+        return Err(bad(
+            "path",
+            "Name a file of the commit, relative to its root.",
+        ));
+    }
+    let start = a
+        .line_start
+        .ok_or_else(|| bad("line_start", "Give the first line (from 1)."))?;
+    let end = a.line_end.unwrap_or(start);
+    if start < 1 {
+        return Err(bad("line_start", "Lines start at 1."));
+    }
+    if end < start || end - start >= MAX_LINES {
+        return Err(bad(
+            "line_end",
+            &format!("Use a line at or after line_start, at most {MAX_LINES} lines in all."),
+        ));
+    }
+    if !matches!(a.severity.as_str(), "notice" | "warning" | "failure") {
+        return Err(bad("severity", "Use notice, warning, or failure."));
+    }
+    let category = a.category.as_deref().unwrap_or("other");
+    if !CATEGORIES.contains(&category) {
+        return Err(bad(
+            "category",
+            &format!("Use one of: {}.", CATEGORIES.join(", ")),
+        ));
+    }
+    let message = a.message.trim();
+    if message.is_empty()
+        || message.len() > max_bytes
+        || message
+            .chars()
+            .any(|c| c.is_control() && c != '\n' && c != '\t')
+    {
+        return Err(bad(
+            "message",
+            &format!(
+                "Write up to {max_bytes} bytes of plain text, without control characters other than newlines and tabs."
+            ),
+        ));
+    }
+    Ok(Annotation {
+        path: a.path.clone(),
+        line_start: start,
+        line_end: end,
+        severity: a.severity.clone(),
+        category: category.to_owned(),
+        message: message.to_owned(),
+    })
 }
 
 fn check_url(u: &str) -> Result<()> {
@@ -47,6 +139,19 @@ fn check_url(u: &str) -> Result<()> {
         return Err(bad());
     }
     Ok(())
+}
+
+/// An annotation as the API and webhooks show it.
+#[must_use]
+pub fn annotation_json(a: &Annotation) -> serde_json::Value {
+    serde_json::json!({
+        "path": a.path,
+        "line_start": a.line_start,
+        "line_end": a.line_end,
+        "severity": a.severity,
+        "category": a.category,
+        "message": a.message,
+    })
 }
 
 /// The latest status of each context, newest first.
@@ -115,6 +220,21 @@ impl Services {
         if let Some(u) = target_url {
             check_url(u)?;
         }
+        let max = self.config.limits.status_annotations;
+        if s.annotations.len() > max {
+            return Err(ServiceError::invalid(
+                "annotations",
+                "too_many",
+                format!("Report at most {max} annotations per status (limits.status_annotations)."),
+            ));
+        }
+        let max_bytes = self.config.limits.status_annotation_max_bytes.as_usize();
+        let annotations = s
+            .annotations
+            .iter()
+            .enumerate()
+            .map(|(i, a)| check_annotation(i, a, max_bytes))
+            .collect::<Result<Vec<_>>>()?;
         // Only full commit IDs of this repository.
         let oid = ObjectId::parse(oid).map_err(|_| ServiceError::NotFound)?;
         let kind = self
@@ -127,6 +247,8 @@ impl Services {
         if !kind.status.success() || kind.stdout.trim_ascii() != b"commit" {
             return Err(ServiceError::NotFound);
         }
+        self.check_annotated_lines(a.repo.id, &oid, &annotations)
+            .await?;
         if slath_db::statuses::count(&self.pool, a.repo.id, oid.as_str(), context).await?
             >= MAX_PER_CONTEXT
         {
@@ -136,8 +258,9 @@ impl Services {
                 format!("This commit already has {MAX_PER_CONTEXT} statuses for this context."),
             ));
         }
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = slath_db::statuses::insert(
-            &self.pool,
+            &mut tx,
             &NewStatus {
                 repo: a.repo.id,
                 commit_oid: oid.as_str(),
@@ -146,9 +269,11 @@ impl Services {
                 description,
                 target_url,
                 reporter: *reporter,
+                annotations: &annotations,
             },
         )
         .await?;
+        tx.commit().await.map_err(ServiceError::internal)?;
         if s.state == "success" {
             self.queue_auto_merges_in(a.repo.id).await;
         }
@@ -163,6 +288,7 @@ impl Services {
                 "state": s.state,
                 "description": description,
                 "target_url": target_url,
+                "annotations": annotations.iter().map(annotation_json).collect::<Vec<_>>(),
             }}),
         )
         .await;
@@ -171,6 +297,45 @@ impl Services {
             .into_iter()
             .find(|s| s.id == id)
             .ok_or(ServiceError::NotFound)
+    }
+
+    /// Fails unless every annotation's lines exist at the commit.
+    async fn check_annotated_lines(
+        &self,
+        repo: slath_core::ids::RepoId,
+        oid: &ObjectId,
+        annotations: &[Annotation],
+    ) -> Result<()> {
+        let dir = self.repo_path(repo);
+        let mut lines = std::collections::HashMap::<&str, Option<u32>>::new();
+        for (i, a) in annotations.iter().enumerate() {
+            let n = match lines.get(a.path.as_str()) {
+                Some(n) => *n,
+                None => {
+                    let n =
+                        slath_git::linemap::line_count(&self.runner, &dir, oid, a.path.as_bytes())
+                            .await
+                            .map_err(ServiceError::internal)?;
+                    lines.insert(&a.path, n);
+                    n
+                }
+            };
+            let Some(n) = n else {
+                return Err(ServiceError::invalid(
+                    &format!("annotations[{i}].path"),
+                    "not_found",
+                    "The commit has no such file.",
+                ));
+            };
+            if u32::try_from(a.line_end).map_or(true, |e| e > n) {
+                return Err(ServiceError::invalid(
+                    &format!("annotations[{i}].line_end"),
+                    "invalid",
+                    format!("The file has {n} lines at this commit."),
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The latest status of each context on a commit.
@@ -332,6 +497,61 @@ impl Services {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn note(path: &str, start: i32, end: Option<i32>, message: &str) -> AnnotationInput {
+        AnnotationInput {
+            path: path.to_owned(),
+            line_start: Some(start),
+            line_end: end,
+            severity: "warning".to_owned(),
+            category: None,
+            message: message.to_owned(),
+        }
+    }
+
+    #[test]
+    fn annotations() {
+        let ok = check_annotation(0, &note("src/a.rs", 3, None, " unused \n"), 100).unwrap();
+        assert_eq!((ok.line_start, ok.line_end), (3, 3));
+        assert_eq!(ok.category, "other");
+        assert_eq!(ok.message, "unused");
+        assert!(check_annotation(0, &note("a", 1, Some(500), "x"), 100).is_ok());
+        let field = |e: ServiceError| match e {
+            ServiceError::Invalid(f) => f[0].field.clone(),
+            other => panic!("{other:?}"),
+        };
+        for (n, field_name) in [
+            (note("", 1, None, "x"), "annotations[2].path"),
+            (note("/etc/passwd", 1, None, "x"), "annotations[2].path"),
+            (note("a/../b", 1, None, "x"), "annotations[2].path"),
+            (note("a//b", 1, None, "x"), "annotations[2].path"),
+            (note("a", 0, None, "x"), "annotations[2].line_start"),
+            (note("a", 5, Some(4), "x"), "annotations[2].line_end"),
+            (note("a", 1, Some(501), "x"), "annotations[2].line_end"),
+            (note("a", 1, None, "  "), "annotations[2].message"),
+            (
+                note("a", 1, None, &"x".repeat(101)),
+                "annotations[2].message",
+            ),
+            (note("a", 1, None, "a\u{1b}[31m"), "annotations[2].message"),
+        ] {
+            assert_eq!(field(check_annotation(2, &n, 100).unwrap_err()), field_name);
+        }
+        let mut n = note("a", 1, None, "x");
+        n.severity = "error".to_owned();
+        assert_eq!(
+            field(check_annotation(0, &n, 100).unwrap_err()),
+            "annotations[0].severity"
+        );
+        n.severity = "notice".to_owned();
+        n.category = Some("style".to_owned());
+        assert_eq!(
+            field(check_annotation(0, &n, 100).unwrap_err()),
+            "annotations[0].category"
+        );
+        n.category = Some("security".to_owned());
+        assert_eq!(check_annotation(0, &n, 100).unwrap().category, "security");
+    }
 
     #[test]
     fn urls() {

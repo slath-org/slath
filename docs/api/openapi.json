@@ -9826,9 +9826,17 @@
           "context",
           "state",
           "evidence",
-          "created_at"
+          "created_at",
+          "annotations"
         ],
         "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusAnnotation"
+            },
+            "description": "Its line annotations (findings), in the order reported."
+          },
           "commit_oid": {
             "type": "string"
           },
@@ -11085,6 +11093,47 @@
           }
         }
       },
+      "NewAnnotation": {
+        "type": "object",
+        "description": "A line annotation to report.",
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`correctness`, `security`, `tests`, `dependencies`, `scope`,\n`maintainability`, `docs`, or `other` (default)."
+          },
+          "line_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The last line (default `line_start`); at most 500 lines in all."
+          },
+          "line_start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The first line, from 1."
+          },
+          "message": {
+            "type": "string",
+            "description": "Plain text, up to `limits.status_annotation_max_bytes` (4 KiB)."
+          },
+          "path": {
+            "type": "string",
+            "description": "A file of the commit, relative to its root."
+          },
+          "severity": {
+            "type": "string",
+            "description": "`notice`, `warning`, or `failure`."
+          }
+        }
+      },
       "NewBot": {
         "type": "object",
         "required": [
@@ -11364,6 +11413,13 @@
         "type": "object",
         "description": "Every field is optional in the JSON so that authorization runs before\nvalidation.",
         "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewAnnotation"
+            },
+            "description": "Line annotations (findings), at most `limits.status_annotations`\n(50 by default). Merge requests whose revision head is this commit\nshow them as threads."
+          },
           "context": {
             "type": "string",
             "description": "Up to 100 letters, digits, spaces, and `. _ / : -`."
@@ -12183,6 +12239,42 @@
               "null"
             ],
             "description": "`alias`, `patch`, `content`, `aliases-conflict`, `duplicate-id`,\n`split`, `join`, or `resolved`."
+          }
+        }
+      },
+      "StatusAnnotation": {
+        "type": "object",
+        "description": "A line annotation (finding) of a status. Its message is plain text\nfrom the reporter.",
+        "required": [
+          "path",
+          "line_start",
+          "line_end",
+          "severity",
+          "category",
+          "message"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "`correctness`, `security`, `tests`, `dependencies`, `scope`,\n`maintainability`, `docs`, or `other`."
+          },
+          "line_end": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "line_start": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "description": "`notice`, `warning`, or `failure`."
           }
         }
       },

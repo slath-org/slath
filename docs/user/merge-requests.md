@@ -443,6 +443,28 @@ reporter, not whether the check really ran. The commit page and the
 merge request's **Checks** list them, and
 `GET …/commits/{commit}/statuses` returns them.
 
+A status can point at code with up to 50 line annotations (findings), for
+example a linter's warnings or an evaluator's comments:
+
+```json
+{"state": "failure", "context": "lint", "annotations": [
+  {"path": "src/lib.rs", "line_start": 12, "line_end": 14, "severity": "warning",
+   "category": "maintainability", "message": "This branch is never taken."}
+]}
+```
+
+- `path` is a file of the commit, and its lines must exist there (at most
+  500 per annotation; `line_end` defaults to `line_start`).
+- `severity` is `notice`, `warning`, or `failure`.
+- `category` is `correctness`, `security`, `tests`, `dependencies`,
+  `scope`, `maintainability`, `docs`, or `other` (the default).
+- `message` is plain text of up to 4 KiB.
+
+A status with one invalid annotation is rejected as a whole, and the
+error names it (`annotations[3].line_start`). Annotations are returned
+with their status and sent in the `status` webhook. The limits are
+`limits.status_annotations` and `limits.status_annotation_max_bytes`.
+
 When the target's branch protection requires a context, the merge box
 shows it, with the reporter and why a status didn't count:
 

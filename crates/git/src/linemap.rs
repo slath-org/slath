@@ -130,9 +130,49 @@ pub async fn read_lines(
     Ok(Some(all[s - 1..e].iter().map(|l| l.to_vec()).collect()))
 }
 
+/// How many lines `path` has at `commit`, or `None` if it isn't a file
+/// there.
+pub async fn line_count(
+    runner: &Runner,
+    git_dir: &Path,
+    commit: &ObjectId,
+    path: &[u8],
+) -> Result<Option<u32>, GitError> {
+    let mut spec = commit.as_str().as_bytes().to_vec();
+    spec.push(b':');
+    spec.extend_from_slice(path);
+    let out = runner
+        .repo(git_dir)
+        .args(["cat-file", "blob"])
+        .arg_bytes(&spec)
+        .max_output(64 * 1024 * 1024)
+        .output()
+        .await?;
+    if !out.status.success() {
+        return Ok(None);
+    }
+    Ok(Some(count_lines(&out.stdout)))
+}
+
+/// Lines as [`read_lines`] counts them: a final newline ends the last line.
+fn count_lines(text: &[u8]) -> u32 {
+    let n = text.iter().filter(|b| **b == b'\n').count()
+        + usize::from(!text.is_empty() && !text.ends_with(b"\n"));
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counts_lines() {
+        assert_eq!(count_lines(b""), 0);
+        assert_eq!(count_lines(b"a"), 1);
+        assert_eq!(count_lines(b"a\n"), 1);
+        assert_eq!(count_lines(b"a\nb"), 2);
+        assert_eq!(count_lines(b"a\n\n"), 2);
+    }
 
     fn file(diff: &str) -> FileDiff {
         crate::diff::parse(diff.as_bytes(), 100, 10_000)

@@ -44,7 +44,7 @@ The same is available in the API under
 | `merge_request_review` | someone submits a review (`approve`, `request_changes`, or `comment`) |
 | `issue` | an issue is `opened`, `closed`, `reopened`, or `assigned` |
 | `issue_comment` | someone comments on an issue |
-| `status` | a check reports a status on a commit (`action`: the state) |
+| `status` | a check reports a status on a commit (`action`: the state; the `status` object includes its `annotations`) |
 | `fork` | someone forks the repository |
 | `repo` | the repository is `created`, `renamed`, `deleted`, or changes `visibility` |
 | `ping` | you send a ping |

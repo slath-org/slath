@@ -37,6 +37,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Commit statuses: tools report `pending`, `success`, `failure`, or `error` per context on a commit, and every status shows its reporter.
 - Branch protection can require status contexts, optionally only from listed reporters; the author's own and their bots' statuses never count.
 - The merge box shows each required check with its reporter, and why a status didn't count.
+- Commit statuses can carry up to 50 line annotations (path, lines, severity, category, message); the API returns them and the `status` webhook sends them.
 - Merge requests can be reviewed: comment, approve, or request changes on the current revision; the author can only comment.
 - Reviews can be requested from users and teams; requested reviewers find them under Review requests until they review.
 - Approvals stay current after a rebase that keeps every patch and go stale after content changes; the timeline notes both.

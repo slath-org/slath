@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.status_id, a.path, a.line_start, a.line_end, a.severity, a.category, a.message\n           FROM status_annotations a JOIN commit_statuses s ON s.id = a.status_id\n           WHERE s.repo_id = $1 AND s.commit_oid = $2\n           ORDER BY a.status_id, a.ordinal",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "status_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "line_start",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "line_start"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "line_end",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "line_end"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "severity",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "category",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "category"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "status_annotations",
+            "name": "message"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "446d0eee1092f8f3a5b0fe0e06d9facee9e6ddd9aee4395a00b2f4fa8adb9fbc"
+}
