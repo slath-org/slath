@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: oidc-providers-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
@@ -31,7 +35,7 @@ jobs:
     timeout-minutes: 45
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
         env:
           POSTGRES_USER: slath
           POSTGRES_PASSWORD: slath

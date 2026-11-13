@@ -23,6 +23,11 @@ on:
 permissions:
   contents: read
 
+# One release run per tag at a time; never cancel a release half-way.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
@@ -35,7 +40,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
+      actions: read # read the latest nightly runs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +76,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      packages: write
+      packages: write # push the image by digest to ghcr.io
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,7 +120,7 @@ jobs:
     timeout-minutes: 60
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
         env:
           POSTGRES_USER: slath
           POSTGRES_PASSWORD: slath
@@ -148,6 +153,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: web/.nvmrc
+          # No dependency cache in a release: a poisoned cache entry would
+          # end up in the published artifacts.
+          package-manager-cache: false
       - name: Run every test against the built binary
         run: |
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
@@ -168,7 +176,7 @@ jobs:
     timeout-minutes: 60
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
         env:
           POSTGRES_USER: slath
           POSTGRES_PASSWORD: slath
@@ -198,6 +206,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: web/.nvmrc
+          # No dependency cache in a release: a poisoned cache entry would
+          # end up in the published artifacts.
+          package-manager-cache: false
       - name: Run the browser matrix against the built binary
         run: |
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
@@ -234,6 +245,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: web/.nvmrc
+          # No dependency cache in a release: a poisoned cache entry would
+          # end up in the published artifacts.
+          package-manager-cache: false
       - name: Run scripts/test-compose.sh with the built image
         env:
           GH_TOKEN: ${{ github.token }}
@@ -285,7 +299,7 @@ jobs:
     timeout-minutes: 90
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
         env:
           POSTGRES_USER: slath
           POSTGRES_PASSWORD: slath
@@ -379,10 +393,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write
-      packages: write
-      id-token: write
-      attestations: write
+      contents: write # create the GitHub release
+      packages: write # push the image index and its tags to ghcr.io
+      id-token: write # Sigstore signing identity
+      attestations: write # store the build provenance attestations
     env:
       REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}

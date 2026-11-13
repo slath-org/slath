@@ -21,10 +21,10 @@ This gets a clean Linux machine from zero to a green `just check`.
 
 ```sh
 cargo install --locked just     # once, if you don't have just yet
-just setup                      # installs cargo-nextest, cargo-deny, sqlx-cli; creates .env
+just setup                      # installs cargo-nextest, cargo-deny, zizmor, sqlx-cli; creates .env
 just dev-db                     # starts PostgreSQL 18 on 127.0.0.1:54329
 just tools                      # installs the pinned jj versions for the compat tests
-just check                      # UI bundle, fmt, clippy, tests, cargo deny, guards
+just check                      # UI bundle, fmt, clippy, tests, cargo deny, guards, zizmor
 just test-e2e                   # browser tests (Playwright container, all browsers)
 ```
 

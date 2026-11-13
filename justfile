@@ -12,7 +12,7 @@ engine := env("SLATH_CONTAINER_ENGINE", if `command -v docker || true` != "" { "
 default: check
 
 # fmt, clippy, tests, and the planning-doc check.
-check: tokens-check web bundle-size fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses upgrade-notes guards css-lint
+check: tokens-check web bundle-size fmt-check clippy api-check test sqlx-check deny license-deps py-test asset-licenses upgrade-notes guards workflows css-lint
 
 # Regenerate web/src/tokens.css from web/src/tokens.json.
 tokens:
@@ -131,6 +131,11 @@ conformance-report CASES *ARGS:
     python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml \
         $(for f in target/e2e/junit.xml target/compose/junit.xml target/upgrade-matrix-report/junit.xml; do [ -f "$f" ] && printf -- '--junit %s ' "$f"; done) {{ARGS}}
 
+# Audit the GitHub workflows with zizmor (pedantic: every finding fails).
+# Offline unless GH_TOKEN is set; CI also runs the online audits.
+workflows:
+    zizmor --persona pedantic {{ if env("GH_TOKEN", "") == "" { "--offline" } else { "" } }} .
+
 # Static guards (SPDX, Git spawns, shells, |safe, external URLs) and their tests.
 guards:
     scripts/guards.sh
@@ -138,7 +143,7 @@ guards:
 
 # Install the cargo tools the recipes use (needs rustup or cargo).
 setup:
-    cargo install --locked just cargo-nextest cargo-deny
+    cargo install --locked just cargo-nextest cargo-deny zizmor
     cargo install --locked sqlx-cli --no-default-features --features postgres,rustls
     [ -f .env ] || cp .env.example .env
     @echo "Tools installed. Make sure ~/.cargo/bin is on PATH."
