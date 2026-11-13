@@ -4,7 +4,7 @@
 //! system, run non-interactively, and print JSON with `--output json`.
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -461,9 +461,67 @@ fn bg_json(s: &slath_db::bgmigrations::Status) -> serde_json::Value {
 }
 
 /// `slath admin background-migrations …`.
-/// `slath admin bot stop|start`.
+/// `slath admin bot freeze|unfreeze`.
+fn bot_freeze(
+    org: Option<String>,
+    frozen: bool,
+    config: Option<PathBuf>,
+    format: OutputFormat,
+) -> ExitCode {
+    let path = config::resolve_path(config);
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(&path).await?;
+        svc.set_bot_freeze_as_system(org.as_deref(), frozen)
+            .await
+            .map_err(|e| describe(&e))
+    });
+    let scope = org.as_deref().map_or_else(
+        || "the instance".to_owned(),
+        |o| format!("organization {o}"),
+    );
+    match result {
+        Ok(changed) => {
+            match format {
+                OutputFormat::Text => match (frozen, changed) {
+                    (true, true) => println!("froze the bots of {scope}"),
+                    (true, false) => println!("the bots of {scope} were frozen already"),
+                    (false, true) => println!("unfroze the bots of {scope}"),
+                    (false, false) => println!("the bots of {scope} weren't frozen"),
+                },
+                OutputFormat::Json => print_json(&json!({
+                    "ok": true,
+                    "scope": org.as_deref().map_or("instance", |_| "org"),
+                    "org": org,
+                    "frozen": frozen,
+                    "changed": changed,
+                })),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
+/// `slath admin bot stop|start|freeze|unfreeze`.
 pub fn bot(cmd: crate::BotCommand) -> ExitCode {
     use crate::BotCommand as B;
+    let cmd = match cmd {
+        B::Freeze {
+            org,
+            config,
+            output,
+        } => return bot_freeze(org, true, config, output),
+        B::Unfreeze {
+            org,
+            config,
+            output,
+        } => return bot_freeze(org, false, config, output),
+        other => other,
+    };
     let (B::Stop {
         name,
         config,
@@ -473,7 +531,10 @@ pub fn bot(cmd: crate::BotCommand) -> ExitCode {
         name,
         config,
         output,
-    }) = &cmd;
+    }) = &cmd
+    else {
+        return ExitCode::FAILURE;
+    };
     let (name, format) = (name.clone(), *output);
     let path = config::resolve_path(config.clone());
     let rt = match runtime() {

@@ -3,7 +3,9 @@
 //! Stopping bots (AGENT-01): a stop takes effect at once (tokens, SSH keys,
 //! and pushes), only a bot's managers and site administrators can stop and
 //! re-enable it, re-enabling brings no credentials back, and both are
-//! audited.
+//! audited. Freezing (AGENT-10): every credential of the frozen bots fails
+//! until unfrozen, nothing is revoked, and only organization owners and
+//! site administrators can freeze.
 
 use serde_json::json;
 use slath_tests::contract;
@@ -172,4 +174,126 @@ fn conf_agent_01_only_managers_and_admins_stop_and_start() {
     let r = api.api("POST", "/api/v1/bots/alice-ci/start", Some(&ta), None);
     assert_eq!(r.status, 409, "{}", r.body);
     assert_eq!(audit_count(&s, "bot.start"), "1");
+}
+
+fn data_key(name: &str) -> String {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../crates/auth/tests/data/ssh")
+        .join(name);
+    std::fs::read_to_string(p).unwrap().trim().to_owned()
+}
+
+/// True if sshd would be offered the key with this fingerprint.
+fn key_offered(s: &TestServer, fp: &str) -> bool {
+    let sock = s.ipc_socket();
+    let (ok, out, _) = s.slath(&["ssh-keys", "--socket", sock.to_str().unwrap(), fp], None);
+    ok && out.contains("ssh-serve")
+}
+
+#[test]
+fn conf_agent_10_freezing_refuses_every_bot_credential_until_unfrozen() {
+    let s = TestServer::start_with(&[]);
+    let (ta, user_bot) = setup(&s);
+    // The organization acme (alice owns it, bob is a member) and its bot.
+    s.create_user("bob", PW, false);
+    s.create_user("sysop", PW, true);
+    let mut a = s.login("alice", PW);
+    let r = slath_tests::http::submit(
+        &mut a,
+        "/-/orgs/new",
+        "/-/orgs",
+        &[("name", "acme"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let mut api = s.client();
+    let r = api.api(
+        "PUT",
+        "/api/v1/orgs/acme/members/bob",
+        Some(&ta),
+        Some(&json!({"role": "member"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    slath_tests::http::create_repo(&mut a, "acme", "lib", "private");
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "acme",
+            "--name",
+            "acme-ci",
+            "--token-scopes",
+            "repo:read,user:read",
+            "--repo",
+            "acme/lib",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let org_bot = serde_json::from_str::<serde_json::Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = api.api(
+        "POST",
+        "/api/v1/bots/acme-ci/keys",
+        Some(&ta),
+        Some(&json!({"title": "ci", "key": data_key("ed25519.pub")})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let fp = data_key("ed25519.fp");
+    let works = |api: &mut slath_tests::http::Client, t: &str| {
+        api.api("GET", "/api/v1/user", Some(t), None).status == 200
+    };
+    assert!(works(&mut api, &org_bot) && key_offered(&s, &fp));
+
+    // Only the organization's owners can freeze it.
+    let mut b = s.login("bob", PW);
+    let tb = create_token(&mut b, "t", &["user:write"]);
+    let freeze = |api: &mut slath_tests::http::Client, t: &str, m: &str| {
+        api.api(m, "/api/v1/orgs/acme/bot-freeze", Some(t), None)
+    };
+    assert_eq!(freeze(&mut api, &tb, "PUT").status, 403);
+    assert_eq!(freeze(&mut api, &org_bot, "PUT").status, 403);
+    let r = freeze(&mut api, &ta, "PUT");
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("PUT", "/api/v1/orgs/{org}/bot-freeze", &r);
+    assert_eq!(r.json()["frozen"], true);
+    assert_eq!(r.json()["frozen_by"], "alice");
+    // The org's bot is refused everywhere; alice's own bot isn't covered.
+    assert!(!works(&mut api, &org_bot));
+    assert!(!key_offered(&s, &fp));
+    assert!(works(&mut api, &user_bot));
+    assert!(push(&s, &user_bot, "org-frozen"));
+    // Freezing again changes nothing; unfreezing restores what was there.
+    assert_eq!(freeze(&mut api, &ta, "PUT").status, 200);
+    assert_eq!(audit_count(&s, "bot.freeze"), "1");
+    let r = freeze(&mut api, &ta, "DELETE");
+    assert_eq!(r.json()["frozen"], false);
+    assert!(works(&mut api, &org_bot) && key_offered(&s, &fp));
+    assert_eq!(audit_count(&s, "bot.unfreeze"), "1");
+
+    // The instance freeze: site administrators only; it covers every bot
+    // and no person.
+    let path = "/api/v1/admin/bot-freeze";
+    assert_eq!(api.api("PUT", path, Some(&ta), None).status, 404);
+    let mut r = s.login("sysop", PW);
+    let admin = create_token(&mut r, "t", &["admin", "user:write"]);
+    let r = api.api("PUT", path, Some(&admin), None);
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("PUT", path, &r);
+    assert!(!works(&mut api, &org_bot));
+    assert!(!works(&mut api, &user_bot));
+    assert!(!push(&s, &user_bot, "instance-frozen"));
+    assert!(works(&mut api, &ta));
+    let r = api.api("GET", path, Some(&admin), None);
+    contract::check("GET", path, &r);
+    assert_eq!(r.json()["frozen_by"], "sysop");
+    assert_eq!(api.api("DELETE", path, Some(&admin), None).status, 200);
+    assert!(works(&mut api, &org_bot) && works(&mut api, &user_bot));
+    assert!(push(&s, &user_bot, "unfrozen"));
+    assert_eq!(audit_count(&s, "bot.freeze"), "2");
+    assert_eq!(audit_count(&s, "bot.unfreeze"), "2");
 }

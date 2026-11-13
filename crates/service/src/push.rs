@@ -126,7 +126,7 @@ impl Services {
                 key_base64: d.public_key,
             }));
         };
-        if k.user_state != UserState::Active {
+        if k.user_state != UserState::Active || self.bot_frozen(k.key.user_id, k.user_kind).await? {
             return Ok(None);
         }
         Ok(Some(SshKeyGrant {
@@ -155,7 +155,7 @@ impl Services {
                 write: d.can_push,
             }));
         };
-        if k.user_state != UserState::Active {
+        if k.user_state != UserState::Active || self.bot_frozen(k.key.user_id, k.user_kind).await? {
             return Ok(None);
         }
         slath_db::ssh_keys::touch(&self.pool, key_id).await?;

@@ -245,6 +245,10 @@ impl Services {
         if user.state != UserState::Active || bot_token != (user.kind == UserKind::Bot) {
             return Ok(None);
         }
+        // A frozen bot's tokens fail like invalid ones, and stay valid.
+        if self.bot_frozen(user.id, user.kind).await? {
+            return Ok(None);
+        }
         if row
             .last_used_at
             .is_none_or(|t| OffsetDateTime::now_utc() - t > time::Duration::minutes(1))

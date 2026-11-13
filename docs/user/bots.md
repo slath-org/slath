@@ -161,6 +161,23 @@ tokens and keys for it. A bot that a site administrator suspended, or that
 was suspended with its owner, can't be re-enabled this way. Stops and
 re-enables are in the audit log (`bot.stop`, `bot.start`).
 
+## Freezing all bots
+
+To pause every bot of an organization at once, for example while you look
+into an incident, its owners freeze them:
+
+```sh
+curl -X PUT https://git.example.org/api/v1/orgs/acme/bot-freeze \
+  -H "Authorization: Bearer $TOKEN"     # an owner's token with user:write
+```
+
+While frozen, the organization's bots can't use their tokens or SSH keys
+and their pushes are refused, but nothing is revoked: `DELETE` on the same
+URL unfreezes them, and everything works as before. `GET` says whether
+they're frozen, since when, and by whom. Bots of individual people aren't
+covered by an organization's freeze. Freezes are audited (`bot.freeze`,
+`bot.unfreeze`).
+
 ## How bots appear
 
 A **Bot** badge follows a bot's name wherever Slath shows it: as the author

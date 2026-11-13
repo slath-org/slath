@@ -145,7 +145,7 @@ impl Services {
     }
 
     /// Why a bot's push is refused now, if it is: pre-receive re-reads the
-    /// pusher, so a bot stopped during its push can't finish it.
+    /// pusher, so a bot stopped or frozen during its push can't finish it.
     pub(crate) async fn bot_push_refusal(&self, subject: &Subject) -> Result<Option<&'static str>> {
         let Subject::User {
             id,
@@ -158,9 +158,122 @@ impl Services {
         let state = slath_db::users::get(&self.pool, *id)
             .await?
             .map(|u| u.state);
-        Ok(match state {
-            Some(UserState::Active) => None,
-            _ => Some("slath: push rejected: this bot is stopped or suspended"),
-        })
+        if state != Some(UserState::Active) {
+            return Ok(Some(
+                "slath: push rejected: this bot is stopped or suspended",
+            ));
+        }
+        if slath_db::bots::frozen(&self.pool, *id).await? {
+            return Ok(Some("slath: push rejected: bots are frozen here"));
+        }
+        Ok(None)
+    }
+}
+
+/// What a freeze covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreezeScope {
+    /// Every bot of the instance (site administrators).
+    Instance,
+    /// The bots an organization owns (its owners and site administrators).
+    Org(slath_core::ids::OrgId),
+}
+
+impl FreezeScope {
+    fn org(self) -> Option<slath_core::ids::OrgId> {
+        match self {
+            Self::Instance => None,
+            Self::Org(o) => Some(o),
+        }
+    }
+}
+
+impl Services {
+    /// Only those who may freeze a scope may see or change it.
+    async fn may_freeze(&self, subject: &Subject, scope: FreezeScope) -> Result<()> {
+        match scope {
+            FreezeScope::Instance if site_admin(subject) => Ok(()),
+            FreezeScope::Instance => Err(ServiceError::NotFound),
+            FreezeScope::Org(org) => self.require_org_owner(subject, org).await.map(|_| ()),
+        }
+    }
+
+    /// The freeze of a scope, if there is one.
+    pub async fn bot_freeze(
+        &self,
+        subject: &Subject,
+        scope: FreezeScope,
+    ) -> Result<Option<slath_db::bots::Freeze>> {
+        self.may_freeze(subject, scope).await?;
+        Ok(slath_db::bots::freeze(&self.pool, scope.org()).await?)
+    }
+
+    /// Freezes (`true`) or unfreezes a scope; returns whether it changed.
+    pub async fn set_bot_freeze(
+        &self,
+        subject: &Subject,
+        scope: FreezeScope,
+        frozen: bool,
+    ) -> Result<bool> {
+        self.may_freeze(subject, scope).await?;
+        let by = match subject {
+            Subject::User { id, .. } => Some(*id),
+            _ => None,
+        };
+        self.freeze(subject, scope, frozen, by).await
+    }
+
+    /// `slath admin bot freeze|unfreeze`.
+    pub async fn set_bot_freeze_as_system(&self, org: Option<&str>, frozen: bool) -> Result<bool> {
+        let scope = match org {
+            None => FreezeScope::Instance,
+            Some(name) => match self.resolve_namespace(name.trim()).await? {
+                Some((_, slath_db::orgs::NamespaceKind::Org(o))) => FreezeScope::Org(o),
+                _ => {
+                    return Err(ServiceError::invalid(
+                        "org",
+                        "unknown",
+                        "There's no organization with this name.",
+                    ));
+                }
+            },
+        };
+        self.freeze(&Subject::System, scope, frozen, None).await
+    }
+
+    async fn freeze(
+        &self,
+        subject: &Subject,
+        scope: FreezeScope,
+        frozen: bool,
+        by: Option<UserId>,
+    ) -> Result<bool> {
+        let changed = if frozen {
+            slath_db::bots::set_freeze(&self.pool, scope.org(), by).await?
+        } else {
+            slath_db::bots::clear_freeze(&self.pool, scope.org()).await?
+        };
+        if changed {
+            let target = match scope.org() {
+                Some(o) => Target::org(*o.as_uuid()),
+                None => Target::new("instance", None),
+            };
+            self.audit(
+                subject,
+                if frozen { "bot.freeze" } else { "bot.unfreeze" },
+                target,
+                serde_json::json!({"scope": if scope.org().is_some() { "org" } else { "instance" }}),
+            )
+            .await;
+        }
+        Ok(changed)
+    }
+
+    /// True if a freeze applies to this bot; never for people.
+    pub(crate) async fn bot_frozen(&self, user: UserId, kind: UserKind) -> Result<bool> {
+        if kind != UserKind::Bot {
+            return Ok(false);
+        }
+        Ok(slath_db::bots::frozen(&self.pool, user).await?)
     }
 }

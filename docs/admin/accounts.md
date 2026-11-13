@@ -190,3 +190,10 @@ refused. `slath admin bot start NAME` re-enables a stopped bot without
 credentials. Owners and organization owners can do the same through the
 API (see [Bots](../user/bots.md#stopping-a-bot)); reactivating a bot under
 **Administration → Users** also ends its stop.
+
+To pause every bot of the instance at once, freeze them:
+`slath admin bot freeze` (or `PUT /api/v1/admin/bot-freeze` with a token
+that has the `admin` scope). Frozen bots can't use their tokens or SSH
+keys and their pushes are refused; nothing is revoked, and
+`slath admin bot unfreeze` restores access. `--org ORG` freezes only an
+organization's bots, as its owners can through the API.

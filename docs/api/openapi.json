@@ -14,6 +14,137 @@
     "version": "v1"
   },
   "paths": {
+    "/api/v1/admin/bot-freeze": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Whether every bot of the instance is frozen (site administrators;\n`admin`).",
+        "operationId": "get_instance_freeze",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "admin"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Freezes every bot of the instance.",
+        "operationId": "freeze_instance",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "admin"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Unfreezes the instance's bots.",
+        "operationId": "unfreeze_instance",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "admin"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/bots/{name}": {
       "get": {
         "tags": [
@@ -916,6 +1047,194 @@
             }
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/bot-freeze": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Whether the organization's bots are frozen (its owners; `user:write`).",
+        "operationId": "get_org_freeze",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Freezes every bot the organization owns: their tokens and SSH keys are\nrefused and their pushes rejected until unfrozen; nothing is revoked.",
+        "operationId": "freeze_org",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Unfreezes the organization's bots; their credentials work again.",
+        "operationId": "unfreeze_org",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotFreeze"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -9640,6 +9959,31 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "BotFreeze": {
+        "type": "object",
+        "description": "Whether bots are frozen, since when, and by whom.",
+        "required": [
+          "frozen"
+        ],
+        "properties": {
+          "frozen": {
+            "type": "boolean"
+          },
+          "frozen_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frozen_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who froze them (`null` for `slath admin` or a deleted account)."
           }
         }
       },

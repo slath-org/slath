@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text AS frozen_by, f.frozen_at\n           FROM bot_freezes f\n           LEFT JOIN users u ON u.id = f.frozen_by AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE f.org_id IS NOT DISTINCT FROM $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "frozen_by",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "frozen_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bot_freezes",
+            "name": "frozen_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "8ec8cb84ff7d4bc4e503db27c376ad395990f57e306448b37ba1783886935ee8"
+}

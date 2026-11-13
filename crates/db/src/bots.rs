@@ -228,3 +228,69 @@ pub async fn start(exec: impl PgExecutor<'_>, bot: UserId) -> Result<bool, DbErr
     .await?;
     Ok(r.rows_affected() > 0)
 }
+
+/// A freeze of every bot of the instance (`org: None`) or of one
+/// organization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Freeze {
+    pub frozen_by: Option<String>,
+    pub frozen_at: OffsetDateTime,
+}
+
+/// The freeze of a scope, if there is one.
+pub async fn freeze(
+    exec: impl PgExecutor<'_>,
+    org: Option<OrgId>,
+) -> Result<Option<Freeze>, DbError> {
+    let r = sqlx::query!(
+        r#"SELECT n.name::text AS frozen_by, f.frozen_at
+           FROM bot_freezes f
+           LEFT JOIN users u ON u.id = f.frozen_by AND u.state <> 'deleted'
+           LEFT JOIN namespaces n ON n.id = u.namespace_id
+           WHERE f.org_id IS NOT DISTINCT FROM $1"#,
+        org.map(|o| *o.as_uuid())
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map(|r| Freeze {
+        frozen_by: r.frozen_by,
+        frozen_at: r.frozen_at,
+    }))
+}
+
+/// Freezes a scope; false if it was frozen already.
+pub async fn set_freeze(
+    exec: impl PgExecutor<'_>,
+    org: Option<OrgId>,
+    by: Option<UserId>,
+) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "INSERT INTO bot_freezes (org_id, frozen_by) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        org.map(|o| *o.as_uuid()),
+        by.map(|u| *u.as_uuid())
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+/// Ends a scope's freeze; false if it wasn't frozen.
+pub async fn clear_freeze(exec: impl PgExecutor<'_>, org: Option<OrgId>) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "DELETE FROM bot_freezes WHERE org_id IS NOT DISTINCT FROM $1",
+        org.map(|o| *o.as_uuid())
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+/// True if a freeze applies to this account (always false for people).
+pub async fn frozen(exec: impl PgExecutor<'_>, user: UserId) -> Result<bool, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT slath_bot_frozen($1) AS "frozen!""#,
+        user.as_uuid()
+    )
+    .fetch_one(exec)
+    .await?)
+}

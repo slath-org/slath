@@ -33,6 +33,45 @@
           "minimum": 0,
           "description": "stop: SSH keys removed."
         }
+      },
+      "description": "stop and start"
+    },
+    {
+      "type": "object",
+      "required": [
+        "ok",
+        "scope",
+        "org",
+        "frozen",
+        "changed"
+      ],
+      "additionalProperties": false,
+      "description": "freeze and unfreeze",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "scope": {
+          "enum": [
+            "instance",
+            "org"
+          ]
+        },
+        "org": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The organization, for --org."
+        },
+        "frozen": {
+          "type": "boolean",
+          "description": "The state asked for."
+        },
+        "changed": {
+          "type": "boolean",
+          "description": "False if it was in that state already."
+        }
       }
     },
     {

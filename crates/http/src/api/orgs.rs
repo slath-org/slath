@@ -46,7 +46,7 @@ pub struct MemberPage {
     pub next_cursor: Option<String>,
 }
 
-async fn org_id(state: &AppState, name: &str) -> Result<OrgId, AppError> {
+pub(crate) async fn org_id(state: &AppState, name: &str) -> Result<OrgId, AppError> {
     match state.services.resolve_namespace(name).await? {
         Some((_, NamespaceKind::Org(id))) => Ok(id),
         _ => Err(AppError::not_found()),

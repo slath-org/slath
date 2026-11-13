@@ -374,6 +374,26 @@ pub enum BotCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Freeze every bot of the instance, or of one organization: their
+    /// credentials are refused until unfrozen, and nothing is revoked.
+    Freeze {
+        /// Only the bots this organization owns.
+        #[arg(long)]
+        org: Option<String>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
+    /// End a freeze; the bots' credentials work again.
+    Unfreeze {
+        #[arg(long)]
+        org: Option<String>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
 }
 
 #[derive(Subcommand)]
