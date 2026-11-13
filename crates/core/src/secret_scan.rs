@@ -606,36 +606,54 @@ impl Allowlist {
 }
 
 /// Path globs: `**` matches anything (including `/`), `*` anything within
-/// one path segment, `?` one character other than `/`.
+/// one path segment, `?` one character other than `/`. `**/` matches whole
+/// segments only: `**/a.md` matches `a.md` and `x/a.md`, not `xa.md`.
 #[must_use]
 pub fn glob_match(pattern: &[u8], path: &[u8]) -> bool {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Star {
+        /// `*`: within one segment.
+        Segment,
+        /// `**`: anything.
+        Deep,
+        /// `**/`: whole segments.
+        Segments,
+    }
     // Iterative matching with backtracking points for `*` and `**`, linear
     // in practice and without recursion.
     let (mut p, mut s) = (0, 0);
-    let mut star: Option<(usize, usize, bool)> = None;
+    let mut star: Option<(usize, usize, Star)> = None;
     while s < path.len() {
         if p + 1 < pattern.len() && pattern[p] == b'*' && pattern[p + 1] == b'*' {
             let mut next = p + 2;
+            let mut kind = Star::Deep;
             if pattern.get(next) == Some(&b'/') {
                 next += 1;
+                kind = Star::Segments;
             }
-            star = Some((next, s, true));
+            star = Some((next, s, kind));
             p = next;
         } else if p < pattern.len() && pattern[p] == b'*' {
-            star = Some((p + 1, s, false));
+            star = Some((p + 1, s, Star::Segment));
             p += 1;
         } else if p < pattern.len()
             && (pattern[p] == path[s] || (pattern[p] == b'?' && path[s] != b'/'))
         {
             p += 1;
             s += 1;
-        } else if let Some((sp, ss, deep)) = star {
-            if !deep && path[ss] == b'/' {
-                return false;
-            }
+        } else if let Some((sp, ss, kind)) = star {
+            let resume = match kind {
+                Star::Segment if path[ss] == b'/' => return false,
+                Star::Segment | Star::Deep => ss + 1,
+                // Skip to the start of the next segment.
+                Star::Segments => match path[ss..].iter().position(|&b| b == b'/') {
+                    Some(i) => ss + i + 1,
+                    None => return false,
+                },
+            };
             p = sp;
-            s = ss + 1;
-            star = Some((sp, ss + 1, deep));
+            s = resume;
+            star = Some((sp, resume, kind));
         } else {
             return false;
         }
@@ -663,5 +681,14 @@ mod glob_tests {
         assert!(!m("key?.txt", "key/.txt"));
         assert!(m("exact.txt", "exact.txt"));
         assert!(!m("exact.txt", "exact.txt2"));
+        // `**/` matches whole segments.
+        assert!(!m("**/testdata/*.pem", "mytestdata/x.pem"));
+        assert!(!m("**/testdata/*.pem", "a/mytestdata/x.pem"));
+        assert!(m("a/**/b.txt", "a/b.txt"));
+        assert!(m("a/**/b.txt", "a/x/y/b.txt"));
+        assert!(!m("a/**/b.txt", "a/xb.txt"));
+        assert!(m("**/x", "a/b/x"));
+        assert!(!m("**/x", "a/bx"));
+        assert!(m("a**", "abc/d"));
     }
 }

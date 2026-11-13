@@ -77,7 +77,7 @@ it: it left the machine it was on.
 
   ```toml
   [[allow]]
-  path = "tests/fixtures/**"          # `**` any path, `*` within a segment, `?` one character
+  path = "tests/fixtures/**"          # `**` any path (`**/` whole folders), `*` within a segment, `?` one character
   reason = "test keys, never used anywhere"
 
   [[allow]]
