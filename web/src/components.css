@@ -1701,6 +1701,11 @@ h1 > bdi code,
 .merge-step .error-summary {
   max-width: 32rem;
 }
+/* Stopping or re-enabling a bot ends its page, apart from the forms
+   above it. */
+.bot-control {
+  margin-block-start: var(--space-7);
+}
 .merge-step > .merge-step-title {
   margin: 0;
   font-size: var(--text-lg);

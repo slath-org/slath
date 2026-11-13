@@ -1,5 +1,5 @@
-{#- The table of bots with what they're doing. Expects bots and
-    admin_view (bool: an owner column and stop buttons). -#}
+{#- The table of bots with what they're doing. Expects bots, bot_limit,
+    and admin_view (bool: an owner column and stop buttons). -#}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="bots-caption">
 <table class="table">
   <caption id="bots-caption" class="visually-hidden">Bots</caption>
@@ -32,3 +32,4 @@
   </tbody>
 </table>
 </div>
+<p class="hint">Each bot may make {{ bot_limit }} API requests per hour, a limit the site's administrators set (<code>[limits] bot_requests_per_hour</code>). Counted by the server that showed this page.</p>

@@ -116,7 +116,7 @@ impl BotView {
                 })
                 .collect(),
             next_expiry: o.next_expiry.map(|(n, t)| (n, t.into())),
-            requests: format!("{used} of {limit}"),
+            requests: format!("{} of {}", grouped(used), grouped(limit)),
         }
     }
 
@@ -124,6 +124,24 @@ impl BotView {
     fn last_push(&self) -> Option<&PushView> {
         self.pushes.first()
     }
+}
+
+/// A count with thousands separators: 2,000.
+fn grouped(n: u32) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// The hourly API limit of bots, for the pages that show their use.
+fn bot_limit(state: &AppState) -> String {
+    grouped(state.config.limits.bot_requests_per_hour)
 }
 
 /// Whether a scope's bots are frozen, for the freeze controls.
@@ -148,6 +166,8 @@ impl FreezeView {
 #[template(path = "settings/bots.html")]
 struct MyBotsPage {
     ctx: PageCtx,
+    /// "2,000": bots' hourly API limit.
+    bot_limit: String,
     tab: &'static str,
     bots: Vec<BotView>,
     message: Option<&'static str>,
@@ -161,6 +181,8 @@ struct MyBotsPage {
 #[template(path = "org_bots.html")]
 struct OrgBotsPage {
     ctx: PageCtx,
+    /// "2,000": bots' hourly API limit.
+    bot_limit: String,
     org: String,
     bots: Vec<BotView>,
     freeze: FreezeView,
@@ -218,6 +240,7 @@ async fn bots_page(
     let mut res = match owner {
         Owner::Me => render(&MyBotsPage {
             ctx,
+            bot_limit: bot_limit(state),
             tab: "bots",
             bots,
             message,
@@ -239,6 +262,7 @@ async fn bots_page(
                 .map_err(hide)?;
             render(&OrgBotsPage {
                 ctx,
+                bot_limit: bot_limit(state),
                 action: format!("/{org}/-/bots"),
                 freeze: FreezeView::new(format!("The bots of {org}"), freeze),
                 freeze_action: format!("/{org}/-/bots/freeze"),
@@ -368,6 +392,8 @@ struct TokenForm {
 #[template(path = "bot.html")]
 struct BotPage {
     ctx: PageCtx,
+    /// "2,000": bots' hourly API limit.
+    bot_limit: String,
     /// The settings entry for a person's bots.
     tab: &'static str,
     bot: BotView,
@@ -497,6 +523,7 @@ async fn bot_page(
         .clone()
         .unwrap_or_else(|| bot.display_name.clone().unwrap_or_default());
     let mut res = render(&BotPage {
+        bot_limit: bot_limit(state),
         has_avatar: avatar_url.ends_with(".png"),
         avatar_url,
         display_value,
@@ -823,6 +850,8 @@ async fn org_freeze(
 #[template(path = "admin/bots.html")]
 struct AdminBotsPage {
     ctx: PageCtx,
+    /// "2,000": bots' hourly API limit.
+    bot_limit: String,
     section: &'static str,
     bots: Vec<BotView>,
     freeze: FreezeView,
@@ -853,6 +882,7 @@ async fn admin_bots(
         .map_err(hide)?;
     Ok(render(&AdminBotsPage {
         ctx,
+        bot_limit: bot_limit(&state),
         section: "bots",
         bots,
         freeze: FreezeView::new("All bots".to_owned(), freeze),
@@ -925,4 +955,15 @@ pub fn router() -> Router<AppState> {
             Access::SiteAdmin,
             post(admin_freeze),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn grouped() {
+        assert_eq!(super::grouped(0), "0");
+        assert_eq!(super::grouped(999), "999");
+        assert_eq!(super::grouped(2000), "2,000");
+        assert_eq!(super::grouped(1_234_567), "1,234,567");
+    }
 }
