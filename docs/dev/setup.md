@@ -59,3 +59,21 @@ To use Podman instead of Docker when both are installed, set
 | `just dev-mail` | Start a mail catcher: SMTP on `127.0.0.1:1025` (`tls = "none"`), inbox at <http://127.0.0.1:8025> |
 | `just dev-db-stop` | Stop PostgreSQL, keeping its data |
 | `just dev-db-reset` | Delete the development database volume |
+
+## Web UI
+
+The UI is rendered on the server (Askama templates in
+`crates/http/templates`), with htmx and small TypeScript islands from
+`web/src`. Every page works without JavaScript; scripts only add
+conveniences on top.
+
+Browser support:
+
+- Use Baseline Widely available HTML, CSS, and JavaScript features freely.
+- Use Newly available or limited features only as progressive enhancement
+  (the page still works where they're missing, as with `field-sizing` or
+  `text-wrap`) or with a fallback: a polyfill from npm, bundled and loaded
+  with a dynamic `import()` only after feature detection (see
+  `web/src/dialog.ts`), or a small fallback of our own.
+- Prefer HTML and CSS solutions to JavaScript ones.
+- Bundled third-party code is listed in `THIRD-PARTY-NOTICES.md`.
