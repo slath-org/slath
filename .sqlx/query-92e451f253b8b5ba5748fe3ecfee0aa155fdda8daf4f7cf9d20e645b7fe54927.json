@@ -1,0 +1,68 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.thread_id, f.key, t.path, t.resolved_at IS NOT NULL AS \"resolved!\",\n                  f.resolved_by_status IS NOT NULL AS \"by_status!\"\n           FROM mr_thread_findings f JOIN mr_threads t ON t.id = f.thread_id\n           WHERE f.mr_id = $1 AND f.revision_seq = $2 AND f.context = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "thread_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_findings",
+            "name": "thread_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_findings",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "resolved!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "by_status!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "92e451f253b8b5ba5748fe3ecfee0aa155fdda8daf4f7cf9d20e645b7fe54927"
+}

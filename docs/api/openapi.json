@@ -12346,6 +12346,17 @@
           "created_at": {
             "type": "string"
           },
+          "finding": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThreadFinding",
+                "description": "Set when a commit status's annotation made the thread: its first\ncomment is the reporter's plain-text message. Findings stay on\ntheir revision and never count as verdicts or requirements."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -12422,6 +12433,28 @@
           "pending": {
             "type": "boolean",
             "description": "Only its author sees it until their review is submitted."
+          }
+        }
+      },
+      "ThreadFinding": {
+        "type": "object",
+        "description": "What a finding thread came from.",
+        "required": [
+          "context",
+          "severity",
+          "category"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string",
+            "description": "The status context that reported it."
+          },
+          "severity": {
+            "type": "string",
+            "description": "`notice`, `warning`, or `failure`."
           }
         }
       },

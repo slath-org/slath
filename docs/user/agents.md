@@ -72,7 +72,7 @@ Pick the narrowest role and scopes that let the agent do its job:
 | --- | --- | --- |
 | reads code and answers questions | read | `repo:read` |
 | comments on issues and merge requests | read | `repo:read`, `issues:write`, `mrs:write` |
-| reports checks | read | `repo:read`, `statuses:write` |
+| reports checks and findings | write | `repo:read`, `statuses:write` |
 | pushes branches and opens merge requests | write | `repo:write`, `mrs:write` |
 
 Protect the branches that matter (**Settings → Branch protection**): bots
@@ -109,6 +109,10 @@ never count for its owner's required checks.
   (and `…/commits/<oid>/diff` and `/patch`).
 - **What blocks a merge:** `GET …/merge-requests/<n>/mergeability` lists
   every requirement with its state and reason.
+- **Findings:** a reviewing agent or linter reports a status with line
+  annotations; they show as threads on the merge request revision whose
+  head it annotated, and resolve when a later status no longer reports
+  them (see [findings in the review](merge-requests.md#findings-in-the-review)).
 - **Events:** [webhooks](webhooks.md) tell an agent about pushes, comments,
   reviews, and statuses, so it doesn't have to poll.
 - **Rate limits:** bots get 2,000 requests per hour by default; the

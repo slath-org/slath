@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,\n                  rn.name::text AS resolved_by, t.created_at\n           FROM mr_threads t\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
+  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,\n                  rn.name::text AS resolved_by, t.created_at, f.context AS \"finding_context?\",\n                  f.severity AS \"finding_severity?\", f.category AS \"finding_category?\"\n           FROM mr_threads t\n           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
   "describe": {
     "columns": [
       {
@@ -157,6 +157,39 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "finding_context?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_findings",
+            "name": "context"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "finding_severity?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_findings",
+            "name": "severity"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "finding_category?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_findings",
+            "name": "category"
+          }
+        }
       }
     ],
     "parameters": {
@@ -179,8 +212,11 @@
       null,
       true,
       null,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "2825adb19c61aac300e4eabdb4ce5ae321fa4ecf5ffadad17df568dc75edbaf0"
+  "hash": "61e651664e6f5af3d5bc11639317a2423a9cf2a1401ce6eb96866f3faadaa43a"
 }

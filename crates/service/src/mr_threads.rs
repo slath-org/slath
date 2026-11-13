@@ -63,7 +63,7 @@ pub struct ThreadView {
     pub position: Position,
 }
 
-fn hash_lines(lines: &[Vec<u8>]) -> String {
+pub(crate) fn hash_lines(lines: &[Vec<u8>]) -> String {
     let mut h = Sha256::new();
     for (i, l) in lines.iter().enumerate() {
         if i > 0 {
@@ -369,6 +369,10 @@ impl Services {
                 continue;
             }
             let position = match &current {
+                // Findings stay on their revision (a later one gets its own).
+                Some(_) if t.finding.is_some() && t.revision_seq != m.revisions => {
+                    Position::Outdated
+                }
                 Some(cur) => self.position(m, &t, cur).await?,
                 None => Position::Outdated,
             };
@@ -428,7 +432,8 @@ impl Services {
         })
     }
 
-    /// Published threads that aren't resolved.
+    /// Published threads that aren't resolved, findings aside (they never
+    /// count as requirements).
     pub async fn unresolved_threads(&self, m: &MergeRequest) -> Result<usize> {
         let comments = db::comments(&self.pool, m.id).await?;
         Ok(db::threads(&self.pool, m.id)
@@ -436,6 +441,7 @@ impl Services {
             .iter()
             .filter(|t| {
                 t.resolved_at.is_none()
+                    && t.finding.is_none()
                     && comments
                         .iter()
                         .any(|c| c.thread_id == t.id && !c.pending && c.deleted_at.is_none())

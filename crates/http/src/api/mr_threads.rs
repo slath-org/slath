@@ -60,6 +60,20 @@ pub struct ThreadBody {
     pub position: ThreadPosition,
     pub comments: Vec<ThreadCommentBody>,
     pub created_at: String,
+    /// Set when a commit status's annotation made the thread: its first
+    /// comment is the reporter's plain-text message. Findings stay on
+    /// their revision and never count as verdicts or requirements.
+    pub finding: Option<ThreadFinding>,
+}
+
+/// What a finding thread came from.
+#[derive(Serialize, ToSchema)]
+pub struct ThreadFinding {
+    /// The status context that reported it.
+    pub context: String,
+    /// `notice`, `warning`, or `failure`.
+    pub severity: String,
+    pub category: String,
 }
 
 impl From<ThreadView> for ThreadBody {
@@ -120,6 +134,11 @@ impl From<ThreadView> for ThreadBody {
                 })
                 .collect(),
             created_at: ts(t.created_at),
+            finding: t.finding.map(|f| ThreadFinding {
+                context: f.context,
+                severity: f.severity,
+                category: f.category,
+            }),
         }
     }
 }

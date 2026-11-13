@@ -55,7 +55,8 @@
     <article aria-label="Thread{% if let Some(l) = t.location %} on {{ l }}{% endif %}">
       <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}{% if let Some(l) = t.location %}<code>{{ l }}</code>{% else %}On the merge request{% endif %}
         <span class="text-secondary">revision {{ t.revision }}</span>
-        {%- if t.outdated %} <span class="badge">Outdated</span>{% endif %}
+        {%- if let Some(f) = t.finding %} <span class="badge">{{ f }}</span>
+        {%- else if t.outdated %} <span class="badge">Outdated</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
         {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% if let Some(by) = t.resolved_by %}{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}{% endif %}
       </header>
@@ -74,7 +75,9 @@
       {%- for c in t.comments %}
         <li>
           <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% call m::bot_badge(ctx, c.author) %}{% endcall %}{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
-          {%- if !c.html_empty %}
+          {%- if let Some(text) = c.text %}
+          <p class="finding-message">{{ text }}</p>
+          {%- else if !c.html_empty %}
           <div class="markdown" hx-ignore>{{ c.html }}</div>
           {%- endif %}
           {%- if let Some(sg) = c.suggestion %}

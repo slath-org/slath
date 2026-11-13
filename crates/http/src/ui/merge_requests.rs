@@ -764,6 +764,8 @@ struct ThreadCommentView {
     pending: bool,
     created: Time,
     suggestion: Option<SuggestionView>,
+    /// A finding's message: plain text, never rendered as Markdown.
+    text: Option<String>,
 }
 
 /// A suggestion block of a line comment: the lines it replaces and its
@@ -792,6 +794,13 @@ struct ThreadItem {
     can_resolve: bool,
     /// The viewer started it or wrote in it.
     mine: bool,
+    /// "Finding from lint (warning)" for a status's annotation.
+    finding: Option<String>,
+}
+
+/// How a finding thread names where it came from.
+fn finding_label(f: &slath_db::mr_findings::Finding) -> String {
+    format!("Finding from {} ({})", f.context, f.severity)
 }
 
 enum TimelineView {
@@ -1596,7 +1605,24 @@ async fn thread_item(
         })
         .unwrap_or_default();
     let mut comments = Vec::new();
-    for c in &t.comments {
+    for (i, c) in t.comments.iter().enumerate() {
+        if i == 0 && t.thread.finding.is_some() {
+            comments.push(ThreadCommentView {
+                id: c.id.to_string(),
+                author: c
+                    .author
+                    .clone()
+                    .unwrap_or_else(|| "A deleted user".to_owned()),
+                bot: c.author_bot,
+                html: MarkupHtml::from_markup(String::new()),
+                html_empty: true,
+                pending: false,
+                created: c.created_at.into(),
+                suggestion: None,
+                text: Some(c.body.clone()),
+            });
+            continue;
+        }
         // The suggestion block shows as its own card, so the comment's text
         // goes without it.
         let shown = anchor
@@ -1641,6 +1667,7 @@ async fn thread_item(
             html: MarkupHtml::from_markup(html),
             pending: c.pending,
             created: c.created_at.into(),
+            text: None,
         });
     }
     let mine =
@@ -1663,6 +1690,7 @@ async fn thread_item(
         comments,
         can_resolve,
         mine,
+        finding: t.thread.finding.as_deref().map(finding_label),
     })
 }
 
@@ -2567,18 +2595,26 @@ async fn attach_review(
             _ => continue,
         };
         let mut comments = Vec::new();
-        for c in &t.comments {
+        for (i, c) in t.comments.iter().enumerate() {
+            let author = c
+                .author
+                .clone()
+                .unwrap_or_else(|| "A deleted user".to_owned());
+            if i == 0 && t.thread.finding.is_some() {
+                // A finding's message is plain text.
+                comments.push((
+                    author,
+                    MarkupHtml::from_markup(String::new()),
+                    false,
+                    Some(c.body.clone()),
+                ));
+                continue;
+            }
             let html = state
                 .services
                 .render_markdown(subject, Some(&rc), &c.body)
                 .await?;
-            comments.push((
-                c.author
-                    .clone()
-                    .unwrap_or_else(|| "A deleted user".to_owned()),
-                MarkupHtml::from_markup(html),
-                c.pending,
-            ));
+            comments.push((author, MarkupHtml::from_markup(html), c.pending, None));
         }
         threads
             .entry(key)
@@ -2591,6 +2627,7 @@ async fn attach_review(
                     &format!("#thread-{}", t.thread.id),
                 ),
                 id: t.thread.id.to_string(),
+                finding: t.thread.finding.as_deref().map(finding_label),
                 resolved: t.thread.resolved_at.is_some(),
                 from: match t.position {
                     Position::Current { from, .. } => from,

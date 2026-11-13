@@ -1835,6 +1835,13 @@ h1 > bdi code,
 .timeline-thread .markdown > :last-child {
   margin-block-end: 0;
 }
+/* A finding's message is the reporter's plain text, line breaks kept. */
+.finding-message {
+  margin: 0;
+  padding: var(--space-1) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 /* A thread's actions: Reply (opening its form in place) and Resolve on
    one line; an open reply form takes the full width. */
 .thread-actions {

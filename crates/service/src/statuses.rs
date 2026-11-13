@@ -273,6 +273,18 @@ impl Services {
             },
         )
         .await?;
+        self.project_findings(
+            &mut tx,
+            &crate::findings::Report {
+                repo: a.repo.id,
+                commit: &oid,
+                context,
+                status: id,
+                reporter: *reporter,
+            },
+            &annotations,
+        )
+        .await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         if s.state == "success" {
             self.queue_auto_merges_in(a.repo.id).await;

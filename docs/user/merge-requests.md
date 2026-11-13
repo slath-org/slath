@@ -443,6 +443,13 @@ reporter, not whether the check really ran. The commit page and the
 merge request's **Checks** list them, and
 `GET …/commits/{commit}/statuses` returns them.
 
+When the target's branch protection requires a context, the merge box
+shows it, with the reporter and why a status didn't count:
+
+- only statuses on the merge request's head commit count;
+- never the author's own statuses, or those of bots the author owns;
+- if the rule lists reporters for the context, only theirs.
+
 A status can point at code with up to 50 line annotations (findings), for
 example a linter's warnings or an evaluator's comments:
 
@@ -465,12 +472,30 @@ error names it (`annotations[3].line_start`). Annotations are returned
 with their status and sent in the `status` webhook. The limits are
 `limits.status_annotations` and `limits.status_annotation_max_bytes`.
 
-When the target's branch protection requires a context, the merge box
-shows it, with the reporter and why a status didn't count:
+### Findings in the review
 
-- only statuses on the merge request's head commit count;
-- never the author's own statuses, or those of bots the author owns;
-- if the rule lists reporters for the context, only theirs.
+Every open merge request of the same repository whose revision head is
+the annotated commit shows the annotations as **finding threads** on that
+revision, written by the reporter (with its Bot badge) and marked with the
+status's context and the severity:
+
+- The message shows as plain text: no Markdown, links, mentions, or
+  suggestions, since it comes from a tool.
+- A later status of the same context on that commit resolves the findings
+  it no longer reports ("resolved by" the reporter), and reopens those it
+  resolved that way if they come back. A finding a person resolved stays
+  resolved.
+- Findings stay on their revision. After a new push they show in the
+  conversation with their revision, not in the new diff; statuses on the
+  new head bring the new revision's findings.
+- You can reply to and resolve findings like any thread, but they never
+  count as a review or approval, send no notifications, and don't count
+  for "resolved threads" in branch protection. Whether a check blocks the
+  merge depends only on its status.
+- Statuses reported in a fork never reach a merge request in the original
+  repository: like required checks, findings are read from the target
+  repository. The API marks finding threads with `finding` (`context`,
+  `severity`, `category`).
 
 ## Reading diffs
 

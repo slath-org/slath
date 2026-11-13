@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH f AS (UPDATE mr_thread_findings SET resolved_by_status = $2 WHERE thread_id = $1)\n         UPDATE mr_threads SET resolved_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,\n             resolved_by = $3\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "50919a18aabb03fc45d2228ea04edbe58c0ef191a44d02f0bfe6b5dbb6bd486f"
+}

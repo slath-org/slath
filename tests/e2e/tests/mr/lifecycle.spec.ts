@@ -210,6 +210,24 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await expect(seeded()).toContainText(text);
 });
 
+test("conf_agent_02_findings_show_as_bot_threads", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  const finding = page
+    .getByRole("article", { name: "Thread on review.md, line 1" })
+    .filter({ hasText: "Finding from lint (warning)" });
+  await expect(finding).toBeVisible();
+  await expect(finding.locator(".thread-comment-head").first()).toContainText("e2e-lint");
+  await expect(finding.locator(".thread-comment-head").first()).toContainText("Bot");
+  await expect(finding.locator(".finding-message")).toHaveText("Say what changed in the draft.\nKeep it to one line.");
+  await expectAccessible(page);
+  // The Changes tab shows it under its line.
+  await page.goto(page.url().replace(/#.*$/, "") + "/changes");
+  await expect(page.locator(".inline-thread").filter({ hasText: "Finding from lint (warning)" })).toBeVisible();
+  await expectAccessible(page);
+});
+
 test("conf_a11y_04_line_comments_on_the_changes_tab", async ({ page }, testInfo) => {
   test.slow();
   await signIn(page, USERS.alice);

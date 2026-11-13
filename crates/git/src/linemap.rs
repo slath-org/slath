@@ -130,14 +130,14 @@ pub async fn read_lines(
     Ok(Some(all[s - 1..e].iter().map(|l| l.to_vec()).collect()))
 }
 
-/// How many lines `path` has at `commit`, or `None` if it isn't a file
-/// there.
-pub async fn line_count(
+/// Every line of `path` at `commit` (as [`read_lines`] splits them), or
+/// `None` if it isn't a file there.
+pub async fn file_lines(
     runner: &Runner,
     git_dir: &Path,
     commit: &ObjectId,
     path: &[u8],
-) -> Result<Option<u32>, GitError> {
+) -> Result<Option<Vec<Vec<u8>>>, GitError> {
     let mut spec = commit.as_str().as_bytes().to_vec();
     spec.push(b':');
     spec.extend_from_slice(path);
@@ -151,14 +151,29 @@ pub async fn line_count(
     if !out.status.success() {
         return Ok(None);
     }
-    Ok(Some(count_lines(&out.stdout)))
+    Ok(Some(split_lines(&out.stdout)))
+}
+
+/// How many lines `path` has at `commit`, or `None` if it isn't a file
+/// there.
+pub async fn line_count(
+    runner: &Runner,
+    git_dir: &Path,
+    commit: &ObjectId,
+    path: &[u8],
+) -> Result<Option<u32>, GitError> {
+    Ok(file_lines(runner, git_dir, commit, path)
+        .await?
+        .map(|l| u32::try_from(l.len()).unwrap_or(u32::MAX)))
 }
 
 /// Lines as [`read_lines`] counts them: a final newline ends the last line.
-fn count_lines(text: &[u8]) -> u32 {
-    let n = text.iter().filter(|b| **b == b'\n').count()
-        + usize::from(!text.is_empty() && !text.ends_with(b"\n"));
-    u32::try_from(n).unwrap_or(u32::MAX)
+fn split_lines(text: &[u8]) -> Vec<Vec<u8>> {
+    let mut all: Vec<Vec<u8>> = text.split(|b| *b == b'\n').map(<[u8]>::to_vec).collect();
+    if text.is_empty() || text.ends_with(b"\n") {
+        all.pop();
+    }
+    all
 }
 
 #[cfg(test)]
@@ -167,11 +182,16 @@ mod tests {
 
     #[test]
     fn counts_lines() {
-        assert_eq!(count_lines(b""), 0);
-        assert_eq!(count_lines(b"a"), 1);
-        assert_eq!(count_lines(b"a\n"), 1);
-        assert_eq!(count_lines(b"a\nb"), 2);
-        assert_eq!(count_lines(b"a\n\n"), 2);
+        let n = |t: &[u8]| split_lines(t).len();
+        assert_eq!(n(b""), 0);
+        assert_eq!(n(b"a"), 1);
+        assert_eq!(n(b"a\n"), 1);
+        assert_eq!(n(b"a\nb"), 2);
+        assert_eq!(n(b"a\n\n"), 2);
+        assert_eq!(
+            split_lines(b"a\n\nb"),
+            vec![b"a".to_vec(), Vec::new(), b"b".to_vec()]
+        );
     }
 
     fn file(diff: &str) -> FileDiff {

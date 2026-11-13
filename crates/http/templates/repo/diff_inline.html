@@ -6,8 +6,9 @@
   <div class="inline-thread{% if t.resolved %} thread-resolved{% endif %}">
     {%- if t.resolved %}<p class="text-secondary">Resolved</p>{% endif %}
     {%- if let Some(r) = t.from %}<p class="text-secondary">From revision {{ r }}</p>{% endif %}
-    {%- for (author, html, pending) in t.comments %}
-    <div class="inline-comment"><p class="thread-comment-head"><strong>{{ author }}</strong>{% call m::bot_badge(ctx, author) %}{% endcall %}{% if *pending %} <span class="badge">Pending</span>{% endif %}</p><div class="markdown" hx-ignore>{{ html }}</div></div>
+    {%- if let Some(f) = t.finding %}<p class="text-secondary">{{ f }}</p>{% endif %}
+    {%- for (author, html, pending, text) in t.comments %}
+    <div class="inline-comment"><p class="thread-comment-head"><strong>{{ author }}</strong>{% call m::bot_badge(ctx, author) %}{% endcall %}{% if *pending %} <span class="badge">Pending</span>{% endif %}</p>{% if let Some(text) = text %}<p class="finding-message">{{ text }}</p>{% else %}<div class="markdown" hx-ignore>{{ html }}</div>{% endif %}</div>
     {%- endfor %}
     <p><a href="{{ t.link }}">Reply in the conversation</a></p>
   </div>

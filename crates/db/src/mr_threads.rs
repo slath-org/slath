@@ -32,6 +32,8 @@ pub struct Thread {
     pub resolved_at: Option<time::OffsetDateTime>,
     pub resolved_by: Option<String>,
     pub created_at: time::OffsetDateTime,
+    /// Set for a thread made from a status's annotation.
+    pub finding: Option<Box<crate::mr_findings::Finding>>,
 }
 
 /// A comment of a thread.
@@ -108,8 +110,10 @@ pub async fn threads(
     let rows = sqlx::query!(
         r#"SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,
                   t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,
-                  rn.name::text AS resolved_by, t.created_at
+                  rn.name::text AS resolved_by, t.created_at, f.context AS "finding_context?",
+                  f.severity AS "finding_severity?", f.category AS "finding_category?"
            FROM mr_threads t
+           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id
            LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'
            LEFT JOIN namespaces an ON an.id = au.namespace_id
            LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'
@@ -139,6 +143,16 @@ pub async fn threads(
             resolved_at: r.resolved_at,
             resolved_by: r.resolved_by,
             created_at: r.created_at,
+            finding: match (r.finding_context, r.finding_severity, r.finding_category) {
+                (Some(context), Some(severity), Some(category)) => {
+                    Some(Box::new(crate::mr_findings::Finding {
+                        context,
+                        severity,
+                        category,
+                    }))
+                }
+                _ => None,
+            },
         })
         .collect())
 }
@@ -196,14 +210,16 @@ pub async fn publish_pending(
     Ok(done.rows_affected())
 }
 
-/// Resolves (`Some(user)`) or reopens (`None`) a thread.
+/// Resolves (`Some(user)`) or reopens (`None`) a thread for a person; a
+/// finding resolved this way isn't reopened by a later status.
 pub async fn set_resolved(
     exec: impl PgExecutor<'_>,
     thread: uuid::Uuid,
     by: Option<UserId>,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE mr_threads SET resolved_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,
+        "WITH f AS (UPDATE mr_thread_findings SET resolved_by_status = NULL WHERE thread_id = $1)
+         UPDATE mr_threads SET resolved_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,
              resolved_by = $2 WHERE id = $1",
         thread,
         by.map(|u| *u.as_uuid())

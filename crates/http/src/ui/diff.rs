@@ -102,8 +102,10 @@ pub struct InlineThread {
     pub resolved: bool,
     /// Carried from this earlier revision.
     pub from: Option<i32>,
-    /// (author, rendered body, pending)
-    pub comments: Vec<(String, super::MarkupHtml, bool)>,
+    /// Where a finding thread came from.
+    pub finding: Option<String>,
+    /// (author, rendered body, pending, a finding's plain-text message)
+    pub comments: Vec<(String, super::MarkupHtml, bool, Option<String>)>,
     /// The thread in the conversation, for answering.
     pub link: String,
 }

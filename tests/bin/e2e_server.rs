@@ -109,6 +109,46 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         Some(&serde_json::json!({"body": "Shorter:\n\n```suggestion\nSecond.\n```", "path": "review.md", "line_start": 1})),
     );
     assert_eq!(r.status, 201, "{}", r.body);
+    // A finding on the same line, reported by the bot e2e-lint.
+    let (ok, out, err) = server.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "e2e-lint",
+            "--token-scopes",
+            "repo:read,statuses:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let bot: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let r = api.api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/e2e-lint",
+        Some(&token),
+        Some(&serde_json::json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let head = git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned();
+    let r = api.api(
+        "POST",
+        &format!("/api/v1/repos/alice/demo/statuses/{head}"),
+        bot["token"].as_str(),
+        Some(
+            &serde_json::json!({"state": "failure", "context": "lint", "annotations": [
+                {"path": "review.md", "line_start": 1, "severity": "warning", "category": "docs",
+                 "message": "Say what changed in the draft.\nKeep it to one line."}
+            ]}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();
