@@ -136,6 +136,7 @@ corruption in. It takes no lock that stops Slath:
 psql -d slath -c 'REINDEX INDEX CONCURRENTLY repositories_name_trgm' \
   -c 'REINDEX INDEX CONCURRENTLY repositories_description_trgm' \
   -c 'REINDEX INDEX CONCURRENTLY issues_search' \
+  -c 'REINDEX INDEX CONCURRENTLY comments_search' \
   -c 'REINDEX INDEX CONCURRENTLY merge_requests_search'
 ```
 
