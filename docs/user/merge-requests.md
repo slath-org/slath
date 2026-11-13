@@ -244,6 +244,14 @@ the target: by default, an approval stays only if the new revision kept
 every change's patch, as after a plain rebase. Otherwise it's marked stale
 and no longer counts. The timeline notes either case.
 
+When the target branch is protected and the merge request changes a
+[sensitive path](bots.md#sensitive-paths), such as a CI workflow, a file
+under `.slath/`, a code-owner file, or an agent instruction file like
+`AGENTS.md`, it also needs an approval from a person with the maintain role
+or higher, other than the author. Approvals by bots never count for this,
+even where bot approvals count otherwise. The readiness card says
+"Maintainer approval required" and lists the files.
+
 Every merge request page opens with a **readiness card**: one headline
 (such as "Ready to merge", "Approval required", or "Conflicts with
 main"), the reason, and the one thing you can do next, chosen for you:

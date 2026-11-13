@@ -386,3 +386,146 @@ fn conf_agent_11_repositories_add_sensitive_paths() {
         json!(["infra/**"])
     );
 }
+
+#[test]
+fn conf_agent_11_merge_requests_changing_sensitive_paths_need_a_maintainer() {
+    let s = TestServer::start();
+    for u in ["bob", "carol", "dave"] {
+        s.create_user(u, PASSWORD, false);
+    }
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let bot = setup(&s, w);
+    let bot_token = bot
+        .trim_start_matches("http://git:")
+        .split('@')
+        .next()
+        .unwrap()
+        .to_owned();
+    let token = |user: &str| {
+        let mut c = s.login(user, PASSWORD);
+        slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
+    };
+    let alice = token("alice");
+    let api = |t: &str, method: &str, path: &str, body: Option<serde_json::Value>| {
+        s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(t),
+            body.as_ref(),
+        )
+    };
+    for (u, role) in [("bob", "write"), ("carol", "maintain"), ("dave", "write")] {
+        let r = api(
+            &alice,
+            "PUT",
+            &format!("/collaborators/{u}"),
+            Some(json!({"role": role})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    let (bob, carol, dave) = (token("bob"), token("carol"), token("dave"));
+    // Bot approvals count for approvals here, but never for sensitive paths.
+    let r = api(
+        &alice,
+        "POST",
+        "/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1, "bots_count_as_approvers": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+
+    let open = |branch: &str, file: &str, target: &str| {
+        git.ok(w, &["switch", "-q", "-c", branch, "main"]);
+        write(w, file, &format!("{branch}\n"));
+        git.ok(w, &["add", "."]);
+        git.ok(w, &["commit", "-q", "-m", branch]);
+        git.ok(w, &["push", "-q", &s.url(&DEMO), branch]);
+        let r = api(
+            &bob,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_branch": branch, "target_branch": target, "title": branch})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        let start = std::time::Instant::now();
+        while api(&bob, "GET", &format!("/merge-requests/{n}"), None).json()["revisions"] != 1 {
+            assert!(start.elapsed().as_secs() < 30, "no revision\n{}", s.log());
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        n
+    };
+    let requirement = |n: i64| {
+        let m = api(
+            &bob,
+            "GET",
+            &format!("/merge-requests/{n}/mergeability"),
+            None,
+        )
+        .json();
+        let r = m["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["key"] == "sensitive_paths")
+            .cloned();
+        (m["mergeable"].as_bool().unwrap(), r)
+    };
+    let approve = |t: &str, n: i64| {
+        let r = api(
+            t,
+            "POST",
+            &format!("/merge-requests/{n}/reviews"),
+            Some(json!({"verdict": "approve"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+    };
+
+    let n = open("instructions", "AGENTS.md", "main");
+    let (mergeable, r) = requirement(n);
+    let r = r.expect("a sensitive_paths requirement");
+    assert!(!mergeable);
+    assert_eq!(r["state"], "unmet");
+    assert!(r["reason"].as_str().unwrap().contains("AGENTS.md"), "{r}");
+    assert_eq!(r["fix_action"], "Ask a maintainer to review");
+
+    // A bot's or a writer's approval satisfies the approval count only.
+    approve(&bot_token, n);
+    approve(&dave, n);
+    let (mergeable, r) = requirement(n);
+    assert!(!mergeable);
+    assert_eq!(r.unwrap()["state"], "unmet");
+    let m = api(&bob, "GET", &format!("/merge-requests/{n}"), None).json();
+    let head = m["head_oid"].as_str().unwrap();
+    let r = api(
+        &carol,
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"expected_head_oid": head})),
+    );
+    assert_eq!(r.status, 409, "{}", r.body);
+
+    // A maintainer's approval does.
+    approve(&carol, n);
+    let (mergeable, r) = requirement(n);
+    let r = r.unwrap();
+    assert_eq!(r["state"], "met", "{r}");
+    assert!(r["reason"].as_str().unwrap().contains("carol"), "{r}");
+    assert!(mergeable);
+
+    // Other files, and unprotected targets, have no such requirement.
+    let plain = open("code", "src/lib.rs", "main");
+    assert!(requirement(plain).1.is_none());
+    git.ok(w, &["push", "-q", &s.url(&DEMO), "main:dev"]);
+    let dev = open("dev-instructions", "CLAUDE.md", "dev");
+    assert!(requirement(dev).1.is_none());
+
+    // The merge request page says what's missing.
+    let fresh = open("more-instructions", ".slath/REVIEWERS", "main");
+    approve(&dave, fresh);
+    let mut web = s.login("bob", PASSWORD);
+    let html = web.get(&format!("/alice/demo/merge-requests/{fresh}")).body;
+    assert!(html.contains("Maintainer approval required"), "{html}");
+    assert!(html.contains(".slath/REVIEWERS"), "{html}");
+}

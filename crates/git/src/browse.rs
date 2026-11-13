@@ -556,6 +556,37 @@ pub async fn changed_file_count(
         .count())
 }
 
+/// Every path `base..commit` changes; a rename changes its old and its
+/// new path.
+pub async fn changed_paths(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+) -> Result<Vec<Vec<u8>>, GitError> {
+    let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "diff",
+            "--no-ext-diff",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            "--end-of-options",
+            base,
+            commit.as_str(),
+        ])
+        .run()
+        .await?;
+    Ok(out
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|p| !p.is_empty())
+        .map(<[u8]>::to_vec)
+        .collect())
+}
+
 /// The files `base..commit` changes (renames counted once, as in
 /// [`diff`]), each with the object it has at `commit`: its new path, or
 /// for a deleted file its old path and the zero object ID.

@@ -173,6 +173,11 @@ the bot's branch, don't count. Bots can't apply review suggestions to these
 files either. People's pushes aren't affected. Each rejection is recorded
 in the audit log.
 
+On a protected branch, a merge request that changes a sensitive path needs
+an approval from a person with the maintain role (see
+[reviews](merge-requests.md#reviews)); bot approvals
+never count for it.
+
 ## Rate limits
 
 Bots make at most 2,000 API requests per hour (site setting

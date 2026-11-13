@@ -105,7 +105,7 @@
   <div><button type="submit" class="button button-primary">Save rule</button></div>
 </form>
 <h2 id="sensitive-paths">Sensitive paths</h2>
-<p>Bots can't change these files on any branch: pushes and suggestions that would are refused. Names match regardless of upper and lower case.</p>
+<p>Bots can't change these files on any branch: pushes and suggestions that would are refused. On protected branches, a merge request that changes them needs an approval by a maintainer. Names match regardless of upper and lower case.</p>
 <details class="sensitive-defaults">
   <summary>Built-in paths ({{ sensitive_defaults.len() }})</summary>
   <ul>

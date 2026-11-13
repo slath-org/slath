@@ -1235,6 +1235,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
     let headline = match r.key {
         "draft" => "Draft".to_owned(),
         "approvals" => "Approval required".to_owned(),
+        "sensitive_paths" => "Maintainer approval required".to_owned(),
         "changes_requested" => "Changes requested".to_owned(),
         "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
         "statuses" => "Checks failing".to_owned(),
@@ -1251,10 +1252,10 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
             href: None,
             form: Some((format!("{base}/draft"), "draft", "false")),
         }),
-        "approvals" | "changes_requested" if v.review && !v.reviewed => {
+        "approvals" | "changes_requested" | "sensitive_paths" if v.review && !v.reviewed => {
             link("Review", "eye", "#review-form")
         }
-        "approvals" if v.edit => link("Ask for review", "users", "#reviewers"),
+        "approvals" | "sensitive_paths" if v.edit => link("Ask for review", "users", "#reviewers"),
         "conflicts" if v.push || v.author => link("Resolve conflicts", "terminal", "#conflicts"),
         "identity" if v.push || v.author => {
             link("Choose changes", "git-commit-horizontal", "/commits")

@@ -6,11 +6,13 @@
 //! must meet before it can be merged (spec: verdicts and requirements).
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
-use slath_core::authz::{Action, Subject, UserKind};
+use slath_core::authz::{Action, Role, Subject, UserKind};
 use slath_core::ids::{MergeRequestId, UserId};
 use slath_db::merge_requests::MergeRequest;
 use slath_db::mr_reviews::{self as db, Review};
+use slath_git::ObjectId;
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
@@ -62,8 +64,8 @@ pub struct ReviewView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
     /// `open`, `draft`, `approvals`, `changes_requested`, `up_to_date`,
-    /// `statuses` (one per required check), `threads`, `conflicts`, or
-    /// `identity`.
+    /// `sensitive_paths`, `statuses` (one per required check), `threads`,
+    /// `conflicts`, or `identity`.
     pub key: &'static str,
     /// `met`, `unmet`, or `pending`.
     pub state: &'static str,
@@ -134,7 +136,7 @@ fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement
     Requirement {
         key,
         state: "unmet",
-        tone: if matches!(key, "draft" | "approvals") {
+        tone: if matches!(key, "draft" | "approvals" | "sensitive_paths") {
             "waiting"
         } else {
             "blocking"
@@ -607,6 +609,99 @@ impl Services {
             .is_ok())
     }
 
+    /// The sensitive paths the current revision's whole diff changes.
+    pub async fn mr_sensitive_changes(&self, m: &MergeRequest) -> Result<Vec<String>> {
+        let Some(rev) = slath_db::merge_requests::revisions(&self.pool, m.id)
+            .await?
+            .pop()
+        else {
+            return Ok(Vec::new());
+        };
+        let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
+        let base = rev.merge_base_oid.as_deref().map(parse).transpose()?;
+        let head = parse(&rev.head_oid)?;
+        let sensitive = self.sensitive_paths(m.repo_id).await?;
+        let paths = slath_git::browse::changed_paths(
+            &self.runner,
+            &self.repo_path(m.repo_id),
+            base.as_ref(),
+            &head,
+        )
+        .await
+        .map_err(ServiceError::internal)?;
+        Ok(paths
+            .into_iter()
+            .filter(|p| sensitive.matches(p))
+            .map(|p| String::from_utf8_lossy(&p).into_owned())
+            .collect())
+    }
+
+    /// The `sensitive_paths` requirement: on a protected target, changes
+    /// to sensitive paths need an approval by a person with the maintain
+    /// role or higher, other than the author. Bots never satisfy it.
+    async fn sensitive_requirement(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        views: &[ReviewView],
+    ) -> Result<Option<Requirement>> {
+        let touched = self.mr_sensitive_changes(m).await?;
+        if touched.is_empty() {
+            return Ok(None);
+        }
+        let mut list = touched
+            .iter()
+            .take(10)
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        if touched.len() > 10 {
+            let _ = write!(list, " and {} more", touched.len() - 10);
+        }
+        let mut by = Vec::new();
+        for v in views {
+            let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.as_ref()) else {
+                continue;
+            };
+            if v.review.verdict != "approve" || !v.counts || m.author_id == Some(u) {
+                continue;
+            }
+            let Some(user) = slath_db::users::get(&self.pool, u).await? else {
+                continue;
+            };
+            if user.kind == UserKind::Bot {
+                continue;
+            }
+            let role = self
+                .repo_access_by_id(
+                    &crate::notifications::user_subject(u, &user),
+                    a.repo.id,
+                    Action::RepoRead,
+                )
+                .await
+                .ok()
+                .and_then(|x| x.ctx.role);
+            if role.is_some_and(|r| r >= Role::Maintain) {
+                by.push(name.clone());
+            }
+        }
+        Ok(Some(if by.is_empty() {
+            unmet(
+                "sensitive_paths",
+                format!("Changes sensitive paths: {list}. Needs an approval by a maintainer."),
+                "Ask a maintainer to review",
+            )
+        } else {
+            met(
+                "sensitive_paths",
+                format!(
+                    "Changes sensitive paths ({list}); approved by a maintainer: {}.",
+                    by.join(", ")
+                ),
+            )
+        }))
+    }
+
     /// The requirements of the merge box for the current revision.
     pub async fn mr_mergeability(&self, a: &RepoAccess, m: &MergeRequest) -> Result<Mergeability> {
         let eff = self.effective_for(m).await?;
@@ -710,6 +805,11 @@ impl Services {
         let (up_to_date, up_req) = self.up_to_date(m).await?;
         if eff.require_up_to_date {
             reqs.push(up_req);
+        }
+        if eff.protected
+            && let Some(r) = self.sensitive_requirement(a, m, &views).await?
+        {
+            reqs.push(r);
         }
         reqs.extend(self.check_requirements(m, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
