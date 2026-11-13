@@ -6165,6 +6165,89 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/iteration": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The current revision, the interdiff since `since`, failing required\nchecks, unresolved threads, and mergeability, in one call. 422 when\n`since` isn't a revision of the merge request.",
+        "operationId": "get_iteration",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "The revision you last worked on; adds the interdiff since then.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IterationBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger": {
       "get": {
         "tags": [
@@ -11315,6 +11398,86 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "IterationBody": {
+        "type": "object",
+        "description": "What the next round needs.",
+        "required": [
+          "failing_checks",
+          "threads",
+          "mergeability"
+        ],
+        "properties": {
+          "failing_checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommitStatus"
+            },
+            "description": "The latest status of each required context on the head, as\n`…/commits/{oid}/statuses` returns it, when it's `failure` or\n`error`. Its description, target URL, and annotations say what\nfailed."
+          },
+          "interdiff": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IterationInterdiff",
+                "description": "With `since`: what changed from that revision to the current one.\n`null` without `since`, when it's the current revision, or when a\nrevision has no merge base."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mergeability": {
+            "$ref": "#/components/schemas/MergeabilityBody",
+            "description": "As `…/mergeability` returns it."
+          },
+          "revision": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionBody",
+                "description": "The current revision, as the last item of `…/revisions`; `null`\nbefore the first one. Everything else refers to its head."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadBody"
+            },
+            "description": "The unresolved threads, as `…/threads?resolved=false` returns them."
+          }
+        }
+      },
+      "IterationInterdiff": {
+        "type": "object",
+        "description": "The revision interdiff since an earlier revision.",
+        "required": [
+          "from",
+          "to",
+          "too_large"
+        ],
+        "properties": {
+          "from": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What `GET …/interdiff?from=&to=` serves (`git range-diff`); `null`\npast `limits.iteration_interdiff_max_bytes` (1 MiB)."
+          },
+          "to": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "too_large": {
+            "type": "boolean"
           }
         }
       },

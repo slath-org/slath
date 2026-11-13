@@ -27,6 +27,7 @@ pub mod forks;
 pub mod imports;
 pub mod inventory;
 pub mod issues;
+pub mod iteration;
 pub mod jobs;
 pub mod keys;
 pub mod labels;

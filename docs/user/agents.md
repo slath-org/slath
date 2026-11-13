@@ -110,6 +110,16 @@ never count for its owner's required checks.
   (and `…/commits/<oid>/diff` and `/patch`).
 - **What blocks a merge:** `GET …/merge-requests/<n>/mergeability` lists
   every requirement with its state and reason.
+- **One call per round:** `GET …/merge-requests/<n>/iteration?since=<revision>`
+  returns the current revision, what changed since the revision you last
+  worked on (the same text as `…/interdiff?from=<revision>`), the required
+  checks that failed on the head with their descriptions and annotations,
+  the unresolved threads, and the mergeability. Each part is exactly what
+  its own endpoint (`…/revisions`, `…/commits/<oid>/statuses`,
+  `…/threads?resolved=false`, `…/mergeability`) returns, with the same
+  permissions. An interdiff over 1 MiB (`limits.iteration_interdiff_max_bytes`)
+  is left out (`too_large`); fetch it from `…/interdiff` instead. Check
+  `revision.head_oid`: if someone pushed meanwhile, call again.
 - **Findings:** a reviewing agent or linter reports a status with line
   annotations; they show as threads on the merge request revision whose
   head it annotated, and resolve when a later status no longer reports

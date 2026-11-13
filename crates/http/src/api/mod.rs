@@ -10,6 +10,7 @@ pub mod bots;
 pub mod issues;
 pub mod labels;
 pub mod merge_requests;
+pub mod mr_iteration;
 pub mod mr_revisions;
 pub mod mr_threads;
 pub mod orgs;
@@ -172,7 +173,7 @@ impl utoipa::Modify for SecurityAddon {
         merge_requests::list_reviews, merge_requests::create_review, merge_requests::put_reviewers,
         merge_requests::get_mergeability, merge_requests::merge, merge_requests::update_branch, merge_requests::put_auto_merge, merge_requests::apply_suggestions, merge_requests::checkout, merge_requests::get_inventory, merge_requests::delete_auto_merge, merge_requests::get_ledger,
         statuses::create_status, statuses::list_statuses,
-        mr_revisions::list_revisions, mr_revisions::get_interdiff,
+        mr_revisions::list_revisions, mr_revisions::get_interdiff, mr_iteration::get_iteration,
         mr_threads::list_threads, mr_threads::create_thread, mr_threads::reply, mr_threads::update_thread,
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,
         labels::list_milestones, labels::create_milestone, labels::update_milestone, labels::delete_milestone,
@@ -218,6 +219,7 @@ pub fn router() -> Router<AppState> {
         .merge(merge_requests::router())
         .merge(statuses::router())
         .merge(mr_revisions::router())
+        .merge(mr_iteration::router())
         .merge(mr_threads::router())
         .merge(labels::router())
         .merge(crate::attachments::api_router())

@@ -760,33 +760,39 @@ pub async fn get_mergeability(
 ) -> Result<Json<MergeabilityBody>, AppError> {
     let (a, m) = state.services.mr(&s, &ns, &repo, number).await?;
     let mb = state.services.mr_mergeability(&a, &m).await?;
-    Ok(Json(MergeabilityBody {
-        mergeable: mb.mergeable,
-        up_to_date: mb.up_to_date,
-        coverage: mb.coverage.map(|c| CoverageBody {
-            approvals: c
-                .approvals
+    Ok(Json(mb.into()))
+}
+
+impl From<slath_service::mr_reviews::Mergeability> for MergeabilityBody {
+    fn from(mb: slath_service::mr_reviews::Mergeability) -> Self {
+        MergeabilityBody {
+            mergeable: mb.mergeable,
+            up_to_date: mb.up_to_date,
+            coverage: mb.coverage.map(|c| CoverageBody {
+                approvals: c
+                    .approvals
+                    .into_iter()
+                    .map(|a| ApprovalCoverageBody {
+                        reviewer: a.reviewer,
+                        revision: a.revision,
+                        files_viewed: a.files_viewed,
+                        files_total: a.files_total,
+                    })
+                    .collect(),
+                unviewed_files: c.unviewed,
+            }),
+            requirements: mb
+                .requirements
                 .into_iter()
-                .map(|a| ApprovalCoverageBody {
-                    reviewer: a.reviewer,
-                    revision: a.revision,
-                    files_viewed: a.files_viewed,
-                    files_total: a.files_total,
+                .map(|r| Requirement {
+                    key: r.key.to_owned(),
+                    state: r.state.to_owned(),
+                    reason: r.reason,
+                    fix_action: r.fix,
                 })
                 .collect(),
-            unviewed_files: c.unviewed,
-        }),
-        requirements: mb
-            .requirements
-            .into_iter()
-            .map(|r| Requirement {
-                key: r.key.to_owned(),
-                state: r.state.to_owned(),
-                reason: r.reason,
-                fix_action: r.fix,
-            })
-            .collect(),
-    }))
+        }
+    }
 }
 
 /// Every field is optional in the JSON so that authorization runs first.

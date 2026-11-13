@@ -228,6 +228,17 @@ impl Services {
         ))
     }
 
+    /// The status contexts the target branch requires.
+    pub async fn mr_required_contexts(&self, m: &MergeRequest) -> Result<Vec<String>> {
+        Ok(self
+            .effective_for(m)
+            .await?
+            .required_checks
+            .into_iter()
+            .map(|c| c.context)
+            .collect())
+    }
+
     /// Submits a review of the current revision. The author may only
     /// comment; a comment needs a body.
     pub async fn submit_review(

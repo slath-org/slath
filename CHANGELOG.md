@@ -155,6 +155,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The guide "Working with AI agents" covers the sandbox, one bot per agent, least privilege, branch- or fork-based work, and the API for programs.
 - The release's Compose bundle includes the agent sandbox.
 - The API lists a merge request's revisions, serves the interdiff between two of them as plain text, and filters threads by whether they're resolved.
+- `GET …/merge-requests/{n}/iteration?since=` returns the current revision, the interdiff since an earlier one, failing required checks, unresolved threads, and mergeability in one call.
 
 ### Changed
 
