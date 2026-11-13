@@ -5,7 +5,7 @@
 {%- else %}{% include "settings/sidebar.html" %}{% endif %}
 {% endblock %}
 {% block content %}
-<h1>{{ bot.name }} <span class="badge">Bot</span>{% if !bot.active %} <span class="badge">Suspended</span>{% endif %}</h1>
+<h1>{{ bot.name }} <span class="badge">Bot</span>{% if !bot.active %} <span class="badge">{{ bot.state }}</span>{% endif %}{% if bot.frozen %} <span class="badge">Frozen</span>{% endif %}</h1>
 <p>{% if let Some(d) = bot.display_name %}{{ d }}, owned by{% else %}Owned by{% endif %} <a href="/{{ owner }}">{{ owner }}</a>. <a href="/{{ bot.name }}">Profile</a></p>
 {%- if let Some(m) = message %}
 <div class="success-summary" role="status"><p>{{ m }}</p></div>
@@ -19,6 +19,34 @@
 </div>
 {%- endif %}
 {% include "settings/errors.html" %}
+
+<h2>Activity</h2>
+<dl class="facts">
+  <dt>State</dt>
+  <dd>{{ bot.state }}{% if bot.frozen %} <span class="badge">Frozen</span>{% endif %}</dd>
+  <dt>Open merge requests</dt>
+  <dd>{% if bot.open_mrs == 0 %}None{% else %}{{ bot.open_mrs }}{% endif %}</dd>
+  <dt>Token that expires next</dt>
+  <dd>{% if let Some((n, t)) = bot.next_expiry %}{{ n }}, <time datetime="{{ t.iso }}">{{ t.text }}</time>{% else %}No active token{% endif %}</dd>
+  <dt>API requests this hour</dt>
+  <dd>{{ bot.requests }} <span class="text-secondary">(counted by this server)</span></dd>
+</dl>
+{%- if !bot.mrs.is_empty() %}
+<h3>Newest open merge requests</h3>
+<ul class="plain-list">
+{%- for m in bot.mrs %}
+  <li><a href="/{{ m.repo }}/merge-requests/{{ m.number }}">{{ m.repo }}!{{ m.number }}</a> {{ m.title }}</li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- if !bot.pushes.is_empty() %}
+<h3>Recent pushes</h3>
+<ul class="plain-list">
+{%- for p in bot.pushes %}
+  <li><a href="/{{ p.repo }}">{{ p.repo }}</a> <span class="text-secondary">over {{ p.transport }}, <time datetime="{{ p.at.iso }}">{{ p.at.text }}</time></span></li>
+{%- endfor %}
+</ul>
+{%- endif %}
 
 <h2>Profile</h2>
 <div class="profile-avatar">
@@ -189,4 +217,24 @@
   </div>
   <div><button type="submit" class="button button-primary">Add key</button></div>
 </form>
+{%- if bot.stopped_at.is_some() %}
+<section class="merge-step" aria-labelledby="start-title">
+  <h2 id="start-title" class="merge-step-title">Re-enable this bot</h2>
+  <p>It was stopped{% if let Some(t) = bot.stopped_at %} <time datetime="{{ t.iso }}">{{ t.text }}</time>{% endif %}. Re-enabled, it has no tokens or SSH keys: add new ones above.</p>
+  <form method="post" action="/-/bots/{{ bot.name }}/start" class="form-actions">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button">Re-enable bot</button>
+  </form>
+</section>
+{%- else if bot.active %}
+<section class="merge-step" aria-labelledby="stop-title">
+  <h2 id="stop-title" class="merge-step-title">Stop this bot</h2>
+  <p>Stops it at once: its tokens are revoked, its SSH keys removed, and its pushes refused. Its merge requests, comments, and memberships stay. You can re-enable it later with new credentials.</p>
+  <form method="post" action="/-/bots/{{ bot.name }}/stop" class="form-actions">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <button type="submit" class="button button-danger">Stop bot</button>
+  </form>
+</section>
+{%- endif %}
+
 {% endblock %}

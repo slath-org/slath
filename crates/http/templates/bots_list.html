@@ -3,21 +3,8 @@
 {%- if bots.is_empty() %}
 <p class="text-secondary empty-state">No bots yet.</p>
 {%- else %}
-<div class="table-wrap" tabindex="0" role="region" aria-labelledby="bots-caption">
-<table class="table">
-  <caption id="bots-caption" class="visually-hidden">Bots</caption>
-  <thead><tr><th scope="col">Bot</th><th scope="col">State</th><th scope="col">Created</th></tr></thead>
-  <tbody>
-  {%- for b in bots %}
-    <tr>
-      <td><a href="/-/bots/{{ b.name }}">{{ b.name }}</a>{% if let Some(d) = b.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
-      <td>{% if b.active %}Active{% else %}Suspended{% endif %}</td>
-      <td><time datetime="{{ b.created.iso }}">{{ b.created.text }}</time></td>
-    </tr>
-  {%- endfor %}
-  </tbody>
-</table>
-</div>
+{%- let admin_view = false %}
+{% include "bots_table.html" %}
 {%- endif %}
 
 <h2>New bot</h2>

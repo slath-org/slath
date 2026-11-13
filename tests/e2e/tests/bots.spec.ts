@@ -40,3 +40,56 @@ test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   await expect(page.getByRole("table", { name: `Tokens of ${bot}` })).toContainText("release job");
   await expectAccessible(page);
 });
+
+test("conf_agent_01_stop_and_re_enable_a_bot", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  const bot = `stop-${test.info().project.name}`.replace(/[^a-z0-9-]/gi, "-").slice(0, 39).toLowerCase();
+  await page.goto("/-/settings/bots");
+  await page.getByLabel("Username").fill(bot);
+  await tapOrClick(page, page.getByRole("button", { name: "Create bot" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(bot);
+  await expect(page.getByRole("term").filter({ hasText: "API requests this hour" })).toBeVisible();
+  await expectAccessible(page);
+
+  await tapOrClick(page, page.getByRole("button", { name: "Stop bot" }));
+  await expect(page.getByRole("status").filter({ hasText: "Bot stopped." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Stopped");
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Re-enable bot" }));
+  await expect(page.getByRole("status").filter({ hasText: "Bot re-enabled." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop bot" })).toBeVisible();
+
+  // The list shows each bot's state and activity.
+  await page.goto("/-/settings/bots");
+  const row = page.getByRole("row").filter({ hasText: bot });
+  await expect(row).toContainText("Active");
+  await expect(row).toContainText("No active token");
+  await expectAccessible(page);
+});
+
+test("conf_agent_10_freeze_an_organizations_bots", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  const org = `fz-${test.info().project.name}`.replace(/[^a-z0-9-]/gi, "-").slice(0, 39).toLowerCase();
+  await page.goto("/-/orgs/new");
+  await page.getByLabel("Name", { exact: true }).fill(org);
+  await tapOrClick(page, page.getByRole("button", { name: "Create organization" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(org);
+  await page.goto(`/${org}/-/bots`);
+  await expect(page.getByRole("heading", { name: `Freeze the bots of ${org}` })).toBeVisible();
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Freeze bots" }));
+  await expect(page.getByRole("status").filter({ hasText: "Bots frozen." })).toBeVisible();
+  await expect(page.getByText(`The bots of ${org} are frozen`)).toBeVisible();
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Unfreeze bots" }));
+  await expect(page.getByRole("status").filter({ hasText: "Bots unfrozen." })).toBeVisible();
+});
+
+test("conf_agent_01_administrators_see_every_bot", async ({ page }) => {
+  await signIn(page, USERS.admin);
+  await page.goto("/-/admin/bots");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Bots");
+  await expect(page.getByRole("row").filter({ hasText: "e2e-lint" })).toContainText("alice");
+  await expect(page.getByRole("heading", { name: "Freeze all bots" })).toBeVisible();
+  await expectAccessible(page);
+});

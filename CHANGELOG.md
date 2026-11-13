@@ -144,6 +144,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Re-enable a stopped bot through the API or `slath admin bot start`; it comes back without credentials. Both are audited.
 - A bot's overview in the API lists its open merge requests and recent pushes (only in repositories you can read), its next token expiry, and its API requests this hour.
 - Freeze all bots of an organization (its owners) or of the instance (site administrators) through the API or `slath admin bot freeze`; nothing is revoked, and unfreezing restores access.
+- Bot lists show each bot's state, open merge requests, last push, next token expiry, and API requests this hour; a bot's page lists its newest merge requests and pushes.
+- Stop bot and Re-enable bot on a bot's page, Freeze bots on an organization's Bots page, and Administration → Bots for every bot of the instance.
 - A bot's page changes its avatar and display name.
 - Commits and merge requests come as plain-text diffs and patches: `.diff` and `.patch` after their address, and `…/diff` and `…/patch` in the API.
 - `slath admin apply FILE` creates the users, organizations, bots, repositories, and tokens a TOML file lists; running it again changes nothing.

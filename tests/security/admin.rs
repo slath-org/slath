@@ -169,6 +169,7 @@ fn conf_sec_admin_pages_are_not_found_for_everyone_else() {
         "/-/admin",
         "/-/admin/users",
         "/-/admin/orgs",
+        "/-/admin/bots",
         "/-/admin/repos",
         "/-/admin/audit",
         "/-/admin/health",

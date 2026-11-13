@@ -1,0 +1,16 @@
+{% extends "admin/layout.html" %}
+{% block title %}Bots · Administration{% endblock %}
+{% block admin %}
+<h1>Bots</h1>
+{%- if let Some(m) = message %}
+<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- endif %}
+<p>Every bot of the instance. Merge requests and pushes count in every repository. Their owners manage their tokens and keys on the bot's page.</p>
+{% include "bots_freeze.html" %}
+{%- if bots.is_empty() %}
+<p class="text-secondary empty-state">No bots.</p>
+{%- else %}
+{%- let admin_view = true %}
+{% include "bots_table.html" %}
+{%- endif %}
+{% endblock %}

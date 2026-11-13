@@ -142,6 +142,10 @@ bot stands.
 
 ## What your bots are doing
 
+The bot lists (**Settings → Bots** and an organization's **Bots** page)
+show each bot's state, its open merge requests, its last push, when its
+next token expires, and its API requests this hour; a bot's page lists its
+newest open merge requests and pushes. In the API,
 `GET /api/v1/bots/<name>/overview` (`user:read`) shows a bot's managers and
 site administrators what it's up to: its state and whether a freeze
 applies, its open merge requests (the count and the newest 5), its newest
@@ -152,7 +156,8 @@ that answers, so behind several Slath processes it's that process's share.
 
 ## Stopping a bot
 
-If a bot misbehaves or one of its credentials may have leaked, stop it:
+If a bot misbehaves or one of its credentials may have leaked, stop it
+with **Stop bot** at the bottom of its page, or through the API:
 
 ```sh
 curl -X POST https://git.example.org/api/v1/bots/alice-ci/stop \
@@ -165,8 +170,8 @@ refused before it changes anything. Its memberships, merge requests,
 comments, and statuses stay. The bot's managers and site administrators
 can stop it; on a server, `slath admin bot stop alice-ci` does the same.
 
-`POST /api/v1/bots/alice-ci/start` (or `slath admin bot start alice-ci`)
-re-enables a stopped bot. It comes back without credentials, so create new
+**Re-enable bot** on its page, `POST /api/v1/bots/alice-ci/start`, or
+`slath admin bot start alice-ci` re-enables a stopped bot. It comes back without credentials, so create new
 tokens and keys for it. A bot that a site administrator suspended, or that
 was suspended with its owner, can't be re-enabled this way. Stops and
 re-enables are in the audit log (`bot.stop`, `bot.start`).
@@ -174,7 +179,8 @@ re-enables are in the audit log (`bot.stop`, `bot.start`).
 ## Freezing all bots
 
 To pause every bot of an organization at once, for example while you look
-into an incident, its owners freeze them:
+into an incident, its owners freeze them with **Freeze bots** on the
+organization's **Bots** page, or through the API:
 
 ```sh
 curl -X PUT https://git.example.org/api/v1/orgs/acme/bot-freeze \

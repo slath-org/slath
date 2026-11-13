@@ -10,14 +10,15 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::authz::{Scope, Subject, UserState};
-use slath_db::bots::{Bot, BotOwner};
+use slath_db::bots::BotOwner;
+use slath_service::bot_control::{BotOverview, FreezeScope};
 use slath_service::bots::{BOT_SCOPES, NewBotToken, Owner};
 use slath_service::{FieldError, ServiceError};
 
 use super::settings::error_for;
 use super::{PageCtx, Time, render};
 use crate::AppState;
-use crate::auth::{RequireSession, Sudo};
+use crate::auth::{MaybeSession, RequireSession, Sudo};
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
@@ -37,6 +38,12 @@ fn message(s: Option<&str>) -> Option<&'static str> {
         "profile-saved" => "Profile saved.",
         "avatar-saved" => "Avatar saved.",
         "avatar-removed" => "Avatar removed. The generated avatar is shown again.",
+        "stopped" => {
+            "Bot stopped. Its tokens are revoked, its SSH keys removed, and its pushes refused."
+        }
+        "started" => "Bot re-enabled. It has no tokens or SSH keys: add new ones below.",
+        "frozen" => "Bots frozen. Their credentials are refused until you unfreeze them.",
+        "unfrozen" => "Bots unfrozen. Their credentials work again.",
         _ => return None,
     })
 }
@@ -49,21 +56,90 @@ fn hide(e: ServiceError) -> AppError {
     }
 }
 
-/// A bot row for the lists.
+/// A bot with its overview, for the lists and its page.
 struct BotView {
     name: String,
     display_name: Option<String>,
+    owner: String,
     active: bool,
-    created: Time,
+    /// Active, Stopped, or Suspended.
+    state: &'static str,
+    stopped_at: Option<Time>,
+    frozen: bool,
+    open_mrs: i64,
+    mrs: Vec<slath_db::bots::OpenMr>,
+    pushes: Vec<PushView>,
+    next_expiry: Option<(String, Time)>,
+    /// "3 of 2000".
+    requests: String,
 }
 
-impl From<Bot> for BotView {
-    fn from(b: Bot) -> Self {
+struct PushView {
+    repo: String,
+    transport: String,
+    at: Time,
+}
+
+impl BotView {
+    fn new(state: &AppState, o: BotOverview) -> Self {
+        let limit = state.config.limits.bot_requests_per_hour;
+        let used = state
+            .api_limits
+            .used(&crate::api::support::RateLimiter::bot_key(o.bot.id), limit);
+        let b = o.bot;
         Self {
             active: b.state == UserState::Active,
+            state: match (b.state, b.stopped_at) {
+                (UserState::Active, _) => "Active",
+                (_, Some(_)) => "Stopped",
+                _ => "Suspended",
+            },
+            stopped_at: b.stopped_at.map(Into::into),
             name: b.name,
             display_name: b.display_name,
-            created: b.created_at.into(),
+            owner: b.owner_name,
+            frozen: o.frozen,
+            open_mrs: o.open_mr_count,
+            mrs: o.open_mrs,
+            pushes: o
+                .pushes
+                .into_iter()
+                .map(|p| PushView {
+                    repo: p.repo,
+                    transport: match p.transport.as_str() {
+                        "http" => "HTTPS",
+                        "ssh" => "SSH",
+                        _ => "Slath",
+                    }
+                    .to_owned(),
+                    at: p.at.into(),
+                })
+                .collect(),
+            next_expiry: o.next_expiry.map(|(n, t)| (n, t.into())),
+            requests: format!("{used} of {limit}"),
+        }
+    }
+
+    /// The newest push, for the lists.
+    fn last_push(&self) -> Option<&PushView> {
+        self.pushes.first()
+    }
+}
+
+/// Whether a scope's bots are frozen, for the freeze controls.
+struct FreezeView {
+    /// "The bots of acme", "All bots".
+    scope: String,
+    since: Option<Time>,
+    by: Option<String>,
+}
+
+impl FreezeView {
+    fn new(scope: String, f: Option<slath_db::bots::Freeze>) -> Self {
+        Self {
+            scope,
+            by: f.as_ref().and_then(|f| f.frozen_by.clone()),
+            since: f.map(|f| f.frozen_at.into()),
         }
     }
 }
@@ -87,6 +163,8 @@ struct OrgBotsPage {
     ctx: PageCtx,
     org: String,
     bots: Vec<BotView>,
+    freeze: FreezeView,
+    freeze_action: String,
     message: Option<&'static str>,
     errors: Vec<FieldError>,
     action: String,
@@ -126,11 +204,11 @@ async fn bots_page(
 ) -> Result<Response, AppError> {
     let bots = state
         .services
-        .list_bots(subject, owner)
+        .bot_overviews(subject, owner)
         .await
         .map_err(hide)?
         .into_iter()
-        .map(Into::into)
+        .map(|o| BotView::new(state, o))
         .collect();
     let status = if errors.is_empty() {
         StatusCode::OK
@@ -149,14 +227,21 @@ async fn bots_page(
             display_name: form.display_name,
         }),
         Owner::Org(org) => {
-            let org = state
+            let Some((org, slath_db::orgs::NamespaceKind::Org(id))) =
+                state.services.resolve_namespace(org).await?
+            else {
+                return Err(AppError::not_found());
+            };
+            let freeze = state
                 .services
-                .resolve_namespace(org)
-                .await?
-                .map_or_else(|| org.to_owned(), |(n, _)| n);
+                .bot_freeze(subject, FreezeScope::Org(id))
+                .await
+                .map_err(hide)?;
             render(&OrgBotsPage {
                 ctx,
                 action: format!("/{org}/-/bots"),
+                freeze: FreezeView::new(format!("The bots of {org}"), freeze),
+                freeze_action: format!("/{org}/-/bots/freeze"),
                 org,
                 bots,
                 message,
@@ -339,6 +424,11 @@ async fn bot_page(
         .managed_bot(subject, name, Scope::UserRead)
         .await
         .map_err(hide)?;
+    let overview = state
+        .services
+        .bot_overview(subject, &bot.name)
+        .await
+        .map_err(hide)?;
     let now = time::OffsetDateTime::now_utc();
     let tokens = state
         .services
@@ -414,7 +504,7 @@ async fn bot_page(
         tab: "bots",
         org: matches!(bot.owner, BotOwner::Org(_)).then(|| bot.owner_name.clone()),
         owner: bot.owner_name.clone(),
-        bot: bot.into(),
+        bot: BotView::new(state, overview),
         tokens,
         keys,
         message: x.message,
@@ -659,6 +749,137 @@ async fn save_avatar(
     }
 }
 
+/// Where to go back to after stopping or freezing: the page it was done on.
+#[derive(Deserialize, Default)]
+struct BackForm {
+    #[serde(default)]
+    back: String,
+    #[serde(default)]
+    frozen: String,
+}
+
+fn back_to(back: &str, fallback: String, status: &str) -> Response {
+    let to = if back == "/-/admin/bots" {
+        back.to_owned()
+    } else {
+        fallback
+    };
+    Redirect::to(&format!("{to}?status={status}")).into_response()
+}
+
+async fn stop(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path(name): Path<String>,
+    Form(f): Form<BackForm>,
+) -> Result<Response, AppError> {
+    state
+        .services
+        .stop_bot(&s.subject, &name)
+        .await
+        .map_err(hide)?;
+    Ok(back_to(&f.back, format!("/-/bots/{name}"), "stopped"))
+}
+
+async fn start(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path(name): Path<String>,
+    Form(f): Form<BackForm>,
+) -> Result<Response, AppError> {
+    state
+        .services
+        .start_bot(&s.subject, &name)
+        .await
+        .map_err(hide)?;
+    Ok(back_to(&f.back, format!("/-/bots/{name}"), "started"))
+}
+
+async fn org_freeze(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path(org): Path<String>,
+    Form(f): Form<BackForm>,
+) -> Result<Response, AppError> {
+    let Some((org, slath_db::orgs::NamespaceKind::Org(id))) =
+        state.services.resolve_namespace(&org).await?
+    else {
+        return Err(AppError::not_found());
+    };
+    let frozen = f.frozen == "true";
+    state
+        .services
+        .set_bot_freeze(&s.subject, FreezeScope::Org(id), frozen)
+        .await
+        .map_err(hide)?;
+    Ok(Redirect::to(&format!(
+        "/{org}/-/bots?status={}",
+        if frozen { "frozen" } else { "unfrozen" }
+    ))
+    .into_response())
+}
+
+#[derive(Template)]
+#[template(path = "admin/bots.html")]
+struct AdminBotsPage {
+    ctx: PageCtx,
+    section: &'static str,
+    bots: Vec<BotView>,
+    freeze: FreezeView,
+    freeze_action: String,
+    message: Option<&'static str>,
+}
+
+async fn admin_bots(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Query(q): Query<StatusQuery>,
+) -> Result<Response, AppError> {
+    // Like every admin page: "not found" for everyone else, signed in or not.
+    let subject = session.subject();
+    let bots = state
+        .services
+        .all_bot_overviews(&subject)
+        .await
+        .map_err(hide)?
+        .into_iter()
+        .map(|o| BotView::new(&state, o))
+        .collect();
+    let freeze = state
+        .services
+        .bot_freeze(&subject, FreezeScope::Instance)
+        .await
+        .map_err(hide)?;
+    Ok(render(&AdminBotsPage {
+        ctx,
+        section: "bots",
+        bots,
+        freeze: FreezeView::new("All bots".to_owned(), freeze),
+        freeze_action: "/-/admin/bots/freeze".to_owned(),
+        message: message(q.status.as_deref()),
+    }))
+}
+
+async fn admin_freeze(
+    State(state): State<AppState>,
+    session: MaybeSession,
+    Form(f): Form<BackForm>,
+) -> Result<Response, AppError> {
+    let subject = session.subject();
+    let frozen = f.frozen == "true";
+    state
+        .services
+        .set_bot_freeze(&subject, FreezeScope::Instance, frozen)
+        .await
+        .map_err(hide)?;
+    Ok(back_to(
+        "/-/admin/bots",
+        String::new(),
+        if frozen { "frozen" } else { "unfrozen" },
+    ))
+}
+
 pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
@@ -694,5 +915,14 @@ pub fn router() -> Router<AppState> {
             "/-/bots/{name}/keys/{id}/delete",
             Access::Resource,
             post(remove_key),
+        )
+        .route_as("/-/bots/{name}/stop", Access::Resource, post(stop))
+        .route_as("/-/bots/{name}/start", Access::Resource, post(start))
+        .route_as("/{org}/-/bots/freeze", Access::Resource, post(org_freeze))
+        .route_as("/-/admin/bots", Access::SiteAdmin, get(admin_bots))
+        .route_as(
+            "/-/admin/bots/freeze",
+            Access::SiteAdmin,
+            post(admin_freeze),
         )
 }

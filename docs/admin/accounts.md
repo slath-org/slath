@@ -191,7 +191,9 @@ credentials. Owners and organization owners can do the same through the
 API (see [Bots](../user/bots.md#stopping-a-bot)); reactivating a bot under
 **Administration → Users** also ends its stop.
 
-To pause every bot of the instance at once, freeze them:
+**Administration → Bots** lists every bot with its owner, state, and
+activity (in every repository), with **Stop** and **Re-enable** for each,
+and **Freeze bots** for all of them. On the server, freeze them with
 `slath admin bot freeze` (or `PUT /api/v1/admin/bot-freeze` with a token
 that has the `admin` scope). Frozen bots can't use their tokens or SSH
 keys and their pushes are refused; nothing is revoked, and

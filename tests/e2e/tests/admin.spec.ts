@@ -11,6 +11,7 @@ test("conf_a11y_01_admin_pages_accessible", async ({ page }) => {
   for (const [link, heading] of [
     ["Users", "Users"],
     ["Organizations", "Organizations"],
+    ["Bots", "Bots"],
     ["Repositories", "Repositories"],
     ["Audit log", "Audit log"],
     ["Upgrades", "Upgrades"],

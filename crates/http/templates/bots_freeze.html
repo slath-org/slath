@@ -1,0 +1,22 @@
+{#- Freezing every bot of a scope. Expects freeze (FreezeView) and
+    freeze_action. -#}
+{%- if let Some(f) = freeze.since %}
+<div class="notice" role="status">
+  <p class="notice-line">{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ freeze.scope }} are frozen</strong> since <time datetime="{{ f.iso }}">{{ f.text }}</time>{% if let Some(by) = freeze.by %} by {{ by }}{% endif %}. Their tokens and SSH keys are refused and their pushes rejected; nothing is revoked.</span></p>
+  <form method="post" action="{{ freeze_action }}" class="form-actions">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="frozen" value="false">
+    <button type="submit" class="button">Unfreeze bots</button>
+  </form>
+</div>
+{%- else %}
+<section class="merge-step" aria-labelledby="freeze-title">
+  <h2 id="freeze-title" class="merge-step-title">Freeze {{ freeze.scope|lower }}</h2>
+  <p>Pauses them at once, for example during an incident: their tokens and SSH keys are refused and their pushes rejected until you unfreeze them. Nothing is revoked.</p>
+  <form method="post" action="{{ freeze_action }}" class="form-actions">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="frozen" value="true">
+    <button type="submit" class="button button-danger">Freeze bots</button>
+  </form>
+</section>
+{%- endif %}
