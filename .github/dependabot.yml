@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Keeps the hash-pinned actions in the workflows current (and their
+# version comments). One grouped pull request a week; a release must be a
+# week old first, so a compromised one has time to be noticed and pulled.
+# Images under `services:` aren't covered: bump the postgres digest by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
