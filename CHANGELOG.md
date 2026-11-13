@@ -142,6 +142,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A Bot badge follows bots' names on issues, merge requests, comments, reviews, statuses, member lists, and the audit log; a bot's profile names its owner.
 - Stop a bot through the API or `slath admin bot stop`: it's suspended, its tokens are revoked, its SSH keys are removed, and its pushes are refused at once.
 - Re-enable a stopped bot through the API or `slath admin bot start`; it comes back without credentials. Both are audited.
+- A bot's overview in the API lists its open merge requests and recent pushes (only in repositories you can read), its next token expiry, and its API requests this hour.
 - Freeze all bots of an organization (its owners) or of the instance (site administrators) through the API or `slath admin bot freeze`; nothing is revoked, and unfreezing restores access.
 - A bot's page changes its avatar and display name.
 - Commits and merge requests come as plain-text diffs and patches: `.diff` and `.patch` after their address, and `…/diff` and `…/patch` in the API.

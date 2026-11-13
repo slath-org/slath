@@ -401,6 +401,61 @@
         ]
       }
     },
+    "/api/v1/bots/{name}/overview": {
+      "get": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "A bot's open merge requests, recent pushes, next token expiry, and\nrate-limit use (`user:read`; its managers and site administrators).",
+        "operationId": "bot_overview",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/bots/{name}/start": {
       "post": {
         "tags": [
@@ -9987,6 +10042,59 @@
           }
         }
       },
+      "BotOverview": {
+        "type": "object",
+        "description": "What a bot's managers see of it. Merge requests and pushes are only\nthose in repositories the caller can read.",
+        "required": [
+          "bot",
+          "frozen",
+          "open_merge_requests",
+          "recent_merge_requests",
+          "recent_pushes",
+          "rate_limit"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/Bot"
+          },
+          "frozen": {
+            "type": "boolean",
+            "description": "A freeze of its organization or of the instance applies to it."
+          },
+          "next_token_expiry": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OverviewToken"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open_merge_requests": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "rate_limit": {
+            "$ref": "#/components/schemas/OverviewRateLimit"
+          },
+          "recent_merge_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewMr"
+            },
+            "description": "The newest open merge requests (at most 5)."
+          },
+          "recent_pushes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewPush"
+            },
+            "description": "The newest pushes (at most 5)."
+          }
+        }
+      },
       "BotOwnerRef": {
         "type": "object",
         "description": "Who owns a bot.",
@@ -12116,6 +12224,85 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "OverviewMr": {
+        "type": "object",
+        "description": "An open merge request in a bot's overview.",
+        "required": [
+          "repo",
+          "number",
+          "title"
+        ],
+        "properties": {
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repo": {
+            "type": "string",
+            "description": "`namespace/name`."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "OverviewPush": {
+        "type": "object",
+        "description": "A push in a bot's overview.",
+        "required": [
+          "repo",
+          "transport",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string",
+            "description": "`http`, `ssh`, `internal`, or `reconcile`."
+          }
+        }
+      },
+      "OverviewRateLimit": {
+        "type": "object",
+        "description": "API requests in the current hour, counted by this server process.",
+        "required": [
+          "limit",
+          "used"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "OverviewToken": {
+        "type": "object",
+        "description": "The bot's token that expires next.",
+        "required": [
+          "name",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },

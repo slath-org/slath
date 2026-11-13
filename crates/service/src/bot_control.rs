@@ -40,7 +40,11 @@ impl Services {
     /// A bot the subject may stop and re-enable: its managers, and site
     /// administrators for every bot. Everyone else gets "not found".
     pub async fn controlled_bot(&self, subject: &Subject, name: &str) -> Result<Bot> {
-        match self.managed_bot(subject, name, Scope::UserWrite).await {
+        self.overseen_bot(subject, name, Scope::UserWrite).await
+    }
+
+    async fn overseen_bot(&self, subject: &Subject, name: &str, scope: Scope) -> Result<Bot> {
+        match self.managed_bot(subject, name, scope).await {
             Ok(b) => Ok(b),
             Err(ServiceError::NotFound) if site_admin(subject) => {
                 slath_db::bots::find(&self.pool, name.trim())
@@ -275,5 +279,86 @@ impl Services {
             return Ok(false);
         }
         Ok(slath_db::bots::frozen(&self.pool, user).await?)
+    }
+}
+
+/// What a bot's managers see of it (spec/04 bot accounts, overview).
+#[derive(Debug, Clone)]
+pub struct BotOverview {
+    pub bot: Bot,
+    /// A freeze applies to it.
+    pub frozen: bool,
+    /// Open merge requests it opened, in repositories the viewer can read.
+    pub open_mr_count: i64,
+    /// The newest of them (at most [`OVERVIEW_ITEMS`]).
+    pub open_mrs: Vec<slath_db::bots::OpenMr>,
+    /// Its newest pushes (at most [`OVERVIEW_ITEMS`]).
+    pub pushes: Vec<slath_db::bots::RecentPush>,
+    /// Its usable token that expires next: (name, expiry).
+    pub next_expiry: Option<(String, time::OffsetDateTime)>,
+}
+
+/// How many merge requests and pushes an overview lists.
+pub const OVERVIEW_ITEMS: i64 = 5;
+
+impl Services {
+    /// One bot's overview, for its managers and site administrators.
+    pub async fn bot_overview(&self, subject: &Subject, name: &str) -> Result<BotOverview> {
+        let bot = self.overseen_bot(subject, name, Scope::UserRead).await?;
+        self.overview_of(subject, bot).await
+    }
+
+    /// The overviews of an owner's bots (as [`Services::list_bots`] lists
+    /// them).
+    pub async fn bot_overviews(
+        &self,
+        subject: &Subject,
+        owner: crate::bots::Owner<'_>,
+    ) -> Result<Vec<BotOverview>> {
+        let mut out = Vec::new();
+        for bot in self.list_bots(subject, owner).await? {
+            out.push(self.overview_of(subject, bot).await?);
+        }
+        Ok(out)
+    }
+
+    /// Every bot of the instance, for site administrators.
+    pub async fn all_bot_overviews(&self, subject: &Subject) -> Result<Vec<BotOverview>> {
+        if !site_admin(subject) {
+            return Err(ServiceError::NotFound);
+        }
+        let mut out = Vec::new();
+        for bot in slath_db::bots::list_all(&self.pool).await? {
+            out.push(self.overview_of(subject, bot).await?);
+        }
+        Ok(out)
+    }
+
+    async fn overview_of(&self, subject: &Subject, bot: Bot) -> Result<BotOverview> {
+        let viewer = match subject {
+            Subject::User { id, .. } => Some(*id),
+            _ => None,
+        };
+        let admin = site_admin(subject);
+        let (open_mr_count, open_mrs) =
+            slath_db::bots::open_mrs(&self.pool, bot.id, viewer, admin, OVERVIEW_ITEMS).await?;
+        let pushes =
+            slath_db::bots::recent_pushes(&self.pool, bot.id, viewer, admin, OVERVIEW_ITEMS)
+                .await?;
+        let next_expiry = slath_db::tokens::list_for_user(&self.pool, bot.id)
+            .await?
+            .into_iter()
+            .filter(|t| t.revoked_at.is_none())
+            .filter_map(|t| t.expires_at.map(|e| (t.name, e)))
+            .filter(|(_, e)| *e > time::OffsetDateTime::now_utc())
+            .min_by_key(|(_, e)| *e);
+        Ok(BotOverview {
+            frozen: slath_db::bots::frozen(&self.pool, bot.id).await?,
+            bot,
+            open_mr_count,
+            open_mrs,
+            pushes,
+            next_expiry,
+        })
     }
 }

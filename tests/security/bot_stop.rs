@@ -297,3 +297,123 @@ fn conf_agent_10_freezing_refuses_every_bot_credential_until_unfrozen() {
     assert_eq!(audit_count(&s, "bot.freeze"), "2");
     assert_eq!(audit_count(&s, "bot.unfreeze"), "2");
 }
+
+/// Opens a merge request from a new branch of `repo` as `token`.
+fn bot_mr(s: &TestServer, token: &str, repo: &str, branch: &str) {
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = format!(
+        "http://git:{token}@{}/{repo}.git",
+        s.base().trim_start_matches("http://")
+    );
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "x\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "-c", branch]);
+    std::fs::write(w.join("f.txt"), branch).unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", branch]);
+    git.ok(w, &["push", "-q", &url, branch]);
+    let r = s.client().api(
+        "POST",
+        &format!("/api/v1/repos/{repo}/merge-requests"),
+        Some(token),
+        Some(&json!({"source_branch": branch, "title": format!("From {branch}")})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+}
+
+#[test]
+fn conf_agent_01_the_overview_shows_only_what_the_viewer_may_see() {
+    // A low limit refills slowly, so the count of the bot's requests holds.
+    let s = TestServer::start_full(&[], "[limits]\nbot_requests_per_hour = 10\n");
+    s.create_user("alice", PW, false);
+    s.create_user("bob", PW, false);
+    s.create_user("sysop", PW, true);
+    let mut a = s.login("alice", PW);
+    let r = slath_tests::http::submit(
+        &mut a,
+        "/-/orgs/new",
+        "/-/orgs",
+        &[("name", "acme"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    slath_tests::http::create_repo(&mut a, "acme", "lib", "private");
+    let ta = create_token(&mut a, "t", &["user:write", "repo:write"]);
+    let mut b = s.login("bob", PW);
+    slath_tests::http::create_repo(&mut b, "bob", "secret", "private");
+    let tb = create_token(&mut b, "t", &["user:write", "repo:write"]);
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "acme",
+            "--name",
+            "acme-ci",
+            "--token-scopes",
+            "repo:write,mrs:write,user:read",
+            "--repo",
+            "acme/lib",
+            "--repo",
+            "bob/secret",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let bot = serde_json::from_str::<serde_json::Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut api = s.client();
+    for (repo, token) in [("acme/lib", &ta), ("bob/secret", &tb)] {
+        let r = api.api(
+            "PUT",
+            &format!("/api/v1/repos/{repo}/collaborators/acme-ci"),
+            Some(token),
+            Some(&json!({"role": "write"})),
+        );
+        assert!(r.status < 300, "{repo}: {}", r.body);
+    }
+    bot_mr(&s, &bot, "acme/lib", "fix-a");
+    bot_mr(&s, &bot, "bob/secret", "fix-b");
+
+    // alice manages the bot but can't read bob/secret: none of it shows.
+    let r = api.api("GET", "/api/v1/bots/acme-ci/overview", Some(&ta), None);
+    assert_eq!(r.status, 200, "{}", r.body);
+    contract::check("GET", "/api/v1/bots/{name}/overview", &r);
+    let o = r.json();
+    assert_eq!(o["open_merge_requests"], 1, "{o}");
+    assert_eq!(o["recent_merge_requests"][0]["repo"], "acme/lib");
+    let pushes = o["recent_pushes"].as_array().unwrap();
+    assert!(
+        !pushes.is_empty() && pushes.iter().all(|p| p["repo"] == "acme/lib"),
+        "{o}"
+    );
+    assert_eq!(o["frozen"], false);
+    assert!(o["next_token_expiry"]["expires_at"].is_string(), "{o}");
+    // Its two API requests (the merge requests); Git doesn't count.
+    assert_eq!(o["rate_limit"], json!({"limit": 10, "used": 2}), "{o}");
+    // A site administrator sees both; bob, who doesn't manage it, nothing.
+    let mut c = s.login("sysop", PW);
+    let admin = create_token(&mut c, "t", &["admin", "user:read"]);
+    let o = api
+        .api("GET", "/api/v1/bots/acme-ci/overview", Some(&admin), None)
+        .json();
+    assert_eq!(o["open_merge_requests"], 2, "{o}");
+    assert_eq!(
+        api.api("GET", "/api/v1/bots/acme-ci/overview", Some(&tb), None)
+            .status,
+        404
+    );
+    assert_eq!(
+        api.api("GET", "/api/v1/bots/acme-ci/overview", Some(&bot), None)
+            .status,
+        404
+    );
+}

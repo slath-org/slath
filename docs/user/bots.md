@@ -140,6 +140,16 @@ Bots make at most 2,000 API requests per hour (site setting
 `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` say where a
 bot stands.
 
+## What your bots are doing
+
+`GET /api/v1/bots/<name>/overview` (`user:read`) shows a bot's managers and
+site administrators what it's up to: its state and whether a freeze
+applies, its open merge requests (the count and the newest 5), its newest
+5 pushes, the token that expires next, and its API requests in the
+current hour. Merge requests and pushes in repositories you can't read
+aren't counted or listed. The request count comes from the server process
+that answers, so behind several Slath processes it's that process's share.
+
 ## Stopping a bot
 
 If a bot misbehaves or one of its credentials may have leaked, stop it:

@@ -31,6 +31,25 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
+    /// How many requests `key` has used of `per_hour` by now, without
+    /// taking one (this process only: buckets are in memory).
+    pub fn used(&self, key: &str, per_hour: u32) -> u32 {
+        let cap = f64::from(per_hour.max(1));
+        let Ok(map) = self.buckets.lock() else {
+            return 0;
+        };
+        map.get(key).map_or(0, |(tokens, last)| {
+            let now = (*tokens + last.elapsed().as_secs_f64() * cap / 3600.0).min(cap);
+            (cap - now).max(0.0).round() as u32
+        })
+    }
+
+    /// The key and hourly limit a bot's API requests count against.
+    #[must_use]
+    pub fn bot_key(bot: slath_core::ids::UserId) -> String {
+        format!("u:{bot}")
+    }
+
     /// Takes one token; returns (allowed, remaining, seconds until reset).
     fn take(&self, key: &str, per_hour: u32) -> (bool, u32, u64) {
         let cap = f64::from(per_hour.max(1));

@@ -154,7 +154,7 @@ impl utoipa::Modify for SecurityAddon {
         user::list_keys, user::add_key, user::remove_key,
         user::list_tokens, user::create_token, user::revoke_token,
         bots::list_user_bots, bots::create_user_bot, bots::list_org_bots, bots::create_org_bot, bots::get_bot,
-        bots::list_bot_tokens, bots::create_bot_token, bots::revoke_bot_token, bots::list_bot_keys, bots::add_bot_key, bots::remove_bot_key, bots::stop_bot, bots::start_bot, bot_freeze::get_org_freeze, bot_freeze::freeze_org, bot_freeze::unfreeze_org, bot_freeze::get_instance_freeze, bot_freeze::freeze_instance, bot_freeze::unfreeze_instance,
+        bots::list_bot_tokens, bots::create_bot_token, bots::revoke_bot_token, bots::list_bot_keys, bots::add_bot_key, bots::remove_bot_key, bots::stop_bot, bots::start_bot, bots::bot_overview, bot_freeze::get_org_freeze, bot_freeze::freeze_org, bot_freeze::unfreeze_org, bot_freeze::get_instance_freeze, bot_freeze::freeze_instance, bot_freeze::unfreeze_instance,
         orgs::list_orgs, orgs::create_org, orgs::get_org, orgs::update_org,
         orgs::list_members, orgs::get_member, orgs::put_member, orgs::delete_member,
         repos::list_repos, repos::create_repo, repos::get_repo, repos::update_repo, repos::delete_repo,

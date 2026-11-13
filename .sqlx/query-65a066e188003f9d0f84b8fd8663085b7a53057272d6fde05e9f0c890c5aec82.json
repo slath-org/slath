@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"n!\" FROM merge_requests m JOIN repositories r ON r.id = m.repo_id\n           WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "65a066e188003f9d0f84b8fd8663085b7a53057272d6fde05e9f0c890c5aec82"
+}

@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text || '/' || r.name::text AS \"repo!\", p.transport, p.created_at\n           FROM push_events p JOIN repositories r ON r.id = p.repo_id\n           JOIN namespaces n ON n.id = r.namespace_id\n           WHERE p.pusher_id = $1 AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n           ORDER BY p.created_at DESC LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "repo!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "transport",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "push_events",
+            "name": "transport"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "push_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "d332ad91dad9409c56f6f249ea3304600906fcd6e31a393b940be33e1e43bba9"
+}

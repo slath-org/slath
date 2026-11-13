@@ -293,6 +293,104 @@ pub async fn remove_bot_key(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// An open merge request in a bot's overview.
+#[derive(Serialize, ToSchema)]
+pub struct OverviewMr {
+    /// `namespace/name`.
+    pub repo: String,
+    pub number: i32,
+    pub title: String,
+}
+
+/// A push in a bot's overview.
+#[derive(Serialize, ToSchema)]
+pub struct OverviewPush {
+    pub repo: String,
+    /// `http`, `ssh`, `internal`, or `reconcile`.
+    pub transport: String,
+    pub at: String,
+}
+
+/// The bot's token that expires next.
+#[derive(Serialize, ToSchema)]
+pub struct OverviewToken {
+    pub name: String,
+    pub expires_at: String,
+}
+
+/// API requests in the current hour, counted by this server process.
+#[derive(Serialize, ToSchema)]
+pub struct OverviewRateLimit {
+    pub limit: u32,
+    pub used: u32,
+}
+
+/// What a bot's managers see of it. Merge requests and pushes are only
+/// those in repositories the caller can read.
+#[derive(Serialize, ToSchema)]
+pub struct BotOverview {
+    pub bot: Bot,
+    /// A freeze of its organization or of the instance applies to it.
+    pub frozen: bool,
+    pub open_merge_requests: u64,
+    /// The newest open merge requests (at most 5).
+    pub recent_merge_requests: Vec<OverviewMr>,
+    /// The newest pushes (at most 5).
+    pub recent_pushes: Vec<OverviewPush>,
+    pub next_token_expiry: Option<OverviewToken>,
+    pub rate_limit: OverviewRateLimit,
+}
+
+impl BotOverview {
+    pub(crate) fn new(state: &AppState, o: slath_service::bot_control::BotOverview) -> Self {
+        let limit = state.config.limits.bot_requests_per_hour;
+        let used = state
+            .api_limits
+            .used(&super::support::RateLimiter::bot_key(o.bot.id), limit);
+        Self {
+            bot: o.bot.into(),
+            frozen: o.frozen,
+            open_merge_requests: u64::try_from(o.open_mr_count).unwrap_or(0),
+            recent_merge_requests: o
+                .open_mrs
+                .into_iter()
+                .map(|m| OverviewMr {
+                    repo: m.repo,
+                    number: m.number,
+                    title: m.title,
+                })
+                .collect(),
+            recent_pushes: o
+                .pushes
+                .into_iter()
+                .map(|p| OverviewPush {
+                    repo: p.repo,
+                    transport: p.transport,
+                    at: crate::ui::Time::from(p.at).iso,
+                })
+                .collect(),
+            next_token_expiry: o.next_expiry.map(|(name, at)| OverviewToken {
+                name,
+                expires_at: crate::ui::Time::from(at).iso,
+            }),
+            rate_limit: OverviewRateLimit { limit, used },
+        }
+    }
+}
+
+/// A bot's open merge requests, recent pushes, next token expiry, and
+/// rate-limit use (`user:read`; its managers and site administrators).
+#[utoipa::path(get, path = "/api/v1/bots/{name}/overview", tag = "bots", security(("token" = ["user:read"])), params(("name" = String, Path)),
+    responses((status = 200, body = BotOverview), (status = 401, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn bot_overview(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+) -> Result<Json<BotOverview>, AppError> {
+    let o = state.services.bot_overview(&subject, &name).await?;
+    Ok(Json(BotOverview::new(&state, o)))
+}
+
 /// What stopping a bot removed.
 #[derive(Serialize, ToSchema)]
 pub struct BotStopped {
@@ -373,6 +471,11 @@ pub fn router() -> Router<AppState> {
             delete(remove_bot_key),
         )
         .route_as("/api/v1/bots/{name}/stop", Access::Resource, post(stop_bot))
+        .route_as(
+            "/api/v1/bots/{name}/overview",
+            Access::Resource,
+            get(bot_overview),
+        )
         .route_as(
             "/api/v1/bots/{name}/start",
             Access::Resource,

@@ -148,6 +148,24 @@ pub async fn list_for_owner(
     Ok(rows.into_iter().map(|r| to_bot!(r)).collect())
 }
 
+/// Every bot of the instance (not deleted), by name.
+pub async fn list_all(exec: impl PgExecutor<'_>) -> Result<Vec<Bot>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
+                  u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
+           FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           JOIN namespaces o ON o.id = CASE u.bot_owner_kind
+                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
+                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END
+           WHERE u.kind = 'bot' AND u.state <> 'deleted'
+           ORDER BY n.name LIMIT 1000"#
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| to_bot!(r)).collect())
+}
+
 /// Suspends the active bots of a user who is being suspended; returns how
 /// many.
 pub async fn suspend_with_owner(exec: impl PgExecutor<'_>, owner: UserId) -> Result<u64, DbError> {
@@ -293,4 +311,100 @@ pub async fn frozen(exec: impl PgExecutor<'_>, user: UserId) -> Result<bool, DbE
     )
     .fetch_one(exec)
     .await?)
+}
+
+/// An open merge request a bot opened.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenMr {
+    pub repo: String,
+    pub number: i32,
+    pub title: String,
+}
+
+/// A push a bot made.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecentPush {
+    pub repo: String,
+    pub transport: String,
+    pub at: OffsetDateTime,
+}
+
+/// The bot's open merge requests in repositories `viewer` can read (as
+/// repository lists decide: public, internal for anyone signed in,
+/// everything for site administrators, otherwise read access): the total
+/// and the newest `limit`.
+pub async fn open_mrs(
+    exec: impl PgExecutor<'_> + Copy,
+    bot: UserId,
+    viewer: Option<UserId>,
+    site_admin: bool,
+    limit: i64,
+) -> Result<(i64, Vec<OpenMr>), DbError> {
+    let viewer = viewer.map(|v| *v.as_uuid());
+    let total = sqlx::query_scalar!(
+        r#"SELECT count(*) AS "n!" FROM merge_requests m JOIN repositories r ON r.id = m.repo_id
+           WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
+                OR slath_can_read(r.id, $2::uuid))"#,
+        bot.as_uuid(),
+        viewer,
+        site_admin
+    )
+    .fetch_one(exec)
+    .await?;
+    let rows = sqlx::query!(
+        r#"SELECT n.name::text || '/' || r.name::text AS "repo!", m.number, m.title
+           FROM merge_requests m JOIN repositories r ON r.id = m.repo_id
+           JOIN namespaces n ON n.id = r.namespace_id
+           WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
+                OR slath_can_read(r.id, $2::uuid))
+           ORDER BY m.created_at DESC LIMIT $4"#,
+        bot.as_uuid(),
+        viewer,
+        site_admin,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok((
+        total,
+        rows.into_iter()
+            .map(|r| OpenMr {
+                repo: r.repo,
+                number: r.number,
+                title: r.title,
+            })
+            .collect(),
+    ))
+}
+
+/// The bot's newest `limit` pushes to repositories `viewer` can read.
+pub async fn recent_pushes(
+    exec: impl PgExecutor<'_>,
+    bot: UserId,
+    viewer: Option<UserId>,
+    site_admin: bool,
+    limit: i64,
+) -> Result<Vec<RecentPush>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT n.name::text || '/' || r.name::text AS "repo!", p.transport, p.created_at
+           FROM push_events p JOIN repositories r ON r.id = p.repo_id
+           JOIN namespaces n ON n.id = r.namespace_id
+           WHERE p.pusher_id = $1 AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
+                OR slath_can_read(r.id, $2::uuid))
+           ORDER BY p.created_at DESC LIMIT $4"#,
+        bot.as_uuid(),
+        viewer.map(|v| *v.as_uuid()),
+        site_admin,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RecentPush {
+            repo: r.repo,
+            transport: r.transport,
+            at: r.created_at,
+        })
+        .collect())
 }
