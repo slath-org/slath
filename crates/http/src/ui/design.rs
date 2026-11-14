@@ -3,12 +3,13 @@
 //! `/-/design`: the living component catalog (development builds only).
 
 use askama::Template;
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::response::Response;
 use serde::Deserialize;
 
-use super::{HxRequest, PageCtx, render_hx};
+use super::{HxRequest, PageCtx, render, render_hx};
 use crate::AppState;
+use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
 #[derive(Deserialize)]
@@ -114,6 +115,28 @@ pub async fn catalog(
     )
 }
 
+/// The layout family: stack, cluster, page, section, subsection, frame.
+#[derive(Template)]
+#[template(path = "design/layout.html")]
+struct LayoutFamily {
+    ctx: PageCtx,
+}
+
+/// `GET /-/design/{family}`: one family of components, each with its
+/// contract and examples.
+async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
+    match name.as_str() {
+        "layout" => Ok(render(&LayoutFamily { ctx })),
+        _ => Err(AppError::not_found()),
+    }
+}
+
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new().route_as("/-/design", Access::Public, axum::routing::get(catalog))
+    axum::Router::new()
+        .route_as("/-/design", Access::Public, axum::routing::get(catalog))
+        .route_as(
+            "/-/design/{family}",
+            Access::Public,
+            axum::routing::get(family),
+        )
 }

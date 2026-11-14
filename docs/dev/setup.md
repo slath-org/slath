@@ -77,3 +77,23 @@ Browser support:
   `web/src/dialog.ts`), or a small fallback of our own.
 - Prefer HTML and CSS solutions to JavaScript ones.
 - Bundled third-party code is listed in `THIRD-PARTY-NOTICES.md`.
+
+### Layout and components
+
+Pages are built from the components of the design catalog, which a
+debug build serves at `/-/design`: one page per family (for example
+`/-/design/layout`), each component with its status, its contract
+(purpose, markup, variants and states, accessibility, and what it's not
+for), and examples of every variant.
+
+Space between components comes only from the layout components
+(`web/src/components/layout.css`): a stack places its children at one of
+four distances, set by the tokens `--gap-inside`, `--gap-items`,
+`--gap-groups`, and `--gap-sections`, which compact density makes one step
+smaller. Components set no outer margins of their own. Widths come from
+tokens too (`--measure-form`, `--measure-text`, `--measure-narrow`,
+`--details-width`). To change a token, edit `web/src/tokens.json` and run
+`just tokens`.
+
+A new or changed component comes with its contract and catalog entry in
+the same change.

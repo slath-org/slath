@@ -38,6 +38,8 @@ history
 info
 italic
 key-round
+layout-grid
+layout-panel-top
 link
 list
 list-ordered

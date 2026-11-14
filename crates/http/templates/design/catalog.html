@@ -1,0 +1,23 @@
+{#- Catalog entries. Each component has one: its name, its status
+    (New, Stable, Deprecated, Removed), and in the body its contract (a
+    `dl.contract`: purpose, markup, variants and states, accessibility,
+    not for) followed by its examples. -#}
+{%- macro entry(id, name, status) -%}
+<section class="section catalog-entry" aria-labelledby="{{ id }}">
+  <div class="section-head">
+    <h2 id="{{ id }}">{{ name }}</h2>
+    <span class="badge">{{ status }}</span>
+  </div>
+{{ caller() }}
+</section>
+{%- endmacro -%}
+{#- One example: a caption that says what it shows, then the example in a
+    dashed box, so its own edges and gaps are visible. -#}
+{%- macro example(caption) -%}
+<figure class="catalog-example">
+  <figcaption>{{ caption }}</figcaption>
+  <div class="catalog-canvas">
+{{ caller() }}
+  </div>
+</figure>
+{%- endmacro -%}

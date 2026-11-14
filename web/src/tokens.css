@@ -46,6 +46,18 @@
   --target-min: 1.5rem;
   --content-max: 80rem;
   --border-width-strong: 2px;
+  --gap-inside: 0.25rem;
+  --gap-inline: 0.5rem;
+  --gap-items: 1rem;
+  --gap-groups: 1.5rem;
+  --gap-sections: 2rem;
+  --gap-below-h2: 0.75rem;
+  --gap-below-h3: 0.5rem;
+  --frame-padding: 1rem;
+  --measure-form: 32rem;
+  --measure-text: 48rem;
+  --measure-narrow: 36rem;
+  --details-width: 16rem;
   --bg: #F6F6F3;
   --surface: #FFFFFF;
   --surface-subtle: #EAECE7;
@@ -95,6 +107,10 @@
 :root[data-density="compact"] {
   --row-height: 2rem;
   --control-height: 2rem;
+  --gap-items: 0.75rem;
+  --gap-groups: 1rem;
+  --gap-sections: 1.5rem;
+  --frame-padding: 0.75rem;
 }
 
 :root[data-code-size="12"] {

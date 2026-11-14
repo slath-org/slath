@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Layout · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "layout" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Layout</h1></div>
+  <p class="page-head-intro">Space shows what belongs together. These components place their children at one of four distances, inside 4 px, items 16 px, groups 24 px, and sections 32 px; compact density makes each one step smaller (switch it in the Appearance menu). Components have no outer margin of their own, so these are the only source of space between them.</p>
+</header>
+
+{%- call cat::entry("stack", "Stack", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Puts its children one under the other at one distance: <code>stack-inside</code> for the parts of one element, <code>stack</code> for items of a group, <code>stack-groups</code> for groups in a section, <code>stack-sections</code> for sections.</dd>
+  <dt>Markup</dt><dd><code>&lt;div class="stack"&gt;</code> around the children; any element can be the stack.</dd>
+  <dt>Variants</dt><dd>The four distances. No states.</dd>
+  <dt>Accessibility</dt><dd>Layout only: no role, no name. The reading order is the source order.</dd>
+  <dt>Not for</dt><dd>Controls side by side (use a cluster); a group that distance alone can't set apart (use a frame).</dd>
+</dl>
+{%- call cat::example("Items: a stack of three items, 16 px apart (12 px in compact).") %}
+<div class="stack"><div class="catalog-block">Item</div><div class="catalog-block">Item</div><div class="catalog-block">Item</div></div>
+{%- endcall %}
+{%- call cat::example("Groups of items: each group a stack, the groups 24 px apart (16 px in compact), so the items of one group read as one.") %}
+<div class="stack-groups">
+  <div class="stack"><div class="catalog-block">Group 1, item</div><div class="catalog-block">Group 1, item</div></div>
+  <div class="stack"><div class="catalog-block">Group 2, item</div><div class="catalog-block">Group 2, item</div></div>
+</div>
+{%- endcall %}
+{%- call cat::example("Inside one element: 4 px.") %}
+<div class="stack-inside"><div class="catalog-block">Label</div><div class="catalog-block">Control</div><div class="catalog-block">Hint</div></div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("cluster", "Cluster", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Controls side by side in one row, 8 px apart, wrapping on narrow screens: buttons of a form, chips, a field and its button.</dd>
+  <dt>Markup</dt><dd><code>&lt;div class="cluster"&gt;</code> around the controls.</dd>
+  <dt>Variants</dt><dd>None. No states.</dd>
+  <dt>Accessibility</dt><dd>Layout only. The controls keep their own names; their order is the source order, also when the row wraps.</dd>
+  <dt>Not for</dt><dd>Text with controls in it (use running text); a form's buttons (use form actions, which is a cluster with its rules).</dd>
+</dl>
+{%- call cat::example("Three buttons in a row.") %}
+<div class="cluster"><button type="button" class="button button-primary">Save rule</button><button type="button" class="button">Preview</button><a class="button button-quiet" href="#cluster">Cancel</a></div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("page", "Page and page heading", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The page: its heading, then its sections, 32 px apart (24 px in compact). The heading holds the one <code>h1</code>, an optional state line under it, the page's actions on the title's row, and an optional one-sentence introduction.</dd>
+  <dt>Markup</dt><dd><code>div.page</code> &gt; <code>header.page-head</code> (<code>div.page-head-row</code> with the <code>h1</code> and <code>div.page-head-actions</code>; optional <code>p.page-head-meta</code> and <code>p.page-head-intro</code>), then the sections.</dd>
+  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title.</dd>
+  <dt>Accessibility</dt><dd>Exactly one <code>h1</code>. The actions follow the title in reading order. At most one primary action.</dd>
+  <dt>Not for</dt><dd>The code pages, whose <code>h1</code> is for screen readers and whose place shows in the breadcrumb.</dd>
+</dl>
+{%- call cat::example("A detail page's heading: title, actions, state line.") %}
+<header class="page-head">
+  <div class="page-head-row">
+    <p class="type-title">Add the stack component <span class="text-secondary">!12</span></p>
+    <div class="page-head-actions"><a class="button" href="#page">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</a><a class="button button-primary" href="#page">Merge</a></div>
+  </div>
+  <p class="page-head-meta"><span class="state-label state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Open</span> alice wants to merge 2 revisions of <code>stack</code> into <code>main</code></p>
+</header>
+{%- endcall %}
+{%- call cat::example("A settings page's heading: title and introduction.") %}
+<header class="page-head">
+  <div class="page-head-row"><p class="type-title">Webhooks</p></div>
+  <p class="page-head-intro">A webhook sends an HTTP request to a URL of your choice when something happens here.</p>
+</header>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("section", "Section", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A part of the page with an <code>h2</code>: the heading 12 px above its content, the content's items 16 px apart, and the page's stack 32 px above the next heading. Actions that apply to the whole section sit at the end of the heading's row.</dd>
+  <dt>Markup</dt><dd><code>section.section[aria-labelledby]</code> &gt; <code>h2</code> (or <code>div.section-head</code> with the <code>h2</code> and its actions), then the content.</dd>
+  <dt>Variants</dt><dd>With or without heading actions.</dd>
+  <dt>Accessibility</dt><dd>The section is named by its heading. Levels are never skipped.</dd>
+  <dt>Not for</dt><dd>A part of a section (use a subsection); a group that needs a border (use a frame).</dd>
+</dl>
+{%- call cat::example("Two sections in a page, the second with an action on its heading's row.") %}
+<div class="page">
+  <section class="section" aria-labelledby="demo-section-1">
+    <h2 id="demo-section-1">Collaborators</h2>
+    <p>No collaborators. Owners of the namespace already have full access.</p>
+    <div class="catalog-block">The form that adds one</div>
+  </section>
+  <section class="section" aria-labelledby="demo-section-2">
+    <div class="section-head"><h2 id="demo-section-2">Recent deliveries</h2><button type="button" class="button">Send a ping</button></div>
+    <div class="catalog-block">The deliveries</div>
+  </section>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("subsection", "Subsection", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A part of a section with an <code>h3</code>: 8 px between the heading and its content, and the groups distance to its neighbours.</dd>
+  <dt>Markup</dt><dd><code>section.subsection[aria-labelledby]</code> &gt; <code>h3</code>, then the content, inside a section's <code>stack-groups</code>.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>Named by its heading; it follows an <code>h2</code>.</dd>
+  <dt>Not for</dt><dd>A part of a form (use a group of fields); a framed step (use a frame).</dd>
+</dl>
+{%- call cat::example("A section with two subsections.") %}
+<section class="section" aria-labelledby="demo-sub">
+  <h2 id="demo-sub">SSH keys</h2>
+  <div class="stack-groups">
+    <section class="subsection" aria-labelledby="demo-sub-1"><h3 id="demo-sub-1">Your keys</h3><div class="catalog-block">The keys</div></section>
+    <section class="subsection" aria-labelledby="demo-sub-2"><h3 id="demo-sub-2">Add a key</h3><div class="catalog-block">The form</div></section>
+  </div>
+</section>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("frame", "Frame", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A group that distance alone can't set apart, such as a step of the merge box or a form among other forms: a border, the frame's padding (16 px, 12 px in compact), and an <code>h3</code> title 8 px above its content.</dd>
+  <dt>Markup</dt><dd><code>section.frame[aria-labelledby]</code> &gt; <code>h3.frame-title</code>, then the content. Tones: <code>frame-notice</code>, <code>frame-warning</code>, <code>frame-danger</code>.</dd>
+  <dt>Variants</dt><dd>Plain; notice (information); warning; danger (the danger section). In a <code>stack-groups</code>, frames are 24 px apart.</dd>
+  <dt>Accessibility</dt><dd>Named by its title. The tone is never the only sign: the title and text say what it is. Forced colors show the border.</dd>
+  <dt>Not for</dt><dd>Every group (most need only distance); nesting frames in frames.</dd>
+</dl>
+{%- call cat::example("Two framed steps, then a danger frame.") %}
+<div class="stack-groups">
+  <section class="frame" aria-labelledby="demo-frame-1">
+    <h3 id="demo-frame-1" class="frame-title">Update the branch</h3>
+    <p><code>review</code> is behind <code>main</code>.</p>
+    <div class="cluster"><button type="button" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button></div>
+  </section>
+  <section class="frame frame-notice" aria-labelledby="demo-frame-2">
+    <h3 id="demo-frame-2" class="frame-title">Merge when ready</h3>
+    <p>It merges as soon as every requirement is met.</p>
+  </section>
+  <section class="frame frame-danger" aria-labelledby="demo-frame-3">
+    <h3 id="demo-frame-3" class="frame-title">Stop this bot</h3>
+    <p>Its tokens are revoked, its SSH keys removed, and its pushes refused.</p>
+    <div class="cluster"><button type="button" class="button button-danger">Stop bot</button></div>
+  </section>
+</div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

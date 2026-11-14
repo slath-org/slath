@@ -1,0 +1,54 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The design catalog (/-/design, development builds only): entries with
+   their contracts, and examples drawn in a dashed box so their own edges
+   and gaps show. */
+.contract {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--gap-inline) var(--gap-items);
+  margin: 0;
+  max-width: var(--measure-text);
+}
+.contract dt {
+  font-weight: var(--weight-semibold);
+}
+.contract dd {
+  margin: 0;
+}
+.contract dd > p,
+.contract dd > ul {
+  margin: 0;
+}
+.contract dd > ul {
+  padding-inline-start: var(--space-5);
+}
+@container page (max-width: 36rem) {
+  .contract {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .contract dd {
+    margin-block-end: var(--gap-inline);
+  }
+}
+.catalog-example {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inside);
+  margin: 0;
+}
+.catalog-example > figcaption {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.catalog-canvas {
+  padding: var(--space-4);
+  border: var(--border-width) dashed var(--control-border);
+  border-radius: var(--radius-md);
+}
+/* Stand-ins for content, so a layout's distances are visible. */
+.catalog-block {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm);
+}

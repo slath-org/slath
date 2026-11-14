@@ -1,0 +1,6 @@
+{#- The catalog's side menu: the overview and one area per component
+    family. The page sets `family` ("" for the overview). -#}
+{%- call m::side_menu(ctx, "Design catalog", "Design catalog", "Weave", "/-/design") %}
+{%- call m::side_item(ctx, "/-/design", "layout-grid", "Overview", family == "") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/design/layout", "layout-panel-top", "Layout", family == "layout") %}{% endcall %}
+{%- endcall %}

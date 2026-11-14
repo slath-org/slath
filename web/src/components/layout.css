@@ -1,0 +1,165 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave layout components: space by relationship. Components have no outer
+   margin; these containers place their children at one of four distances
+   (inside, items, groups, sections), which compact density makes one step
+   smaller. Contracts and examples: /-/design/layout. */
+
+/* Stack: children one under the other at one distance. */
+.stack,
+.stack-inside,
+.stack-groups,
+.stack-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+}
+.stack-inside {
+  gap: var(--gap-inside);
+}
+.stack-groups {
+  gap: var(--gap-groups);
+}
+.stack-sections {
+  gap: var(--gap-sections);
+}
+:is(.stack, .stack-inside, .stack-groups, .stack-sections) > * {
+  margin-block: 0;
+}
+
+/* Cluster: controls side by side in one row, wrapping when narrow. */
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+  margin-block: 0;
+}
+
+/* Page: the page heading, then its sections. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sections);
+  min-width: 0;
+}
+.page > * {
+  margin-block: 0;
+}
+
+/* Page heading: the title, an optional state line under it, and the
+   actions on the title's row (wrapping below it when narrow). */
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inline);
+}
+.page-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline) var(--gap-items);
+}
+.page-head h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.page-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.page-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+  margin: 0;
+  color: var(--text-secondary);
+}
+.page-head-intro {
+  margin: 0;
+  max-width: var(--measure-text);
+}
+
+/* Section: an h2 and its content. The heading sits closer to its content
+   than the content's items sit to each other; the page's stack puts the
+   sections distance above it. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+}
+.section > * {
+  margin-block: 0;
+}
+.section > :is(h2, .section-head) {
+  margin-block-end: calc(var(--gap-below-h2) - var(--gap-items));
+}
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-inline) var(--gap-items);
+}
+.section-head > h2 {
+  margin: 0;
+}
+
+/* Subsection: an h3 and its content, the groups distance from its
+   neighbours. */
+.subsection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+}
+.subsection > * {
+  margin-block: 0;
+}
+.subsection > h3 {
+  margin-block-end: calc(var(--gap-below-h3) - var(--gap-items));
+}
+
+/* Frame: a group that distance alone can't set apart. A border, the
+   frame's padding, and an h3 title; tones for notices and danger. */
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+  padding: var(--frame-padding);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.frame > * {
+  margin-block: 0;
+}
+.frame > .frame-title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-heading);
+  margin-block-end: calc(var(--gap-below-h3) - var(--gap-items));
+}
+.frame-notice {
+  border-color: var(--info);
+  border-inline-start-width: var(--space-1);
+}
+.frame-warning {
+  border-color: var(--warning);
+  border-inline-start-width: var(--space-1);
+}
+.frame-danger {
+  border-color: var(--error);
+}
+
+@media (forced-colors: active) {
+  .frame {
+    border: var(--border-width) solid CanvasText;
+  }
+}
