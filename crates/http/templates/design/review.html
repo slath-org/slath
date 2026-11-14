@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/people.html" as p %}
+{% import "components/controls.html" as c %}
+{% import "components/disclosure.html" as d %}
+{% import "components/forms.html" as f %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Timeline and status · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "review" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Timeline and status</h1></div>
+  <p class="page-head-intro">The same fact always looks the same: a status is an icon and words in one of three tones, a decision page answers "can this move forward?" first, and the history is one timeline, oldest first.</p>
+</header>
+
+{%- call cat::entry("status-line", "Status line", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A status in one line: an icon, the words, and a reason. Three tones only: done (check), waiting (clock: normal, nothing wrong yet), and blocking (cross: something must change). Waiting is never red, so red keeps meaning "act". Used for requirements, checks (also in the details column), and deliveries.</dd>
+  <dt>Markup</dt><dd><code>li.tone-{done|waiting|blocking}</code> (or any element) with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>. Checks in a details column: <code>ul.plain-list</code> of these.</dd>
+  <dt>Variants</dt><dd>The three tones; with a reporter and a time on a second line.</dd>
+  <dt>Accessibility</dt><dd>The icon is decorative; screen readers hear the tone as a word ("Done:", "Waiting:", "Blocking:") before the reason. Color only adds to icon and words.</dd>
+  <dt>Not for</dt><dd>An issue's or merge request's state (state label); categories (badge).</dd>
+</dl>
+{%- call cat::example("Checks in a details column.") %}
+<ul class="plain-list">
+  <li class="tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span><strong>build</strong>: passed<br><span class="text-secondary">Reported by {% call p::account(ctx, "ci-bot") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></span></li>
+  <li class="tone-waiting">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span><strong>e2e</strong>: running</span></li>
+  <li class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span><strong>lint</strong>: failed – 2 findings</span></li>
+</ul>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("readiness", "Readiness card and requirement rows", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>At the top of a decision page and again where the person acts: a headline, a reason, one primary action chosen for the viewer, and the requirements as status lines. A requirement that isn't done opens in place to its fix and its evidence.</dd>
+  <dt>Markup</dt><dd><code>section.readiness.tone-*</code> with <code>.readiness-head</code> (icon, <code>h2.readiness-title</code>, reason, action) and <code>ul.requirements</code> of <code>li.requirement</code>; an open one is a <code>details</code> whose summary ends with the turning chevron.</dd>
+  <dt>Variants</dt><dd>The three tones; with or without an action (no action in the merge box's copy).</dd>
+  <dt>Accessibility</dt><dd>A section named by its headline (the card headline, 18 px, keeps its <code>h2</code> level). No progress bars: they rely on color and hide which item failed.</dd>
+  <dt>Not for</dt><dd>Pages where nothing is decided.</dd>
+</dl>
+{%- call cat::example("Waiting for an approval; one requirement blocking.") %}
+<section class="readiness tone-waiting" aria-labelledby="demo-card-title">
+  <div class="readiness-head">
+    <span class="readiness-icon">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}</span>
+    <div class="readiness-text">
+      <h2 id="demo-card-title" class="readiness-title">Approval required</h2>
+      <p class="readiness-reason">1 of 2 required approvals.</p>
+    </div>
+    <div class="readiness-action"><a class="button button-primary" href="#readiness">{% call m::icon(ctx, "eye") %}{% endcall %}Review</a></div>
+  </div>
+  <ul class="requirements">
+    <li class="requirement tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>It's ready for review.</span></li>
+    <li class="requirement tone-waiting">
+      <details>
+        <summary>{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span>1 of 2 required approvals: alice (r3, 12 of 15 files viewed).<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+        <p class="requirement-fix">Ask a reviewer with write access.</p>
+        <div class="requirement-fix requirement-files">
+          <p>Not viewed by an approver when approving {% call m::evidence("Observed") %}{% endcall %}</p>
+          <ul class="plain-list"><li>{% call c::path("src/config.rs") %}{% endcall %}</li><li>{% call c::path("assets/logo.png") %}{% endcall %}</li><li>{% call c::path("docs/new.md") %}{% endcall %}</li></ul>
+        </div>
+      </details>
+    </li>
+    <li class="requirement tone-blocking">
+      <details>
+        <summary>{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>The check build failed.<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+        <p class="requirement-fix">Fix the failure and push again.</p>
+      </details>
+    </li>
+  </ul>
+</section>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("timeline", "Timeline", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The one history of an issue or merge request, oldest first: comments with a header line and their text, events as single lines with an icon and the actor first, consecutive events folded into one line, reviews with their verdict, and the marker of what's new since the viewer's review. Filters may narrow it but never split or reorder it.</dd>
+  <dt>Markup</dt><dd><code>ol.timeline</code> of <code>li.timeline-comment</code> (an <code>article</code> with <code>header.comment-header</code>), <code>li.timeline-event</code>, <code>li.timeline-event.timeline-group</code> (a disclosure), <code>li.timeline-review</code>, and <code>li.since-marker</code>. Names are account names; times are the time component.</dd>
+  <dt>Variants</dt><dd>Comment (edited, hidden, deleted); event; event group; review (approved, changes requested, stale); since marker.</dd>
+  <dt>Accessibility</dt><dd>An ordered list; each comment is an article named by its author; icons are decorative.</dd>
+  <dt>Not for</dt><dd>Lists of things (list rows).</dd>
+</dl>
+{%- call cat::example("A comment, events, a folded group, the since marker, and a review.") %}
+<ol class="timeline">
+  <li class="timeline-comment">
+    <article aria-label="Comment by bob">
+      <header class="comment-header">{% call p::account(ctx, "bob") %}{% endcall %} <span class="text-secondary">wrote {% call c::time(recent) %}{% endcall %} · edited</span></header>
+      <div class="markdown"><p>I can reproduce it with <code>Safari 19</code>.</p></div>
+    </article>
+  </li>
+  <li class="timeline-event">{% call m::icon(ctx, "tag") %}{% endcall %}<span>{% call p::account(ctx, "alice") %}{% endcall %} added the label bug {% call c::time(recent) %}{% endcall %}</span></li>
+  <li class="timeline-event timeline-group">
+    <details>
+      <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>3 changes to labels and assignees<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+      <ul class="plain-list">
+        <li>{% call m::icon(ctx, "user") %}{% endcall %}<span>{% call p::account(ctx, "alice") %}{% endcall %} assigned {% call p::account(ctx, "bob") %}{% endcall %}</span></li>
+        <li>{% call m::icon(ctx, "tag") %}{% endcall %}<span>{% call p::account(ctx, "alice") %}{% endcall %} added the label needs review</span></li>
+      </ul>
+    </details>
+  </li>
+  <li class="since-marker"><span>New since your review</span></li>
+  <li class="timeline-comment timeline-review">
+    <article aria-label="Review by carol">
+      <header class="comment-header">{% call m::icon(ctx, "circle-x") %}{% endcall %}{% call p::account(ctx, "carol") %}{% endcall %} requested changes on revision 2 <span class="text-secondary">{% call c::time(older) %}{% endcall %} · stale: the changes changed since</span></header>
+    </article>
+  </li>
+</ol>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("thread", "Review thread", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A conversation on a line, a file, or the whole merge request: where it is and on which revision, the code it's about, its comments (a suggestion under its comment), and its end: the reply box and, for those who may, "Resolve thread". One markup in the conversation and in the diff.</dd>
+  <dt>Markup</dt><dd><code>li.timeline-comment.timeline-thread</code> &gt; <code>article</code> with the header, the code snippet, <code>ol.thread-comments</code>, and <code>div.thread-actions</code> holding <code>d::reply_box</code> and the <code>reply-resolve</code> button.</dd>
+  <dt>Variants</dt><dd>Current; from an earlier revision; outdated; resolved; addressed by a bot; with a finding (a bot's, in a neutral category).</dd>
+  <dt>Accessibility</dt><dd>An article named by its place; the code is a scrolling region; bot text carries the evidence chip and the Bot badge.</dd>
+  <dt>Not for</dt><dd>Comments on the whole issue (timeline comments).</dd>
+</dl>
+{%- call cat::example("A thread with a suggestion and a bot's comment.") %}
+<ol class="timeline">
+<li class="timeline-comment timeline-thread">
+  <article aria-label="Thread on src/config.rs, line 3">
+    <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}<code>src/config.rs, line 3</code> <span class="text-secondary">revision 2 · still current, from revision 1</span></header>
+    <div class="code-wrap" tabindex="0" role="region" aria-label="Code at src/config.rs, line 3">
+    <table class="code-view diff-table thread-snippet"><tbody>
+      <tr><td class="line-no">2</td><td><code>    pub timeout_secs: u32,</code></td></tr>
+      <tr class="snippet-anchor"><td class="line-no">3</td><td><code>    pub retries: u8,</code></td></tr>
+    </tbody></table>
+    </div>
+    <ol class="thread-comments">
+      <li>
+        <p class="thread-comment-head">{% call p::account(ctx, "bob") %}{% endcall %} <span class="text-secondary">{% call c::time(recent) %}{% endcall %}</span></p>
+        <div class="markdown"><p>Name the unit here too:</p></div>
+        <div class="suggestion">
+          <p class="suggestion-title">Suggested change</p>
+          <div class="code-wrap" tabindex="0" role="region" aria-label="Suggested change">
+          <table class="code-view diff-table"><tbody>
+            <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>    pub retries: u8,</code></td></tr>
+            <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>    pub max_retries: u8,</code></td></tr>
+          </tbody></table>
+          </div>
+          <div class="cluster"><button type="button" class="button">Apply suggestion</button>{% call f::option("checkbox", "demo-batch", "comments", "1", "Add to batch") %}{% endcall %}</div>
+        </div>
+      </li>
+      <li>
+        <p class="thread-comment-head">{% call p::account(ctx, "ci-bot") %}{% endcall %} {% call m::evidence("Claimed by a bot") %}{% endcall %} <span class="text-secondary">{% call c::time(recent) %}{% endcall %}</span></p>
+        <div class="markdown"><p>The build passes with this change.</p></div>
+      </li>
+    </ol>
+    <div class="thread-actions">
+      {%- call d::reply_box() %}
+      <form class="form-layout-wide" action="#thread">
+        {%- call f::field("demo-thread-reply", "Your reply") %}<textarea id="demo-thread-reply" name="body" rows="3"></textarea>{% endcall %}
+        {%- call f::option("checkbox", "demo-thread-resolve", "resolve", "1", "Resolve thread") %}{% endcall %}
+        {%- call f::buttons() %}<button type="submit" class="button">Send reply</button><button type="submit" name="mode" value="pending" class="button">Add to my review</button>{% call d::cancel() %}{% endcall %}{% endcall %}
+      </form>
+      {%- endcall %}
+      <button type="button" class="button button-quiet reply-resolve">Resolve thread</button>
+    </div>
+  </article>
+</li>
+</ol>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("chips", "Badges, state labels, counts, labels", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Small facts beside text, each for its own job: a badge for a category or flag (Private, Archived, Bot, Outdated); the state label for an issue's or merge request's state; a count for a number; a label as a color dot and its name; the evidence chip for what kind of evidence something is (observed, reported, claimed).</dd>
+  <dt>Markup</dt><dd><code>span.badge</code>; <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>
+  <dt>Variants</dt><dd>As listed. No filled, saturated badges.</dd>
+  <dt>Accessibility</dt><dd>Words, never color alone; a state label's icon is decorative.</dd>
+  <dt>Not for</dt><dd>Statuses of checks or requirements (status line).</dd>
+</dl>
+{%- call cat::example("One of each.") %}
+<div class="cluster">
+  <span class="badge">Private</span>
+  <span class="state-label state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Open</span>
+  <span class="state-label state-merged">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merged</span>
+  <span>Unresolved <span class="count">3</span></span>
+  <a class="label-chip" href="#chips"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#d73a4a"/></svg><bdi>bug</bdi></a>
+  {% call m::evidence("Claimed by a bot") %}{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

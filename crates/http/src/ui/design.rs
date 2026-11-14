@@ -170,6 +170,16 @@ struct ControlsFamily {
     oid: String,
 }
 
+/// The timeline and status family: status lines, the readiness card,
+/// the timeline, threads, badges.
+#[derive(Template)]
+#[template(path = "design/review.html")]
+struct ReviewFamily {
+    ctx: PageCtx,
+    recent: super::Time,
+    older: super::Time,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
@@ -187,6 +197,14 @@ async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppE
                 soon: (now + time::Duration::days(2) + time::Duration::hours(1)).into(),
                 older: (now - time::Duration::days(40)).into(),
                 oid: "a1e62f5c7d0b9a8e3f41c2d6b7e8f90a1b2c3d4e".to_owned(),
+            }))
+        }
+        "review" => {
+            let now = time::OffsetDateTime::now_utc();
+            Ok(render(&ReviewFamily {
+                ctx,
+                recent: (now - time::Duration::hours(2)).into(),
+                older: (now - time::Duration::days(12)).into(),
             }))
         }
         "people" => {

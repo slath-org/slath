@@ -5,7 +5,7 @@
 {% block content %}
 <h1>Design catalog</h1>
 <p class="text-secondary">Every Weave component in its states. Development builds only.</p>
-<p>The components of Weave 0.3 are listed by family, each with its status, its contract, and its examples: <a href="/-/design/layout">Layout</a>, <a href="/-/design/messages">Messages and states</a>, <a href="/-/design/forms">Forms</a>, <a href="/-/design/disclosure">Disclosure and menus</a>, <a href="/-/design/lists">Lists and data</a>, <a href="/-/design/people">People</a>, <a href="/-/design/controls">Basic controls</a>. The entries below move into the families as they're rebuilt.</p>
+<p>The components of Weave 0.3 are listed by family, each with its status, its contract, and its examples: <a href="/-/design/layout">Layout</a>, <a href="/-/design/messages">Messages and states</a>, <a href="/-/design/forms">Forms</a>, <a href="/-/design/disclosure">Disclosure and menus</a>, <a href="/-/design/lists">Lists and data</a>, <a href="/-/design/people">People</a>, <a href="/-/design/controls">Basic controls</a>, <a href="/-/design/review">Timeline and status</a>. The entries below move into the families as they're rebuilt.</p>
 
 <section aria-labelledby="type-heading">
   <h2 id="type-heading">Typography</h2>
@@ -29,97 +29,6 @@
   <h2 id="review-heading">Code review</h2>
   <p class="text-secondary">The diff below is rendered by the same code as every diff: each file in its frame, folded files with their reason, changed characters marked (not by color alone), the line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. <a href="/-/design?view=split#review-heading">Side by side</a> on wide screens.</p>
   {% include "repo/diff_files.html" %}
-
-  <h3>Readiness card and requirement rows</h3>
-  <p class="text-secondary">Three tones only, each with an icon and words: done, waiting (normal, nothing wrong yet), blocking (something must change). Lines that open end with a chevron.</p>
-  <section class="readiness tone-waiting" aria-labelledby="demo-card-title">
-    <div class="readiness-head">
-      <span class="readiness-icon">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}</span>
-      <div class="readiness-text">
-        <h4 id="demo-card-title" class="readiness-title">Approval required</h4>
-        <p class="readiness-reason">1 of 2 required approvals.</p>
-      </div>
-      <div class="readiness-action"><a class="button button-primary" href="#review-heading">{% call m::icon(ctx, "eye") %}{% endcall %}Review</a></div>
-    </div>
-    <ul class="requirements">
-      <li class="requirement tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>It's ready for review.</span></li>
-      <li class="requirement tone-waiting">
-        <details>
-          <summary>{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span>1 of 2 required approvals: alice (r3, 12 of 15 files viewed).<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
-          <p class="requirement-fix">Ask a reviewer with write access.</p>
-          <div class="requirement-fix requirement-files">
-            <p>Not viewed by an approver when approving {% call m::evidence("Observed") %}{% endcall %}</p>
-            <ul class="plain-list"><li>src/config.rs</li><li>assets/logo.png</li><li>docs/new.md</li></ul>
-          </div>
-        </details>
-      </li>
-      <li class="requirement tone-blocking">
-        <details>
-          <summary>{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>The check build failed.<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
-          <p class="requirement-fix">Fix the failure and push again.</p>
-        </details>
-      </li>
-    </ul>
-  </section>
-
-  <h3>Threads, suggestions, verdicts</h3>
-  <ol class="timeline">
-    <li class="since-marker"><span>New since your review</span></li>
-    <li class="timeline-comment timeline-thread">
-      <article aria-label="Thread on src/config.rs, line 3">
-        <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}<code>src/config.rs, line 3</code> <span class="text-secondary">revision 2</span> <span class="text-secondary">· still current, from revision 1</span></header>
-        <div class="code-wrap" tabindex="0" role="region" aria-label="Code at src/config.rs, line 3">
-        <table class="code-view diff-table thread-snippet"><tbody>
-          <tr><td class="line-no">2</td><td><code>    pub timeout_secs: u32,</code></td></tr>
-          <tr class="snippet-anchor"><td class="line-no">3</td><td><code>    pub retries: u8,</code></td></tr>
-        </tbody></table>
-        </div>
-        <ol class="thread-comments">
-          <li>
-            <p class="thread-comment-head"><strong>bob</strong> <span class="text-secondary"><time datetime="2026-11-01T10:00:00Z">yesterday</time></span></p>
-            <div class="markdown"><p>Name the unit here too:</p></div>
-            <div class="suggestion">
-              <p class="suggestion-title">Suggested change</p>
-              <div class="code-wrap" tabindex="0" role="region" aria-label="Suggested change">
-              <table class="code-view diff-table"><tbody>
-                <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>    pub retries: u8,</code></td></tr>
-                <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>    pub max_retries: u8,</code></td></tr>
-              </tbody></table>
-              </div>
-              <div class="button-row">
-                <button type="button" class="button">Apply suggestion</button>
-                <div class="checkbox"><input id="demo-batch" type="checkbox"><label for="demo-batch">Add to batch</label></div>
-              </div>
-            </div>
-          </li>
-          <li>
-            <p class="thread-comment-head"><strong>ci-bot</strong> {% call m::evidence("Claimed by a bot") %}{% endcall %} <span class="badge">Pending</span> <span class="text-secondary"><time datetime="2026-11-01T11:00:00Z">yesterday</time></span></p>
-            <div class="markdown"><p>The build passes with this change.</p></div>
-          </li>
-        </ol>
-        <div class="thread-actions">
-          <details class="thread-reply-box">
-            <summary class="button button-quiet">Reply</summary>
-            <form class="form thread-reply" action="#review-heading">
-              <div class="field"><label for="demo-reply">Your reply</label><textarea id="demo-reply" rows="3"></textarea></div>
-              <div class="button-row"><button type="button" class="button">Send reply</button><button type="button" class="button">Add to my review</button></div>
-            </form>
-          </details>
-          <button type="button" class="button button-quiet">Resolve thread</button>
-        </div>
-      </article>
-    </li>
-    <li class="timeline-comment timeline-review">
-      <article aria-label="Review by alice">
-        <header class="comment-header">{% call m::icon(ctx, "circle-check") %}{% endcall %}<strong>alice</strong> approved revision 3 <span class="text-secondary"><time datetime="2026-11-01T12:00:00Z">yesterday</time></span></header>
-      </article>
-    </li>
-    <li class="timeline-comment timeline-review">
-      <article aria-label="Review by carol">
-        <header class="comment-header">{% call m::icon(ctx, "circle-x") %}{% endcall %}<strong>carol</strong> requested changes on revision 2 <span class="text-secondary"><time datetime="2026-10-31T12:00:00Z">Oct 31</time> · stale: the changes changed since</span></header>
-      </article>
-    </li>
-  </ol>
 
   <h3>Fork merge requests</h3>
   <p class="text-secondary"><a href="#review-heading">bob</a> wants to merge 2 revisions of <code class="branch-name"><bdi>bob/demo:fix-timeouts</bdi></code> into <code class="branch-name"><bdi>main</bdi></code> · opened <time datetime="2026-11-01T09:00:00Z">yesterday</time></p>
@@ -335,96 +244,9 @@
   </div>
 </section>
 
-<section aria-labelledby="issues-heading">
-  <h2 id="issues-heading">Issue lists and timelines</h2>
-  <p class="text-secondary">Rows follow the density setting (Appearance menu): compact reduces padding, never text size.</p>
-  <ul class="item-list">
-    <li class="item-row">
-      <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#issues-heading"><bdi>Login fails with a passkey on Safari</bdi></a>
-        <span class="item-labels"><a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#d73a4a"/></svg><bdi>bug</bdi></a></span>
-        <p class="item-meta text-secondary">#12 opened <time datetime="2026-11-01T10:00:00Z">yesterday</time> by alice · assigned to bob</p>
-      </div>
-      <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}3<span class="visually-hidden"> comments</span></span>
-    </li>
-    <li class="item-row">
-      <span class="item-state item-state-closed">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">closed</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#issues-heading"><bdi>Settings page saves twice</bdi></a>
-        <p class="item-meta text-secondary">#9 opened <time datetime="2026-10-20T10:00:00Z">Oct 20</time> by carol</p>
-      </div>
-    </li>
-  </ul>
-  <ul class="item-list">
-    <li class="item-row">
-      <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#issues-heading"><bdi>{{ crate::ui::title_html("Upgrade `vite` from v5 to v8") }}</bdi></a> <span class="item-checks tone-done" title="All 3 checks passed">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span class="visually-hidden">All 3 checks passed</span></span>
-        <p class="item-meta text-secondary">!103 opened <time datetime="2026-11-01T09:00:00Z">yesterday</time> by alice</p>
-      </div>
-    </li>
-    <li class="item-row">
-      <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#issues-heading"><bdi>{{ crate::ui::title_html("Implement `/repos/{org}/{repo}/forks`") }}</bdi></a> <span class="item-checks tone-blocking" title="1 of 2 checks failed">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span class="visually-hidden">1 of 2 checks failed</span></span>
-        <p class="item-meta text-secondary">!110 opened <time datetime="2026-10-29T09:00:00Z">Oct 29</time> by bob</p>
-      </div>
-    </li>
-  </ul>
-  <ol class="timeline">
-    <li class="timeline-comment">
-      <article aria-label="Comment by bob">
-        <header class="comment-header"><strong>bob</strong> <span class="text-secondary"><time datetime="2026-11-01T11:00:00Z">yesterday</time> · edited</span></header>
-        <div class="markdown"><p>I can reproduce it with <code>Safari 19</code>.</p></div>
-      </article>
-    </li>
-    <li class="timeline-event">{% call m::icon(ctx, "tag") %}{% endcall %}<span><strong>alice</strong> added the label bug <time datetime="2026-11-01T12:00:00Z">yesterday</time></span></li>
-    <li class="timeline-event">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span><strong>alice</strong> closed this as completed <time datetime="2026-11-01T13:00:00Z">yesterday</time></span></li>
-  </ol>
-</section>
 
-<section aria-labelledby="labels-heading">
-  <h2 id="labels-heading">Labels and milestones</h2>
-  <p class="text-secondary">A small color dot and the name; no filled badges competing with titles.</p>
-  <p class="item-labels">
-    <a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#d73a4a"/></svg><bdi>bug</bdi></a>
-    <a class="label-chip" href="#labels-heading"><svg class="label-swatch" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="5.5" fill="#0e8a16"/></svg><bdi>needs review</bdi></a>
-  </p>
-  <p>{% call m::icon(ctx, "flag") %}{% endcall %} <a href="#labels-heading">v0.2</a> <span class="text-secondary">· due Dec 1 · 4 open, 21 closed</span></p>
-</section>
 
-<section aria-labelledby="inbox-heading">
-  <h2 id="inbox-heading">Notification inbox</h2>
-  <p class="text-secondary">Unread rows keep the semibold title and an "Unread" badge; read rows are regular weight.</p>
-  <ul class="item-list notification-list">
-    <li class="item-row item-unread">
-      <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#inbox-heading"><bdi>Login fails with a passkey on Safari</bdi></a> <span class="badge">Unread</span>
-        <p class="item-meta text-secondary">alice/demo#12 · You were mentioned · <time datetime="2026-11-01T11:00:00Z">yesterday</time></p>
-      </div>
-      <button type="button" class="button button-quiet button-icon" title="Mark as read">{% call m::icon(ctx, "check") %}{% endcall %}<span class="visually-hidden">Mark as read: Login fails with a passkey on Safari</span></button>
-    </li>
-    <li class="item-row">
-      <span class="item-state item-state-closed">{% call m::icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">closed</span></span>
-      <div class="item-main">
-        <a class="item-title" href="#inbox-heading"><bdi>Settings page saves twice</bdi></a>
-        <p class="item-meta text-secondary">alice/demo#9 · You're watching · <time datetime="2026-10-20T10:00:00Z">Oct 20</time></p>
-      </div>
-      <button type="button" class="button button-quiet">Mark as unread<span class="visually-hidden">: Settings page saves twice</span></button>
-    </li>
-  </ul>
-</section>
 
-<section aria-labelledby="states-heading">
-  <h2 id="states-heading">Empty, error, and not-found states</h2>
-  <p class="text-secondary empty-state">No open issues.</p>
-  <p class="text-secondary empty-state">You're all caught up.</p>
-  <div class="error-summary" role="alert"><p>The preview couldn't be loaded. Check your connection and try again.</p></div>
-  <div class="notice" role="note"><p>{% call m::icon(ctx, "info") %}{% endcall %} This repository is being imported. Reload the page to see when it's done.</p></div>
-  <p class="text-secondary">Not found: things a person may not see look exactly like things that don't exist ("Page not found"), so no "permission denied" page reveals them.</p>
-</section>
 
 <section aria-labelledby="icons-heading">
   <h2 id="icons-heading">Icons</h2>
