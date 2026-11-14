@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE milestones SET title = $3, description = $4, due_on = $5,\n             state = CASE WHEN $6 THEN 'open' ELSE 'closed' END, updated_at = now()\n         WHERE id = $1 AND repo_id = $2",
+  "query": "INSERT INTO milestones (id, repo_id, title, description, due_on, origin)\n         VALUES ($1, $2, $3, $4, $5, $6)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -15,10 +15,10 @@
         },
         "Text",
         "Date",
-        "Bool"
+        "Text"
       ]
     },
     "nullable": []
   },
-  "hash": "c6895334ba95ec911b06839c56697a4894c498a822ed90a30c0638f7cb2480aa"
+  "hash": "1192522448d35f2095908b6df398e788458ab4397d9622a3bb7fb99aacd815a7"
 }

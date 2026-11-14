@@ -4,6 +4,7 @@
 
 use slath_core::authz::{RepoState, Role, Visibility};
 use slath_core::ids::{NamespaceId, RepoId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 
@@ -142,18 +143,22 @@ pub struct NewRepo<'a> {
     pub description: Option<&'a str>,
     pub visibility: Visibility,
     pub default_branch: &'a str,
+    /// The creator's origin, for the description.
+    pub description_origin: Origin,
 }
 
 pub async fn insert(exec: impl PgExecutor<'_>, r: &NewRepo<'_>) -> Result<(), DbError> {
     sqlx::query!(
-        "INSERT INTO repositories (id, namespace_id, name, description, visibility, default_branch, fork_network_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $1)",
+        "INSERT INTO repositories (id, namespace_id, name, description, visibility, default_branch,
+             fork_network_id, description_origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $1, $7)",
         r.id.as_uuid(),
         r.namespace_id.as_uuid(),
         r.name,
         r.description,
         visibility_str(r.visibility),
         r.default_branch,
+        r.description_origin.as_str(),
     )
     .execute(exec)
     .await
@@ -259,12 +264,17 @@ pub async fn update_settings(
     id: RepoId,
     description: Option<&str>,
     default_branch: &str,
+    origin: Origin,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE repositories SET description = $2, default_branch = $3, updated_at = now() WHERE id = $1",
+        "UPDATE repositories SET description = $2, default_branch = $3, updated_at = now(),
+             description_origin = CASE WHEN description IS DISTINCT FROM $2
+                 THEN slath_origin_least(description_origin, $4) ELSE description_origin END
+         WHERE id = $1",
         id.as_uuid(),
         description,
-        default_branch
+        default_branch,
+        origin.as_str()
     )
     .execute(exec)
     .await?;

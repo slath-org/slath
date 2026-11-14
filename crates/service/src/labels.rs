@@ -146,11 +146,19 @@ impl Services {
         let (Some(name), Some(col), Some(desc)) = (name, col, desc) else {
             return Err(ServiceError::Invalid(errors));
         };
+        let origin = self.origin_of(subject, &a.repo).await?;
         match id {
             None => {
-                slath_db::labels::create_label(&self.pool, a.repo.id, &name, &col, desc.as_deref())
-                    .await
-                    .map_err(conflict("name", "label"))?;
+                slath_db::labels::create_label(
+                    &self.pool,
+                    a.repo.id,
+                    &name,
+                    &col,
+                    desc.as_deref(),
+                    origin,
+                )
+                .await
+                .map_err(conflict("name", "label"))?;
             }
             Some(id) => {
                 if !slath_db::labels::update_label(
@@ -160,6 +168,7 @@ impl Services {
                     &name,
                     &col,
                     desc.as_deref(),
+                    origin,
                 )
                 .await
                 .map_err(conflict("name", "label"))?
@@ -226,6 +235,7 @@ impl Services {
         let (Some(title), Some(desc), Some(due)) = (title, desc, due) else {
             return Err(ServiceError::Invalid(errors));
         };
+        let origin = self.origin_of(subject, &a.repo).await?;
         match id {
             None => {
                 slath_db::labels::create_milestone(
@@ -234,6 +244,7 @@ impl Services {
                     &title,
                     desc.as_deref(),
                     due,
+                    origin,
                 )
                 .await
                 .map_err(conflict("title", "milestone"))?;
@@ -247,6 +258,7 @@ impl Services {
                     desc.as_deref(),
                     due,
                     open,
+                    origin,
                 )
                 .await
                 .map_err(conflict("title", "milestone"))?

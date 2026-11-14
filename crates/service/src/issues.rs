@@ -149,9 +149,10 @@ impl Services {
         let author = subject_user(subject).ok_or(ServiceError::Unauthenticated)?;
         let title = check_title(title)?;
         self.check_body("body", body)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let number = slath_db::issues::next_number(&mut tx, a.repo.id).await?;
-        slath_db::issues::insert(&mut tx, a.repo.id, number, author, &title, body).await?;
+        slath_db::issues::insert(&mut tx, a.repo.id, number, author, &title, body, origin).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         let issue = slath_db::issues::get(&self.pool, a.repo.id, number)
             .await?
@@ -269,8 +270,9 @@ impl Services {
         }
         let title = check_title(title)?;
         self.check_body("body", body)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        slath_db::issues::update_text(&mut *tx, issue.id, &title, body).await?;
+        slath_db::issues::update_text(&mut *tx, issue.id, &title, body, origin).await?;
         if title != issue.title {
             slath_db::issues::insert_event(
                 &mut *tx,
@@ -370,8 +372,9 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let id = slath_db::issues::insert_comment(
-            &self.pool, a.repo.id, "issue", issue.id, author, body,
+            &self.pool, a.repo.id, "issue", issue.id, author, body, origin,
         )
         .await?;
         slath_db::issues::touch(&self.pool, issue.id).await?;
@@ -453,7 +456,8 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
-        slath_db::issues::edit_comment(&self.pool, id, body).await?;
+        let origin = self.origin_of(subject, &a.repo).await?;
+        slath_db::issues::edit_comment(&self.pool, id, body, origin).await?;
         Ok(())
     }
 

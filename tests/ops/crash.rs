@@ -195,8 +195,8 @@ fn conf_ops_04_jobs_resume_after_a_crash() {
     // A fan-out job that was running when the server died: leased, lease
     // expired.
     s.db.execute(
-        "INSERT INTO issues (id, repo_id, number, author_id, title)
-         SELECT gen_random_uuid(), r.id, 1, u.id, 'Crash'
+        "INSERT INTO issues (id, repo_id, number, author_id, title, origin)
+         SELECT gen_random_uuid(), r.id, 1, u.id, 'Crash', 'writer'
            FROM repositories r, users u JOIN namespaces n ON n.id = u.namespace_id
           WHERE r.name = 'demo' AND n.name = 'bob'",
     );

@@ -25,6 +25,8 @@ pub(crate) struct Report<'a> {
     pub context: &'a str,
     pub status: uuid::Uuid,
     pub reporter: UserId,
+    /// The reporter's origin: finding threads carry it.
+    pub origin: slath_core::origin::Origin,
 }
 
 /// A finding's identity within its context and revision.
@@ -103,7 +105,7 @@ impl Services {
                         )
                         .await?;
                         slath_db::mr_threads::insert_comment(
-                            &mut *tx, thread, r.reporter, &a.message, false,
+                            &mut *tx, thread, r.reporter, &a.message, false, r.origin,
                         )
                         .await?;
                         db::insert(

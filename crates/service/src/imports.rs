@@ -314,9 +314,16 @@ impl Services {
                 .map(|c| (*c).to_owned())
                 .or_else(|| branches.first().cloned());
             if let Some(b) = pick {
-                slath_db::repos::update_settings(&self.pool, id, repo.description.as_deref(), &b)
-                    .await
-                    .map_err(|e| internal(&e))?;
+                // The description stays as it was; Slath picks the branch.
+                slath_db::repos::update_settings(
+                    &self.pool,
+                    id,
+                    repo.description.as_deref(),
+                    &b,
+                    slath_core::origin::Origin::Writer,
+                )
+                .await
+                .map_err(|e| internal(&e))?;
                 slath_git::storage::set_head(&self.runner, &git_dir, &format!("refs/heads/{b}"))
                     .await
                     .map_err(|e| internal(&e))?;

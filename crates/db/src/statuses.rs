@@ -3,6 +3,7 @@
 //! Commit statuses: reports by authenticated reporters on a commit.
 
 use slath_core::ids::{RepoId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 
 use crate::DbError;
@@ -47,6 +48,8 @@ pub struct NewStatus<'a> {
     pub description: Option<&'a str>,
     pub target_url: Option<&'a str>,
     pub reporter: UserId,
+    /// The reporter's origin, for the description and annotations.
+    pub origin: Origin,
     pub annotations: &'a [Annotation],
 }
 
@@ -58,8 +61,8 @@ pub async fn insert(
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
         "INSERT INTO commit_statuses (id, repo_id, commit_oid, context, state, description, target_url,
-             creator_kind, creator_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'user', $8)",
+             creator_kind, creator_id, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'user', $8, $9)",
         id,
         s.repo.as_uuid(),
         s.commit_oid,
@@ -67,7 +70,8 @@ pub async fn insert(
         s.state,
         s.description,
         s.target_url,
-        s.reporter.as_uuid()
+        s.reporter.as_uuid(),
+        s.origin.as_str()
     )
     .execute(&mut *conn)
     .await?;

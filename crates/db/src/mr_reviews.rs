@@ -3,6 +3,7 @@
 //! Reviews of merge requests and review requests.
 
 use slath_core::ids::{MergeRequestId, RepoId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 
 use crate::DbError;
@@ -28,17 +29,19 @@ pub async fn insert(
     reviewer: UserId,
     verdict: &str,
     body: &str,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
         id,
         mr.as_uuid(),
         revision_seq,
         reviewer.as_uuid(),
         verdict,
-        body
+        body,
+        origin.as_str()
     )
     .execute(exec)
     .await?;

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE labels SET name = $3, color = $4, description = $5,\n             origin = CASE WHEN name IS DISTINCT FROM $3 OR description IS DISTINCT FROM $5\n                 THEN slath_origin_least(origin, $6) ELSE origin END\n         WHERE id = $1 AND repo_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        "Bpchar",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "98e0ed04cdf1fd6881002ef3f87bd805bf7e2ce1afcdf21e3111f267987fd9c7"
+}

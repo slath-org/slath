@@ -3,6 +3,7 @@
 //! Labels, milestones, and assignees of issues.
 
 use slath_core::ids::{RepoId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 use time::{Date, OffsetDateTime};
 
@@ -39,15 +40,18 @@ pub async fn create_label(
     name: &str,
     color: &str,
     description: Option<&str>,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO labels (id, repo_id, name, color, description) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO labels (id, repo_id, name, color, description, origin)
+         VALUES ($1, $2, $3, $4, $5, $6)",
         id,
         repo.as_uuid(),
         name,
         color,
-        description
+        description,
+        origin.as_str()
     )
     .execute(exec)
     .await
@@ -62,14 +66,20 @@ pub async fn update_label(
     name: &str,
     color: &str,
     description: Option<&str>,
+    origin: Origin,
 ) -> Result<bool, DbError> {
+    // A new color alone leaves the text, and its origin, as it was.
     let done = sqlx::query!(
-        "UPDATE labels SET name = $3, color = $4, description = $5 WHERE id = $1 AND repo_id = $2",
+        "UPDATE labels SET name = $3, color = $4, description = $5,
+             origin = CASE WHEN name IS DISTINCT FROM $3 OR description IS DISTINCT FROM $5
+                 THEN slath_origin_least(origin, $6) ELSE origin END
+         WHERE id = $1 AND repo_id = $2",
         id,
         repo.as_uuid(),
         name,
         color,
-        description
+        description,
+        origin.as_str()
     )
     .execute(exec)
     .await
@@ -206,15 +216,18 @@ pub async fn create_milestone(
     title: &str,
     description: Option<&str>,
     due_on: Option<Date>,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO milestones (id, repo_id, title, description, due_on) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO milestones (id, repo_id, title, description, due_on, origin)
+         VALUES ($1, $2, $3, $4, $5, $6)",
         id,
         repo.as_uuid(),
         title,
         description,
-        due_on
+        due_on,
+        origin.as_str()
     )
     .execute(exec)
     .await
@@ -222,6 +235,7 @@ pub async fn create_milestone(
     Ok(id)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn update_milestone(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
@@ -230,17 +244,22 @@ pub async fn update_milestone(
     description: Option<&str>,
     due_on: Option<Date>,
     open: bool,
+    origin: Origin,
 ) -> Result<bool, DbError> {
+    // Closing or a new due date leaves the text, and its origin, as it was.
     let done = sqlx::query!(
         "UPDATE milestones SET title = $3, description = $4, due_on = $5,
-             state = CASE WHEN $6 THEN 'open' ELSE 'closed' END, updated_at = now()
+             state = CASE WHEN $6 THEN 'open' ELSE 'closed' END, updated_at = now(),
+             origin = CASE WHEN title IS DISTINCT FROM $3 OR description IS DISTINCT FROM $4
+                 THEN slath_origin_least(origin, $7) ELSE origin END
          WHERE id = $1 AND repo_id = $2",
         id,
         repo.as_uuid(),
         title,
         description,
         due_on,
-        open
+        open,
+        origin.as_str()
     )
     .execute(exec)
     .await

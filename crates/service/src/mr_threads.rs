@@ -134,10 +134,11 @@ impl Services {
             None => Anchor::default(),
             Some(path) => self.anchor(&m, seq, t, path).await?,
         };
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = db::insert_thread(&mut *tx, m.id, seq, &anchor, author).await?;
         let comment =
-            db::insert_comment(&mut *tx, id, author, t.body.trim_end(), t.pending).await?;
+            db::insert_comment(&mut *tx, id, author, t.body.trim_end(), t.pending, origin).await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         if !t.pending {
@@ -265,7 +266,9 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
-        let id = db::insert_comment(&self.pool, thread, author, body.trim_end(), pending).await?;
+        let origin = self.origin_of(subject, &a.repo).await?;
+        let id = db::insert_comment(&self.pool, thread, author, body.trim_end(), pending, origin)
+            .await?;
         slath_db::merge_requests::touch(&self.pool, m.id).await?;
         if !pending {
             self.notify_mr(Some(author), &m, MrActivity::ThreadComment(id))

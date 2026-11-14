@@ -521,6 +521,7 @@ impl Services {
             ),
         };
         let delete_default = slath_db::repos::mr_settings(&self.pool, a.repo.id).await?.1;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let number = slath_db::issues::next_number(&mut tx, a.repo.id).await?;
         let id = slath_db::merge_requests::insert(
@@ -544,6 +545,7 @@ impl Services {
                 } else {
                     "ready"
                 },
+                origin,
                 target_branch: &target,
                 source_repo: src_id,
                 source_ref: source_ref.as_bytes(),
@@ -878,8 +880,9 @@ impl Services {
         }
         let title = check_title(title)?;
         self.check_body("description", description)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
-        slath_db::merge_requests::update_text(&mut *tx, m.id, &title, description).await?;
+        slath_db::merge_requests::update_text(&mut *tx, m.id, &title, description, origin).await?;
         if title != m.title {
             slath_db::issues::insert_event(
                 &mut *tx,
@@ -1055,6 +1058,7 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
         let id = slath_db::issues::insert_comment(
             &self.pool,
             a.repo.id,
@@ -1062,6 +1066,7 @@ impl Services {
             *m.id.as_uuid(),
             author,
             body,
+            origin,
         )
         .await?;
         slath_db::merge_requests::touch(&self.pool, m.id).await?;

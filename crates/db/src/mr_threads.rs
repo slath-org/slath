@@ -3,6 +3,7 @@
 //! Review threads of merge requests, their comments, and viewed files.
 
 use slath_core::ids::{MergeRequestId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 
 use crate::DbError;
@@ -87,15 +88,18 @@ pub async fn insert_comment(
     author: UserId,
     body: &str,
     pending: bool,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO mr_thread_comments (id, thread_id, author_id, body, pending) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO mr_thread_comments (id, thread_id, author_id, body, pending, origin)
+         VALUES ($1, $2, $3, $4, $5, $6)",
         id,
         thread,
         author.as_uuid(),
         body,
-        pending
+        pending,
+        origin.as_str()
     )
     .execute(exec)
     .await?;
@@ -229,18 +233,20 @@ pub async fn set_resolved(
     Ok(())
 }
 
-/// Edits or deletes a comment.
+/// Edits (with the editor's origin) or deletes a comment.
 pub async fn edit_comment(
     exec: impl PgExecutor<'_>,
     comment: uuid::Uuid,
-    body: Option<&str>,
+    body: Option<(&str, Origin)>,
 ) -> Result<(), DbError> {
     match body {
-        Some(b) => {
+        Some((b, origin)) => {
             sqlx::query!(
-                "UPDATE mr_thread_comments SET body = $2, edited_at = now() WHERE id = $1",
+                "UPDATE mr_thread_comments SET body = $2, edited_at = now(),
+                     origin = slath_origin_least(origin, $3) WHERE id = $1",
                 comment,
-                b
+                b,
+                origin.as_str()
             )
             .execute(exec)
             .await?;

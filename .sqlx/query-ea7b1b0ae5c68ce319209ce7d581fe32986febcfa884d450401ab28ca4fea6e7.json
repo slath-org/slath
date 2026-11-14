@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET description = $2, default_branch = $3, updated_at = now(),\n             description_origin = CASE WHEN description IS DISTINCT FROM $2\n                 THEN slath_origin_least(description_origin, $4) ELSE description_origin END\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea7b1b0ae5c68ce319209ce7d581fe32986febcfa884d450401ab28ca4fea6e7"
+}

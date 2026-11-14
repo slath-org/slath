@@ -258,10 +258,12 @@ impl Services {
                 format!("This commit already has {MAX_PER_CONTEXT} statuses for this context."),
             ));
         }
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = slath_db::statuses::insert(
             &mut tx,
             &NewStatus {
+                origin,
                 repo: a.repo.id,
                 commit_oid: oid.as_str(),
                 context,
@@ -281,6 +283,7 @@ impl Services {
                 context,
                 status: id,
                 reporter: *reporter,
+                origin,
             },
             &annotations,
         )

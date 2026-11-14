@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE merge_requests SET title = $2, description = $3, updated_at = now(),\n             origin = CASE WHEN title IS DISTINCT FROM $2 OR description IS DISTINCT FROM $3\n                 THEN slath_origin_least(origin, $4) ELSE origin END\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "49096ac3325c4290d1f8ca598035c1cb367cf42a4e16d6257cca6189e37578e3"
+}

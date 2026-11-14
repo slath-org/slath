@@ -4,6 +4,7 @@
 
 use serde_json::Value;
 use slath_core::ids::{RepoId, UserId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 use time::OffsetDateTime;
 
@@ -70,16 +71,19 @@ pub async fn insert(
     author: UserId,
     title: &str,
     body: &str,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO issues (id, repo_id, number, author_id, title, body) VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO issues (id, repo_id, number, author_id, title, body, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
         id,
         repo.as_uuid(),
         number,
         author.as_uuid(),
         title,
-        body
+        body,
+        origin.as_str()
     )
     .execute(&mut *tx)
     .await?;
@@ -188,12 +192,17 @@ pub async fn update_text(
     id: uuid::Uuid,
     title: &str,
     body: &str,
+    origin: Origin,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE issues SET title = $2, body = $3, updated_at = now() WHERE id = $1",
+        "UPDATE issues SET title = $2, body = $3, updated_at = now(),
+             origin = CASE WHEN title IS DISTINCT FROM $2 OR body IS DISTINCT FROM $3
+                 THEN slath_origin_least(origin, $4) ELSE origin END
+         WHERE id = $1",
         id,
         title,
-        body
+        body,
+        origin.as_str()
     )
     .execute(exec)
     .await?;
@@ -288,16 +297,19 @@ pub async fn insert_comment(
     subject: uuid::Uuid,
     author: UserId,
     body: &str,
+    origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO comments (id, repo_id, subject_kind, subject_id, author_id, body) VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO comments (id, repo_id, subject_kind, subject_id, author_id, body, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
         id,
         repo.as_uuid(),
         kind,
         subject,
         author.as_uuid(),
-        body
+        body,
+        origin.as_str()
     )
     .execute(exec)
     .await?;
@@ -346,11 +358,14 @@ pub async fn edit_comment(
     exec: impl PgExecutor<'_>,
     id: uuid::Uuid,
     body: &str,
+    origin: Origin,
 ) -> Result<bool, DbError> {
     let done = sqlx::query!(
-        "UPDATE comments SET body = $2, edited_at = now() WHERE id = $1 AND deleted_at IS NULL",
+        "UPDATE comments SET body = $2, edited_at = now(), origin = slath_origin_least(origin, $3)
+         WHERE id = $1 AND deleted_at IS NULL",
         id,
-        body
+        body,
+        origin.as_str()
     )
     .execute(exec)
     .await?;

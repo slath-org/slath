@@ -3,6 +3,7 @@
 //! Merge requests and their revisions.
 
 use slath_core::ids::{MergeRequestId, RepoId};
+use slath_core::origin::Origin;
 use sqlx::PgExecutor;
 
 use crate::DbError;
@@ -153,6 +154,8 @@ pub struct NewMergeRequest<'a> {
     pub draft: bool,
     /// `iterating` for a bot's merge request, else `ready`.
     pub attention: &'a str,
+    /// The author's origin, for the title and description.
+    pub origin: Origin,
     pub target_branch: &'a str,
     pub source_repo: RepoId,
     pub source_ref: &'a [u8],
@@ -171,8 +174,8 @@ pub async fn insert(
     let r = sqlx::query!(
         "INSERT INTO merge_requests (id, repo_id, number, author_id, title, description, draft,
              target_branch, source_repo_id, source_ref, allow_maintainer_edits,
-             delete_source_on_merge, milestone_id, attention)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+             delete_source_on_merge, milestone_id, attention, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
         id.as_uuid(),
         m.repo.as_uuid(),
         m.number,
@@ -186,7 +189,8 @@ pub async fn insert(
         m.allow_maintainer_edits,
         m.delete_source_on_merge,
         m.milestone,
-        m.attention
+        m.attention,
+        m.origin.as_str()
     )
     .execute(&mut *tx)
     .await;
@@ -349,12 +353,17 @@ pub async fn update_text(
     id: MergeRequestId,
     title: &str,
     description: &str,
+    origin: Origin,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE merge_requests SET title = $2, description = $3, updated_at = now() WHERE id = $1",
+        "UPDATE merge_requests SET title = $2, description = $3, updated_at = now(),
+             origin = CASE WHEN title IS DISTINCT FROM $2 OR description IS DISTINCT FROM $3
+                 THEN slath_origin_least(origin, $4) ELSE origin END
+         WHERE id = $1",
         id.as_uuid(),
         title,
-        description
+        description,
+        origin.as_str()
     )
     .execute(exec)
     .await?;

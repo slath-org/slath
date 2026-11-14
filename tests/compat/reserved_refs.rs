@@ -62,8 +62,8 @@ fn conf_git_09_reserved_refs_are_hidden_or_read_only_and_pins_are_kept() {
 
     // A revision whose pin went missing is repinned while its commit exists.
     s.db.execute(&format!(
-        "INSERT INTO merge_requests (id, repo_id, number, title, target_branch, source_repo_id, source_ref)
-         SELECT '{mr_id}', id, 1, 'Topic', 'main', id, 'refs/heads/topic'::bytea FROM repositories;
+        "INSERT INTO merge_requests (id, repo_id, number, title, target_branch, source_repo_id, source_ref, origin)
+         SELECT '{mr_id}', id, 1, 'Topic', 'main', id, 'refs/heads/topic'::bytea, 'writer' FROM repositories;
          INSERT INTO mr_revisions (id, mr_id, seq, base_oid, head_oid)
          VALUES (gen_random_uuid(), '{mr_id}', 1, '{first}', '{first}'),
                 (gen_random_uuid(), '{mr_id}', 2, '{first}', '{second}');"

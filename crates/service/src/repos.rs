@@ -358,6 +358,18 @@ impl Services {
                 namespace_id: ns_id,
                 name: name.as_str(),
                 description: description.as_deref(),
+                // The creator owns it; a bot's text stays a bot's.
+                description_origin: if matches!(
+                    subject,
+                    Subject::User {
+                        kind: UserKind::Bot,
+                        ..
+                    }
+                ) {
+                    slath_core::origin::Origin::Bot
+                } else {
+                    slath_core::origin::Origin::Writer
+                },
                 visibility: input.visibility,
                 default_branch: branch,
             },
@@ -382,7 +394,16 @@ impl Services {
         }
         // A starting set of labels, which maintainers can change or delete.
         for (name, color, description) in DEFAULT_LABELS {
-            slath_db::labels::create_label(&mut *tx, id, name, color, Some(description)).await?;
+            // Slath's own text.
+            slath_db::labels::create_label(
+                &mut *tx,
+                id,
+                name,
+                color,
+                Some(description),
+                slath_core::origin::Origin::Writer,
+            )
+            .await?;
         }
         // Creators watch what they create.
         if let Subject::User { id: creator, .. } = subject {
@@ -450,8 +471,15 @@ impl Services {
         let description = clean_description(description)?;
         let branch = default_branch.trim();
         check_branch(branch)?;
-        slath_db::repos::update_settings(&self.pool, a.repo.id, description.as_deref(), branch)
-            .await?;
+        let origin = self.origin_of(subject, &a.repo).await?;
+        slath_db::repos::update_settings(
+            &self.pool,
+            a.repo.id,
+            description.as_deref(),
+            branch,
+            origin,
+        )
+        .await?;
         let head = format!("refs/heads/{branch}");
         slath_git::storage::set_head(&self.runner, &self.repo_path(a.repo.id), &head)
             .await

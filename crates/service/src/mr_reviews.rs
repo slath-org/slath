@@ -291,6 +291,7 @@ impl Services {
         } else {
             None
         };
+        let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = db::insert(
             &mut *tx,
@@ -299,6 +300,7 @@ impl Services {
             *me,
             verdict.as_str(),
             body.trim(),
+            origin,
         )
         .await?;
         if let Some((total, viewed)) = coverage {

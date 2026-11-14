@@ -45,6 +45,7 @@ pub mod net;
 pub mod notifications;
 pub mod oidc;
 pub mod orgs;
+pub mod origins;
 pub mod passkeys;
 pub mod protections;
 pub mod push;

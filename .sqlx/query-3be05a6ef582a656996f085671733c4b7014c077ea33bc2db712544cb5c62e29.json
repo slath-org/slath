@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE issues SET title = $2, body = $3, updated_at = now(),\n             origin = CASE WHEN title IS DISTINCT FROM $2 OR body IS DISTINCT FROM $3\n                 THEN slath_origin_least(origin, $4) ELSE origin END\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3be05a6ef582a656996f085671733c4b7014c077ea33bc2db712544cb5c62e29"
+}

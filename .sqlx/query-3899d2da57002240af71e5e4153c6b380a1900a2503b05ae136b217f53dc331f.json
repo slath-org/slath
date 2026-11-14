@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE milestones SET title = $3, description = $4, due_on = $5,\n             state = CASE WHEN $6 THEN 'open' ELSE 'closed' END, updated_at = now(),\n             origin = CASE WHEN title IS DISTINCT FROM $3 OR description IS DISTINCT FROM $4\n                 THEN slath_origin_least(origin, $7) ELSE origin END\n         WHERE id = $1 AND repo_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        "Text",
+        "Date",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3899d2da57002240af71e5e4153c6b380a1900a2503b05ae136b217f53dc331f"
+}
