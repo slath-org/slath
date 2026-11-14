@@ -67,11 +67,17 @@ test("conf_design_03_popover_takes_focus_and_closes", async ({ page }) => {
 test("conf_design_03_password_shows_and_hides", async ({ page }) => {
   await page.goto("/-/design/controls");
   const input = page.locator("#demo-password");
-  const toggle = page.getByRole("button", { name: "Show", exact: true });
+  const toggle = page.getByRole("button", { name: "Show password", exact: true });
+  // An icon inside the field, at its end.
+  const [field, button] = await Promise.all([input.boundingBox(), toggle.boundingBox()]);
+  expect(button!.x + button!.width).toBeLessThanOrEqual(field!.x + field!.width);
+  expect(button!.x).toBeGreaterThan(field!.x + field!.width / 2);
+  await expect(toggle.locator("svg use")).toHaveAttribute("href", /#eye$/);
   await expect(input).toHaveAttribute("type", "password");
   await tapOrClick(page, toggle);
   await expect(input).toHaveAttribute("type", "text");
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle.locator("svg use")).toHaveAttribute("href", /#eye-off$/);
   await tapOrClick(page, toggle);
   await expect(input).toHaveAttribute("type", "password");
 });

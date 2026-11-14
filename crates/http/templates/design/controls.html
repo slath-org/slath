@@ -100,13 +100,13 @@
 
 {%- call cat::entry("password", "Password field", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>A password: a button shows and hides the text, pasting is never blocked, and the field tells password managers what it's for.</dd>
+  <dt>Purpose</dt><dd>A password: an eye button inside the field, at its end, shows and hides the text; pasting is never blocked, and the field tells password managers what it's for.</dd>
   <dt>Markup</dt><dd>A field with <code>input type=password</code> and its <code>autocomplete</code> value (<code>current-password</code>, <code>new-password</code>); the script adds the button.</dd>
-  <dt>Variants</dt><dd>Hidden; shown (the button pressed).</dd>
-  <dt>Accessibility</dt><dd>The button is a toggle named "Show" that reports whether it's pressed and controls the field; sending the form hides the text again.</dd>
+  <dt>Variants</dt><dd>Hidden (an eye); shown (a crossed-out eye, the button pressed).</dd>
+  <dt>Accessibility</dt><dd>An icon-only toggle named "Show password" (also its tooltip) that reports whether it's pressed and controls the field; sending the form hides the text again.</dd>
   <dt>Not for</dt><dd>Tokens and secrets shown once (a value to copy).</dd>
 </dl>
-{%- call cat::example("Press Show.") %}
+{%- call cat::example("Press the eye.") %}
 <div class="form-layout">
   {%- call f::field("demo-password", "Password") %}<input id="demo-password" type="password" autocomplete="new-password" value="correct horse">{% endcall %}
 </div>

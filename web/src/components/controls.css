@@ -133,3 +133,38 @@ input[type="date"] {
   color: var(--text);
   font: inherit;
 }
+
+/* A password field with its show/hide toggle inside, at its end. */
+.password-field {
+  position: relative;
+  display: flex;
+}
+.password-field > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline-end: calc(var(--target-min) + var(--space-2));
+}
+.password-toggle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--border-width);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--target-min);
+  margin-block: auto;
+  block-size: max(var(--target-min), calc(100% - 2 * var(--border-width)));
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.password-toggle:hover {
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+.password-toggle[aria-pressed="true"] {
+  color: var(--text);
+}

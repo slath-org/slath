@@ -2,29 +2,51 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Two helpers for fields, both added only with scripts:
-// - Password fields get a button that shows and hides the text.
+// - Password fields get an eye button inside them that shows and hides
+//   the text.
 // - Fields with a length limit show how many characters are left once the
 //   text comes within a fifth of the limit, announced politely.
 
 let seq = 0;
 
+/** An icon from the page's sprite (the same one the server's icons use). */
+function icon(name: string): SVGSVGElement {
+  const NS = "http://www.w3.org/2000/svg";
+  const sprite = document.querySelector("svg.icon use")?.getAttribute("href")?.split("#")[0] ?? "";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const use = document.createElementNS(NS, "use");
+  use.setAttribute("href", `${sprite}#${name}`);
+  svg.append(use);
+  return svg;
+}
+
 function reveal(input: HTMLInputElement): void {
   const wrap = document.createElement("div");
-  wrap.className = "input-with-button";
+  wrap.className = "password-field";
   input.before(wrap);
   wrap.append(input);
+  // An icon-only toggle inside the field: an eye while the text is hidden,
+  // a crossed-out eye while it shows. Its name is text, not aria-label, so
+  // it never answers to the field's own label.
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "button";
-  // A toggle with a constant name: pressed shows the text.
-  btn.textContent = "Show";
+  btn.className = "password-toggle";
   btn.setAttribute("aria-pressed", "false");
+  btn.dataset.tip = "Show password";
   if (!input.id) input.id = `password-${++seq}`;
   btn.setAttribute("aria-controls", input.id);
+  const name = document.createElement("span");
+  name.className = "visually-hidden";
+  name.textContent = "Show password";
+  btn.append(icon("eye"), name);
   btn.addEventListener("click", () => {
     const show = input.type === "password";
     input.type = show ? "text" : "password";
     btn.setAttribute("aria-pressed", String(show));
+    btn.querySelector("svg")?.replaceWith(icon(show ? "eye-off" : "eye"));
     input.focus();
   });
   wrap.append(btn);

@@ -170,7 +170,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Bots can't resolve or reopen review threads people started; they mark them addressed, which shows on the thread and keeps it open until a person resolves it.
 - While a page or a list loads in place, a thin bar along its top shows that it's busy; it stays still when reduced motion is preferred.
 - A menu's chevron turns while the menu is open.
-- Password fields have a Show button that reveals what you typed.
+- Password fields have an eye button inside them that reveals what you typed.
 - Fields with a length limit show how many characters are left once you get close to it.
 - On phones the top bar is one row again: your own places (review requests, notifications, profile, settings, administration, appearance, sign out) are in a menu behind your avatar.
 
