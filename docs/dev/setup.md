@@ -73,8 +73,8 @@ Browser support:
 - Use Newly available or limited features only as progressive enhancement
   (the page still works where they're missing, as with `field-sizing` or
   `text-wrap`) or with a fallback: a polyfill from npm, bundled and loaded
-  with a dynamic `import()` only after feature detection (see
-  `web/src/dialog.ts`), or a small fallback of our own.
+  with a dynamic `import()` only after feature detection, or a small
+  fallback of our own.
 - Prefer HTML and CSS solutions to JavaScript ones.
 - Bundled third-party code is listed in `THIRD-PARTY-NOTICES.md`.
 

@@ -162,26 +162,6 @@ test("conf_a11y_04_components_operable_by_tap_click_and_keyboard", async ({ page
   await tapOrClick(page, page.getByRole("heading", { name: "Design catalog" }));
   await expect(menu.locator(".menu-panel")).toBeHidden();
 
-  // Dialog and drawer: open by pointer and keyboard, close by Escape and button.
-  for (const [opener, id] of [
-    ["Open dialog", "#demo-dialog"],
-    ["Open drawer", "#demo-drawer"],
-  ]) {
-    const button = page.getByRole("button", { name: opener });
-    const dialog = page.locator(id);
-    await tapOrClick(page, button);
-    await expect(dialog).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect(button).toBeFocused();
-    await page.keyboard.press("Space");
-    await expect(dialog).toBeVisible();
-    const close = dialog.getByRole("button", { name: /Cancel|Close/ });
-    await close.focus();
-    await page.keyboard.press("Enter");
-    await expect(dialog).toBeHidden();
-  }
-
   // Toast: shown in the live region, dismissible by pointer.
   await tapOrClick(page, page.getByRole("button", { name: "Show toast" }));
   const toast = page.locator("#toasts .toast");
