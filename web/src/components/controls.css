@@ -62,3 +62,74 @@ time[data-tip] {
   margin-inline-start: var(--space-1);
   vertical-align: -0.05em;
 }
+
+/* A popover's panel: text to read, not items to choose. */
+.popover-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inline);
+  max-inline-size: min(24rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.popover-panel > * {
+  margin: 0;
+}
+.popover-panel:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+}
+
+/* A field for several names: the chosen ones as chips, then the box for
+   the next. */
+.names-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inside);
+}
+.names-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-inside);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.names-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inside);
+  min-height: var(--target-min);
+  padding-inline: var(--space-2) 0;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.names-remove {
+  min-inline-size: var(--target-min);
+  min-block-size: var(--target-min);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+.names-remove:hover {
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+
+/* The count of characters left under a field near its limit. */
+.field-count {
+  margin: 0;
+}
+
+/* Dates: the browser's date field, in the controls' style. */
+input[type="date"] {
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}

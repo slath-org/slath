@@ -11,6 +11,8 @@ interface Suggestion {
   value: string;
   label: string;
   detail: string | null;
+  /** A person's uploaded avatar, if any. */
+  avatar?: string | null;
 }
 
 let seq = 0;
@@ -58,6 +60,8 @@ function attach(input: HTMLInputElement): void {
     input.value = [...done.filter((d) => d !== name), name].join(", ") + ", ";
     close();
     input.focus();
+    // A field for several names turns it into a chip (names.ts).
+    input.dispatchEvent(new CustomEvent("names:accept", { detail: { name, avatar: it.avatar ?? null } }));
   };
 
   const render = () => {

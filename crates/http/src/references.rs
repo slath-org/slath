@@ -111,6 +111,20 @@ pub async fn api_references(
     suggest(&state, &s, (&ns, &repo), &q.kind, &q.q, q.item).await
 }
 
+/// One suggestion for the UI: the API's, plus the uploaded avatar of a
+/// person (pages draw the generated one themselves).
+#[derive(Serialize)]
+struct UiReference {
+    #[serde(flatten)]
+    item: ReferenceJson,
+    avatar: Option<String>,
+}
+
+#[derive(Serialize)]
+struct UiReferenceList {
+    items: Vec<UiReference>,
+}
+
 async fn ui_references(
     State(state): State<AppState>,
     session: MaybeSession,
@@ -121,7 +135,28 @@ async fn ui_references(
         return Err(AppError::unauthenticated());
     }
     let (ns, repo) = q.repo.split_once('/').ok_or_else(AppError::not_found)?;
-    suggest(&state, &s, (ns, repo), &q.kind, &q.q, q.item).await
+    let items = state
+        .services
+        .reference_suggestions(&s, ns, repo, &q.kind, &q.q, q.item)
+        .await?;
+    let avatars = state.services.uploaded_avatars().await;
+    let items = list(items)
+        .items
+        .into_iter()
+        .map(|item| {
+            let avatar = (item.kind == "user")
+                .then(|| avatars.get(&item.value.trim_start_matches('@').to_lowercase()))
+                .flatten()
+                .map(|sha| format!("/-/avatars/{sha}.png"));
+            UiReference { item, avatar }
+        })
+        .collect();
+    let mut res = Json(UiReferenceList { items }).into_response();
+    res.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(res)
 }
 
 pub fn ui_router() -> Router<AppState> {

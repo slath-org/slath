@@ -38,3 +38,14 @@
 {%- macro icon_button(ctx, icon, name, kind = "button") -%}
 <button type="{{ kind }}" class="button button-quiet button-icon" data-tip="{{ name }}">{% call m::icon(ctx, icon) %}{% endcall %}<span class="visually-hidden">{{ name }}</span></button>
 {%- endmacro -%}
+
+{#- A popover: more about something, on request (help for a setting). An
+    icon button named `label` opens it; the body is what it says. -#}
+{%- macro popover(ctx, label, icon = "info") -%}
+<details class="menu popover">
+  <summary class="button button-quiet button-icon">{% call m::icon(ctx, icon) %}{% endcall %}<span class="visually-hidden">{{ label }}</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <div class="menu-panel popover-panel" tabindex="-1" role="group" aria-label="{{ label }}">
+{{ caller() }}
+  </div>
+</details>
+{%- endmacro -%}

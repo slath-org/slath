@@ -4,7 +4,8 @@
 // Disclosure menus (<details class="menu">) work without JavaScript. This
 // adds what users expect from menus: Escape closes the open menu and returns
 // focus to its button, a click or tap outside closes it, and an open panel
-// is shifted to stay inside the viewport on narrow screens.
+// is shifted to stay inside the viewport on narrow screens. Popovers
+// (`details.menu.popover`) behave the same and take focus when they open.
 
 /** Space kept between a panel and the viewport edge (--space-4). */
 const EDGE = 16;
@@ -33,6 +34,10 @@ export function installMenus(): void {
     (evt) => {
       if (evt.target instanceof HTMLDetailsElement && evt.target.matches("details.menu")) {
         fitPanel(evt.target);
+        // A popover is read, not chosen from: focus moves into it.
+        if (evt.target.open && evt.target.matches(".popover")) {
+          evt.target.querySelector<HTMLElement>(":scope > .menu-panel")?.focus();
+        }
       }
     },
     true,

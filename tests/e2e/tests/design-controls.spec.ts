@@ -51,3 +51,52 @@ test("conf_design_03_hash_path_cut", async ({ page }) => {
   const cut = await page.locator(".cut").evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(cut).toBe(true);
 });
+
+test("conf_design_03_popover_takes_focus_and_closes", async ({ page }) => {
+  await page.goto("/-/design/controls");
+  const summary = page.locator("details.popover > summary");
+  await tapOrClick(page, summary);
+  const panel = page.getByRole("group", { name: "About push protection" });
+  await expect(panel).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(summary).toBeFocused();
+});
+
+test("conf_design_03_password_shows_and_hides", async ({ page }) => {
+  await page.goto("/-/design/controls");
+  const input = page.locator("#demo-password");
+  const toggle = page.getByRole("button", { name: "Show", exact: true });
+  await expect(input).toHaveAttribute("type", "password");
+  await tapOrClick(page, toggle);
+  await expect(input).toHaveAttribute("type", "text");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await tapOrClick(page, toggle);
+  await expect(input).toHaveAttribute("type", "password");
+});
+
+test("conf_design_03_length_count_near_the_limit", async ({ page }) => {
+  await page.goto("/-/design/controls");
+  const input = page.locator("#demo-short");
+  const count = page.locator("section[aria-labelledby=count] .field-count");
+  // 13 of 20 characters: not near the limit yet.
+  await expect(count).toBeHidden();
+  await input.fill("release-automati");
+  await expect(count).toHaveText("4 characters left");
+  await expect(input).toHaveAttribute("aria-describedby", /demo-short-hint count-\d+/);
+});
+
+test("conf_design_03_names_field_chips", async ({ page }) => {
+  await page.goto("/-/design/controls");
+  const chips = page.getByRole("list", { name: "Chosen" });
+  await expect(chips.getByRole("listitem")).toHaveCount(2);
+  await expect(chips.locator(".avatar")).toHaveCount(2);
+  const box = page.getByLabel("Reviewers");
+  await box.fill("carol,");
+  await expect(chips.getByRole("listitem")).toHaveCount(3);
+  await tapOrClick(page, chips.getByRole("button", { name: "Remove bob" }));
+  await expect(chips.getByRole("listitem")).toHaveCount(2);
+  await expect(page.locator("input[type=hidden][name=reviewers]")).toHaveValue("alice, carol");
+  await expectAccessible(page);
+});

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
 {% import "components/controls.html" as c %}
+{% import "components/forms.html" as f %}
 {% import "design/catalog.html" as cat %}
 {% block title %}Basic controls · Design catalog{% endblock %}
 {% block sidebar %}{% let family = "controls" %}{% include "design/sidebar.html" %}{% endblock %}
@@ -81,6 +82,97 @@
 </dl>
 {%- call cat::example("A commit's summary in a narrow cell.") %}
 <p class="catalog-narrow">{% call c::cut("Rewrite the merge engine so every change keeps its ID across rebases") %}{% endcall %}</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("popover", "Popover", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>More about something, on request: help for a setting, what a state means. Opened by click, tap, or Enter; closed by Escape or a click outside; focus moves into it and back.</dd>
+  <dt>Markup</dt><dd><code>c::popover(ctx, label, icon)</code> around the text.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>The button is named by <code>label</code>; the panel is a group with the same name and takes focus.</dd>
+  <dt>Not for</dt><dd>Anything needed to finish a task (put it in the hint or the page); actions (a menu).</dd>
+</dl>
+{%- call cat::example("Help next to a setting.") %}
+<p>Push protection {% call c::popover(ctx, "About push protection") %}<p>Slath checks every push for secrets such as tokens and private keys, and refuses a push that adds one.</p><p>An administrator can allow a finding that isn't a secret.</p>{% endcall %}</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("password", "Password field", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A password: a button shows and hides the text, pasting is never blocked, and the field tells password managers what it's for.</dd>
+  <dt>Markup</dt><dd>A field with <code>input type=password</code> and its <code>autocomplete</code> value (<code>current-password</code>, <code>new-password</code>); the script adds the button.</dd>
+  <dt>Variants</dt><dd>Hidden; shown (the button pressed).</dd>
+  <dt>Accessibility</dt><dd>The button is a toggle named "Show" that reports whether it's pressed and controls the field; sending the form hides the text again.</dd>
+  <dt>Not for</dt><dd>Tokens and secrets shown once (a value to copy).</dd>
+</dl>
+{%- call cat::example("Press Show.") %}
+<div class="form-layout">
+  {%- call f::field("demo-password", "Password") %}<input id="demo-password" type="password" autocomplete="new-password" value="correct horse">{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("count", "Length count", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A field with a length limit says it in its hint; once the text comes within a fifth of the limit, the characters left appear under the field.</dd>
+  <dt>Markup</dt><dd>The control's <code>maxlength</code>; the script adds the count.</dd>
+  <dt>Variants</dt><dd>Far from the limit (nothing shown); near it.</dd>
+  <dt>Accessibility</dt><dd>The count describes the field and is announced politely as it changes.</dd>
+  <dt>Not for</dt><dd>Fields without a limit.</dd>
+</dl>
+{%- call cat::example("A name of at most 20 characters; type to the end.") %}
+<div class="form-layout">
+  {%- call f::field("demo-short", "Name", "Up to 20 characters.") %}<input id="demo-short" type="text" maxlength="20" value="release-autom"{% call f::described("demo-short", "hint", "") %}{% endcall %}>{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("names", "Field for several names", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Several people, teams, or labels in one field (reviewers, assignees, labels): suggestions while typing, and each chosen name as a removable chip with its avatar.</dd>
+  <dt>Markup</dt><dd>A field whose input has <code>data-names</code> (<code>data-names="labels"</code> for labels, without avatars) and, for people, <code>data-suggest-users="owner/repo"</code>. Without scripts it's plain text, names separated by commas.</dd>
+  <dt>Variants</dt><dd>Empty; with chips; suggesting.</dd>
+  <dt>Accessibility</dt><dd>The chips are a list named "Chosen"; each remove button is named ("Remove bob"); Backspace in the empty box removes the last chip.</dd>
+  <dt>Not for</dt><dd>One name (a field with suggestions).</dd>
+</dl>
+{%- call cat::example("Two reviewers chosen; type another and a comma.") %}
+<form class="form-layout" action="#names">
+  {%- call f::field("demo-reviewers", "Reviewers", "Usernames, or organization/team, separated by commas.") %}<input id="demo-reviewers" name="reviewers" type="text" value="alice, bob" data-names autocomplete="off"{% call f::described("demo-reviewers", "hint", "") %}{% endcall %}>{% endcall %}
+</form>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("sort", "Sorting", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The order of a list is one of its views: a view menu ("Sort: Newest") next to the others, not a field among the filters.</dd>
+  <dt>Markup</dt><dd><code>m::view_menu(ctx, "Sort", current, region)</code> with one <code>m::view_item</code> per order.</dd>
+  <dt>Variants</dt><dd>As the view menu.</dd>
+  <dt>Accessibility</dt><dd>As the view menu: the button names the order shown.</dd>
+  <dt>Not for</dt><dd>Filters.</dd>
+</dl>
+{%- call cat::example("A list's state and order.") %}
+<div class="cluster">
+{%- call m::view_menu(ctx, "State", "Open", "") %}{% call m::view_item("#sort", "Open", true, "") %}{% endcall %}{% call m::view_item("#sort", "Closed", false, "") %}{% endcall %}{% endcall %}
+{%- call m::view_menu(ctx, "Sort", "Newest", "") %}{% call m::view_item("#sort", "Newest", true, "") %}{% endcall %}{% call m::view_item("#sort", "Recently updated", false, "") %}{% endcall %}{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("switches", "On and off", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>There are no toggle switches. A setting that's on or off is a checkbox saved with its form's button; an action that takes effect at once is a button that names it ("Watch", "Unwatch", "Stop bot"). Dates are entered with the browser's date field.</dd>
+  <dt>Markup</dt><dd>An option without a question (<code>f::option("checkbox", …)</code>); a button; <code>input type=date</code> in a field.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>Native controls, labelled.</dd>
+  <dt>Not for</dt><dd>Mutually exclusive alternatives (the choice component).</dd>
+</dl>
+{%- call cat::example("A setting, an instant action, a date.") %}
+<form class="form-layout" action="#switches">
+  {%- call f::option("checkbox", "demo-active", "active", "1", "Active", true, "Send events to this URL.") %}{% endcall %}
+  {%- call f::field("demo-due", "Due date", "", "", true) %}<input id="demo-due" type="date">{% endcall %}
+  <div class="cluster"><button type="button" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button></div>
+</form>
 {%- endcall %}
 {%- endcall %}
 </div>
