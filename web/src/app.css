@@ -6,5 +6,6 @@
 @import "./base.css";
 @import "./components.css";
 @import "./components/layout.css";
+@import "./components/messages.css";
 @import "./components/catalog.css";
 @import "./syntax.css";

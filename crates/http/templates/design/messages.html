@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/messages.html" as msg %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Messages and states · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "messages" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Messages and states</h1></div>
+  <p class="page-head-intro">What happened decides the kind of message. A toast disappears, so it never carries something the person must act on.</p>
+</header>
+
+<section class="section" aria-labelledby="choosing">
+  <h2 id="choosing">Choosing a message</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="choosing-caption">
+  <table class="table">
+    <caption id="choosing-caption" class="visually-hidden">Which message follows what</caption>
+    <thead><tr><th scope="col">What happened</th><th scope="col">Message</th></tr></thead>
+    <tbody>
+      <tr><td>A form was submitted and the page reloaded</td><td>Success summary at the top of that form's section</td></tr>
+      <tr><td>A form failed</td><td>Error summary leading the form, and each field's own message</td></tr>
+      <tr><td>The page or its subject is in a state the person should know</td><td>Notice at the top of the page, information or warning</td></tr>
+      <tr><td>One part of the page needs a word</td><td>Notice line in that part's frame</td></tr>
+      <tr><td>A part loaded in place failed, or an action without a page load finished</td><td>Toast</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{%- call cat::entry("notice", "Notice", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A state of the page or its subject the person should know: the repository is archived, being imported, read-only for maintenance; or a warning about something that may need action, such as a failing webhook.</dd>
+  <dt>Markup</dt><dd><code>msg::notice(tone)</code> with one or more paragraphs; <code>tone</code> is <code>info</code> (default) or <code>warning</code>. At the top of the page, under its heading.</dd>
+  <dt>Variants</dt><dd>Information; warning. Either may hold a link or a button that resolves it.</dd>
+  <dt>Accessibility</dt><dd><code>role=note</code>: read in place, not announced. The tone is in the words too; color only adds to them.</dd>
+  <dt>Not for</dt><dd>The result of a form (success or error summary); a part of the page (notice line); errors.</dd>
+</dl>
+{%- call cat::example("Information and warning.") %}
+<div class="stack">
+{%- call msg::notice() %}<p>This repository is archived. It's read-only.</p>{% endcall %}
+{%- call msg::notice("warning") %}<p>The last 5 attempts failed. After 50 failures in a row, Slath switches the webhook off.</p>{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("saved", "Success summary", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>What a submitted form did, in the past tense with its object: "Webhook saved."</dd>
+  <dt>Markup</dt><dd><code>msg::saved(text)</code>, first in the section of the form that was sent. A new secret shown once adds its value to copy and "It won't be shown again."</dd>
+  <dt>Variants</dt><dd>Text only; with a value to copy.</dd>
+  <dt>Accessibility</dt><dd><code>role=status</code>: announced politely after the page loads.</dd>
+  <dt>Not for</dt><dd>Results without a page load (toast); anything the person must still do (notice).</dd>
+</dl>
+{%- call cat::example("After saving.") %}
+{%- call msg::saved("Webhook saved.") %}{% endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("error-summary", "Error summary", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Leads a form that failed: the heading "There is a problem", then one link per invalid field that says what to enter. Each field also shows its own message, and everything entered stays.</dd>
+  <dt>Markup</dt><dd><code>msg::error_summary()</code> with one <code>&lt;li&gt;&lt;a href="#field"&gt;</code> per field, first in the failed form, not at the top of the page.</dd>
+  <dt>Variants</dt><dd>One or several errors. An error of the whole form (a conflict) is an item without a link.</dd>
+  <dt>Accessibility</dt><dd><code>role=alert</code>, receives focus after the submit; each link moves focus to its field. The heading is a message heading (15 px).</dd>
+  <dt>Not for</dt><dd>Failures without a form (toast or notice); a field's own message (under the field).</dd>
+</dl>
+{%- call cat::example("Two invalid fields.") %}
+{%- call msg::error_summary() %}
+    <li><a href="#error-summary">Enter a name of 1 to 100 characters.</a></li>
+    <li><a href="#error-summary">Choose at least one scope.</a></li>
+{%- endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("notice-line", "Notice line", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A word inside one part of the page, such as a step of the merge box: an icon, then one sentence.</dd>
+  <dt>Markup</dt><dd><code>msg::notice_line(ctx, tone, text)</code> inside a frame; <code>tone</code> is <code>info</code>, <code>waiting</code>, or <code>warning</code>.</dd>
+  <dt>Variants</dt><dd>Information; waiting; warning.</dd>
+  <dt>Accessibility</dt><dd>The icon is decorative; the sentence says it all.</dd>
+  <dt>Not for</dt><dd>The page's state (notice).</dd>
+</dl>
+{%- call cat::example("In a frame.") %}
+<section class="frame" aria-labelledby="demo-auto-merge">
+  <h3 id="demo-auto-merge" class="frame-title">Merge when ready</h3>
+  {%- call msg::notice_line(ctx, "waiting", "It merges as soon as every requirement is met. Set by alice.") %}{% endcall %}
+  {%- call msg::notice_line(ctx, "warning", "A new revision pushed by anyone else cancels it.") %}{% endcall %}
+</section>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("empty", "Empty state", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>One sentence with a full stop where a list or a value would be: what will appear there.</dd>
+  <dt>Markup</dt><dd><code>msg::empty(text)</code>, also in details columns ("No one is assigned.").</dd>
+  <dt>Variants</dt><dd>None. A list that is empty because of its filters says so ("No issues match these filters.").</dd>
+  <dt>Accessibility</dt><dd>Plain text in secondary color (contrast checked).</dd>
+  <dt>Not for</dt><dd>Errors; content that can't be shown to this person (it looks like nothing exists).</dd>
+</dl>
+{%- call cat::example("Empty lists.") %}
+<div class="stack">
+{%- call msg::empty("No open issues.") %}{% endcall %}
+{%- call msg::empty("No issues match these filters.") %}{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("busy", "Busy region", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A region being replaced (a page loading, a list changing its view) keeps its content and shows a thin bar along its top until the new content arrives.</dd>
+  <dt>Markup</dt><dd>Any region with <code>aria-busy="true"</code>; the scripts set and clear it around every in-place load.</dd>
+  <dt>Variants</dt><dd>Moving bar; still under reduced motion. A submitting button shows its spinner instead.</dd>
+  <dt>Accessibility</dt><dd><code>aria-busy</code> tells screen readers to wait for the new content; focus stays or moves to the new region's heading.</dd>
+  <dt>Not for</dt><dd>Work that takes longer than a page load (a fork, an import): those show a notice and a state.</dd>
+</dl>
+{%- call cat::example("A list region while it loads.") %}
+<div class="stack" aria-busy="true"><div class="catalog-block">Issue</div><div class="catalog-block">Issue</div></div>
+{%- endcall %}
+{%- call cat::example("A button while it submits.") %}
+<div class="cluster"><button type="button" class="button" aria-busy="true">Saving</button></div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("toast", "Toast", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The result of something that happened without a page load, and failed in-place loads, with a way to retry.</dd>
+  <dt>Markup</dt><dd>Shown by the scripts in the page's polite live region; a button with <code>data-toast</code> shows an informational one.</dd>
+  <dt>Variants</dt><dd>Information; error (with retry).</dd>
+  <dt>Accessibility</dt><dd>Announced politely (errors at once); stays until closed or replaced; never the only place of something the person must act on.</dd>
+  <dt>Not for</dt><dd>Results of forms that reload the page; states (notice).</dd>
+</dl>
+{%- call cat::example("Press the button.") %}
+<div class="cluster"><button type="button" class="button" data-toast="Copied to the clipboard.">Show a toast</button></div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

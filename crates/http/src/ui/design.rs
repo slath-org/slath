@@ -122,11 +122,19 @@ struct LayoutFamily {
     ctx: PageCtx,
 }
 
+/// The messages family: notices, summaries, empty and busy states.
+#[derive(Template)]
+#[template(path = "design/messages.html")]
+struct MessagesFamily {
+    ctx: PageCtx,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
     match name.as_str() {
         "layout" => Ok(render(&LayoutFamily { ctx })),
+        "messages" => Ok(render(&MessagesFamily { ctx })),
         _ => Err(AppError::not_found()),
     }
 }

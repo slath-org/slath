@@ -1,0 +1,63 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave messages and states: notices in two tones, the summaries after a
+   submit, the notice line inside a frame, empty states, and the busy state
+   of a region being replaced. Contracts: /-/design/messages. */
+
+/* A warning: something that may need action. Information is the plain
+   notice (components.css). */
+.notice-warning {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+}
+.notice-warning a {
+  color: var(--warning-fg);
+}
+
+/* In a stack, messages take their space from it. */
+:is(.stack, .stack-groups, .section, .subsection, .frame, .page) > :is(.notice, .error-summary, .success-summary) {
+  margin-block: 0;
+}
+
+/* An empty state: one sentence where a list or value would be. */
+.empty-state {
+  color: var(--text-secondary);
+}
+:is(.stack, .stack-groups, .section, .subsection, .frame, .page) > .empty-state {
+  padding-block: 0;
+}
+
+/* A region being replaced keeps its content and shows a thin bar along its
+   top until the new content arrives; still under reduced motion. */
+[aria-busy="true"]:not(.button) {
+  position: relative;
+}
+[aria-busy="true"]:not(.button)::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 30;
+  block-size: var(--border-width-strong);
+  background: var(--accent);
+  transform-origin: 0 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [aria-busy="true"]:not(.button)::before {
+    animation: busy calc(var(--motion-normal) * 6) ease-in-out infinite;
+  }
+}
+@keyframes busy {
+  from {
+    transform: scaleX(0.1);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@media (forced-colors: active) {
+  [aria-busy="true"]:not(.button)::before {
+    background: Highlight;
+  }
+}

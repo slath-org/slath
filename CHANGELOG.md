@@ -168,6 +168,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Text people and bots write (issues, merge requests, comments, reviews, statuses, labels, milestones) carries `untrusted_content` and its author's `origin` in the API and webhooks.
 - The origin is `writer`, `member`, `bot`, `outside_contributor`, or `anonymous`, as the author stood when writing; an edit by someone else keeps the less trusted one.
 - Bots can't resolve or reopen review threads people started; they mark them addressed, which shows on the thread and keeps it open until a person resolves it.
+- While a page or a list loads in place, a thin bar along its top shows that it's busy; it stays still when reduced motion is preferred.
 
 ### Changed
 
