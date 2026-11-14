@@ -367,14 +367,27 @@ impl From<slath_db::statuses::Status> for StatusRow {
 }
 
 /// A timestamp for templates: `<time datetime="{iso}">{text}</time>` (UTC).
+/// `text` is the exact date and time; `short` is what lists, timelines,
+/// and headers show: relative within seven days ("3 hours ago", "in 2
+/// days", "yesterday"), a date ("14 Nov 2026") otherwise. The time
+/// component shows `short` with `text` in a tooltip.
 #[derive(Debug, Clone)]
 pub struct Time {
     pub iso: String,
     pub text: String,
+    pub short: String,
 }
 
 impl From<time::OffsetDateTime> for Time {
     fn from(t: time::OffsetDateTime) -> Self {
+        Self::at(t, time::OffsetDateTime::now_utc())
+    }
+}
+
+impl Time {
+    /// The view of `t` as seen at `now`.
+    #[must_use]
+    pub fn at(t: time::OffsetDateTime, now: time::OffsetDateTime) -> Self {
         let t = t.to_offset(time::UtcOffset::UTC);
         let iso = t
             .format(&time::format_description::well_known::Rfc3339)
@@ -387,7 +400,75 @@ impl From<time::OffsetDateTime> for Time {
             t.hour(),
             t.minute()
         );
-        Self { iso, text }
+        Self {
+            iso,
+            text,
+            short: relative(t, now),
+        }
+    }
+}
+
+/// The first 12 characters of a commit hash, as pages show it.
+#[must_use]
+pub fn short_hash(oid: &str) -> &str {
+    oid.get(..12).unwrap_or(oid)
+}
+
+/// "3 hours ago", "in 2 days", "yesterday" within seven days of `now`; a
+/// date ("14 Nov 2026") otherwise.
+fn relative(t: time::OffsetDateTime, now: time::OffsetDateTime) -> String {
+    let secs = (now - t).whole_seconds();
+    let (past, n) = (secs >= 0, secs.unsigned_abs());
+    let unit = |n: u64, one: &str, many: &str| {
+        let w = if n == 1 { one } else { many };
+        if past {
+            format!("{n} {w} ago")
+        } else {
+            format!("in {n} {w}")
+        }
+    };
+    match n {
+        0..60 => "just now".to_owned(),
+        60..3_600 => unit(n / 60, "minute", "minutes"),
+        3_600..86_400 => unit(n / 3_600, "hour", "hours"),
+        86_400..172_800 if past => "yesterday".to_owned(),
+        86_400..172_800 => "tomorrow".to_owned(),
+        172_800..604_800 => unit(n / 86_400, "day", "days"),
+        _ => {
+            const MONTHS: [&str; 12] = [
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            ];
+            format!(
+                "{} {} {}",
+                t.day(),
+                MONTHS[usize::from(u8::from(t.month())) - 1],
+                t.year()
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod time_tests {
+    use super::Time;
+    use time::macros::datetime;
+
+    #[test]
+    fn short_form_is_relative_within_a_week_then_a_date() {
+        let now = datetime!(2026-11-14 12:00 UTC);
+        let at = |t| Time::at(t, now).short;
+        assert_eq!(at(datetime!(2026-11-14 11:59:30 UTC)), "just now");
+        assert_eq!(at(datetime!(2026-11-14 11:59 UTC)), "1 minute ago");
+        assert_eq!(at(datetime!(2026-11-14 09:00 UTC)), "3 hours ago");
+        assert_eq!(at(datetime!(2026-11-13 10:00 UTC)), "yesterday");
+        assert_eq!(at(datetime!(2026-11-10 12:00 UTC)), "4 days ago");
+        assert_eq!(at(datetime!(2026-11-16 13:00 UTC)), "in 2 days");
+        assert_eq!(at(datetime!(2026-11-15 13:00 UTC)), "tomorrow");
+        assert_eq!(at(datetime!(2026-11-01 08:00 UTC)), "1 Nov 2026");
+        assert_eq!(
+            Time::at(datetime!(2026-11-14 09:05 UTC), now).text,
+            "2026-11-14 09:05 UTC"
+        );
     }
 }
 

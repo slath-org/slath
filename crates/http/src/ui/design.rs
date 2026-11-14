@@ -159,6 +159,17 @@ struct PeopleFamily {
     many: Vec<String>,
 }
 
+/// The basic controls family: links, tooltips, times, hashes, paths.
+#[derive(Template)]
+#[template(path = "design/controls.html")]
+struct ControlsFamily {
+    ctx: PageCtx,
+    recent: super::Time,
+    soon: super::Time,
+    older: super::Time,
+    oid: String,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
@@ -168,6 +179,16 @@ async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppE
         "forms" => Ok(render(&FormsFamily { ctx })),
         "disclosure" => Ok(render(&DisclosureFamily { ctx })),
         "lists" => Ok(render(&ListsFamily { ctx })),
+        "controls" => {
+            let now = time::OffsetDateTime::now_utc();
+            Ok(render(&ControlsFamily {
+                ctx,
+                recent: (now - time::Duration::hours(3)).into(),
+                soon: (now + time::Duration::days(2) + time::Duration::hours(1)).into(),
+                older: (now - time::Duration::days(40)).into(),
+                oid: "a1e62f5c7d0b9a8e3f41c2d6b7e8f90a1b2c3d4e".to_owned(),
+            }))
+        }
         "people" => {
             let names = |n: &[&str]| n.iter().map(|s| (*s).to_owned()).collect();
             Ok(render(&PeopleFamily {

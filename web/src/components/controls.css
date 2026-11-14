@@ -1,0 +1,64 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave basic controls: tooltips, times, hashes, paths, cut text, and
+   links to other sites. Contracts: /-/design/controls. */
+
+/* One tooltip for the page, placed by tooltip.ts. Inverted colors, so it
+   stands apart from the page in both themes. */
+.tooltip {
+  position: fixed;
+  z-index: 60;
+  max-inline-size: min(20rem, calc(100vw - 2 * var(--space-2)));
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--surface);
+  font-size: var(--text-sm);
+  line-height: var(--leading-dense);
+  box-shadow: var(--shadow-overlay);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+@media (forced-colors: active) {
+  .tooltip {
+    border: var(--border-width) solid CanvasText;
+  }
+}
+
+/* A time: the short form, the exact one in its tooltip. */
+time[data-tip] {
+  text-decoration: underline dotted var(--text-secondary);
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
+
+/* A commit hash: the first 12 characters, the full hash in its tooltip. */
+.hash code {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A path: wraps after a slash, never inside a name. */
+.path {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* Text cut short in a fixed space; the full text in its tooltip. */
+.cut {
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* A link to another site: the external-link icon after its text. */
+.link-external .icon {
+  inline-size: 0.875em;
+  block-size: 0.875em;
+  margin-inline-start: var(--space-1);
+  vertical-align: -0.05em;
+}

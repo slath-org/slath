@@ -21,6 +21,7 @@ import { installChoices } from "./choice";
 import { installNavigation } from "./nav";
 import { installReplies } from "./replies";
 import { installCloseButtons } from "./disclosure";
+import { installTooltips } from "./tooltip";
 import { installHunkNavigation } from "./hunknav";
 
 installCsrf();
@@ -32,6 +33,7 @@ installMenus();
 installSidebar();
 installReplies();
 installCloseButtons();
+installTooltips();
 installHunkNavigation();
 installDialogs();
 installPasskeys();

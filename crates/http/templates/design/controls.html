@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/controls.html" as c %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Basic controls · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "controls" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Basic controls</h1></div>
+  <p class="page-head-intro">A link goes somewhere; a button does something. Tooltips name icon-only controls and show a value's full form; they work with a mouse, the keyboard, and touch, and never hold something only they say.</p>
+</header>
+
+{%- call cat::entry("links", "Links and buttons", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A link goes to another page or a place on this one; a button changes data, opens a menu, or copies. A link's text names where it goes, never "here" or "more". A link to another site ends with the external-link icon.</dd>
+  <dt>Markup</dt><dd><code>&lt;a href&gt;</code> for links, <code>c::external(ctx, href, text)</code> for other sites; <code>&lt;button&gt;</code> for actions.</dd>
+  <dt>Variants</dt><dd>Link; link to another site; button (see the buttons in the overview).</dd>
+  <dt>Accessibility</dt><dd>A link never submits and a button never only navigates, so each behaves as its role says. Links to other sites say so to screen readers.</dd>
+  <dt>Not for</dt><dd>Actions that look like links (they're quiet buttons).</dd>
+</dl>
+{%- call cat::example("A link inside the page, and one to another site.") %}
+<p>See <a href="#links">the webhooks guide</a> or {% call c::external(ctx, "https://jj-vcs.github.io/jj/", "the jj documentation") %}{% endcall %}.</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("tooltip", "Tooltip", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Names an icon-only control, or shows a value's full form: the exact time of a relative one, a full hash, a cut text. It appears on hover, on keyboard focus, and on a tap; Escape, a tap elsewhere, or scrolling closes it.</dd>
+  <dt>Markup</dt><dd><code>data-tip="text"</code> on the element; <code>c::icon_button(ctx, icon, name)</code> for icon-only buttons. The browser's <code>title</code> isn't used: touch screens and keyboards never show it.</dd>
+  <dt>Variants</dt><dd>Below the element, or above it where there's no room; always inside the screen.</dd>
+  <dt>Accessibility</dt><dd>Never the only place of something needed to act: an icon-only button has its name for screen readers too. Where the text adds to the element's name, screen readers get it as the element's description.</dd>
+  <dt>Not for</dt><dd>Help or anything longer than a phrase (a popover or a hint).</dd>
+</dl>
+{%- call cat::example("Icon-only buttons; hover, focus, or tap them.") %}
+<div class="cluster">{% call c::icon_button(ctx, "pencil", "Edit comment") %}{% endcall %}{% call c::icon_button(ctx, "trash-2", "Delete comment") %}{% endcall %}{% call c::icon_button(ctx, "copy", "Copy the clone URL") %}{% endcall %}</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("time", "Time", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A moment: relative within seven days ("3 hours ago", "in 2 days", "yesterday"), a date otherwise ("14 Nov 2026"), and the exact date and time with its zone in the tooltip. Where the exact moment is the point (the audit log, deliveries, sessions, tokens, administration) it's shown in full.</dd>
+  <dt>Markup</dt><dd><code>c::time(t)</code>, or <code>c::time(t, true)</code> for the full form; <code>t</code> is the page's time value.</dd>
+  <dt>Variants</dt><dd>Past; future; older than a week; full.</dd>
+  <dt>Accessibility</dt><dd>A <code>time</code> element with its exact value; the short form is the text read aloud.</dd>
+  <dt>Not for</dt><dd>Calendar dates without a time (a milestone's due date).</dd>
+</dl>
+{%- call cat::example("Recent, upcoming, older, and in full.") %}
+<ul class="plain-list">
+  <li>opened {% call c::time(recent) %}{% endcall %}</li>
+  <li>expires {% call c::time(soon) %}{% endcall %}</li>
+  <li>created {% call c::time(older) %}{% endcall %}</li>
+  <li>last used {% call c::time(recent, true) %}{% endcall %}</li>
+</ul>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("hash", "Hash and path", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A commit hash shows its first 12 characters, linked, with the full hash in its tooltip. A file path wraps after a slash, never inside a name.</dd>
+  <dt>Markup</dt><dd><code>c::hash(oid, href)</code>; <code>c::path(path)</code>.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>Both stay left to right in every language; the full hash is the link's description.</dd>
+  <dt>Not for</dt><dd>Change IDs (shown in full, 8 characters).</dd>
+</dl>
+{%- call cat::example("A commit and a long path in a narrow column.") %}
+<div class="stack">
+  <p>Commit {% call c::hash(oid, "#hash") %}{% endcall %}</p>
+  <p class="catalog-narrow">{% call c::path("crates/http/templates/components/very_long_component_name.html") %}{% endcall %}</p>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("cut", "Cut text", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Text cut short where its space is fixed (a table cell, a list row, a menu item): it ends with "…", and its full form is in the tooltip and on the page it links to. Titles, names, and branch names wrap instead.</dd>
+  <dt>Markup</dt><dd><code>c::cut(text)</code> inside the fixed space.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>The whole text stays in the page for screen readers; the tooltip shows it on hover, focus, and tap.</dd>
+  <dt>Not for</dt><dd>Anything a person must read in full to act.</dd>
+</dl>
+{%- call cat::example("A commit's summary in a narrow cell.") %}
+<p class="catalog-narrow">{% call c::cut("Rewrite the merge engine so every change keeps its ID across rebases") %}{% endcall %}</p>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

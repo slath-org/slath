@@ -52,3 +52,7 @@
   background: var(--surface-subtle);
   border-radius: var(--radius-sm);
 }
+/* A narrow column, to show wrapping and cutting. */
+.catalog-narrow {
+  max-inline-size: 14rem;
+}
