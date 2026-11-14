@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test, navLink } from "../fixtures";
 
 test("conf_a11y_01_admin_pages_accessible", async ({ page }) => {
   // Seven pages with an axe run each; the audit log grows during the suite.
   test.slow();
   await signIn(page, USERS.admin);
-  await tapOrClick(page, page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Admin", exact: true }));
+  await tapOrClick(page, await navLink(page, "Admin"));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Users");
   for (const [link, heading] of [
     ["Users", "Users"],

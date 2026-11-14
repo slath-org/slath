@@ -1,0 +1,15 @@
+{#- Weave frame components. Contracts and examples: /-/design/frame. -#}
+{%- import "components/people.html" as p -%}
+
+{#- The context header of an organization, a user, or a bot: its avatar
+    and name (linked to its front page), what kind of context it is, and
+    the actions on the whole context (the body). Repositories have their
+    own (owner / name and visibility). -#}
+{%- macro context_header(ctx, kind, name) -%}
+<div class="context-header">
+  <p class="context-title">{% call p::avatar(ctx, name) %}{% endcall %}<a href="/{{ name }}"><strong><bdi>{{ name }}</bdi></strong></a> <span class="badge">{{ kind }}</span></p>
+  <div class="context-actions">
+{{ caller() }}
+  </div>
+</div>
+{%- endmacro -%}

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // The code browser on alice/demo (seeded by slath-e2e-server).
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, signIn, tapOrClick, test, navLink } from "../fixtures";
 
 test("conf_a11y_01_code_browser_pages_accessible", async ({ page }) => {
   // Seven pages, each with an accessibility scan.
@@ -54,5 +54,5 @@ test("conf_sec_04_readme_html_stays_inert", async ({ page }) => {
   expect(logoutRequests).toBe(0);
   await expect(page.locator(".markdown [hx-get]")).toHaveCount(0);
   // Still signed in: the injected element didn't fire.
-  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true })).toBeVisible();
+  await expect(await navLink(page, "alice")).toBeVisible();
 });

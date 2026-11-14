@@ -25,40 +25,53 @@
     <a class="site-name" href="/"><img class="logo logo-light" src="{{ ctx.logo.light_url }}" alt="" width="24" height="24"><img class="logo logo-dark" src="{{ ctx.logo.dark_url }}" alt="" width="24" height="24">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
-      <a class="nav-icon" href="/-/search" title="Search">{% call m::icon(ctx, "search") %}{% endcall %}<span class="visually-hidden">Search</span></a>
+      <a class="nav-icon" href="/-/search" data-tip="Search">{% call m::icon(ctx, "search") %}{% endcall %}<span class="visually-hidden">Search</span></a>
+      <div class="nav-wide{% if ctx.user.is_some() %} nav-wide-user{% endif %}">
       <details class="menu" id="appearance-menu">
-        <summary class="button button-quiet button-icon" title="Appearance">{% call m::icon(ctx, "sun") %}{% endcall %}<span class="visually-hidden">Appearance</span></summary>
+        <summary class="button button-quiet button-icon" data-tip="Appearance">{% call m::icon(ctx, "sun") %}{% endcall %}<span class="visually-hidden">Appearance</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
         <form method="post" action="/-/appearance" class="menu-panel" data-theme-form>
-          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <input type="hidden" name="next" value="{{ ctx.here }}">
-          <fieldset>
-            <legend>Theme</legend>
-            <label class="menu-item"><input type="radio" name="theme" value="system"{% if ctx.theme.is_none() %} checked{% endif %}>{% call m::icon(ctx, "monitor") %}{% endcall %}System</label>
-            <label class="menu-item"><input type="radio" name="theme" value="light"{% if ctx.theme == Some("light") %} checked{% endif %}>{% call m::icon(ctx, "sun") %}{% endcall %}Light</label>
-            <label class="menu-item"><input type="radio" name="theme" value="dark"{% if ctx.theme == Some("dark") %} checked{% endif %}>{% call m::icon(ctx, "moon") %}{% endcall %}Dark</label>
-          </fieldset>
-          <fieldset>
-            <legend>Density</legend>
-            <label class="menu-item"><input type="radio" name="density" value="comfortable"{% if ctx.density == "comfortable" %} checked{% endif %}>Comfortable</label>
-            <label class="menu-item"><input type="radio" name="density" value="compact"{% if ctx.density == "compact" %} checked{% endif %}>Compact</label>
-          </fieldset>
+          {%- include "appearance_fields.html" %}
           <button type="submit" class="button">Apply</button>
         </form>
       </details>
     {%- if let Some(user) = ctx.user %}
-      <a class="nav-icon" href="/-/review-requests" title="Review requests">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">Review requests</span></a>
-      <a class="nav-icon" href="/-/notifications" title="Notifications">{% call m::icon(ctx, "bell") %}{% endcall %}<span class="visually-hidden">Notifications</span></a>
-      <a class="nav-icon nav-avatar" href="/{{ user.name }}" title="{{ user.name }}"><img src="{{ user.avatar_url }}" alt="" width="24" height="24"><span class="visually-hidden">{{ user.name }}</span></a>
-      <a class="nav-icon" href="/-/settings" title="Settings">{% call m::icon(ctx, "settings") %}{% endcall %}<span class="visually-hidden">Settings</span></a>
+      <a class="nav-icon" href="/-/review-requests" data-tip="Review requests">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">Review requests</span></a>
+      <a class="nav-icon" href="/-/notifications" data-tip="Notifications">{% call m::icon(ctx, "bell") %}{% endcall %}<span class="visually-hidden">Notifications</span></a>
+      <a class="nav-icon nav-avatar" href="/{{ user.name }}" data-tip="{{ user.name }}"><img src="{{ user.avatar_url }}" alt="" width="24" height="24"><span class="visually-hidden">{{ user.name }}</span></a>
+      <a class="nav-icon" href="/-/settings" data-tip="Settings">{% call m::icon(ctx, "settings") %}{% endcall %}<span class="visually-hidden">Settings</span></a>
       {%- if user.is_admin %}
-      <a class="nav-icon" href="/-/admin" title="Admin">{% call m::icon(ctx, "wrench") %}{% endcall %}<span class="visually-hidden">Admin</span></a>
+      <a class="nav-icon" href="/-/admin" data-tip="Admin">{% call m::icon(ctx, "wrench") %}{% endcall %}<span class="visually-hidden">Admin</span></a>
       {%- endif %}
       <form method="post" action="/-/logout" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <button type="submit" class="button button-quiet button-icon" title="Sign out">{% call m::icon(ctx, "log-out") %}{% endcall %}<span class="visually-hidden">Sign out</span></button>
+        <button type="submit" class="button button-quiet button-icon" data-tip="Sign out">{% call m::icon(ctx, "log-out") %}{% endcall %}<span class="visually-hidden">Sign out</span></button>
       </form>
     {%- else %}
       <a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a>
+    {%- endif %}
+      </div>
+    {%- if let Some(user) = ctx.user %}
+      {#- Below 40 rem the person's own places move into one menu. #}
+      <details class="menu account-menu">
+        <summary class="button button-quiet nav-account"><img class="avatar" src="{{ user.avatar_url }}" alt="" width="24" height="24"><span class="visually-hidden">Account: {{ user.name }}</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+        <div class="menu-panel">
+          <a class="menu-item" href="/{{ user.name }}">{% call m::icon(ctx, "user") %}{% endcall %}{{ user.name }}</a>
+          <a class="menu-item" href="/-/review-requests">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Review requests</a>
+          <a class="menu-item" href="/-/notifications">{% call m::icon(ctx, "bell") %}{% endcall %}Notifications</a>
+          <a class="menu-item" href="/-/settings">{% call m::icon(ctx, "settings") %}{% endcall %}Settings</a>
+          {%- if user.is_admin %}
+          <a class="menu-item" href="/-/admin">{% call m::icon(ctx, "wrench") %}{% endcall %}Admin</a>
+          {%- endif %}
+          <form method="post" action="/-/appearance" class="account-appearance" data-theme-form>
+            {%- include "appearance_fields.html" %}
+            <button type="submit" class="button">Apply</button>
+          </form>
+          <form method="post" action="/-/logout" class="account-signout">
+            <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+            <button type="submit" class="button button-quiet menu-item">{% call m::icon(ctx, "log-out") %}{% endcall %}Sign out</button>
+          </form>
+        </div>
+      </details>
     {%- endif %}
     </div>
   </nav>

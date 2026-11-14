@@ -2,6 +2,7 @@
     family. The page sets `family` ("" for the overview). -#}
 {%- call m::side_menu(ctx, "Design catalog", "Design catalog", "Weave", "/-/design") %}
 {%- call m::side_item(ctx, "/-/design", "layout-grid", "Overview", family == "") %}{% endcall %}
+{%- call m::side_item(ctx, "/-/design/frame", "panel-left", "Frame", family == "frame") %}{% endcall %}
 {%- call m::side_item(ctx, "/-/design/layout", "layout-panel-top", "Layout", family == "layout") %}{% endcall %}
 {%- call m::side_item(ctx, "/-/design/messages", "message-square", "Messages and states", family == "messages") %}{% endcall %}
 {%- call m::side_item(ctx, "/-/design/forms", "list-todo", "Forms", family == "forms") %}{% endcall %}

@@ -172,6 +172,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A menu's chevron turns while the menu is open.
 - Password fields have a Show button that reveals what you typed.
 - Fields with a length limit show how many characters are left once you get close to it.
+- On phones the top bar is one row again: your own places (review requests, notifications, profile, settings, administration, appearance, sign out) are in a menu behind your avatar.
 
 ### Changed
 

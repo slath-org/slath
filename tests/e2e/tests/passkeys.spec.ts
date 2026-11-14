@@ -4,7 +4,7 @@
 // Passkeys with Chromium's virtual authenticator (CDP): adding one, signing
 // in with it alone (passwordless), and as the second step after the
 // password. Firefox and WebKit have no virtual authenticator in Playwright.
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, signIn, signOut, tapOrClick, test } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 async function virtualAuthenticator(page: Page): Promise<void> {
@@ -34,10 +34,6 @@ async function newUser(page: Page, testInfo: { project: { name: string } }): Pro
   return { name, password };
 }
 
-async function signOut(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Sign out" }).click();
-}
-
 test("conf_auth_02_passkey_passwordless_and_second_factor", async ({ page, browserName }, testInfo) => {
   test.skip(browserName !== "chromium", "virtual authenticators are Chromium-only");
   await virtualAuthenticator(page);
@@ -56,7 +52,7 @@ test("conf_auth_02_passkey_passwordless_and_second_factor", async ({ page, brows
   await signOut(page);
   await page.goto("/-/login");
   await tapOrClick(page, page.getByRole("button", { name: "Sign in with a passkey" }));
-  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: user.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).locator(`[href="/${user.name}"]`).first()).toBeAttached();
 
   // Password first, then the passkey as the second step.
   await signOut(page);
@@ -67,5 +63,5 @@ test("conf_auth_02_passkey_passwordless_and_second_factor", async ({ page, brows
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Two-factor authentication");
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("button", { name: "Use a passkey" }));
-  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: user.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).locator(`[href="/${user.name}"]`).first()).toBeAttached();
 });

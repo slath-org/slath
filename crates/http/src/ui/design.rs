@@ -180,6 +180,13 @@ struct ReviewFamily {
     older: super::Time,
 }
 
+/// The frame family: global bar, navigation levels, context headers.
+#[derive(Template)]
+#[template(path = "design/frame.html")]
+struct FrameFamily {
+    ctx: PageCtx,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
@@ -199,6 +206,7 @@ async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppE
                 oid: "a1e62f5c7d0b9a8e3f41c2d6b7e8f90a1b2c3d4e".to_owned(),
             }))
         }
+        "frame" => Ok(render(&FrameFamily { ctx })),
         "review" => {
             let now = time::OffsetDateTime::now_utc();
             Ok(render(&ReviewFamily {

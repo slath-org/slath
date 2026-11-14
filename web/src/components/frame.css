@@ -1,0 +1,83 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave frame: the global bar stays one row at every width (below 40 rem
+   the person's own places move into the account menu), and every context
+   has its context header. Contracts: /-/design/frame. */
+
+.nav-wide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.site-nav .nav-wide > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+.account-menu {
+  display: none;
+}
+.nav-account {
+  gap: var(--gap-inside);
+  padding-inline: var(--space-1);
+}
+.nav-account .avatar {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  vertical-align: middle;
+}
+.account-menu .menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inside);
+}
+.account-menu .menu-panel > a.menu-item {
+  min-height: var(--target-min);
+}
+.account-appearance,
+.account-signout {
+  margin: 0;
+  padding-block-start: var(--space-2);
+  border-block-start: var(--border-width) solid var(--border);
+}
+@media (max-width: 40rem) {
+  .nav-wide-user {
+    display: none;
+  }
+  .account-menu {
+    display: inline-block;
+  }
+}
+
+/* The context header: where you are (owner and name, its kind) and the
+   actions on the whole context, on every page of the context. */
+.context-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline) var(--gap-items);
+  margin: 0;
+}
+.context-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-heading);
+}
+.context-title .avatar {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+.context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+  margin-inline-start: auto;
+}

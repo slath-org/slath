@@ -106,6 +106,33 @@ export async function write(page: Page, label: string, text: string): Promise<vo
   await page.keyboard.type(text);
 }
 
+/**
+ * A link or button in the global bar by its name. On narrow screens the
+ * person's own places are in the account menu, which this opens first.
+ */
+export async function navItem(page: Page, name: string, role: "link" | "button" = "link"): Promise<Locator> {
+  const nav = page.getByRole("navigation", { name: "Main" });
+  const wide = nav.locator(".nav-wide").getByRole(role, { name, exact: true });
+  const menu = nav.locator("details.account-menu");
+  const summary = menu.locator(":scope > summary");
+  // Wait for the bar of the page that's loading, wide or narrow.
+  await expect(wide.or(summary).first()).toBeVisible();
+  if (await wide.isVisible()) return wide;
+  if ((await menu.getAttribute("open")) === null) await tapOrClick(page, summary);
+  return menu.getByRole(role, { name, exact: true });
+}
+
+/** A link in the global bar by its name (see navItem). */
+export async function navLink(page: Page, name: string): Promise<Locator> {
+  return navItem(page, name, "link");
+}
+
+/** Signs out through the global bar. */
+export async function signOut(page: Page): Promise<void> {
+  await tapOrClick(page, await navItem(page, "Sign out", "button"));
+  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+}
+
 /** Accounts created by slath-e2e-server. */
 export const USERS = {
   admin: { name: "sysadmin", password: "e2e admin password" },
@@ -118,7 +145,7 @@ export async function signIn(page: Page, user: { name: string; password: string 
   await page.getByLabel("Username").fill(user.name);
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: user.name, exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).locator(`[href="/${user.name}"]`).first()).toBeAttached();
 }
 
 interface Fixtures {

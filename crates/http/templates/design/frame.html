@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/frame.html" as fr %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Frame · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "frame" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Frame</h1></div>
+  <p class="page-head-intro">Each level of navigation has one form: the global bar, the side menu, the context header, tabs, and view menus. Nothing deeper gets navigation of its own.</p>
+</header>
+
+{%- call cat::entry("global-bar", "Global bar", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>At the top of every page: the side menu toggle, the product, search, and the person's own places (review requests, notifications, profile, settings, administration, appearance, sign out). One row at every width: below 40 rem the person's own places move into the account menu behind the avatar.</dd>
+  <dt>Markup</dt><dd><code>base.html</code>; nothing else draws it. Its icon-only links and buttons have their names for screen readers and in tooltips.</dd>
+  <dt>Variants</dt><dd>Signed out (search, appearance, sign in); signed in, wide; signed in, narrow (account menu); administrator (one more place).</dd>
+  <dt>Accessibility</dt><dd>A navigation region named "Main"; the account menu's button is named "Account" with the person's name; Escape closes it.</dd>
+  <dt>Not for</dt><dd>Places of a context (the side menu).</dd>
+</dl>
+<p>This page's own bar is the example: narrow the window below 40 rem to see the account menu.</p>
+{%- endcall %}
+
+{%- call cat::entry("side-menu", "Side menu, tabs, view menus", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The side menu names the context and lists its areas; tabs are the sections inside an area; a view menu shows views of one list. Every page with a context has the side menu, in the same form; it collapses on wide screens and opens as a drawer on narrow ones.</dd>
+  <dt>Markup</dt><dd><code>m::side_menu</code> and <code>m::side_item</code>; <code>m::tabs</code> and <code>m::tab</code>; <code>m::view_menu</code> and <code>m::view_item</code>.</dd>
+  <dt>Variants</dt><dd>Repository, organization, user settings, administration, the person's work; this catalog.</dd>
+  <dt>Accessibility</dt><dd>Navigation regions named by their context; the current area, section, or view is marked as current.</dd>
+  <dt>Not for</dt><dd>Actions (menus and buttons).</dd>
+</dl>
+{%- call cat::example("Tabs of an area.") %}
+{%- call m::tabs("Example tabs") %}{% call m::tab("#side-menu", "Files", true, "") %}{% endcall %}{% call m::tab("#side-menu", "Commits", false, "") %}{% endcall %}{% call m::tab("#side-menu", "Branches", false, "12") %}{% endcall %}{% endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("context-header", "Context header", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Where you are, at the top of every page of a context, and the actions on the whole context: a repository (owner / name, visibility, Watch, Fork), an organization, a user, a bot. User settings and administration show their context in the side menu only.</dd>
+  <dt>Markup</dt><dd>Repositories: <code>repo/header.html</code>. Others: <code>fr::context_header(ctx, kind, name)</code> around the actions.</dd>
+  <dt>Variants</dt><dd>Repository; organization; user; bot. With or without actions; on narrow screens the actions wrap below the name.</dd>
+  <dt>Accessibility</dt><dd>The name links to the context's front page; the kind is a word.</dd>
+  <dt>Not for</dt><dd>The page's title (the page heading follows it).</dd>
+</dl>
+{%- call cat::example("An organization and a bot.") %}
+<div class="stack">
+{%- call fr::context_header(ctx, "Organization", "acme") %}<a class="button" href="#context-header">{% call m::icon(ctx, "settings") %}{% endcall %}Settings</a>{% endcall %}
+{%- call fr::context_header(ctx, "Bot", "ci-bot") %}{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, editor, expect, expectAccessible, sideMenu, signIn, tapOrClick, test, write } from "../fixtures";
+import { USERS, editor, expect, expectAccessible, sideMenu, signIn, tapOrClick, test, write, navLink } from "../fixtures";
 
 test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   test.slow();
@@ -142,8 +142,9 @@ test("repository_watch_toggle", async ({ page }) => {
   const sections = page.getByRole("navigation", { name: "Issues" });
   await expect(sections).toHaveClass(/tabs/);
   await expect(sections.getByRole("link", { name: "Labels" })).toHaveAttribute("aria-current", "page");
-  // The top bar shows the avatar, named and titled with the user name.
-  const me = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true });
-  await expect(me).toHaveAttribute("title", "alice");
-  await expect(me.locator("img")).toBeVisible();
+  // The top bar shows the avatar, named with the user name (on narrow
+  // screens in the account menu, whose button is the avatar).
+  const me = await navLink(page, "alice");
+  await expect(me).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).locator(".nav-avatar img, .nav-account img").filter({ visible: true })).toHaveCount(1);
 });

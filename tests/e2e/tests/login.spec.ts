@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, signIn, tapOrClick, test, navLink, signOut } from "../fixtures";
 
 test("conf_a11y_01_login_page_accessible", async ({ page }) => {
   await page.goto("/-/login");
@@ -26,8 +26,7 @@ test("conf_a11y_01_failed_login_shows_an_accessible_error_summary", async ({ pag
 test("conf_a11y_04_sign_in_and_out_by_touch_or_click", async ({ page }) => {
   await signIn(page, USERS.alice);
   await expectAccessible(page);
-  await tapOrClick(page, page.getByRole("button", { name: "Sign out" }));
-  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await signOut(page);
 });
 
 test("conf_a11y_04_sign_in_by_keyboard", async ({ page }) => {
@@ -37,5 +36,5 @@ test("conf_a11y_04_sign_in_by_keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   await page.keyboard.type(USERS.alice.password);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "alice", exact: true })).toBeVisible();
+  await expect(await navLink(page, "alice")).toBeVisible();
 });
