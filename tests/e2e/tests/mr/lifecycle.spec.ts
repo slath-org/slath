@@ -281,3 +281,18 @@ test("conf_agent_09_a_bot_merge_request_iterates", async ({ page }) => {
   await expect(group.locator("#revision-3").getByRole("link", { name: "Compare with previous" })).toBeVisible();
   await expectAccessible(page);
 });
+
+test("conf_agent_12_a_bot_marks_a_persons_thread_addressed", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Agent fixture" }));
+  const thread = page.getByRole("article", { name: "Thread on agent-notes.txt, line 1" });
+  await expect(thread.locator(".comment-header")).toContainText("Addressed by e2e-agent");
+  await expect(thread.locator(".comment-header")).toContainText("Bot");
+  // Still open: a person resolves it.
+  await expect(thread.getByRole("button", { name: "Resolve thread" })).toBeVisible();
+  await expectAccessible(page);
+  await page.goto(page.url().replace(/#.*$/, "") + "/changes");
+  await expect(page.locator(".inline-thread").filter({ hasText: "Addressed by e2e-agent" })).toBeVisible();
+  await expectAccessible(page);
+});

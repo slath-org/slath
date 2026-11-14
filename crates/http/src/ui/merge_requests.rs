@@ -793,6 +793,9 @@ struct ThreadItem {
     snippet: Vec<SnippetLine>,
     resolved: bool,
     resolved_by: Option<String>,
+    /// Who marked it addressed while it's open (bots do; a person
+    /// resolves it).
+    addressed_by: Option<String>,
     comments: Vec<ThreadCommentView>,
     can_resolve: bool,
     /// The viewer started it or wrote in it.
@@ -1762,6 +1765,11 @@ async fn thread_item(
         location,
         resolved: t.thread.resolved_at.is_some(),
         resolved_by: t.thread.resolved_by.clone(),
+        addressed_by: t
+            .thread
+            .addressed_at
+            .and(t.thread.addressed_by.clone())
+            .filter(|_| t.thread.resolved_at.is_none()),
         comments,
         can_resolve,
         mine,
@@ -1839,7 +1847,7 @@ async fn mr_page_showing(
             MrTimelineItem::Comment(TimelineItem::Event(..)) => {}
             MrTimelineItem::Thread(t) => {
                 timeline.push(TimelineView::Thread(
-                    thread_item(state, subject, &a, &m, &rc, t).await?,
+                    thread_item(state, subject, &a, &m, &rc, *t).await?,
                 ));
             }
             MrTimelineItem::Review(v) => {
@@ -2713,6 +2721,11 @@ async fn attach_review(
                 id: t.thread.id.to_string(),
                 finding: t.thread.finding.as_deref().map(finding_label),
                 resolved: t.thread.resolved_at.is_some(),
+                addressed_by: t
+                    .thread
+                    .addressed_at
+                    .and(t.thread.addressed_by.clone())
+                    .filter(|_| t.thread.resolved_at.is_none()),
                 from: match t.position {
                     Position::Current { from, .. } => from,
                     _ => None,

@@ -30,8 +30,15 @@ pub struct Thread {
     pub anchor: Anchor,
     pub author_id: Option<UserId>,
     pub author: Option<String>,
+    /// A bot started it (findings, a bot's own threads); a deleted author
+    /// counts as a person.
+    pub author_bot: bool,
     pub resolved_at: Option<time::OffsetDateTime>,
     pub resolved_by: Option<String>,
+    /// Who marked it addressed, and when (bots do; it isn't resolved).
+    pub addressed_by_id: Option<UserId>,
+    pub addressed_by: Option<String>,
+    pub addressed_at: Option<time::OffsetDateTime>,
     pub created_at: time::OffsetDateTime,
     /// Set for a thread made from a status's annotation.
     pub finding: Option<Box<crate::mr_findings::Finding>>,
@@ -115,8 +122,10 @@ pub async fn threads(
 ) -> Result<Vec<Thread>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,
-                  t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,
-                  rn.name::text AS resolved_by, t.created_at, f.context AS "finding_context?",
+                  t.line_hash, t.context, t.author_id, an.name::text AS author,
+                  (au.kind = 'bot') IS TRUE AS "author_bot!", t.resolved_at,
+                  rn.name::text AS resolved_by, t.addressed_by AS addressed_by_id,
+                  dn.name::text AS addressed_by, t.addressed_at, t.created_at, f.context AS "finding_context?",
                   f.severity AS "finding_severity?", f.category AS "finding_category?"
            FROM mr_threads t
            LEFT JOIN mr_thread_findings f ON f.thread_id = t.id
@@ -124,6 +133,8 @@ pub async fn threads(
            LEFT JOIN namespaces an ON an.id = au.namespace_id
            LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'
            LEFT JOIN namespaces rn ON rn.id = ru.namespace_id
+           LEFT JOIN users du ON du.id = t.addressed_by AND du.state <> 'deleted'
+           LEFT JOIN namespaces dn ON dn.id = du.namespace_id
            WHERE t.mr_id = $1 ORDER BY t.created_at, t.id"#,
         mr.as_uuid()
     )
@@ -146,8 +157,12 @@ pub async fn threads(
             },
             author_id: r.author_id.map(UserId::from_uuid),
             author: r.author,
+            author_bot: r.author_bot,
             resolved_at: r.resolved_at,
             resolved_by: r.resolved_by,
+            addressed_by_id: r.addressed_by_id.map(UserId::from_uuid),
+            addressed_by: r.addressed_by,
+            addressed_at: r.addressed_at,
             created_at: r.created_at,
             finding: match (r.finding_context, r.finding_severity, r.finding_category) {
                 (Some(context), Some(severity), Some(category)) => {
@@ -205,20 +220,65 @@ pub async fn publish_pending(
     mr: MergeRequestId,
     user: UserId,
 ) -> Result<u64, DbError> {
+    // A reply by anyone but whoever marked a thread addressed clears it.
     let done = sqlx::query!(
-        "UPDATE mr_thread_comments c SET pending = false, created_at = now()
-         FROM mr_threads t
-         WHERE t.id = c.thread_id AND t.mr_id = $1 AND c.author_id = $2 AND c.pending",
+        "WITH published AS (
+             UPDATE mr_thread_comments c SET pending = false, created_at = now()
+             FROM mr_threads t
+             WHERE t.id = c.thread_id AND t.mr_id = $1 AND c.author_id = $2 AND c.pending
+             RETURNING c.thread_id),
+         cleared AS (
+             UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL
+             WHERE id IN (SELECT thread_id FROM published) AND addressed_by IS DISTINCT FROM $2)
+         SELECT count(*) AS \"n!\" FROM published",
         mr.as_uuid(),
         user.as_uuid()
     )
-    .execute(exec)
+    .fetch_one(exec)
     .await?;
-    Ok(done.rows_affected())
+    Ok(u64::try_from(done.n).unwrap_or(0))
 }
 
 /// Resolves (`Some(user)`) or reopens (`None`) a thread for a person; a
 /// finding resolved this way isn't reopened by a later status.
+/// Marks a thread addressed by `by`, or clears it (`None`); returns false
+/// if nothing changed.
+pub async fn set_addressed(
+    exec: impl PgExecutor<'_>,
+    thread: uuid::Uuid,
+    by: Option<UserId>,
+) -> Result<bool, DbError> {
+    Ok(sqlx::query!(
+        "UPDATE mr_threads SET addressed_by = $2,
+             addressed_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END
+         WHERE id = $1 AND addressed_by IS DISTINCT FROM $2",
+        thread,
+        by.map(|u| *u.as_uuid())
+    )
+    .execute(exec)
+    .await?
+    .rows_affected()
+        == 1)
+}
+
+/// Clears a thread's addressed mark after a reply by someone other than
+/// whoever set it.
+pub async fn clear_addressed_unless(
+    exec: impl PgExecutor<'_>,
+    thread: uuid::Uuid,
+    author: UserId,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL
+         WHERE id = $1 AND addressed_by IS NOT NULL AND addressed_by <> $2",
+        thread,
+        author.as_uuid()
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 pub async fn set_resolved(
     exec: impl PgExecutor<'_>,
     thread: uuid::Uuid,
@@ -227,7 +287,7 @@ pub async fn set_resolved(
     sqlx::query!(
         "WITH f AS (UPDATE mr_thread_findings SET resolved_by_status = NULL WHERE thread_id = $1)
          UPDATE mr_threads SET resolved_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,
-             resolved_by = $2 WHERE id = $1",
+             resolved_by = $2, addressed_by = NULL, addressed_at = NULL WHERE id = $1",
         thread,
         by.map(|u| *u.as_uuid())
     )

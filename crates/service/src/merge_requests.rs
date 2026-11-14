@@ -57,7 +57,7 @@ pub enum MrTimelineItem {
         previous_head: Option<String>,
     },
     Review(crate::mr_reviews::ReviewView),
-    Thread(crate::mr_threads::ThreadView),
+    Thread(Box<crate::mr_threads::ThreadView>),
 }
 
 /// A compare of a source branch against a target branch.
@@ -858,7 +858,7 @@ impl Services {
             items.push((v.review.created_at, MrTimelineItem::Review(v)));
         }
         for t in self.mr_threads(subject, a, m).await? {
-            items.push((t.thread.created_at, MrTimelineItem::Thread(t)));
+            items.push((t.thread.created_at, MrTimelineItem::Thread(Box::new(t))));
         }
         items.sort_by_key(|(t, _)| *t);
         Ok(items.into_iter().map(|(_, i)| i).collect())

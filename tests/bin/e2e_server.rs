@@ -211,6 +211,23 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
             std::thread::sleep(std::time::Duration::from_millis(200));
         }
     }
+    // On it, alice's question, which the bot marked addressed.
+    let n = agent_mr.unwrap();
+    let r = api.api(
+        "POST",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}/threads"),
+        Some(&token),
+        Some(&serde_json::json!({"body": "Does this cover the second case?", "path": "agent-notes.txt", "line_start": 1})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let thread = r.json()["id"].as_str().unwrap().to_owned();
+    let r = api.api(
+        "PUT",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}/threads/{thread}/addressed"),
+        Some(&agent_token),
+        None,
+    );
+    assert_eq!(r.status, 204, "{}", r.body);
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();

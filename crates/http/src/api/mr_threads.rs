@@ -61,6 +61,11 @@ pub struct ThreadBody {
     pub author: Option<String>,
     pub resolved: bool,
     pub resolved_by: Option<String>,
+    /// Who marked it addressed (bots do, for threads people started); it
+    /// isn't resolved. Cleared by resolving, reopening, or a reply by
+    /// anyone else.
+    pub addressed_by: Option<String>,
+    pub addressed_at: Option<String>,
     pub position: ThreadPosition,
     pub comments: Vec<ThreadCommentBody>,
     pub created_at: String,
@@ -135,6 +140,8 @@ impl From<ThreadView> for ThreadBody {
             author: t.author,
             resolved: t.resolved_at.is_some(),
             resolved_by: t.resolved_by,
+            addressed_by: t.addressed_at.and(t.addressed_by),
+            addressed_at: t.addressed_at.map(ts),
             position,
             comments: v
                 .comments
@@ -282,9 +289,10 @@ pub struct ThreadUpdate {
 }
 
 /// Resolves or reopens a thread (the merge request's author, the thread's
-/// author, or someone who can push).
+/// author, or someone who can push). A bot can't settle a thread a person
+/// started (409): it marks it addressed instead.
 #[utoipa::path(patch, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("id" = String, Path)), request_body = ThreadUpdate,
-    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
 pub async fn update_thread(
     State(state): State<AppState>,
     ApiUser(s): ApiUser,
@@ -309,8 +317,42 @@ pub async fn update_thread(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Marks a thread addressed, for whoever may resolve it: what bots do for
+/// threads people started. It satisfies nothing; the thread stays open
+/// until a person resolves it. 409 for a resolved thread.
+#[utoipa::path(put, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}/addressed", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
+pub async fn mark_addressed(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number, id)): Path<(String, String, i32, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .set_thread_addressed(&s, (&ns, &repo, number), id, true)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Clears a thread's addressed mark.
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}/addressed", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn clear_addressed(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number, id)): Path<(String, String, i32, String)>,
+) -> Result<StatusCode, AppError> {
+    let id = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .set_thread_addressed(&s, (&ns, &repo, number), id, false)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn router() -> Router<AppState> {
-    use axum::routing::{get, patch, post};
+    use axum::routing::{get, patch, post, put};
     Router::new()
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads",
@@ -326,5 +368,10 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}/comments",
             Access::Resource,
             post(reply),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}/addressed",
+            Access::Resource,
+            put(mark_addressed).delete(clear_addressed),
         )
 }

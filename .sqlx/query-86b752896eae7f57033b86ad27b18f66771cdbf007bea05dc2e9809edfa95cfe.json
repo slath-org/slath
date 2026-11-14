@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL\n         WHERE id = $1 AND addressed_by IS NOT NULL AND addressed_by <> $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "86b752896eae7f57033b86ad27b18f66771cdbf007bea05dc2e9809edfa95cfe"
+}

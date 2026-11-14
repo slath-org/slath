@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author, t.resolved_at,\n                  rn.name::text AS resolved_by, t.created_at, f.context AS \"finding_context?\",\n                  f.severity AS \"finding_severity?\", f.category AS \"finding_category?\"\n           FROM mr_threads t\n           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
+  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author,\n                  (au.kind = 'bot') IS TRUE AS \"author_bot!\", t.resolved_at,\n                  rn.name::text AS resolved_by, t.addressed_by AS addressed_by_id,\n                  dn.name::text AS addressed_by, t.addressed_at, t.created_at, f.context AS \"finding_context?\",\n                  f.severity AS \"finding_severity?\", f.category AS \"finding_category?\"\n           FROM mr_threads t\n           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           LEFT JOIN users du ON du.id = t.addressed_by AND du.state <> 'deleted'\n           LEFT JOIN namespaces dn ON dn.id = du.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
   "describe": {
     "columns": [
       {
@@ -132,6 +132,12 @@
       },
       {
         "ordinal": 12,
+        "name": "author_bot!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
         "name": "resolved_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -142,13 +148,41 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "resolved_by",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
+        "name": "addressed_by_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "addressed_by"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "addressed_by",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 17,
+        "name": "addressed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "mr_threads",
+            "name": "addressed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -159,7 +193,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 19,
         "name": "finding_context?",
         "type_info": "Text",
         "origin": {
@@ -170,7 +204,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 20,
         "name": "finding_severity?",
         "type_info": "Text",
         "origin": {
@@ -181,7 +215,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 21,
         "name": "finding_category?",
         "type_info": "Text",
         "origin": {
@@ -210,13 +244,17 @@
       false,
       true,
       null,
+      null,
       true,
       null,
+      true,
+      null,
+      true,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "61e651664e6f5af3d5bc11639317a2423a9cf2a1401ce6eb96866f3faadaa43a"
+  "hash": "cc8caaec28adbb0348b69a7c9e38341d5c9749c738d152c2de9a425141b9e645"
 }

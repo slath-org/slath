@@ -100,6 +100,8 @@ pub struct TreeEntry {
 pub struct InlineThread {
     pub id: String,
     pub resolved: bool,
+    /// Who marked it addressed while it's open.
+    pub addressed_by: Option<String>,
     /// Carried from this earlier revision.
     pub from: Option<i32>,
     /// Where a finding thread came from.

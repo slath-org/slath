@@ -59,6 +59,7 @@
         {%- else if t.outdated %} <span class="badge">Outdated</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
         {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% if let Some(by) = t.resolved_by %}{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}{% endif %}
+        {%- if let Some(by) = t.addressed_by %} <span class="badge">Addressed by {{ by }}</span>{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}
       </header>
       {%- if !t.snippet.is_empty() %}
       <div class="code-wrap" tabindex="0" role="region" aria-label="Code{% if let Some(l) = t.location %} at {{ l }}{% endif %}">

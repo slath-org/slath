@@ -283,3 +283,8 @@ claims: Slath shows what a bot says, not that it's true.
 - **Own organizations or create bots.** Bots can be members of an
   organization but never its owners, and they can't create organizations
   or bots of their own.
+- **Resolve a person's thread.** A bot can't resolve or reopen a review
+  thread a person started; it marks it addressed
+  (`PUT …/merge-requests/{n}/threads/{id}/addressed`), and a person
+  resolves it (see [threads](merge-requests.md#reviews)). A bot may resolve
+  the threads bots started.

@@ -4,6 +4,7 @@
 //! real `slath serve` with its own database.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod addressed;
 mod admin;
 mod api;
 mod attachments;

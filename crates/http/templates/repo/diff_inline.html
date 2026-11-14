@@ -5,6 +5,7 @@
 <tr class="diff-thread-row" id="thread-{{ t.id }}"><td colspan="{{ cols }}">
   <div class="inline-thread{% if t.resolved %} thread-resolved{% endif %}">
     {%- if t.resolved %}<p class="text-secondary">Resolved</p>{% endif %}
+    {%- if let Some(by) = t.addressed_by %}<p class="text-secondary">Addressed by {{ by }}{% call m::bot_badge(ctx, by) %}{% endcall %}</p>{% endif %}
     {%- if let Some(r) = t.from %}<p class="text-secondary">From revision {{ r }}</p>{% endif %}
     {%- if let Some(f) = t.finding %}<p class="text-secondary">{{ f }}</p>{% endif %}
     {%- for (author, html, pending, text) in t.comments %}

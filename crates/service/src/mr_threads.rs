@@ -74,6 +74,16 @@ pub(crate) fn hash_lines(lines: &[Vec<u8>]) -> String {
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
+fn is_bot(subject: &Subject) -> bool {
+    matches!(
+        subject,
+        Subject::User {
+            kind: slath_core::authz::UserKind::Bot,
+            ..
+        }
+    )
+}
+
 fn me(subject: &Subject) -> Result<UserId> {
     match subject {
         Subject::User { id, .. } => Ok(*id),
@@ -269,6 +279,11 @@ impl Services {
         let origin = self.origin_of(subject, &a.repo).await?;
         let id = db::insert_comment(&self.pool, thread, author, body.trim_end(), pending, origin)
             .await?;
+        // An answer by anyone but whoever marked it addressed reopens the
+        // question (pending ones when their review is submitted).
+        if !pending {
+            db::clear_addressed_unless(&self.pool, thread, author).await?;
+        }
         slath_db::merge_requests::touch(&self.pool, m.id).await?;
         if !pending {
             self.notify_mr(Some(author), &m, MrActivity::ThreadComment(id))
@@ -295,8 +310,28 @@ impl Services {
             .ok_or(ServiceError::NotFound)
     }
 
+    /// Whether `subject` may resolve, reopen, or mark a thread addressed:
+    /// the merge request's author, the thread's author, or someone who can
+    /// push.
+    fn may_settle(
+        subject: &Subject,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        t: &ThreadView,
+    ) -> Result<UserId> {
+        let user = me(subject)?;
+        let allowed = m.author_id == Some(user)
+            || t.thread.author_id == Some(user)
+            || a.can(subject, Action::RepoPush);
+        if !allowed || !a.can(subject, Action::MrComment) {
+            return Err(ServiceError::Forbidden);
+        }
+        Ok(user)
+    }
+
     /// Resolves or reopens a thread: the merge request's author, the
-    /// thread's author, or someone who can push.
+    /// thread's author, or someone who can push. A bot settles only threads
+    /// bots started; a person's thread needs a person.
     pub async fn set_thread_resolved(
         &self,
         subject: &Subject,
@@ -305,13 +340,13 @@ impl Services {
         resolved: bool,
     ) -> Result<()> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
-        let user = me(subject)?;
         let t = self.visible_thread(subject, &a, &m, thread).await?;
-        let allowed = m.author_id == Some(user)
-            || t.thread.author_id == Some(user)
-            || a.can(subject, Action::RepoPush);
-        if !allowed || !a.can(subject, Action::MrComment) {
-            return Err(ServiceError::Forbidden);
+        let user = Self::may_settle(subject, &a, &m, &t)?;
+        if is_bot(subject) && !t.thread.author_bot {
+            return Err(ServiceError::Conflict(
+                "A person started this thread, so a person resolves it. Mark it as addressed instead."
+                    .to_owned(),
+            ));
         }
         if t.thread.resolved_at.is_some() == resolved {
             return Ok(());
@@ -336,6 +371,42 @@ impl Services {
         if resolved {
             self.queue_auto_merge(m.id).await;
         }
+        Ok(())
+    }
+
+    /// Marks a thread addressed (or clears that), for whoever may resolve
+    /// it; bots use it for threads people started. It satisfies nothing:
+    /// the thread stays open until someone resolves it.
+    pub async fn set_thread_addressed(
+        &self,
+        subject: &Subject,
+        (ns, repo, number): (&str, &str, i32),
+        thread: uuid::Uuid,
+        addressed: bool,
+    ) -> Result<()> {
+        let (a, m) = self.mr(subject, ns, repo, number).await?;
+        let t = self.visible_thread(subject, &a, &m, thread).await?;
+        let user = Self::may_settle(subject, &a, &m, &t)?;
+        if addressed && t.thread.resolved_at.is_some() {
+            return Err(ServiceError::Conflict(
+                "This thread is resolved already.".to_owned(),
+            ));
+        }
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        let changed = db::set_addressed(&mut *tx, thread, addressed.then_some(user)).await?;
+        if changed && addressed {
+            slath_db::issues::insert_event(
+                &mut *tx,
+                a.repo.id,
+                "merge_request",
+                *m.id.as_uuid(),
+                Some(user),
+                "thread_addressed",
+                &serde_json::json!({"thread": thread, "path": t.thread.anchor.path}),
+            )
+            .await?;
+        }
+        tx.commit().await.map_err(ServiceError::internal)?;
         Ok(())
     }
 

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH published AS (\n             UPDATE mr_thread_comments c SET pending = false, created_at = now()\n             FROM mr_threads t\n             WHERE t.id = c.thread_id AND t.mr_id = $1 AND c.author_id = $2 AND c.pending\n             RETURNING c.thread_id),\n         cleared AS (\n             UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL\n             WHERE id IN (SELECT thread_id FROM published) AND addressed_by IS DISTINCT FROM $2)\n         SELECT count(*) AS \"n!\" FROM published",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "68a258d16a4f1861865d865bc3f3967f809912f72f3482b58bda08faae7ee7b5"
+}

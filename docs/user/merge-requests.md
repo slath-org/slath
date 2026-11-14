@@ -290,6 +290,13 @@ merge request as a whole. Others answer in it, and the merge request's
 author, the thread's author, or anyone who can push resolves it. Branch
 protection can require every thread to be resolved before merging.
 
+A bot can't resolve or reopen a thread a person started. It marks the
+thread **addressed** instead: the thread shows "Addressed by …" and stays
+open until a person resolves it, so an addressed thread still counts as
+unresolved. Resolving or reopening the thread clears the mark, and so
+does an answer from anyone but whoever marked it. Bots may resolve the
+threads bots started, such as their own notes.
+
 Comments can wait in your **pending review**: only you see them until you
 submit the review, and then they appear together.
 
@@ -314,7 +321,9 @@ wrote (**Mine**).
 The API has `GET …/merge-requests/{n}/threads` (with each thread's current
 position; `?resolved=false` lists only the unresolved ones), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
 `pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`
-with `{"resolved": true}`.
+with `{"resolved": true}`. `PUT …/threads/{id}/addressed` marks a thread
+addressed (`DELETE` clears it), for whoever may resolve it; the thread
+JSON names `addressed_by` and `addressed_at`.
 
 ## Suggestions
 
