@@ -1,0 +1,93 @@
+{#- Weave form components. Contracts and examples: /-/design/forms.
+    Ids: a field's hint is `<id>-hint` and its error `<id>-error`; the
+    control in the body names both in `aria-describedby` (use
+    `f::described(id, hint, error)`). -#}
+{%- import "macros.html" as m -%}
+
+{#- The `aria-describedby` and `aria-invalid` attributes of the control
+    whose field has this id, hint, and error. -#}
+{%- macro described(id, hint, error) -%}
+{%- if !hint.is_empty() || !error.is_empty() %} aria-describedby="{% if !hint.is_empty() %}{{ id }}-hint{% endif %}{% if !hint.is_empty() && !error.is_empty() %} {% endif %}{% if !error.is_empty() %}{{ id }}-error{% endif %}"{% endif %}
+{%- if !error.is_empty() %} aria-invalid="true"{% endif %}
+{%- endmacro -%}
+
+{#- A field: its label, the control (the body), an optional hint, and its
+    error. `optional` adds "(optional)" to the label. -#}
+{%- macro field(id, label, hint = "", error = "", optional = false) -%}
+<div class="field">
+  <label for="{{ id }}">{{ label }}{% if optional %} <span class="text-secondary">(optional)</span>{% endif %}</label>
+{{ caller() }}
+  {%- if !hint.is_empty() %}
+  <p id="{{ id }}-hint" class="hint">{{ hint }}</p>
+  {%- endif %}
+  {%- if !error.is_empty() %}
+  <p id="{{ id }}-error" class="field-error">{{ error }}</p>
+  {%- endif %}
+</div>
+{%- endmacro -%}
+
+{#- A question: a legend in the label's style and its options (the body,
+    `f::option` calls). -#}
+{%- macro question(id, legend, hint = "", error = "") -%}
+<fieldset class="question" id="{{ id }}"{% if !hint.is_empty() || !error.is_empty() %} aria-describedby="{% if !hint.is_empty() %}{{ id }}-hint{% endif %}{% if !hint.is_empty() && !error.is_empty() %} {% endif %}{% if !error.is_empty() %}{{ id }}-error{% endif %}"{% endif %}>
+  <legend>{{ legend }}</legend>
+  {%- if !hint.is_empty() %}
+  <p id="{{ id }}-hint" class="hint">{{ hint }}</p>
+  {%- endif %}
+  {%- if !error.is_empty() %}
+  <p id="{{ id }}-error" class="field-error">{{ error }}</p>
+  {%- endif %}
+{{ caller() }}
+</fieldset>
+{%- endmacro -%}
+
+{#- One option of a question: a checkbox or radio (`kind`), its name, and
+    an optional explanation under the name. -#}
+{%- macro option(kind, id, name, value, label, checked = false, hint = "") -%}
+<div class="option">
+  <input id="{{ id }}" type="{{ kind }}" name="{{ name }}" value="{{ value }}"{% if checked %} checked{% endif %}>
+  <label for="{{ id }}">{{ label }}{% if !hint.is_empty() %}<span class="option-hint">{{ hint }}</span>{% endif %}</label>
+</div>
+{%- endmacro -%}
+
+{#- A group of fields with a legend in the subsection heading's style. -#}
+{%- macro field_group(legend) -%}
+<fieldset class="field-group">
+  <legend>{{ legend }}</legend>
+{{ caller() }}
+</fieldset>
+{%- endmacro -%}
+
+{#- The form's buttons, primary first (the body). -#}
+{%- macro buttons() -%}
+<div class="form-buttons">
+{{ caller() }}
+</div>
+{%- endmacro -%}
+
+{#- A value to copy: read-only, monospace, selected as one piece, with a
+    copy button the copy script reveals. -#}
+{%- macro copy_value(ctx, id, label, value, copy_label) -%}
+<div class="field copy-field">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="input-with-button">
+    <input id="{{ id }}" type="text" value="{{ value }}" readonly spellcheck="false" autocomplete="off">
+    <button type="button" class="button button-icon" data-copy="{{ id }}" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}<span class="visually-hidden">{{ copy_label }}</span></button>
+  </div>
+</div>
+{%- endmacro -%}
+
+{#- The danger section: a framed part at the end of the page (an h2, the
+    default) or of the part it acts on (an h3), with a heading, what
+    happens, and its form (the body). -#}
+{%- macro danger(id, title, text, level = 2) -%}
+<section class="frame frame-danger" aria-labelledby="{{ id }}">
+  {%- if level == 2 %}
+  <h2 id="{{ id }}" class="frame-heading">{{ title }}</h2>
+  {%- else %}
+  <h3 id="{{ id }}" class="frame-title">{{ title }}</h3>
+  {%- endif %}
+  <p>{{ text }}</p>
+{{ caller() }}
+</section>
+{%- endmacro -%}

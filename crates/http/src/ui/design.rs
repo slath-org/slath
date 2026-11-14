@@ -129,12 +129,20 @@ struct MessagesFamily {
     ctx: PageCtx,
 }
 
+/// The forms family: fields, questions, groups, buttons, danger.
+#[derive(Template)]
+#[template(path = "design/forms.html")]
+struct FormsFamily {
+    ctx: PageCtx,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
     match name.as_str() {
         "layout" => Ok(render(&LayoutFamily { ctx })),
         "messages" => Ok(render(&MessagesFamily { ctx })),
+        "forms" => Ok(render(&FormsFamily { ctx })),
         _ => Err(AppError::not_found()),
     }
 }

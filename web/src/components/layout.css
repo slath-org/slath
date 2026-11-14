@@ -146,6 +146,11 @@
   line-height: var(--leading-heading);
   margin-block-end: calc(var(--gap-below-h3) - var(--gap-items));
 }
+/* A frame that is a section of the page (the danger section at its end)
+   has a section heading. */
+.frame > .frame-heading {
+  margin-block-end: calc(var(--gap-below-h2) - var(--gap-items));
+}
 .frame-notice {
   border-color: var(--info);
   border-inline-start-width: var(--space-1);

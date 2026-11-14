@@ -1,0 +1,122 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave form components: the form's layout, questions with options,
+   groups of fields, the form's buttons, and the danger section. A field
+   (label, control, hint, error at the inside distance) is `.field` in
+   components.css. Contracts: /-/design/forms. */
+
+/* A form: its fields, questions, and groups at the items distance, at the
+   width of single-line fields (long text and the editor: the wide form). */
+.form-layout,
+.form-layout-wide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  max-width: var(--measure-form);
+  margin: 0;
+}
+.form-layout-wide {
+  max-width: var(--measure-text);
+}
+:is(.form-layout, .form-layout-wide) > * {
+  margin-block: 0;
+}
+:is(.form-layout, .form-layout-wide) textarea,
+:is(.form-layout, .form-layout-wide) input:not([type="checkbox"], [type="radio"], [type="file"]),
+:is(.form-layout, .form-layout-wide) select {
+  inline-size: 100%;
+}
+
+/* A question: a legend in the label's style, then its options at the
+   inside distance, so they read as one question. */
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inside);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.question > legend {
+  padding: 0;
+  margin-block-end: var(--gap-inside);
+  font-weight: var(--weight-semibold);
+}
+.question > .hint,
+.question > .field-error {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.question > .hint {
+  color: var(--text-secondary);
+}
+.question > .field-error {
+  color: var(--error-fg);
+}
+
+/* An option: a checkbox or radio, its name in regular weight, and its
+   explanation under the name. */
+.option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--gap-inline);
+  align-items: start;
+  min-height: var(--target-min);
+  padding-block: var(--space-1);
+}
+.option > input {
+  inline-size: var(--check-size);
+  block-size: var(--check-size);
+  margin: 0;
+  margin-block-start: calc((1lh - var(--check-size)) / 2);
+  accent-color: var(--accent);
+}
+.option > label {
+  font-weight: var(--weight-regular);
+  min-height: var(--target-min);
+}
+.option-hint {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* A group of fields: a legend in the subsection heading's style, 8 px
+   above the fields, which keep the items distance. Groups are the groups
+   distance apart from what's around them. */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.field-group > legend {
+  padding: 0;
+  margin-block-end: var(--gap-below-h3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-heading);
+}
+:is(.form-layout, .form-layout-wide) > .field-group {
+  margin-block: calc(var(--gap-groups) - var(--gap-items));
+}
+:is(.form-layout, .form-layout-wide) > .field-group:first-child {
+  margin-block-start: 0;
+}
+
+/* The form's buttons: one row at its end, primary first, never stretched
+   (except in a details column, where they fill it). */
+.form-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+  margin: 0;
+}
+.details-column .form-buttons > .button {
+  flex: 1 1 auto;
+}

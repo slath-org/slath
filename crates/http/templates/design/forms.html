@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/forms.html" as f %}
+{% import "components/messages.html" as msg %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Forms · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "forms" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Forms</h1></div>
+  <p class="page-head-intro">A form is fields, questions, and groups of fields, then one row of buttons. Everything is required unless its label says "(optional)". After a failed submit the error summary leads the form, each field shows its message, and what was entered stays.</p>
+</header>
+
+{%- call cat::entry("form", "Form", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Holds a form's parts at the items distance, at the width of single-line fields (32 rem); the wide form (48 rem) holds long text and the Markdown editor. Controls fill the form's width.</dd>
+  <dt>Markup</dt><dd><code>form.form-layout</code> or <code>form.form-layout-wide</code>, with fields, questions, groups, then <code>f::buttons</code>. A form that isn't the page's only one sits in a section or a frame with a title.</dd>
+  <dt>Variants</dt><dd>Normal; wide. States: as entered; failed (error summary first, see Messages).</dd>
+  <dt>Accessibility</dt><dd>Every control has a visible label; errors are linked from the summary and named by <code>aria-describedby</code>.</dd>
+  <dt>Not for</dt><dd>A single button that acts at once (an inline action); filters of a list (the filter disclosure).</dd>
+</dl>
+{%- call cat::example("A new access token: two fields, a question, and the buttons.") %}
+<form class="form-layout" action="#form">
+  {%- call f::field("demo-name", "Name", "What it's for, for example \"laptop\" or \"CI deploy\".") %}
+  <input id="demo-name" name="name" type="text"{% call f::described("demo-name", "x", "") %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("demo-expires", "Expires") %}
+  <select id="demo-expires" name="expires"><option>In 30 days</option><option>In 90 days</option></select>
+  {%- endcall %}
+  {%- call f::question("demo-scopes", "Scopes") %}
+  {%- call f::option("checkbox", "demo-scope-1", "scopes", "repo:read", "repo:read", true, "Read repositories: clone, fetch, browse, and API reads.") %}{% endcall %}
+  {%- call f::option("checkbox", "demo-scope-2", "scopes", "repo:write", "repo:write", false, "Read and push to repositories, and change their settings.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create token</button>{% endcall %}
+</form>
+{%- endcall %}
+{%- call cat::example("The same form after a failed submit.") %}
+<form class="form-layout" action="#form">
+  {%- call msg::error_summary() %}
+    <li><a href="#demo-name-2">Enter a name of 1 to 100 characters.</a></li>
+  {%- endcall %}
+  {%- call f::field("demo-name-2", "Name", "What it's for, for example \"laptop\" or \"CI deploy\".", "Enter a name of 1 to 100 characters.") %}
+  <input id="demo-name-2" name="name" type="text"{% call f::described("demo-name-2", "x", "x") %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create token</button>{% endcall %}
+</form>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("field", "Field", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>One value: its label, the control, an optional hint (what to enter and what follows from it), and its error, 4 px apart.</dd>
+  <dt>Markup</dt><dd><code>f::field(id, label, hint, error, optional)</code> around the control; the control carries <code>f::described(id, hint, error)</code>. Labels are short nouns without a colon; hints are sentences.</dd>
+  <dt>Variants</dt><dd>Required; optional. States: default, focus, invalid (error under the hint, stronger border), disabled, read-only.</dd>
+  <dt>Accessibility</dt><dd>The label names the control; hint and error describe it; invalid controls are <code>aria-invalid</code>.</dd>
+  <dt>Not for</dt><dd>A choice among options (a question); a value to copy (copy value).</dd>
+</dl>
+{%- call cat::example("Optional, with a hint; and invalid.") %}
+<div class="form-layout">
+  {%- call f::field("demo-desc", "Description", "", "", true) %}
+  <input id="demo-desc" type="text">
+  {%- endcall %}
+  {%- call f::field("demo-url", "Payload URL", "Where Slath sends the events, an https:// address outside internal networks.", "Use an https:// address outside internal networks.") %}
+  <input id="demo-url" type="url" value="http://10.0.0.2/hook"{% call f::described("demo-url", "x", "x") %}{% endcall %}>
+  {%- endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("question", "Question and option", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A question with options to choose: a legend in the label's style, then checkboxes or radios. Each option's name is in regular weight, with its explanation under the name.</dd>
+  <dt>Markup</dt><dd><code>f::question(id, legend, hint, error)</code> around <code>f::option(kind, id, name, value, label, checked, hint)</code> calls.</dd>
+  <dt>Variants</dt><dd>Radios (one answer); checkboxes (several). With or without explanations. States per option: default, focus, checked, disabled; the question: invalid.</dd>
+  <dt>Accessibility</dt><dd>A <code>fieldset</code> whose legend names the group; each option's label names its control and is a full-size target.</dd>
+  <dt>Not for</dt><dd>Alternatives that show different content (the choice component); a single on/off setting (one option without a question, a checkbox).</dd>
+</dl>
+{%- call cat::example("Radios with explanations.") %}
+<div class="form-layout">
+  {%- call f::question("demo-visibility", "Who can see this repository") %}
+  {%- call f::option("radio", "demo-vis-1", "visibility", "private", "Private", true, "Only people you give access.") %}{% endcall %}
+  {%- call f::option("radio", "demo-vis-2", "visibility", "internal", "Internal", false, "Everyone signed in to this instance; not signed-out visitors.") %}{% endcall %}
+  {%- call f::option("radio", "demo-vis-3", "visibility", "public", "Public", false, "Everyone, including signed-out visitors.") %}{% endcall %}
+  {%- endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("field-group", "Group of fields", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Two or more fields that belong together, under a legend in the subsection heading's style; its fields keep the items distance, and the group is the groups distance from what's around it.</dd>
+  <dt>Markup</dt><dd><code>f::field_group(legend)</code> around the fields, inside a form.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>A <code>fieldset</code> named by its legend.</dd>
+  <dt>Not for</dt><dd>One question (a question); a whole form (its section heading names it).</dd>
+</dl>
+{%- call cat::example("A field, then a group of two.") %}
+<div class="form-layout">
+  {%- call f::field("demo-import-url", "Repository URL") %}<input id="demo-import-url" type="url">{% endcall %}
+  {%- call f::field_group("Credentials") %}
+  {%- call f::field("demo-user", "Username", "", "", true) %}<input id="demo-user" type="text">{% endcall %}
+  {%- call f::field("demo-pass", "Password or token", "", "", true) %}<input id="demo-pass" type="password">{% endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="button" class="button button-primary">Import repository</button>{% endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("buttons", "Form buttons", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The form's buttons, one row at its end: the primary action first, at most one primary, each at its own width. In a details column they fill the column.</dd>
+  <dt>Markup</dt><dd><code>f::buttons()</code> around the buttons, last in the form. Labels are verbs with their object: "Create token", "Save rule".</dd>
+  <dt>Variants</dt><dd>One or several buttons; a quiet "Cancel" last.</dd>
+  <dt>Accessibility</dt><dd>Real buttons; reading order is the visual order.</dd>
+  <dt>Not for</dt><dd>Actions on the whole page (the page heading's actions).</dd>
+</dl>
+{%- call cat::example("Primary, secondary, cancel.") %}
+{%- call f::buttons() %}<button type="button" class="button button-primary">Send reply</button><button type="button" class="button">Add to my review</button><button type="button" class="button button-quiet">Cancel</button>{% endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("copy-value", "Value to copy", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A value to take elsewhere: a clone URL, checkout commands, a new token. Read-only, monospace, selected as one piece, with a copy button.</dd>
+  <dt>Markup</dt><dd><code>f::copy_value(ctx, id, label, value, copy_label)</code>. A new secret shows once, in the success summary, with "It won't be shown again."</dd>
+  <dt>Variants</dt><dd>None. Without scripts the copy button stays hidden and the value can be selected.</dd>
+  <dt>Accessibility</dt><dd>The field is labelled; the button is named ("Copy the token") and reports the copy in a toast.</dd>
+  <dt>Not for</dt><dd>Values to edit (a field).</dd>
+</dl>
+{%- call cat::example("A new token, shown once.") %}
+{%- call msg::saved("Token created. It won't be shown again.") %}{% endcall %}
+{%- call f::copy_value(ctx, "demo-token", "New token", "slath_pat_0123456789abcdefghijklmnop", "Copy the token") %}{% endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("danger", "Danger section", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Destructive actions, at the end of the page or of the part they act on: a heading, what happens, and a danger button that names what goes. Irreversible ones ask the person to type the name.</dd>
+  <dt>Markup</dt><dd><code>f::danger(id, title, text, level)</code> around the form; <code>level</code> 2 at the end of a page, 3 inside a part of it.</dd>
+  <dt>Variants</dt><dd>One button; with a typed confirmation.</dd>
+  <dt>Accessibility</dt><dd>A section named by its heading. The red frame only adds to the words.</dd>
+  <dt>Not for</dt><dd>Reversible actions (they happen at once, with the way back next to them); removing one's own things (one named button).</dd>
+</dl>
+{%- call cat::example("Deleting a repository.") %}
+{%- call f::danger("demo-danger", "Delete this repository", "The repository disappears at once. An administrator can restore it for a few days; after that it's gone for good.") %}
+<form class="form-layout" action="#danger">
+  {%- call f::field("demo-confirm", "Type alice/demo to confirm") %}<input id="demo-confirm" type="text" autocomplete="off">{% endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-danger">Delete repository alice/demo</button>{% endcall %}
+</form>
+{%- endcall %}
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}
