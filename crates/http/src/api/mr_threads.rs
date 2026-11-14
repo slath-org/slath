@@ -23,6 +23,10 @@ fn ts(t: time::OffsetDateTime) -> String {
 #[derive(Serialize, ToSchema)]
 pub struct ThreadCommentBody {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub author: Option<String>,
     pub body: String,
     /// Only its author sees it until their review is submitted.
@@ -69,6 +73,10 @@ pub struct ThreadBody {
 /// What a finding thread came from.
 #[derive(Serialize, ToSchema)]
 pub struct ThreadFinding {
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     /// The status context that reported it.
     pub context: String,
     /// `notice`, `warning`, or `failure`.
@@ -111,6 +119,12 @@ impl From<ThreadView> for ThreadBody {
             },
         };
         let t = v.thread;
+        // A finding's text comes from its status; its first comment has
+        // the reporter's origin.
+        let finding_origin = v
+            .comments
+            .first()
+            .map_or(slath_core::origin::Origin::Anonymous, |c| c.origin);
         Self {
             id: t.id.to_string(),
             revision: t.revision_seq,
@@ -126,6 +140,8 @@ impl From<ThreadView> for ThreadBody {
                 .comments
                 .into_iter()
                 .map(|c| ThreadCommentBody {
+                    untrusted_content: true,
+                    origin: c.origin.into(),
                     id: c.id.to_string(),
                     author: c.author,
                     body: c.body,
@@ -135,6 +151,8 @@ impl From<ThreadView> for ThreadBody {
                 .collect(),
             created_at: ts(t.created_at),
             finding: t.finding.map(|f| ThreadFinding {
+                untrusted_content: true,
+                origin: finding_origin.into(),
                 context: f.context,
                 severity: f.severity,
                 category: f.category,
@@ -247,6 +265,8 @@ pub async fn reply(
     Ok((
         StatusCode::CREATED,
         Json(ThreadCommentBody {
+            untrusted_content: true,
+            origin: c.origin.into(),
             id: c.id.to_string(),
             author: c.author,
             body: c.body,

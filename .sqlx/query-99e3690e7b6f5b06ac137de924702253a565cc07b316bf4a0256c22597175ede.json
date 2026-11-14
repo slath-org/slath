@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $3\n                OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           WHERE r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $2\n                OR (r.visibility = 'internal' AND $1::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $1::uuid))\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -61,6 +61,17 @@
       },
       {
         "ordinal": 6,
+        "name": "description_origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "description_origin"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "visibility",
         "type_info": "Text",
         "origin": {
@@ -71,7 +82,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "default_branch",
         "type_info": "Text",
         "origin": {
@@ -82,7 +93,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "state",
         "type_info": "Text",
         "origin": {
@@ -93,7 +104,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "allow_forking",
         "type_info": "Bool",
         "origin": {
@@ -104,7 +115,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "size_bytes",
         "type_info": "Int8",
         "origin": {
@@ -115,7 +126,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "pushed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -126,7 +137,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "deleted_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -137,7 +148,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -148,7 +159,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -159,7 +170,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "issues_enabled",
         "type_info": "Bool",
         "origin": {
@@ -173,8 +184,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
         "Bool",
+        "Int8",
         "Int8"
       ]
     },
@@ -190,6 +201,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       false,
@@ -197,5 +209,5 @@
       false
     ]
   },
-  "hash": "42f8c26e2d7f6a12747535028e4a20c6ecdbda364ba660b99d5503ae336434ed"
+  "hash": "99e3690e7b6f5b06ac137de924702253a565cc07b316bf4a0256c22597175ede"
 }

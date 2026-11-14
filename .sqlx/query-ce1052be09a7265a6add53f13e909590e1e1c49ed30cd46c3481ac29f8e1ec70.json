@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author,\n                  (u.kind = 'bot') IS TRUE AS \"author_bot!\", c.body, c.edited_at,\n                  c.deleted_at, c.hidden_at, c.created_at\n           FROM comments c LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE c.subject_kind = $1 AND c.subject_id = $2 ORDER BY c.created_at, c.id",
+  "query": "SELECT c.id, c.thread_id, c.author_id, n.name::text AS author,\n                  (u.kind = 'bot') IS TRUE AS \"author_bot!\", c.body, c.origin, c.pending, c.created_at,\n                  c.edited_at, c.deleted_at\n           FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id\n           LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE t.mr_id = $1 ORDER BY c.created_at, c.id",
   "describe": {
     "columns": [
       {
@@ -9,131 +9,130 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "comments",
+            "table": "mr_thread_comments",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "repo_id",
+        "name": "thread_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "comments",
-            "name": "repo_id"
+            "table": "mr_thread_comments",
+            "name": "thread_id"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "subject_id",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "comments",
-            "name": "subject_id"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
         "name": "author_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "comments",
+            "table": "mr_thread_comments",
             "name": "author_id"
           }
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "author",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "author_bot!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "body",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "comments",
+            "table": "mr_thread_comments",
             "name": "body"
           }
         }
       },
       {
-        "ordinal": 7,
-        "name": "edited_at",
-        "type_info": "Timestamptz",
+        "ordinal": 6,
+        "name": "origin",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "comments",
-            "name": "edited_at"
+            "table": "mr_thread_comments",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "pending",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_comments",
+            "name": "pending"
           }
         }
       },
       {
         "ordinal": 8,
-        "name": "deleted_at",
+        "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "comments",
-            "name": "deleted_at"
+            "table": "mr_thread_comments",
+            "name": "created_at"
           }
         }
       },
       {
         "ordinal": 9,
-        "name": "hidden_at",
+        "name": "edited_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "comments",
-            "name": "hidden_at"
+            "table": "mr_thread_comments",
+            "name": "edited_at"
           }
         }
       },
       {
         "ordinal": 10,
-        "name": "created_at",
+        "name": "deleted_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "comments",
-            "name": "created_at"
+            "table": "mr_thread_comments",
+            "name": "deleted_at"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
         "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
-      false,
       true,
       null,
       null,
       false,
+      false,
+      false,
+      false,
       true,
-      true,
-      true,
-      false
+      true
     ]
   },
-  "hash": "a2e5bb68de49db372b643d6f4f9d5a34609ce41047aa06ab725a6750a551c7e9"
+  "hash": "ce1052be09a7265a6add53f13e909590e1e1c49ed30cd46c3481ac29f8e1ec70"
 }

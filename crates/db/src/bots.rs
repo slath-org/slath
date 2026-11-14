@@ -319,6 +319,8 @@ pub struct OpenMr {
     pub repo: String,
     pub number: i32,
     pub title: String,
+    /// The title's origin label.
+    pub origin: slath_core::origin::Origin,
 }
 
 /// A push a bot made.
@@ -352,7 +354,7 @@ pub async fn open_mrs(
     .fetch_one(exec)
     .await?;
     let rows = sqlx::query!(
-        r#"SELECT n.name::text || '/' || r.name::text AS "repo!", m.number, m.title
+        r#"SELECT n.name::text || '/' || r.name::text AS "repo!", m.number, m.title, m.origin
            FROM merge_requests m JOIN repositories r ON r.id = m.repo_id
            JOIN namespaces n ON n.id = r.namespace_id
            WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
@@ -372,6 +374,7 @@ pub async fn open_mrs(
                 repo: r.repo,
                 number: r.number,
                 title: r.title,
+                origin: crate::origin(&r.origin),
             })
             .collect(),
     ))

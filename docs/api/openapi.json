@@ -10825,6 +10825,8 @@
         "description": "A reported status.",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "commit_oid",
           "context",
           "state",
@@ -10862,6 +10864,10 @@
           "id": {
             "type": "string"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "reporter": {
             "type": [
               "string",
@@ -10878,6 +10884,10 @@
               "string",
               "null"
             ]
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -11348,6 +11358,8 @@
         "type": "object",
         "required": [
           "number",
+          "untrusted_content",
+          "origin",
           "title",
           "body",
           "body_html",
@@ -11412,6 +11424,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "state": {
             "type": "string",
             "description": "`open` or `closed`."
@@ -11426,6 +11442,10 @@
           "title": {
             "type": "string"
           },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
+          },
           "updated_at": {
             "type": "string"
           }
@@ -11435,6 +11455,8 @@
         "type": "object",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "body",
           "body_html",
           "deleted",
@@ -11472,6 +11494,14 @@
           },
           "id": {
             "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -11479,6 +11509,8 @@
         "type": "object",
         "description": "A matching issue.",
         "required": [
+          "untrusted_content",
+          "origin",
           "repository",
           "number",
           "title",
@@ -11490,6 +11522,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "repository": {
             "type": "string",
             "description": "`owner/repo`."
@@ -11499,6 +11535,10 @@
           },
           "title": {
             "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           },
           "updated_at": {
             "type": "string"
@@ -11628,6 +11668,8 @@
       "Label": {
         "type": "object",
         "required": [
+          "untrusted_content",
+          "origin",
           "name",
           "color",
           "open_issues"
@@ -11649,6 +11691,14 @@
           "open_issues": {
             "type": "integer",
             "format": "int64"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -11802,6 +11852,8 @@
         "type": "object",
         "required": [
           "number",
+          "untrusted_content",
+          "origin",
           "title",
           "description",
           "description_html",
@@ -11895,6 +11947,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "revisions": {
             "type": "integer",
             "format": "int32",
@@ -11919,6 +11975,10 @@
           },
           "title": {
             "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           },
           "updated_at": {
             "type": "string"
@@ -11964,6 +12024,8 @@
         "type": "object",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "title",
           "state",
           "open_issues",
@@ -11994,12 +12056,20 @@
             "type": "integer",
             "format": "int64"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "state": {
             "type": "string",
             "description": "`open` or `closed`."
           },
           "title": {
             "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -12038,6 +12108,8 @@
         "type": "object",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "body",
           "body_html",
           "created_at"
@@ -12066,6 +12138,14 @@
           },
           "id": {
             "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -12102,6 +12182,8 @@
         "description": "A review of a merge request.",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "revision",
           "verdict",
           "body",
@@ -12123,6 +12205,10 @@
           "id": {
             "type": "string"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "reviewer": {
             "type": [
               "string",
@@ -12137,6 +12223,10 @@
           "stale": {
             "type": "boolean",
             "description": "An approval or request for changes made stale by later changes."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           },
           "verdict": {
             "type": "string",
@@ -12591,6 +12681,8 @@
         "description": "A notification in the API.",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "repository",
           "subject_type",
           "number",
@@ -12607,6 +12699,10 @@
           "number": {
             "type": "integer",
             "format": "int32"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
           },
           "reason": {
             "type": "string",
@@ -12629,6 +12725,10 @@
           },
           "unread": {
             "type": "boolean"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: the title is user-generated."
           },
           "updated_at": {
             "type": "string"
@@ -12712,6 +12812,8 @@
         "type": "object",
         "description": "An open merge request in a bot's overview.",
         "required": [
+          "untrusted_content",
+          "origin",
           "repo",
           "number",
           "title"
@@ -12721,12 +12823,20 @@
             "type": "integer",
             "format": "int32"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "repo": {
             "type": "string",
             "description": "`namespace/name`."
           },
           "title": {
             "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -13146,6 +13256,8 @@
         "type": "object",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "namespace",
           "name",
           "full_name",
@@ -13188,11 +13300,19 @@
           "namespace": {
             "type": "string"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "pushed_at": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: the description is user-generated."
           },
           "updated_at": {
             "type": "string"
@@ -13207,6 +13327,8 @@
         "type": "object",
         "description": "A matching repository.",
         "required": [
+          "untrusted_content",
+          "origin",
           "namespace",
           "name",
           "visibility"
@@ -13223,6 +13345,14 @@
           },
           "namespace": {
             "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           },
           "visibility": {
             "type": "string",
@@ -13598,6 +13728,17 @@
           }
         }
       },
+      "TextOrigin": {
+        "type": "string",
+        "description": "Who wrote a piece of user-generated text, relative to its repository\nand as they stood when writing it. Objects with user-generated text\ncarry it next to `untrusted_content`, so agent harnesses can treat the\ntext as data and weigh it by its author. Least trusted first:\n`anonymous` (no account), `outside_contributor` (signed in, no role),\n`bot` (any bot account), `member` (read role or organization member),\n`writer` (write role or higher). An edit by someone else keeps the less\ntrusted of the two.",
+        "enum": [
+          "anonymous",
+          "outside_contributor",
+          "bot",
+          "member",
+          "writer"
+        ]
+      },
       "ThreadBody": {
         "type": "object",
         "description": "A review thread.",
@@ -13689,6 +13830,8 @@
         "description": "A comment of a thread.",
         "required": [
           "id",
+          "untrusted_content",
+          "origin",
           "body",
           "pending",
           "created_at"
@@ -13709,9 +13852,17 @@
           "id": {
             "type": "string"
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "pending": {
             "type": "boolean",
             "description": "Only its author sees it until their review is submitted."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },
@@ -13719,6 +13870,8 @@
         "type": "object",
         "description": "What a finding thread came from.",
         "required": [
+          "untrusted_content",
+          "origin",
           "context",
           "severity",
           "category"
@@ -13731,9 +13884,17 @@
             "type": "string",
             "description": "The status context that reported it."
           },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote it."
+          },
           "severity": {
             "type": "string",
             "description": "`notice`, `warning`, or `failure`."
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: this object's text is user-generated."
           }
         }
       },

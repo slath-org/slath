@@ -1074,6 +1074,7 @@ mod tests {
             reviewer: Some(format!("u{user}")),
             verdict: verdict.to_owned(),
             body: String::new(),
+            origin: slath_core::origin::Origin::Writer,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

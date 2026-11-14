@@ -165,6 +165,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - On protected branches, a bot's merge request marked ready asks its reviewers once its required checks pass on the latest revision.
 - Merge requests in the API and in webhooks show this as `attention`: `iterating`, `waiting_for_checks`, or `ready`.
 - Merge request pages and lists show a bot's merge request as "Iterating", with "Mark as ready" or "Mark as draft", and fold its consecutive revisions into one timeline entry.
+- Text people and bots write (issues, merge requests, comments, reviews, statuses, labels, milestones) carries `untrusted_content` and its author's `origin` in the API and webhooks.
+- The origin is `writer`, `member`, `bot`, `outside_contributor`, or `anonymous`, as the author stood when writing; an edit by someone else keeps the less trusted one.
 
 ### Changed
 

@@ -18,6 +18,10 @@ use crate::routes::{Access, RouteExt};
 #[derive(Serialize, ToSchema)]
 pub struct CommitStatus {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub commit_oid: String,
     pub context: String,
     /// `pending`, `success`, `failure`, or `error`.
@@ -52,6 +56,8 @@ pub struct StatusAnnotation {
 impl From<slath_db::statuses::Status> for CommitStatus {
     fn from(s: slath_db::statuses::Status) -> Self {
         Self {
+            untrusted_content: true,
+            origin: s.origin.into(),
             id: s.id.to_string(),
             commit_oid: s.commit_oid,
             context: s.context,

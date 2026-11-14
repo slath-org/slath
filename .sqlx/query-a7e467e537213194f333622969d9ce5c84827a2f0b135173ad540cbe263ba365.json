@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.id = $1",
+  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE m.id = $1",
   "describe": {
     "columns": [
       {
@@ -99,6 +99,17 @@
       },
       {
         "ordinal": 9,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "target_branch",
         "type_info": "Text",
         "origin": {
@@ -109,7 +120,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "source_repo_id",
         "type_info": "Uuid",
         "origin": {
@@ -120,7 +131,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "source_ref",
         "type_info": "Bytea",
         "origin": {
@@ -131,7 +142,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "allow_maintainer_edits",
         "type_info": "Bool",
         "origin": {
@@ -142,7 +153,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "state",
         "type_info": "Text",
         "origin": {
@@ -153,7 +164,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "milestone_id",
         "type_info": "Uuid",
         "origin": {
@@ -164,7 +175,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "delete_source_on_merge",
         "type_info": "Bool",
         "origin": {
@@ -175,7 +186,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "merged_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -186,7 +197,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "closed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -197,7 +208,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "source_findings",
         "type_info": "Jsonb",
         "origin": {
@@ -208,7 +219,7 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -219,7 +230,7 @@
         }
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -230,19 +241,19 @@
         }
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "comments!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "head_oid",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "revisions!",
         "type_info": "Int4",
         "origin": "Expression"
@@ -264,6 +275,7 @@
       false,
       false,
       false,
+      false,
       true,
       false,
       false,
@@ -280,5 +292,5 @@
       null
     ]
   },
-  "hash": "0c26e3bed08f45a100d9f6400de076298f172e1f84a53791bebc9ff6cf4851e3"
+  "hash": "a7e467e537213194f333622969d9ce5c84827a2f0b135173ad540cbe263ba365"
 }

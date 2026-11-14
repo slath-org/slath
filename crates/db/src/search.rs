@@ -36,6 +36,8 @@ pub struct IssueHit {
     pub repo: String,
     pub number: i32,
     pub title: String,
+    /// The issue's origin label.
+    pub origin: slath_core::origin::Origin,
     pub state: String,
     pub updated_at: OffsetDateTime,
 }
@@ -72,7 +74,7 @@ pub async fn issues(
                   AND c.deleted_at IS NULL AND c.hidden_at IS NULL AND c.search @@ q.query
            ),
            best AS (SELECT id, max(rank) AS rank FROM hits GROUP BY id)
-           SELECT n.name::text || '/' || r.name::text AS "repo!", i.number, i.title, i.state, i.updated_at
+           SELECT n.name::text || '/' || r.name::text AS "repo!", i.number, i.title, i.origin, i.state, i.updated_at
              FROM best b JOIN issues i ON i.id = b.id
              JOIN repositories r ON r.id = i.repo_id JOIN namespaces n ON n.id = r.namespace_id
             ORDER BY b.rank DESC, i.updated_at DESC, i.id
@@ -93,6 +95,7 @@ pub async fn issues(
             repo: r.repo,
             number: r.number,
             title: r.title,
+            origin: crate::origin(&r.origin),
             state: r.state,
             updated_at: r.updated_at,
         })
@@ -104,6 +107,8 @@ pub struct RepoHit {
     pub namespace: String,
     pub name: String,
     pub description: Option<String>,
+    /// The description's origin label.
+    pub description_origin: slath_core::origin::Origin,
     pub private: bool,
     /// `public`, `internal`, or `private`.
     pub visibility: String,
@@ -120,7 +125,7 @@ pub async fn repos(
     let (user, admin, only) = viewer.parts();
     let pattern = crate::references::contains_pattern(q);
     let rows = sqlx::query!(
-        r#"SELECT n.name::text AS "namespace!", r.name::text AS "name!", r.description, r.visibility
+        r#"SELECT n.name::text AS "namespace!", r.name::text AS "name!", r.description, r.description_origin, r.visibility
              FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
             WHERE r.state <> 'deleting'
               AND (r.visibility = 'public' OR $3
@@ -148,6 +153,7 @@ pub async fn repos(
             namespace: r.namespace,
             name: r.name,
             description: r.description,
+            description_origin: crate::origin(&r.description_origin),
             private: r.visibility != "public",
             visibility: r.visibility,
         })

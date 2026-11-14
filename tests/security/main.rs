@@ -22,6 +22,7 @@ mod mfa;
 mod notifications;
 mod oidc;
 mod orgs;
+mod origins;
 mod passkeys;
 mod plain;
 mod protection;

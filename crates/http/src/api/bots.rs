@@ -296,6 +296,10 @@ pub async fn remove_bot_key(
 /// An open merge request in a bot's overview.
 #[derive(Serialize, ToSchema)]
 pub struct OverviewMr {
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     /// `namespace/name`.
     pub repo: String,
     pub number: i32,
@@ -355,6 +359,8 @@ impl BotOverview {
                 .open_mrs
                 .into_iter()
                 .map(|m| OverviewMr {
+                    untrusted_content: true,
+                    origin: m.origin.into(),
                     repo: m.repo,
                     number: m.number,
                     title: m.title,

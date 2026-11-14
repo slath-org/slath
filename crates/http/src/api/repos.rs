@@ -39,6 +39,10 @@ pub struct CloneUrls {
 #[derive(Serialize, ToSchema)]
 pub struct Repo {
     pub id: String,
+    /// Always `true`: the description is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub namespace: String,
     pub name: String,
     /// `namespace/name`.
@@ -57,6 +61,8 @@ pub struct Repo {
 fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
     let (https, ssh) = crate::ui::repos::clone_urls(state, &r.namespace, &r.name);
     Repo {
+        untrusted_content: true,
+        origin: r.description_origin.into(),
         id: r.id.to_string(),
         namespace: r.namespace.clone(),
         name: r.name.clone(),

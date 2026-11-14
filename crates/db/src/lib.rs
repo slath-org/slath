@@ -55,6 +55,12 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// to migrate.
 pub const REQUIRED_SCHEMA: i32 = 134;
 
+/// A stored origin label; the column's check allows only known ones, and
+/// anything else would count as the least trusted.
+pub(crate) fn origin(s: &str) -> slath_core::origin::Origin {
+    slath_core::origin::Origin::parse(s).unwrap_or(slath_core::origin::Origin::Anonymous)
+}
+
 /// Schema version of the baseline migration, where every supported
 /// installation starts. Lower versions come from the 0.1/0.2 previews.
 pub const BASELINE_SCHEMA: i32 = 100;

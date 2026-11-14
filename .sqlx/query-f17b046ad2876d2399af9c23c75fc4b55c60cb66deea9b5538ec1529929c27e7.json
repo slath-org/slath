@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.state,\n                  i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id\n                     AND c.deleted_at IS NULL) AS \"comments!\"\n           FROM issues i LEFT JOIN users u ON u.id = i.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE i.repo_id = $1\n             AND ($2::text IS NULL OR i.state = $2)\n             AND ($3::uuid IS NULL OR i.author_id = $3)\n             AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM issue_assignees a WHERE a.issue_id = i.id AND a.user_id = $4))\n             AND (SELECT count(*) FROM issue_labels l WHERE l.issue_id = i.id AND l.label_id = ANY($5)) = cardinality($5)\n             AND ($6::uuid IS NULL OR i.milestone_id = $6)\n           ORDER BY CASE WHEN $7 THEN i.updated_at ELSE i.created_at END DESC, i.number DESC\n           OFFSET $8 LIMIT $9",
+  "query": "SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.origin, i.state,\n                  i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id\n                     AND c.deleted_at IS NULL) AS \"comments!\"\n           FROM issues i LEFT JOIN users u ON u.id = i.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE i.repo_id = $1 AND i.number = $2",
   "describe": {
     "columns": [
       {
@@ -77,6 +77,17 @@
       },
       {
         "ordinal": 7,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "state",
         "type_info": "Text",
         "origin": {
@@ -87,7 +98,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "state_reason",
         "type_info": "Text",
         "origin": {
@@ -98,7 +109,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "milestone_id",
         "type_info": "Uuid",
         "origin": {
@@ -109,7 +120,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "closed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -120,7 +131,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -131,7 +142,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -142,7 +153,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "comments!",
         "type_info": "Int8",
         "origin": "Expression"
@@ -151,14 +162,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Uuid",
-        "Uuid",
-        "UuidArray",
-        "Uuid",
-        "Bool",
-        "Int8",
-        "Int8"
+        "Int4"
       ]
     },
     "nullable": [
@@ -170,6 +174,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -178,5 +183,5 @@
       null
     ]
   },
-  "hash": "3620a79282fc37e5eb2ccf574ae08036c4b2343722d377ac99f5e8391685ae21"
+  "hash": "f17b046ad2876d2399af9c23c75fc4b55c60cb66deea9b5538ec1529929c27e7"
 }

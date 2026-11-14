@@ -285,6 +285,10 @@ async fn unsubscribe(
 #[derive(Serialize, ToSchema)]
 pub struct NotificationJson {
     pub id: String,
+    /// Always `true`: the title is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: crate::api::TextOrigin,
     /// `owner/repo`.
     pub repository: String,
     /// `issue` or `merge_request`.
@@ -331,6 +335,8 @@ pub async fn api_list(
         items: items
             .into_iter()
             .map(|i| NotificationJson {
+                untrusted_content: true,
+                origin: i.origin.into(),
                 id: i.notification.id.to_string(),
                 repository: i.repo,
                 subject_type: i.notification.subject_kind,

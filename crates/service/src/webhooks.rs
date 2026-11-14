@@ -860,6 +860,8 @@ impl Services {
             "number": issue.number,
             "title": text(&issue.title),
             "body": text(&issue.body),
+            "untrusted_content": true,
+            "origin": issue.origin.as_str(),
             "state": issue.state,
             "author": issue.author,
             "html_url": format!("{base}/{ns}/{name}/issues/{}", issue.number),
@@ -894,6 +896,8 @@ impl Services {
         Some(serde_json::json!({
             "id": c.id,
             "body": text(&c.body),
+            "untrusted_content": true,
+            "origin": c.origin.as_str(),
             "author": c.author,
             "created_at": c.created_at.format(&time::format_description::well_known::Rfc3339).ok(),
         }))
@@ -916,6 +920,8 @@ impl Services {
             "number": m.number,
             "title": text(&m.title),
             "description": text(&m.description),
+            "untrusted_content": true,
+            "origin": m.origin.as_str(),
             "state": m.state,
             "draft": m.draft,
             "attention": m.attention,
@@ -951,6 +957,8 @@ impl Services {
                         "id": c.id,
                         "thread_id": c.thread_id,
                         "body": text(&c.body),
+                        "untrusted_content": true,
+                        "origin": c.origin.as_str(),
                         "author": c.author,
                     });
                 }
@@ -966,6 +974,8 @@ impl Services {
                         "id": v.id,
                         "verdict": v.verdict,
                         "body": text(&v.body),
+                        "untrusted_content": true,
+                        "origin": v.origin.as_str(),
                         "revision": v.revision_seq,
                         "reviewer": v.reviewer,
                     });

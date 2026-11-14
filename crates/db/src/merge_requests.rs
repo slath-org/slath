@@ -74,6 +74,8 @@ pub struct MergeRequest {
     pub draft: bool,
     /// `iterating`, `waiting_for_checks`, or `ready` (the attention gate).
     pub attention: String,
+    /// Who wrote the title and description (origin labels).
+    pub origin: Origin,
     pub target_branch: String,
     pub source_repo_id: Option<RepoId>,
     /// Full ref name in the source repository.
@@ -124,6 +126,7 @@ macro_rules! to_mr {
             description: $r.description,
             draft: $r.draft,
             attention: $r.attention,
+            origin: crate::origin(&$r.origin),
             target_branch: $r.target_branch,
             source_repo_id: $r.source_repo_id.map(RepoId::from_uuid),
             source_ref: $r.source_ref,
@@ -211,7 +214,7 @@ pub async fn get(
 ) -> Result<Option<MergeRequest>, DbError> {
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -236,7 +239,7 @@ pub async fn get_by_id(
 ) -> Result<Option<MergeRequest>, DbError> {
     let r = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -264,7 +267,7 @@ pub async fn list(
 ) -> Result<Vec<MergeRequest>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,
-                  m.draft, m.attention, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
+                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,
                   m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,
                   m.created_at, m.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id
@@ -603,7 +606,7 @@ pub async fn labels(
     mr: MergeRequestId,
 ) -> Result<Vec<crate::labels::Label>, DbError> {
     let rows = sqlx::query!(
-        "SELECT l.id, l.name::text AS \"name!\", l.color, l.description FROM mr_labels m
+        "SELECT l.id, l.name::text AS \"name!\", l.color, l.description, l.origin FROM mr_labels m
            JOIN labels l ON l.id = m.label_id WHERE m.mr_id = $1 ORDER BY l.name",
         mr.as_uuid()
     )
@@ -616,6 +619,7 @@ pub async fn labels(
             name: r.name,
             color: r.color,
             description: r.description,
+            origin: r.origin,
             open_issues: 0,
         })
         .collect())

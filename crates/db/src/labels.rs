@@ -16,6 +16,9 @@ pub struct Label {
     /// Six lowercase hex digits.
     pub color: String,
     pub description: Option<String>,
+    /// Who wrote the name and description (origin labels; a value the
+    /// column's check allows).
+    pub origin: String,
     /// Open issues with the label.
     pub open_issues: i64,
 }
@@ -23,7 +26,7 @@ pub struct Label {
 pub async fn labels(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Label>, DbError> {
     let rows = sqlx::query_as!(
         Label,
-        r#"SELECT l.id, l.name::text AS "name!", l.color::text AS "color!", l.description,
+        r#"SELECT l.id, l.name::text AS "name!", l.color::text AS "color!", l.description, l.origin,
                   (SELECT count(*) FROM issue_labels il JOIN issues i ON i.id = il.issue_id
                    WHERE il.label_id = l.id AND i.state = 'open') AS "open_issues!"
            FROM labels l WHERE l.repo_id = $1 ORDER BY lower(l.name::text)"#,
@@ -110,7 +113,7 @@ pub async fn labels_by_name(
 ) -> Result<Vec<Label>, DbError> {
     let rows = sqlx::query_as!(
         Label,
-        r#"SELECT l.id, l.name::text AS "name!", l.color::text AS "color!", l.description, 0::bigint AS "open_issues!"
+        r#"SELECT l.id, l.name::text AS "name!", l.color::text AS "color!", l.description, l.origin, 0::bigint AS "open_issues!"
            FROM labels l WHERE l.repo_id = $1 AND lower(l.name::text) = ANY(SELECT lower(x) FROM unnest($2::text[]) x)"#,
         repo.as_uuid(),
         names
@@ -126,7 +129,8 @@ pub async fn issue_labels(
     issues: &[uuid::Uuid],
 ) -> Result<Vec<(uuid::Uuid, Label)>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT il.issue_id, l.id, l.name::text AS "name!", l.color::text AS "color!", l.description
+        r#"SELECT il.issue_id, l.id, l.name::text AS "name!", l.color::text AS "color!", l.description,
+                  l.origin
            FROM issue_labels il JOIN labels l ON l.id = il.label_id
            WHERE il.issue_id = ANY($1) ORDER BY lower(l.name::text)"#,
         issues
@@ -143,6 +147,7 @@ pub async fn issue_labels(
                     name: r.name,
                     color: r.color,
                     description: r.description,
+                    origin: r.origin,
                     open_issues: 0,
                 },
             )
@@ -185,6 +190,9 @@ pub struct Milestone {
     pub id: uuid::Uuid,
     pub title: String,
     pub description: Option<String>,
+    /// Who wrote the title and description (origin labels; a value the
+    /// column's check allows).
+    pub origin: String,
     pub due_on: Option<Date>,
     pub state: String,
     pub open_issues: i64,
@@ -198,7 +206,7 @@ pub async fn milestones(
 ) -> Result<Vec<Milestone>, DbError> {
     let rows = sqlx::query_as!(
         Milestone,
-        r#"SELECT m.id, m.title::text AS "title!", m.description, m.due_on, m.state, m.updated_at,
+        r#"SELECT m.id, m.title::text AS "title!", m.description, m.origin, m.due_on, m.state, m.updated_at,
                   (SELECT count(*) FROM issues i WHERE i.milestone_id = m.id AND i.state = 'open') AS "open_issues!",
                   (SELECT count(*) FROM issues i WHERE i.milestone_id = m.id AND i.state = 'closed') AS "closed_issues!"
            FROM milestones m WHERE m.repo_id = $1

@@ -54,7 +54,9 @@ Every payload is JSON with `event`, `action` (where the event has one),
 `sender` (`username`, `kind`), and the event's object: `push`,
 `merge_request`, `issue`, `comment`, `review`, `status`, `fork`, or
 `change`. A `push` lists at most 20 commits; very long texts are cut and
-end in "… (cut)".
+end in "… (cut)". Issues, merge requests, comments, reviews, and statuses
+carry `untrusted_content` and the `origin` of their text, as in the API
+(see [who wrote what](agents.md#surfaces-for-programs)).
 
 A webhook acts for the person who created it or last changed its URL or
 secret. It sends an event only if that person can read the repository (and

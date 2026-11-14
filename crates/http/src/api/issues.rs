@@ -25,6 +25,10 @@ fn ts(t: time::OffsetDateTime) -> String {
 #[derive(Serialize, ToSchema)]
 pub struct Issue {
     pub number: i32,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub title: String,
     /// Markdown source.
     pub body: String,
@@ -92,6 +96,8 @@ impl Meta {
 
 fn issue_json(i: slath_db::issues::Issue, body_html: String) -> Issue {
     Issue {
+        untrusted_content: true,
+        origin: i.origin.into(),
         labels: Vec::new(),
         assignees: Vec::new(),
         milestone: None,
@@ -307,6 +313,10 @@ pub async fn update_issue(
 #[derive(Serialize, ToSchema)]
 pub struct IssueComment {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub author: Option<String>,
     /// Empty when deleted or hidden from the caller.
     pub body: String,
@@ -349,6 +359,8 @@ pub async fn list_comments(
             } => {
                 let visible = !html.is_empty();
                 Some(IssueComment {
+                    untrusted_content: true,
+                    origin: comment.origin.into(),
                     id: comment.id.to_string(),
                     author: comment.author,
                     body: if visible { comment.body } else { String::new() },
@@ -394,6 +406,8 @@ pub async fn create_comment(
     Ok((
         StatusCode::CREATED,
         Json(IssueComment {
+            untrusted_content: true,
+            origin: c.origin.into(),
             id: c.id.to_string(),
             author: c.author,
             body: c.body,

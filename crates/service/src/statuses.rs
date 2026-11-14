@@ -303,6 +303,8 @@ impl Services {
                 "context": context,
                 "state": s.state,
                 "description": description,
+                "untrusted_content": true,
+                "origin": origin.as_str(),
                 "target_url": target_url,
                 "annotations": annotations.iter().map(annotation_json).collect::<Vec<_>>(),
             }}),

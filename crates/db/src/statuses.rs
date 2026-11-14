@@ -21,6 +21,8 @@ pub struct Status {
     /// The reporting user or bot.
     pub reporter_id: Option<UserId>,
     pub reporter: Option<String>,
+    /// The reporter's origin, for the description and annotations.
+    pub origin: Origin,
     pub created_at: time::OffsetDateTime,
     /// Its line annotations, in the order reported.
     pub annotations: Vec<Annotation>,
@@ -129,7 +131,7 @@ pub async fn for_commit(
 ) -> Result<Vec<Status>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT s.id, s.commit_oid, s.context, s.state, s.description, s.target_url, s.creator_id,
-                  n.name::text AS reporter, s.created_at
+                  n.name::text AS reporter, s.origin, s.created_at
            FROM commit_statuses s
            LEFT JOIN users u ON u.id = s.creator_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
@@ -176,6 +178,7 @@ pub async fn for_commit(
             target_url: r.target_url,
             reporter_id: r.creator_id.map(UserId::from_uuid),
             reporter: r.reporter,
+            origin: crate::origin(&r.origin),
             created_at: r.created_at,
         })
         .collect())

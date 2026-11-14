@@ -148,6 +148,10 @@ async fn search_page(
 /// A matching issue.
 #[derive(Serialize, ToSchema)]
 pub struct IssueHitJson {
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: crate::api::TextOrigin,
     /// `owner/repo`.
     pub repository: String,
     pub number: i32,
@@ -159,6 +163,10 @@ pub struct IssueHitJson {
 /// A matching repository.
 #[derive(Serialize, ToSchema)]
 pub struct RepoHitJson {
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: crate::api::TextOrigin,
     pub namespace: String,
     pub name: String,
     pub description: Option<String>,
@@ -216,6 +224,8 @@ pub async fn api_issues(
     let items: Vec<IssueHitJson> = hits
         .into_iter()
         .map(|h| IssueHitJson {
+            untrusted_content: true,
+            origin: h.origin.into(),
             repository: h.repo,
             number: h.number,
             title: h.title,
@@ -244,6 +254,8 @@ pub async fn api_repos(
     let items: Vec<RepoHitJson> = hits
         .into_iter()
         .map(|h| RepoHitJson {
+            untrusted_content: true,
+            origin: h.description_origin.into(),
             namespace: h.namespace,
             name: h.name,
             description: h.description,

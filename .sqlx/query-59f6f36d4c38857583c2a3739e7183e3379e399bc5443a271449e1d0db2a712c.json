@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT n.name::text || '/' || r.name::text AS \"repo!\", m.number, m.title\n           FROM merge_requests m JOIN repositories r ON r.id = m.repo_id\n           JOIN namespaces n ON n.id = r.namespace_id\n           WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n           ORDER BY m.created_at DESC LIMIT $4",
+  "query": "SELECT n.name::text || '/' || r.name::text AS \"repo!\", m.number, m.title, m.origin\n           FROM merge_requests m JOIN repositories r ON r.id = m.repo_id\n           JOIN namespaces n ON n.id = r.namespace_id\n           WHERE m.author_id = $1 AND m.state = 'open' AND r.state <> 'deleting'  AND (r.visibility = 'public' OR $3 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n           ORDER BY m.created_at DESC LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -30,6 +30,17 @@
             "name": "title"
           }
         }
+      },
+      {
+        "ordinal": 3,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "origin"
+          }
+        }
       }
     ],
     "parameters": {
@@ -43,8 +54,9 @@
     "nullable": [
       null,
       false,
+      false,
       false
     ]
   },
-  "hash": "87fd9c850ef95c6ac615b71e83823e7850e3c41512bf249a91d8f78ada67a0f9"
+  "hash": "59f6f36d4c38857583c2a3739e7183e3379e399bc5443a271449e1d0db2a712c"
 }

@@ -89,6 +89,47 @@ impl FromRequestParts<AppState> for ApiUser {
     }
 }
 
+/// Who wrote a piece of user-generated text, relative to its repository
+/// and as they stood when writing it. Objects with user-generated text
+/// carry it next to `untrusted_content`, so agent harnesses can treat the
+/// text as data and weigh it by its author. Least trusted first:
+/// `anonymous` (no account), `outside_contributor` (signed in, no role),
+/// `bot` (any bot account), `member` (read role or organization member),
+/// `writer` (write role or higher). An edit by someone else keeps the less
+/// trusted of the two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TextOrigin {
+    Anonymous,
+    OutsideContributor,
+    Bot,
+    Member,
+    Writer,
+}
+
+impl From<slath_core::origin::Origin> for TextOrigin {
+    fn from(o: slath_core::origin::Origin) -> Self {
+        use slath_core::origin::Origin;
+        match o {
+            Origin::Anonymous => Self::Anonymous,
+            Origin::OutsideContributor => Self::OutsideContributor,
+            Origin::Bot => Self::Bot,
+            Origin::Member => Self::Member,
+            Origin::Writer => Self::Writer,
+        }
+    }
+}
+
+impl TextOrigin {
+    /// A stored label; anything unknown counts as the least trusted.
+    #[must_use]
+    pub fn parse(s: &str) -> Self {
+        slath_core::origin::Origin::parse(s)
+            .unwrap_or(slath_core::origin::Origin::Anonymous)
+            .into()
+    }
+}
+
 /// An RFC 9457 problem document.
 #[derive(Serialize, ToSchema)]
 pub struct Problem {

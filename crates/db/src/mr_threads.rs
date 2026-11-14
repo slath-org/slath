@@ -46,6 +46,8 @@ pub struct ThreadComment {
     pub author: Option<String>,
     pub author_bot: bool,
     pub body: String,
+    /// Who wrote the body (origin labels).
+    pub origin: Origin,
     pub pending: bool,
     pub created_at: time::OffsetDateTime,
     pub edited_at: Option<time::OffsetDateTime>,
@@ -168,7 +170,7 @@ pub async fn comments(
 ) -> Result<Vec<ThreadComment>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT c.id, c.thread_id, c.author_id, n.name::text AS author,
-                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.pending, c.created_at,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.origin, c.pending, c.created_at,
                   c.edited_at, c.deleted_at
            FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id
            LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
@@ -187,6 +189,7 @@ pub async fn comments(
             author: r.author,
             author_bot: r.author_bot,
             body: r.body,
+            origin: crate::origin(&r.origin),
             pending: r.pending,
             created_at: r.created_at,
             edited_at: r.edited_at,

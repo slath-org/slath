@@ -19,6 +19,8 @@ pub struct Review {
     /// `approve`, `request_changes`, or `comment`.
     pub verdict: String,
     pub body: String,
+    /// Who wrote the body (origin labels).
+    pub origin: Origin,
     pub created_at: time::OffsetDateTime,
 }
 
@@ -117,7 +119,7 @@ pub async fn coverage(
 pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<Review>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,
-                  r.created_at
+                  r.origin, r.created_at
            FROM mr_reviews r
            LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
@@ -135,6 +137,7 @@ pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<R
             reviewer: r.reviewer,
             verdict: r.verdict,
             body: r.body,
+            origin: crate::origin(&r.origin),
             created_at: r.created_at,
         })
         .collect())

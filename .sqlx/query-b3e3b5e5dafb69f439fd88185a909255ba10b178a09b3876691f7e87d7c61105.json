@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,\n                  r.created_at\n           FROM mr_reviews r\n           LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE r.mr_id = $1 ORDER BY r.created_at, r.id",
+  "query": "SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,\n                  r.origin, r.created_at\n           FROM mr_reviews r\n           LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE r.mr_id = $1 ORDER BY r.created_at, r.id",
   "describe": {
     "columns": [
       {
@@ -66,6 +66,17 @@
       },
       {
         "ordinal": 6,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_reviews",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -88,8 +99,9 @@
       null,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "dc746f912a86f11055c41dea06f5b0139aa04802fb97e514b5d63904aaefb272"
+  "hash": "b3e3b5e5dafb69f439fd88185a909255ba10b178a09b3876691f7e87d7c61105"
 }

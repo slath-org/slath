@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -61,6 +61,17 @@
       },
       {
         "ordinal": 6,
+        "name": "description_origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "description_origin"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "visibility",
         "type_info": "Text",
         "origin": {
@@ -71,7 +82,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "default_branch",
         "type_info": "Text",
         "origin": {
@@ -82,7 +93,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "state",
         "type_info": "Text",
         "origin": {
@@ -93,7 +104,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "allow_forking",
         "type_info": "Bool",
         "origin": {
@@ -104,7 +115,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "size_bytes",
         "type_info": "Int8",
         "origin": {
@@ -115,7 +126,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "pushed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -126,7 +137,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "deleted_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -137,7 +148,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -148,7 +159,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "updated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -159,7 +170,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "issues_enabled",
         "type_info": "Bool",
         "origin": {
@@ -187,6 +198,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       false,
@@ -194,5 +206,5 @@
       false
     ]
   },
-  "hash": "c4a7cd2a52ad53d4b1ca50f5ecf945a1afaa5f8fc989a888aebb63c433b10f86"
+  "hash": "1a03ca3a112a7ca4d2e0e3c4c2fa0e7ba0fd222ff1915b72dce3e8d600668010"
 }

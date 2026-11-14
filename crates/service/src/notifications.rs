@@ -207,6 +207,8 @@ pub struct InboxItem {
     pub repo: String,
     pub number: i32,
     pub title: String,
+    /// The title's origin label.
+    pub origin: slath_core::origin::Origin,
     pub state: String,
 }
 
@@ -1044,22 +1046,22 @@ impl Services {
                 continue;
             }
             let found = if n.subject_kind == "issue" {
-                slath_db::issues::titles(&self.pool, a.repo.id, &[number])
+                slath_db::issues::get(&self.pool, a.repo.id, number)
                     .await?
-                    .pop()
-                    .map(|(_, t, s)| (t, s))
+                    .map(|i| (i.title, i.state, i.origin))
             } else {
                 slath_db::merge_requests::get(&self.pool, a.repo.id, number)
                     .await?
-                    .map(|m| (m.title, m.state))
+                    .map(|m| (m.title, m.state, m.origin))
             };
-            let Some((title, state)) = found else {
+            let Some((title, state, origin)) = found else {
                 continue;
             };
             out.push(InboxItem {
                 repo: format!("{}/{}", a.repo.namespace, a.repo.name),
                 number,
                 title,
+                origin,
                 state,
                 notification: n,
             });

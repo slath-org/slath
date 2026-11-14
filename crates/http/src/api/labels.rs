@@ -15,6 +15,10 @@ use crate::routes::{Access, RouteExt};
 
 #[derive(Serialize, ToSchema)]
 pub struct Label {
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub name: String,
     /// Six hex digits, without `#`.
     pub color: String,
@@ -24,6 +28,8 @@ pub struct Label {
 
 fn label_json(l: slath_db::labels::Label) -> Label {
     Label {
+        untrusted_content: true,
+        origin: super::TextOrigin::parse(&l.origin),
         name: l.name,
         color: l.color,
         description: l.description,
@@ -133,6 +139,10 @@ pub async fn delete_label(
 #[derive(Serialize, ToSchema)]
 pub struct Milestone {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub title: String,
     pub description: Option<String>,
     /// `YYYY-MM-DD`.
@@ -150,6 +160,8 @@ fn date(d: time::Date) -> String {
 
 fn milestone_json(m: slath_db::labels::Milestone) -> Milestone {
     Milestone {
+        untrusted_content: true,
+        origin: super::TextOrigin::parse(&m.origin),
         id: m.id.to_string(),
         title: m.title,
         description: m.description,

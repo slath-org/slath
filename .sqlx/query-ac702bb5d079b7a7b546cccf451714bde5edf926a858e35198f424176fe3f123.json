@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT il.issue_id, l.id, l.name::text AS \"name!\", l.color::text AS \"color!\", l.description\n           FROM issue_labels il JOIN labels l ON l.id = il.label_id\n           WHERE il.issue_id = ANY($1) ORDER BY lower(l.name::text)",
+  "query": "SELECT il.issue_id, l.id, l.name::text AS \"name!\", l.color::text AS \"color!\", l.description,\n                  l.origin\n           FROM issue_labels il JOIN labels l ON l.id = il.label_id\n           WHERE il.issue_id = ANY($1) ORDER BY lower(l.name::text)",
   "describe": {
     "columns": [
       {
@@ -47,6 +47,17 @@
             "name": "description"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "labels",
+            "name": "origin"
+          }
+        }
       }
     ],
     "parameters": {
@@ -59,8 +70,9 @@
       false,
       null,
       null,
-      true
+      true,
+      false
     ]
   },
-  "hash": "8de84fa54b93d92b484bc4915916e7285295c7481134601d383a22ef774fc1cd"
+  "hash": "ac702bb5d079b7a7b546cccf451714bde5edf926a858e35198f424176fe3f123"
 }

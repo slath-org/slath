@@ -28,6 +28,10 @@ fn ts(t: time::OffsetDateTime) -> String {
 #[derive(Serialize, ToSchema)]
 pub struct MergeRequest {
     pub number: i32,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub title: String,
     /// Markdown source.
     pub description: String,
@@ -129,6 +133,8 @@ fn mr_json(
     auto_merge: Option<slath_db::merge_requests::AutoMerge>,
 ) -> MergeRequest {
     MergeRequest {
+        untrusted_content: true,
+        origin: m.origin.into(),
         auto_merge: auto_merge.map(|a| AutoMergeJson {
             strategy: a.strategy,
             set_by: a.by,
@@ -418,6 +424,10 @@ pub async fn update_mr(
 #[derive(Serialize, ToSchema)]
 pub struct MrComment {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     pub author: Option<String>,
     pub body: String,
     pub body_html: String,
@@ -446,6 +456,8 @@ pub async fn list_mr_comments(
                 hidden,
                 ..
             }) if comment.deleted_at.is_none() && !(hidden && html.is_empty()) => Some(MrComment {
+                untrusted_content: true,
+                origin: comment.origin.into(),
                 id: comment.id.to_string(),
                 author: comment.author,
                 body: comment.body,
@@ -489,6 +501,8 @@ pub async fn create_mr_comment(
     Ok((
         StatusCode::CREATED,
         Json(MrComment {
+            untrusted_content: true,
+            origin: c.origin.into(),
             id: c.id.to_string(),
             author: c.author,
             body: c.body,
@@ -599,6 +613,10 @@ pub async fn bind_change(
 #[derive(Serialize, ToSchema)]
 pub struct MrReview {
     pub id: String,
+    /// Always `true`: this object's text is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote it.
+    pub origin: super::TextOrigin,
     /// The revision it was submitted on.
     pub revision: i32,
     pub reviewer: Option<String>,
@@ -616,6 +634,8 @@ pub struct MrReview {
 impl From<slath_service::mr_reviews::ReviewView> for MrReview {
     fn from(v: slath_service::mr_reviews::ReviewView) -> Self {
         Self {
+            untrusted_content: true,
+            origin: v.review.origin.into(),
             id: v.review.id.to_string(),
             revision: v.review.revision_seq,
             reviewer: v.review.reviewer,

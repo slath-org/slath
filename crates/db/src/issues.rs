@@ -20,6 +20,8 @@ pub struct Issue {
     pub author: Option<String>,
     pub title: String,
     pub body: String,
+    /// Who wrote the title and body (origin labels).
+    pub origin: Origin,
     pub state: String,
     pub state_reason: Option<String>,
     pub milestone_id: Option<uuid::Uuid>,
@@ -39,6 +41,7 @@ macro_rules! to_issue {
             author: $r.author,
             title: $r.title,
             body: $r.body,
+            origin: crate::origin(&$r.origin),
             state: $r.state,
             state_reason: $r.state_reason,
             milestone_id: $r.milestone_id,
@@ -96,7 +99,7 @@ pub async fn get(
     number: i32,
 ) -> Result<Option<Issue>, DbError> {
     let r = sqlx::query!(
-        r#"SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.state,
+        r#"SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.origin, i.state,
                   i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id
                      AND c.deleted_at IS NULL) AS "comments!"
@@ -133,7 +136,7 @@ pub async fn list(
     limit: i64,
 ) -> Result<Vec<Issue>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.state,
+        r#"SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.origin, i.state,
                   i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,
                   (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id
                      AND c.deleted_at IS NULL) AS "comments!"
@@ -266,6 +269,8 @@ pub struct Comment {
     /// The author is a bot account (its words are claims, D-47).
     pub author_bot: bool,
     pub body: String,
+    /// Who wrote the body (origin labels).
+    pub origin: Origin,
     pub edited_at: Option<OffsetDateTime>,
     pub deleted_at: Option<OffsetDateTime>,
     pub hidden_at: Option<OffsetDateTime>,
@@ -282,6 +287,7 @@ macro_rules! to_comment {
             author: $r.author,
             author_bot: $r.author_bot,
             body: $r.body,
+            origin: crate::origin(&$r.origin),
             edited_at: $r.edited_at,
             deleted_at: $r.deleted_at,
             hidden_at: $r.hidden_at,
@@ -323,7 +329,7 @@ pub async fn comments(
 ) -> Result<Vec<Comment>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author,
-                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.edited_at,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.origin, c.edited_at,
                   c.deleted_at, c.hidden_at, c.created_at
            FROM comments c LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
@@ -342,7 +348,7 @@ pub async fn comment(
 ) -> Result<Option<Comment>, DbError> {
     let r = sqlx::query!(
         r#"SELECT c.id, c.repo_id, c.subject_id, c.author_id, n.name::text AS author,
-                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.edited_at,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.origin, c.edited_at,
                   c.deleted_at, c.hidden_at, c.created_at
            FROM comments c LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
