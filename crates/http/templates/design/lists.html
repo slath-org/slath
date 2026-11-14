@@ -11,7 +11,7 @@
   <p class="page-head-intro">List rows for things people open by their title, tables for records compared by column, facts for the properties of one thing. Nothing is ever cut without saying so.</p>
 </header>
 
-{%- call cat::entry("rows", "List rows", "New") %}
+{%- call cat::entry("rows", "List rows", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Things people open by their title: issues, merge requests, repositories, notifications, commits, changes. Rows separated by lines, not cards: a state icon, the title, labels, and one line of secondary facts; counts at the end.</dd>
   <dt>Markup</dt><dd><code>ul.item-list</code> &gt; <code>li.item-row</code> with <code>span.item-state</code>, <code>div.item-main</code> (<code>a.item-title</code>, <code>span.item-labels</code>, <code>p.item-meta</code>), and <code>span.item-count</code>.</dd>

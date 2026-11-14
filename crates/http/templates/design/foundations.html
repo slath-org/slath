@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Foundations · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "foundations" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Foundations</h1></div>
+  <p class="page-head-intro">Typography sets the hierarchy, Source Sans 3 for the interface and JetBrains Mono for code. Colors, sizes, and spacing come only from tokens; buttons and icons are the smallest parts every page shares.</p>
+</header>
+
+{%- call cat::entry("type", "Typography", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>One size per role: page title 26 px, section heading 20 px, subsection heading 18 px, interface text 15 px, dense lists and tables 14 px, secondary facts 13 px, long-form text 16 px. Small text is never below weight 400; muted text uses the secondary color, never opacity.</dd>
+  <dt>Markup</dt><dd>Headings and text elements take their size from their level and component; no font sizes in pages.</dd>
+  <dt>Variants</dt><dd>The four heading variants (details heading, card headline, file heading, message heading) keep their level and change only the size.</dd>
+  <dt>Accessibility</dt><dd>Sizes in rem, so the person's font settings scale everything; text stays readable at 200 % zoom.</dd>
+  <dt>Not for</dt><dd>Code (the monospace face).</dd>
+</dl>
+{%- call cat::example("The scale.") %}
+<div class="stack-inside">
+  <p class="type-sample type-title">Page title · 26 px semibold</p>
+  <p class="type-sample type-section">Section heading · 20 px semibold</p>
+  <p>Interface body text, 15 px. The interface should disappear behind the work.</p>
+  <p class="type-dense">Dense lists and tables, 14 px: 1 024 commits · 37 branches · 12 tags</p>
+  <p class="type-meta text-secondary">Secondary facts, 13 px: updated 3 minutes ago</p>
+  <p><em>Italic emphasis</em> and <strong>strong emphasis</strong>.</p>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("code", "Code", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Code and technical identifiers in JetBrains Mono, without programming ligatures, at the person's code size (12–20 px): code views, inline code, branch names, paths, hashes, commands.</dd>
+  <dt>Markup</dt><dd><code>pre.code-view</code> as a scrolling region; <code>code</code> inline.</dd>
+  <dt>Variants</dt><dd>Block; inline.</dd>
+  <dt>Accessibility</dt><dd>A code block is a focusable region with a name, so it scrolls by keyboard; code stays left to right in every language.</dd>
+  <dt>Not for</dt><dd>Names written by people.</dd>
+</dl>
+{%- call cat::example("A block, and inline code.") %}
+<pre id="code-sample" class="code-view" tabindex="0" role="region" aria-label="Code sample"><code>fn main() -&gt; Result&lt;(), Error&gt; {
+    if a != b &amp;&amp; c &gt;= d { return Ok(()); } // fi fl ffi === =&gt; &lt;=
+}</code></pre>
+<p>Inline: <code id="inline-code">git push --force-with-lease</code>, commit <code>3f2db758</code>.</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("buttons", "Buttons", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Actions. The primary action uses the accent color, at most one per form and one per page heading; others are plain or quiet; destructive ones are red and name what goes.</dd>
+  <dt>Markup</dt><dd><code>button.button</code> with <code>button-primary</code>, <code>button-quiet</code>, or <code>button-danger</code>; <code>button-icon</code> for icon-only ones (named, with a tooltip).</dd>
+  <dt>Variants</dt><dd>Default, primary, quiet, danger, icon-only. States: hover, focus, active, disabled, busy (spinner).</dd>
+  <dt>Accessibility</dt><dd>At least 24 px targets, 44 px under touch; visible focus; names that say what happens.</dd>
+  <dt>Not for</dt><dd>Going somewhere (a link).</dd>
+</dl>
+{%- call cat::example("Variants and states.") %}
+<div class="cluster">
+  <button type="button" class="button">Default</button>
+  <button type="button" class="button button-primary">Primary</button>
+  <button type="button" class="button button-quiet">Quiet</button>
+  <button type="button" class="button button-danger">Danger</button>
+  <button type="button" class="button" disabled>Disabled</button>
+  <button type="button" class="button" aria-busy="true">Saving</button>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("icons", "Icons", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Lucide icons from the page's own sprite, at 1.25 em, always next to words or with a name: never the only carrier of meaning.</dd>
+  <dt>Markup</dt><dd><code>m::icon(ctx, name)</code>; the sprite holds only the icons the UI uses.</dd>
+  <dt>Variants</dt><dd>The icons below.</dd>
+  <dt>Accessibility</dt><dd>Decorative (<code>aria-hidden</code>); the element around them has a name.</dd>
+  <dt>Not for</dt><dd>Decoration.</dd>
+</dl>
+{%- call cat::example("Every icon in the sprite.") %}
+<ul class="icon-grid">
+{%- for name in icons %}
+  <li>{% call m::icon(ctx, name) %}{% endcall %}<span>{{ name }}</span></li>
+{%- endfor %}
+</ul>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

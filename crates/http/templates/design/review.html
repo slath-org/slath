@@ -14,7 +14,7 @@
   <p class="page-head-intro">The same fact always looks the same: a status is an icon and words in one of three tones, a decision page answers "can this move forward?" first, and the history is one timeline, oldest first.</p>
 </header>
 
-{%- call cat::entry("status-line", "Status line", "New") %}
+{%- call cat::entry("status-line", "Status line", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>A status in one line: an icon, the words, and a reason. Three tones only: done (check), waiting (clock: normal, nothing wrong yet), and blocking (cross: something must change). Waiting is never red, so red keeps meaning "act". Used for requirements, checks (also in the details column), and deliveries.</dd>
   <dt>Markup</dt><dd><code>li.tone-{done|waiting|blocking}</code> (or any element) with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>. Checks in a details column: <code>ul.plain-list</code> of these.</dd>
@@ -31,7 +31,7 @@
 {%- endcall %}
 {%- endcall %}
 
-{%- call cat::entry("readiness", "Readiness card and requirement rows", "New") %}
+{%- call cat::entry("readiness", "Readiness card and requirement rows", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>At the top of a decision page and again where the person acts: a headline, a reason, one primary action chosen for the viewer, and the requirements as status lines. A requirement that isn't done opens in place to its fix and its evidence.</dd>
   <dt>Markup</dt><dd><code>section.readiness.tone-*</code> with <code>.readiness-head</code> (icon, <code>h2.readiness-title</code>, reason, action) and <code>ul.requirements</code> of <code>li.requirement</code>; an open one is a <code>details</code> whose summary ends with the turning chevron.</dd>
@@ -72,7 +72,7 @@
 {%- endcall %}
 {%- endcall %}
 
-{%- call cat::entry("timeline", "Timeline", "New") %}
+{%- call cat::entry("timeline", "Timeline", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>The one history of an issue or merge request, oldest first: comments with a header line and their text, events as single lines with an icon and the actor first, consecutive events folded into one line, reviews with their verdict, and the marker of what's new since the viewer's review. Filters may narrow it but never split or reorder it.</dd>
   <dt>Markup</dt><dd><code>ol.timeline</code> of <code>li.timeline-comment</code> (an <code>article</code> with <code>header.comment-header</code>), <code>li.timeline-event</code>, <code>li.timeline-event.timeline-group</code> (a disclosure), <code>li.timeline-review</code>, and <code>li.since-marker</code>. Names are account names; times are the time component.</dd>
@@ -163,7 +163,7 @@
 {%- endcall %}
 {%- endcall %}
 
-{%- call cat::entry("chips", "Badges, state labels, counts, labels", "New") %}
+{%- call cat::entry("chips", "Badges, state labels, counts, labels", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Small facts beside text, each for its own job: a badge for a category or flag (Private, Archived, Bot, Outdated); the state label for an issue's or merge request's state; a count for a number; a label as a color dot and its name; the evidence chip for what kind of evidence something is (observed, reported, claimed).</dd>
   <dt>Markup</dt><dd><code>span.badge</code>; <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>

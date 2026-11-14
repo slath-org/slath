@@ -1929,6 +1929,7 @@ h1 > bdi code,
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--target-min);
   cursor: pointer;
 }
 .timeline-group ul {

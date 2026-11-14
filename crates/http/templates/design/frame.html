@@ -22,7 +22,7 @@
 <p>This page's own bar is the example: narrow the window below 40 rem to see the account menu.</p>
 {%- endcall %}
 
-{%- call cat::entry("side-menu", "Side menu, tabs, view menus", "New") %}
+{%- call cat::entry("side-menu", "Side menu, tabs, view menus", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>The side menu names the context and lists its areas; tabs are the sections inside an area; a view menu shows views of one list. Every page with a context has the side menu, in the same form; it collapses on wide screens and opens as a drawer on narrow ones.</dd>
   <dt>Markup</dt><dd><code>m::side_menu</code> and <code>m::side_item</code>; <code>m::tabs</code> and <code>m::tab</code>; <code>m::view_menu</code> and <code>m::view_item</code>.</dd>
@@ -43,6 +43,17 @@
   <dt>Accessibility</dt><dd>The name links to the context's front page; the kind is a word.</dd>
   <dt>Not for</dt><dd>The page's title (the page heading follows it).</dd>
 </dl>
+{%- call cat::example("A repository, with the path breadcrumb of its code pages.") %}
+<div class="stack-inside">
+  <div class="repo-header">
+    <div class="repo-title-row">
+      <p class="repo-title"><a href="#context-header">alice</a> / <a href="#context-header"><strong>proj</strong></a> <span class="badge">Private</span></p>
+      <div class="repo-actions"><button type="button" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button></div>
+    </div>
+  </div>
+  <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#context-header">proj</a></li><li><a href="#context-header">src</a></li><li>main.rs</li></ol></nav>
+</div>
+{%- endcall %}
 {%- call cat::example("An organization and a bot.") %}
 <div class="stack">
 {%- call fr::context_header(ctx, "Organization", "acme") %}<a class="button" href="#context-header">{% call m::icon(ctx, "settings") %}{% endcall %}Settings</a>{% endcall %}

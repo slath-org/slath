@@ -78,5 +78,31 @@ git merge origin/main</code></pre>
 </div>
 {%- endcall %}
 {%- endcall %}
+{%- call cat::entry("choice", "Alternatives", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Mutually exclusive alternatives (Git or jj, HTTPS or SSH, push an existing repository or start a new one) shown one at a time: radios to choose, then only the chosen panel. The choice is remembered in the browser.</dd>
+  <dt>Markup</dt><dd><code>div.choice</code> &gt; <code>fieldset.choice-options</code> with a legend and its radios (<code>data-remember="KEY"</code> to remember), then one <code>div.choice-panel</code> per radio, in the same order.</dd>
+  <dt>Variants</dt><dd>Two or three alternatives; remembered or not. Without <code>:has()</code> every panel shows.</dd>
+  <dt>Accessibility</dt><dd>A radio group named by its legend; hidden panels are hidden from everyone.</dd>
+  <dt>Not for</dt><dd>Choosing a value to send (a question).</dd>
+</dl>
+{%- call cat::example("Clone over HTTPS or SSH, in a menu.") %}
+<details class="menu clone-menu">
+  <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <div class="menu-panel copy-panel">
+    <p class="menu-hint text-secondary">Copy a URL to clone this repository with Git or jj.</p>
+    <div class="choice">
+      <fieldset class="choice-options">
+        <legend class="visually-hidden">Clone over</legend>
+        <div class="radio"><input id="demo-clone-https" type="radio" name="demo-clone-over" value="https" checked><label for="demo-clone-https">HTTPS</label></div>
+        <div class="radio"><input id="demo-clone-ssh" type="radio" name="demo-clone-over" value="ssh"><label for="demo-clone-ssh">SSH</label></div>
+      </fieldset>
+      <div class="choice-panel">{% call f::copy_value(ctx, "demo-clone", "HTTPS URL", "https://slath.example/alice/demo.git", "Copy the HTTPS URL") %}{% endcall %}</div>
+      <div class="choice-panel">{% call f::copy_value(ctx, "demo-clone-ssh-url", "SSH URL", "ssh://git@slath.example/alice/demo.git", "Copy the SSH URL") %}{% endcall %}</div>
+    </div>
+  </div>
+</details>
+{%- endcall %}
+{%- endcall %}
 </div>
 {% endblock %}

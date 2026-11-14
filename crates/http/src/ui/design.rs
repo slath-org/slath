@@ -73,9 +73,6 @@ const REVIEW_DIFF: &str = concat!(
 struct Catalog {
     ctx: PageCtx,
     count: u32,
-    icons: Vec<&'static str>,
-    /// The diff of the code review section.
-    diff: super::diff::DiffView,
 }
 
 #[derive(Template)]
@@ -85,34 +82,35 @@ struct DemoFragment {
     count: u32,
 }
 
-/// `GET /-/design[?count=N]`. The counter is the progressive-enhancement
-/// sample: a plain link without JavaScript, an htmx fragment swap with it.
-pub async fn catalog(
-    State(state): State<AppState>,
-    ctx: PageCtx,
-    hx: HxRequest,
-    Query(q): Query<DemoQuery>,
-    Query(dq): Query<super::diff::DiffQuery>,
-) -> Response {
+/// `GET /-/design[?count=N]`: the index of every component and its status.
+/// The counter is the progressive-enhancement sample: a plain link without
+/// JavaScript, an htmx fragment swap with it.
+pub async fn catalog(ctx: PageCtx, hx: HxRequest, Query(q): Query<DemoQuery>) -> Response {
     let count = q.count.min(1_000_000);
-    let review = super::diff::view(
-        REVIEW_DIFF.as_bytes(),
-        &state.config.limits,
-        &std::collections::HashSet::new(),
-        &dq,
-        &ctx,
-        "/-/design".to_owned(),
-    );
     render_hx(
         hx,
         &Catalog {
             ctx: ctx.clone(),
             count,
-            icons: icon_names(),
-            diff: review,
         },
         &DemoFragment { ctx, count },
     )
+}
+
+/// The foundations family: typography, code, buttons, icons.
+#[derive(Template)]
+#[template(path = "design/foundations.html")]
+struct FoundationsFamily {
+    ctx: PageCtx,
+    icons: Vec<&'static str>,
+}
+
+/// The code family: diffs, rendered Markdown, the editor.
+#[derive(Template)]
+#[template(path = "design/code.html")]
+struct CodeFamily {
+    ctx: PageCtx,
+    diff: super::diff::DiffView,
 }
 
 /// The layout family: stack, cluster, page, section, subsection, frame.
@@ -189,8 +187,33 @@ struct FrameFamily {
 
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
-async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
+async fn family(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    hx: HxRequest,
+    Path(name): Path<String>,
+    Query(dq): Query<super::diff::DiffQuery>,
+) -> Result<Response, AppError> {
     match name.as_str() {
+        "foundations" => Ok(render(&FoundationsFamily {
+            ctx,
+            icons: icon_names(),
+        })),
+        "code" => {
+            let diff = super::diff::view(
+                REVIEW_DIFF.as_bytes(),
+                &state.config.limits,
+                &std::collections::HashSet::new(),
+                &dq,
+                &ctx,
+                "/-/design/code".to_owned(),
+            );
+            let page = CodeFamily {
+                ctx: ctx.clone(),
+                diff,
+            };
+            Ok(super::diff::respond(hx, &ctx, &page.diff, &page))
+        }
         "layout" => Ok(render(&LayoutFamily { ctx })),
         "messages" => Ok(render(&MessagesFamily { ctx })),
         "forms" => Ok(render(&FormsFamily { ctx })),

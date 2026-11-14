@@ -3,243 +3,86 @@
 {% block title %}Design catalog{% endblock %}
 {% block sidebar %}{% let family = "" %}{% include "design/sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Design catalog</h1>
-<p class="text-secondary">Every Weave component in its states. Development builds only.</p>
-<p>The components of Weave 0.3 are listed by family, each with its status, its contract, and its examples: <a href="/-/design/frame">Frame</a>, <a href="/-/design/layout">Layout</a>, <a href="/-/design/messages">Messages and states</a>, <a href="/-/design/forms">Forms</a>, <a href="/-/design/disclosure">Disclosure and menus</a>, <a href="/-/design/lists">Lists and data</a>, <a href="/-/design/people">People</a>, <a href="/-/design/controls">Basic controls</a>, <a href="/-/design/review">Timeline and status</a>. The entries below move into the families as they're rebuilt.</p>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Design catalog</h1></div>
+  <p class="page-head-intro">Every Weave component, by family, with its status, its contract, and its examples. Development builds only. A status is New (in use, may still change), Stable, Deprecated (no new uses), or Removed.</p>
+</header>
 
-<section aria-labelledby="type-heading">
-  <h2 id="type-heading">Typography</h2>
-  <p class="type-sample type-title">Page title · 26 px semibold</p>
-  <p class="type-sample type-section">Section heading · 20 px semibold</p>
-  <p>Interface body text, 15 px. The interface should disappear behind the work.</p>
-  <p class="type-dense">Dense lists and tables, 14 px: 1 024 commits · 37 branches · 12 tags</p>
-  <p class="type-meta text-secondary">Secondary metadata, 13 px: updated 3 minutes ago</p>
-  <p><em>Italic emphasis</em> and <strong>strong emphasis</strong>.</p>
-</section>
-
-<section aria-labelledby="code-heading">
-  <h2 id="code-heading">Code</h2>
-  <pre id="code-sample" class="code-view" tabindex="0" role="region" aria-label="Code sample"><code>fn main() -&gt; Result&lt;(), Error&gt; {
-    if a != b &amp;&amp; c &gt;= d { return Ok(()); } // fi fl ffi === =&gt; &lt;=
-}</code></pre>
-  <p>Inline: <code id="inline-code">git push --force-with-lease</code>, commit <code>3f2db758</code>.</p>
-</section>
-
-<section aria-labelledby="review-heading">
-  <h2 id="review-heading">Code review</h2>
-  <p class="text-secondary">The diff below is rendered by the same code as every diff: each file in its frame, folded files with their reason, changed characters marked (not by color alone), the line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. <a href="/-/design?view=split#review-heading">Side by side</a> on wide screens.</p>
-  {% include "repo/diff_files.html" %}
-
-  <h3>Fork merge requests</h3>
-  <p class="text-secondary"><a href="#review-heading">bob</a> wants to merge 2 revisions of <code class="branch-name"><bdi>bob/demo:fix-timeouts</bdi></code> into <code class="branch-name"><bdi>main</bdi></code> · opened <time datetime="2026-11-01T09:00:00Z">yesterday</time></p>
-</section>
-
-<section aria-labelledby="buttons-heading">
-  <h2 id="buttons-heading">Buttons</h2>
-  <div class="catalog-row">
-    <button type="button" class="button">Default</button>
-    <button type="button" class="button button-primary">Primary</button>
-    <button type="button" class="button button-quiet">Quiet</button>
-    <button type="button" class="button button-danger">Danger</button>
-    <button type="button" class="button" disabled>Disabled</button>
-    <button type="button" class="button" aria-busy="true">Saving</button>
-    <a class="button" href="#buttons-heading">Link as button</a>
-  </div>
-  <p>Inline <a href="#buttons-heading">link</a> and <a href="#buttons-heading" aria-current="page">current link</a>.</p>
-</section>
-
-<section aria-labelledby="forms-heading">
-  <h2 id="forms-heading">Form fields</h2>
-  <div class="error-summary" role="alert" tabindex="-1">
-    <h2>There is a problem</h2>
-    <ul><li><a href="#demo-email">Enter an email address like name@example.org.</a></li></ul>
-  </div>
-  <form class="form" novalidate>
-    <div class="field">
-      <label for="demo-name">Name</label>
-      <input id="demo-name" type="text" value="Ada" aria-describedby="demo-name-hint">
-      <p id="demo-name-hint" class="hint">Shown on your profile.</p>
-    </div>
-    <div class="field">
-      <label for="demo-email">Email</label>
-      <input id="demo-email" type="email" value="ada@" aria-invalid="true" aria-describedby="demo-email-error">
-      <p id="demo-email-error" class="field-error">Enter an email address like name@example.org.</p>
-    </div>
-    <div class="field">
-      <label for="demo-disabled">Read-only</label>
-      <input id="demo-disabled" type="text" value="cannot change" readonly>
-    </div>
-    <div class="field">
-      <label for="demo-select">Visibility</label>
-      <select id="demo-select"><option>Private</option><option>Public</option></select>
-    </div>
-    <div class="checkbox"><input id="demo-check" type="checkbox" checked><label for="demo-check">Checkbox</label></div>
-    <div class="checkbox"><input id="demo-radio" type="radio" name="demo-radio" checked><label for="demo-radio">Radio</label></div>
-  </form>
-</section>
-
-<section aria-labelledby="menus-heading">
-  <h2 id="menus-heading">Menus and toasts</h2>
-  <div class="catalog-row">
-    <details class="menu" id="demo-menu">
-      <summary class="button">{% call m::icon(ctx, "settings") %}{% endcall %}<span>Menu</span></summary>
-      <div class="menu-panel">
-        <a class="menu-item" href="#menus-heading">{% call m::icon(ctx, "pencil") %}{% endcall %}Edit</a>
-        <a class="menu-item" href="#menus-heading" aria-current="true">{% call m::icon(ctx, "check") %}{% endcall %}Selected</a>
-        <button type="button" class="menu-item">{% call m::icon(ctx, "trash-2") %}{% endcall %}Delete</button>
-      </div>
-    </details>
-    <details class="menu clone-menu">
-      <summary class="button">Clone{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-      <div class="menu-panel copy-panel">
-        <p class="menu-hint text-secondary">Copy a URL to clone this repository with Git or jj.</p>
-        <div class="choice">
-          <fieldset class="choice-options">
-            <legend class="visually-hidden">Clone over</legend>
-            <div class="radio"><input id="demo-clone-https" type="radio" name="demo-clone-over" value="https" checked><label for="demo-clone-https">HTTPS</label></div>
-            <div class="radio"><input id="demo-clone-ssh" type="radio" name="demo-clone-over" value="ssh"><label for="demo-clone-ssh">SSH</label></div>
-          </fieldset>
-          <div class="choice-panel">{% call m::copy_field(ctx, "demo-clone", "HTTPS URL", "https://slath.example/alice/demo.git", "Copy the HTTPS URL") %}{% endcall %}</div>
-          <div class="choice-panel">{% call m::copy_field(ctx, "demo-clone-ssh-url", "SSH URL", "ssh://git@slath.example/alice/demo.git", "Copy the SSH URL") %}{% endcall %}</div>
-        </div>
-      </div>
-    </details>
-    <button type="button" class="button" data-toast="Settings saved.">Show toast</button>
-  </div>
-  <div class="toast"><p>Static toast example.</p><button type="button" class="button button-quiet">Dismiss</button></div>
-</section>
-
-<section aria-labelledby="nav-heading">
-  <h2 id="nav-heading">Navigation levels, breadcrumbs, badges</h2>
-  <p class="text-secondary">The side menu on the start side of this page names the context and lists its areas; the button at the start of the global bar collapses it, and on narrow screens opens it. Under the context header, tabs lead to the sections of one area. Views of one list are a menu, not a further row of tabs.</p>
-  <div class="repo-header">
-    <div class="repo-title-row">
-      <p class="repo-title"><a href="#nav-heading">alice</a> / <a href="#nav-heading"><strong>proj</strong></a> <span class="badge">Private</span></p>
-      <div class="repo-actions"><button type="button" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button></div>
-    </div>
-  </div>
-  {%- call m::tabs("Example tabs") %}
-  {%- call m::tab("#nav-heading", "Issues", false, "") %}{% endcall %}
-  {%- call m::tab("#nav-heading", "Labels", true, "") %}{% endcall %}
-  {%- call m::tab("#nav-heading", "Milestones", false, "3") %}{% endcall %}
-  {%- endcall %}
-  {%- call m::view_menu(ctx, "State", "Open", "") %}
-  {%- call m::view_item("#nav-heading", "Open", true, "12") %}{% endcall %}
-  {%- call m::view_item("#nav-heading", "Closed", false, "40") %}{% endcall %}
-  {%- call m::view_item("#nav-heading", "All", false, "") %}{% endcall %}
-  {%- endcall %}
-  <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#nav-heading">alice</a></li><li><a href="#nav-heading">proj</a></li><li>src</li></ol></nav>
-  <p><span class="badge">Admin</span> <span class="badge">Archived</span></p>
-</section>
-
-<section aria-labelledby="status-heading">
-  <h2 id="status-heading">Status messages</h2>
-  <div class="success-summary" role="status"><p>{% call m::icon(ctx, "circle-check") %}{% endcall %} Repository created.</p></div>
-  <div class="notice"><p>{% call m::icon(ctx, "info") %}{% endcall %} This repository is archived. It's read-only.</p></div>
-  <p class="text-secondary">Empty state: No repositories yet.</p>
-</section>
-
-<section aria-labelledby="table-heading">
-  <h2 id="table-heading">Tables</h2>
-  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="table-caption">
-  <table class="table">
-    <caption id="table-caption" class="visually-hidden">Example table</caption>
-    <thead><tr><th scope="col">Name</th><th scope="col" class="numeric">Size</th><th scope="col">Updated</th></tr></thead>
+<section class="section" aria-labelledby="components">
+  <h2 id="components">Components</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="components-caption">
+  <table class="table table-records">
+    <caption id="components-caption" class="visually-hidden">Components, their families, and their status</caption>
+    <thead><tr><th scope="col">Component</th><th scope="col">Family</th><th scope="col">Status</th></tr></thead>
     <tbody>
-      <tr><td><a href="#table-heading">slath</a></td><td class="numeric">1 024</td><td>2 hours ago</td></tr>
-      <tr><td><a href="#table-heading">weave</a></td><td class="numeric">88</td><td>yesterday</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p class="text-secondary">Boxed, for a list that stands on its own (a repository's files):</p>
-  <div class="table-wrap table-boxed" tabindex="0" role="region" aria-label="Example files">
-  <table class="table file-list">
-    <thead><tr><th scope="col">Name</th><th scope="col">Type</th></tr></thead>
-    <tbody>
-      <tr><td><a href="#table-heading">{% call m::icon(ctx, "folder") %}{% endcall %} src</a></td><td class="text-secondary">Directory</td></tr>
-      <tr><td><a href="#table-heading">{% call m::icon(ctx, "file") %}{% endcall %} README.md</a></td><td class="text-secondary">File</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/foundations#type">Typography</a></td><td data-label="Family">Foundations</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/foundations#code">Code</a></td><td data-label="Family">Foundations</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/foundations#buttons">Buttons</a></td><td data-label="Family">Foundations</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/foundations#icons">Icons</a></td><td data-label="Family">Foundations</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/frame#global-bar">Global bar</a></td><td data-label="Family">Frame</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/frame#side-menu">Side menu, tabs, view menus</a></td><td data-label="Family">Frame</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/frame#context-header">Context header</a></td><td data-label="Family">Frame</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#stack">Stack</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#cluster">Cluster</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#page">Page and page heading</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#section">Section</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#subsection">Subsection</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/layout#frame">Frame</a></td><td data-label="Family">Layout</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#notice">Notice</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#saved">Success summary</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#error-summary">Error summary</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#notice-line">Notice line</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#empty">Empty state</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#busy">Busy region</a></td><td data-label="Family">Messages and states</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/messages#toast">Toast</a></td><td data-label="Family">Messages and states</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#form">Form</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#field">Field</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#question">Question and option</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#field-group">Group of fields</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#buttons">Form buttons</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#copy-value">Value to copy</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/forms#danger">Danger section</a></td><td data-label="Family">Forms</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/disclosure#disclosure">Disclosure</a></td><td data-label="Family">Disclosure and menus</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/disclosure#menu">Menu</a></td><td data-label="Family">Disclosure and menus</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/disclosure#reply-box">Reply box</a></td><td data-label="Family">Disclosure and menus</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/disclosure#choice">Alternatives</a></td><td data-label="Family">Disclosure and menus</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/lists#rows">List rows</a></td><td data-label="Family">Lists and data</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/lists#table">Table of records</a></td><td data-label="Family">Lists and data</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/lists#facts">Facts</a></td><td data-label="Family">Lists and data</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/lists#pager">Pager</a></td><td data-label="Family">Lists and data</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/lists#more">And N more</a></td><td data-label="Family">Lists and data</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/people#account">Account name</a></td><td data-label="Family">People</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/people#git-identity">Git identity</a></td><td data-label="Family">People</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/people#avatar-group">Avatar group</a></td><td data-label="Family">People</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#links">Links and buttons</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#tooltip">Tooltip</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#time">Time</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#hash">Hash and path</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#cut">Cut text</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#popover">Popover</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#password">Password field</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#count">Length count</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#names">Field for several names</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#sort">Sorting</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/controls#switches">On and off</a></td><td data-label="Family">Basic controls</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/review#status-line">Status line</a></td><td data-label="Family">Timeline and status</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/review#readiness">Readiness card and requirement rows</a></td><td data-label="Family">Timeline and status</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/review#timeline">Timeline</a></td><td data-label="Family">Timeline and status</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/review#thread">Review thread</a></td><td data-label="Family">Timeline and status</td><td data-label="Status">New</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/review#chips">Badges, state labels, counts, labels</a></td><td data-label="Family">Timeline and status</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/code#diff">Diff</a></td><td data-label="Family">Code</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/code#markdown">Rendered Markdown</a></td><td data-label="Family">Code</td><td data-label="Status">Stable</td></tr>
+    <tr><td data-label="Component"><a href="/-/design/code#editor">Markdown editor</a></td><td data-label="Family">Code</td><td data-label="Status">Stable</td></tr>
     </tbody>
   </table>
   </div>
 </section>
 
-<section aria-labelledby="longform-heading">
-  <h2 id="longform-heading">Long forms and settings</h2>
-  <p class="text-secondary">Required fields say so in the label; optional ones are marked "(optional)". After a failed submit the summary comes first, links to each field, and every value the person entered is still there.</p>
-  <div class="error-summary" role="alert" tabindex="-1">
-    <h2>There is a problem</h2>
-    <ul>
-      <li><a href="#demo-repo-name">Use letters, digits, ".", "_" and "-".</a></li>
-    </ul>
-  </div>
-  <form class="form" novalidate>
-    <fieldset class="form-section">
-      <legend>Repository</legend>
-      <div class="field">
-        <label for="demo-repo-name">Name</label>
-        <input id="demo-repo-name" type="text" value="my repo!" required aria-invalid="true" aria-describedby="demo-repo-name-hint demo-repo-name-error">
-        <p id="demo-repo-name-hint" class="hint">Up to 39 characters.</p>
-        <p id="demo-repo-name-error" class="field-error">Use letters, digits, ".", "_" and "-".</p>
-      </div>
-      <div class="field">
-        <label for="demo-repo-description">Description <span class="text-secondary">(optional)</span></label>
-        <input id="demo-repo-description" type="text" value="Kept after the error">
-      </div>
-    </fieldset>
-    <div class="button-row">
-      <button type="button" class="button button-primary">Create repository</button>
-      <a class="button button-quiet" href="#longform-heading">Cancel</a>
-    </div>
-  </form>
-</section>
-
-<section aria-labelledby="editor-heading">
-  <h2 id="editor-heading">Markdown editor</h2>
-  <p class="text-secondary">One field, two modes (rich text and Markdown source), a Write/Preview switch, and a toolbar. Without JavaScript it is the plain text box with a Preview button.</p>
-  <form class="form form-wide" novalidate>
-    <div class="field">
-      <label for="demo-editor">Comment</label>
-      <slath-editor data-mode="wysiwyg" data-icons="{{ ctx.icons_url }}" data-external-images="false">
-        <textarea id="demo-editor" name="body" rows="6" autocomplete="off">A **short** comment with a list:
-
-- one
-- two</textarea>
-      </slath-editor>
-    </div>
-  </form>
-</section>
-
-<section aria-labelledby="markdown-heading">
-  <h2 id="markdown-heading">Rendered Markdown</h2>
-  <p class="text-secondary">Long-form text: 16 px with a relaxed line height; references keep their state quietly.</p>
-  <div class="markdown">
-    <h2>Release notes</h2>
-    <p>The importer now pins the checked address. See <a class="ref ref-open" href="#markdown-heading" title="Import from URL (open)">#16</a> and <a class="ref ref-closed" href="#markdown-heading" title="Blame view (closed)">#15</a>; thanks <a class="ref" href="#markdown-heading">@alice</a>.</p>
-    <ul>
-      <li>Branches and tags only</li>
-      <li><input type="checkbox" checked disabled aria-label="Task"> Redirects are not followed</li>
-    </ul>
-    <blockquote><p>Text the person didn't change is saved exactly as it was.</p></blockquote>
-    <pre><code>git push origin main</code></pre>
-    <table><thead><tr><th>Mode</th><th>Size</th></tr></thead><tbody><tr><td>Rich text</td><td>141 KiB</td></tr><tr><td>Source</td><td>107 KiB</td></tr></tbody></table>
-  </div>
-</section>
-
-
-
-
-
-<section aria-labelledby="icons-heading">
-  <h2 id="icons-heading">Icons</h2>
-  <ul class="icon-grid">
-  {%- for name in icons %}
-    <li>{% call m::icon(ctx, name) %}{% endcall %}<span>{{ name }}</span></li>
-  {%- endfor %}
-  </ul>
-</section>
-
-<section aria-labelledby="htmx-demo-heading">
+<section class="section" aria-labelledby="htmx-demo-heading">
   <h2 id="htmx-demo-heading">Progressive enhancement</h2>
+  <p>Links and forms work without scripts; with them, a region loads in place. The counter below is a plain link that htmx turns into an in-place load.</p>
   {% include "design_demo.html" %}
 </section>
+</div>
 {% endblock %}

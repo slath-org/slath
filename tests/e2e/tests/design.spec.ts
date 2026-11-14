@@ -19,7 +19,7 @@ test("conf_design_01_fonts_load_without_layout_shift", async ({ page }) => {
       // layout-shift entries are Chromium-only.
     }
   });
-  await page.goto("/-/design");
+  await page.goto("/-/design/foundations");
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(200);
   const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
@@ -33,7 +33,7 @@ test("conf_design_01_fonts_load_without_layout_shift", async ({ page }) => {
 });
 
 test("conf_design_01_code_renders_without_ligatures", async ({ page }) => {
-  await page.goto("/-/design");
+  await page.goto("/-/design/foundations");
   for (const sel of ["#code-sample", "#inline-code"]) {
     const style = await page.locator(sel).evaluate((el) => {
       const s = getComputedStyle(el);
@@ -68,7 +68,7 @@ test("conf_design_01_code_renders_without_ligatures", async ({ page }) => {
 });
 
 test("conf_design_01_icons_come_from_the_instance_sprite", async ({ page, baseURL }) => {
-  await page.goto("/-/design");
+  await page.goto("/-/design/foundations");
   const hrefs = await page.locator("svg.icon use").evaluateAll((uses) => uses.map((u) => u.getAttribute("href")));
   expect(hrefs.length).toBeGreaterThan(10);
   for (const h of hrefs) {

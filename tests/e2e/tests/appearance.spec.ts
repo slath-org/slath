@@ -5,6 +5,11 @@
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
+/** Every page of the design catalog. */
+const CATALOG = ["", "/foundations", "/frame", "/layout", "/messages", "/forms", "/disclosure", "/lists", "/people", "/controls", "/review", "/code"].map(
+  (p) => `/-/design${p}`,
+);
+
 const bg = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
 /** Relative luminance (0-1) of an `rgb(...)` string. */
@@ -132,40 +137,43 @@ test("conf_a11y_03_user_setting_follows_the_account", async ({ page, browser }) 
   await ctx3.close();
 });
 
-test("conf_a11y_03_catalog_accessible_in_every_token_set_and_density", async ({ page, context, baseURL }) => {
-  // Four axe runs over the whole catalog.
-  test.slow();
-  for (const density of ["comfortable", "compact"]) {
-    await context.addCookies([{ name: "slath_density", value: density, url: baseURL! }]);
-    for (const contrast of ["no-preference", "more"] as const) {
-      await page.emulateMedia({ contrast });
-      await page.goto("/-/design");
-      await expect(page.locator("html")).toHaveAttribute("data-density", density);
-      await expectAccessible(page);
+for (const path of CATALOG) {
+  test(`conf_a11y_03_catalog_accessible_in_every_token_set_and_density ${path}`, async ({ page, context, baseURL }) => {
+    // Four axe runs: both densities, with and without more contrast.
+    test.slow();
+    for (const density of ["comfortable", "compact"]) {
+      await context.addCookies([{ name: "slath_density", value: density, url: baseURL! }]);
+      for (const contrast of ["no-preference", "more"] as const) {
+        await page.emulateMedia({ contrast });
+        await page.goto(path);
+        await expect(page.locator("html")).toHaveAttribute("data-density", density);
+        await expectAccessible(page);
+      }
     }
-  }
-});
+  });
+}
 
 test("conf_a11y_04_components_operable_by_tap_click_and_keyboard", async ({ page }) => {
-  await page.goto("/-/design");
+  await page.goto("/-/design/disclosure");
   // Menu: pointer opens it, Escape closes it and returns focus.
-  const menu = page.locator("#demo-menu");
+  const menu = page.locator("section[aria-labelledby=menu] details.menu").first();
   await tapOrClick(page, menu.locator("summary"));
   await expect(menu.locator(".menu-panel")).toBeVisible();
-  await menu.getByText("Edit").focus();
+  await menu.getByRole("link", { name: "Closed" }).focus();
   await page.keyboard.press("Escape");
   await expect(menu.locator(".menu-panel")).toBeHidden();
   await expect(menu.locator("summary")).toBeFocused();
   // Keyboard opens it too, and a tap outside closes it.
   await page.keyboard.press("Enter");
   await expect(menu.locator(".menu-panel")).toBeVisible();
-  await tapOrClick(page, page.getByRole("heading", { name: "Design catalog" }));
+  await tapOrClick(page, page.getByRole("heading", { level: 1 }));
   await expect(menu.locator(".menu-panel")).toBeHidden();
 
   // Toast: shown in the live region, dismissible by pointer.
-  await tapOrClick(page, page.getByRole("button", { name: "Show toast" }));
+  await page.goto("/-/design/messages");
+  await tapOrClick(page, page.getByRole("button", { name: "Show a toast" }));
   const toast = page.locator("#toasts .toast");
-  await expect(toast).toContainText("Settings saved.");
+  await expect(toast).toContainText("Copied to the clipboard.");
   await tapOrClick(page, toast.getByRole("button", { name: "Dismiss" }));
   await expect(toast).toHaveCount(0);
 
@@ -211,7 +219,7 @@ async function smallTargets(page: Page): Promise<string[]> {
 }
 
 test("conf_a11y_04_targets_meet_the_minimum_size", async ({ page }) => {
-  for (const path of ["/-/design", "/-/login", "/"]) {
+  for (const path of [...CATALOG, "/-/login", "/"]) {
     await page.goto(path);
     expect(await smallTargets(page), path).toEqual([]);
     await page.locator("#appearance-menu summary").click();

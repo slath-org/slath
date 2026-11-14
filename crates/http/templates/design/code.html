@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Code · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "code" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Code</h1></div>
+  <p class="page-head-intro">Code is one of Slath's most important content types: diffs that read correctly, long-form text people write, and the editor they write it in.</p>
+</header>
+
+{%- call cat::entry("diff", "Diff", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Every diff, rendered by the same code: each file in its frame, folded files with their reason, changed characters marked (not by color alone), line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. Side by side only where there's room.</dd>
+  <dt>Markup</dt><dd><code>repo/diff_files.html</code> with the page's diff view.</dd>
+  <dt>Variants</dt><dd>Unified; side by side (wide screens); folded; binary; renamed; with threads.</dd>
+  <dt>Accessibility</dt><dd>A real table with line numbers as row headers, added and removed lines announced as words, and a "skip to the next file" link per file.</dd>
+  <dt>Not for</dt><dd>Code without a change (a code view).</dd>
+</dl>
+{%- call cat::example("A diff of four files.") %}
+<p><a href="/-/design/code?view=split#diff">Side by side</a> on wide screens.</p>
+{% include "repo/diff_files.html" %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("markdown", "Rendered Markdown", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Text written by people (descriptions, comments, READMEs) at the long-form size and line height; references keep their state quietly (a closed issue is secondary text).</dd>
+  <dt>Markup</dt><dd><code>div.markdown</code> around the sanitized HTML. Its headings start below the level of the section that shows it.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>Semantic HTML from the Markdown; images keep their alt text.</dd>
+  <dt>Not for</dt><dd>Text Slath writes.</dd>
+</dl>
+{%- call cat::example("Release notes.") %}
+<div class="markdown">
+  <h3>Release notes</h3>
+  <p>The importer now pins the checked address. See <a class="ref ref-open" href="#markdown">#16</a> and <a class="ref ref-closed" href="#markdown">#15</a>; thanks <a class="ref" href="#markdown">@alice</a>.</p>
+  <ul>
+    <li>Branches and tags only</li>
+    <li><input type="checkbox" checked disabled aria-label="Task"> Redirects are not followed</li>
+  </ul>
+  <blockquote><p>Text the person didn't change is saved exactly as it was.</p></blockquote>
+  <pre><code>git push origin main</code></pre>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("editor", "Markdown editor", "Stable") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>One field with two modes (rich text and Markdown source) that the person switches between and that is remembered, a Write/Preview switch, a toolbar, and suggestions for people, issues, labels, and milestones.</dd>
+  <dt>Markup</dt><dd><code>slath-editor</code> around the field's <code>textarea</code>, in a wide form.</dd>
+  <dt>Variants</dt><dd>Rich text; source; preview; with a draft restored.</dd>
+  <dt>Accessibility</dt><dd>Never traps the keyboard (Tab leaves it); every tool has a name, a shortcut, and a help dialog. Without scripts it's the plain text field.</dd>
+  <dt>Not for</dt><dd>Short single-line text.</dd>
+</dl>
+{%- call cat::example("A comment.") %}
+<form class="form-layout-wide" action="#editor" novalidate>
+  <div class="field">
+    <label for="demo-editor">Comment</label>
+    <slath-editor data-mode="wysiwyg" data-icons="{{ ctx.icons_url }}" data-external-images="false">
+      <textarea id="demo-editor" name="body" rows="6" autocomplete="off">A **short** comment with a list:
+
+- one
+- two</textarea>
+    </slath-editor>
+  </div>
+</form>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}
