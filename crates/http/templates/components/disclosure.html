@@ -1,0 +1,46 @@
+{#- Weave disclosure and menus. Contracts and examples: /-/design/disclosure. -#}
+{%- import "macros.html" as m -%}
+
+{#- A disclosure: a summary that says what opens, ending with a chevron
+    that turns when open; the body is what opens. -#}
+{%- macro disclosure(ctx, summary, open = false) -%}
+<details class="disclosure"{% if open %} open{% endif %}>
+  <summary>{{ summary }}<span class="disclosure-indicator">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></summary>
+  <div class="stack">
+{{ caller() }}
+  </div>
+</details>
+{%- endmacro -%}
+
+{#- A menu: a button that names what it holds and ends with a chevron that
+    turns while it's open; the body is the panel's items. With `icon`, the
+    button shows the icon and keeps `label` for screen readers. -#}
+{%- macro menu(ctx, label, icon = "", start = false) -%}
+<details class="menu">
+  <summary class="button{% if !icon.is_empty() %} button-icon{% endif %}">
+    {%- if !icon.is_empty() %}{% call m::icon(ctx, icon) %}{% endcall %}<span class="visually-hidden">{{ label }}</span>{% else %}{{ label }}{% endif %}
+    {%- call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <div class="menu-panel{% if start %} menu-panel-start{% endif %}">
+{{ caller() }}
+  </div>
+</details>
+{%- endmacro -%}
+
+{#- One link in a menu; `current` marks the view shown. -#}
+{%- macro menu_link(href, label, current = false) -%}
+<a class="menu-item" href="{{ href }}"{% if current %} aria-current="true"{% endif %}>{{ label }}</a>
+{%- endmacro -%}
+
+{#- The reply box at the end of a thread: "Reply…" that grows into the
+    reply form (the body). The form's buttons end with `d::cancel()`. -#}
+{%- macro reply_box(placeholder = "Reply…") -%}
+<details class="reply-box">
+  <summary>{{ placeholder }}</summary>
+{{ caller() }}
+</details>
+{%- endmacro -%}
+
+{#- Folds the disclosure it's in back (shown by the script). -#}
+{%- macro cancel(label = "Cancel") -%}
+<button type="button" class="button button-quiet" data-close-details hidden>{{ label }}</button>
+{%- endmacro -%}

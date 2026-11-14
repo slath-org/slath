@@ -20,6 +20,7 @@ import { installCopyButtons } from "./copy";
 import { installChoices } from "./choice";
 import { installNavigation } from "./nav";
 import { installReplies } from "./replies";
+import { installCloseButtons } from "./disclosure";
 import { installHunkNavigation } from "./hunknav";
 
 installCsrf();
@@ -30,6 +31,7 @@ installTheme();
 installMenus();
 installSidebar();
 installReplies();
+installCloseButtons();
 installHunkNavigation();
 installDialogs();
 installPasskeys();

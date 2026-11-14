@@ -136,6 +136,13 @@ struct FormsFamily {
     ctx: PageCtx,
 }
 
+/// The disclosure family: disclosures, menus, the reply box.
+#[derive(Template)]
+#[template(path = "design/disclosure.html")]
+struct DisclosureFamily {
+    ctx: PageCtx,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
@@ -143,6 +150,7 @@ async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppE
         "layout" => Ok(render(&LayoutFamily { ctx })),
         "messages" => Ok(render(&MessagesFamily { ctx })),
         "forms" => Ok(render(&FormsFamily { ctx })),
+        "disclosure" => Ok(render(&DisclosureFamily { ctx })),
         _ => Err(AppError::not_found()),
     }
 }

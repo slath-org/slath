@@ -8,5 +8,6 @@
 @import "./components/layout.css";
 @import "./components/messages.css";
 @import "./components/forms.css";
+@import "./components/disclosure.css";
 @import "./components/catalog.css";
 @import "./syntax.css";

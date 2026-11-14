@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/disclosure.html" as d %}
+{% import "components/forms.html" as f %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Disclosure and menus · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "disclosure" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Disclosure and menus</h1></div>
+  <p class="page-head-intro">Everything that expands or folds is a disclosure or a menu. Its control says what opens and ends with a chevron that turns when open, and the same control closes it again. The reply box is the one exception.</p>
+</header>
+
+{%- call cat::entry("disclosure", "Disclosure", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Content that most people don't need at first, opened in place: filters, evidence behind a summary, the built-in paths of a setting, help for a step.</dd>
+  <dt>Markup</dt><dd><code>d::disclosure(ctx, summary, open)</code> around what opens. The summary names what opens ("Filters", "Built-in paths (20)").</dd>
+  <dt>Variants</dt><dd>Closed; open (the chevron turned). Opened by default where the content is active ("Filters (active)").</dd>
+  <dt>Accessibility</dt><dd>A native <code>details</code>: the summary is a button that reports expanded or collapsed; Enter and Space toggle it; nothing traps focus.</dd>
+  <dt>Not for</dt><dd>Actions (a menu); alternatives (the choice component); anything needed to finish the task.</dd>
+</dl>
+{%- call cat::example("Closed, and open.") %}
+<div class="stack">
+{%- call d::disclosure(ctx, "Built-in paths (20)") %}
+  <p><code>.github/workflows/**</code>, <code>AGENTS.md</code>, <code>CODEOWNERS</code>, and 17 more.</p>
+{%- endcall %}
+{%- call d::disclosure(ctx, "Resolve the conflicts on your machine", true) %}
+  <pre><code>git fetch origin
+git merge origin/main</code></pre>
+{%- endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("menu", "Menu", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Actions on the page's subject ("More actions", "Check out") and views of a list ("State: Open"). Its button names what it holds or which view is shown and ends with a chevron that turns while it's open.</dd>
+  <dt>Markup</dt><dd><code>d::menu(ctx, label, icon, start)</code> around the panel's items: <code>d::menu_link</code>, buttons with <code>menu-item</code>, headings. <code>icon</code> makes an icon-only button that keeps <code>label</code> for screen readers; <code>start</code> opens the panel towards the end, for buttons at a row's start.</dd>
+  <dt>Variants</dt><dd>Labelled; icon-only (still with the chevron). Items: link, button, current view.</dd>
+  <dt>Accessibility</dt><dd>Escape closes it and returns focus to its button; a click outside closes it; the panel stays inside the screen.</dd>
+  <dt>Not for</dt><dd>Navigation between areas (side menu, tabs); a single action (a button).</dd>
+</dl>
+{%- call cat::example("A view menu at a row's start, and an icon-only menu.") %}
+<div class="cluster">
+{%- call d::menu(ctx, "State: Open", "", true) %}
+  {%- call d::menu_link("#menu", "Open", true) %}{% endcall %}
+  {%- call d::menu_link("#menu", "Closed") %}{% endcall %}
+  {%- call d::menu_link("#menu", "All") %}{% endcall %}
+{%- endcall %}
+{%- call d::menu(ctx, "Appearance", "sun") %}
+  {%- call d::menu_link("#menu", "System", true) %}{% endcall %}
+  {%- call d::menu_link("#menu", "Light") %}{% endcall %}
+  {%- call d::menu_link("#menu", "Dark") %}{% endcall %}
+{%- endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("reply-box", "Reply box", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The end of a review thread: a one-line "Reply…" box that looks like the place to write and grows into the reply form, with the cursor in it. Cancel folds it back. While it's open, resolving the thread is a checkbox in the form instead of a separate button, so nothing typed is lost; with "Add to my review", the thread is resolved when the review is submitted.</dd>
+  <dt>Markup</dt><dd><code>d::reply_box()</code> around the form; its buttons end with <code>d::cancel()</code>. In a thread's actions, the separate "Resolve thread" button (<code>reply-resolve</code>) sits beside the box and hides while it's open.</dd>
+  <dt>Variants</dt><dd>Closed; open; open with a started reply (the browser restored it: it opens again).</dd>
+  <dt>Accessibility</dt><dd>The summary is a button named "Reply…"; opening moves focus into the text; Cancel returns focus to it. Without scripts it still opens; only Cancel needs the script.</dd>
+  <dt>Not for</dt><dd>Comments on the whole merge request or issue (the comment form at the end of the page).</dd>
+</dl>
+{%- call cat::example("A thread's actions: the reply box and Resolve thread. Open the box to see the form.") %}
+<div class="cluster">
+{%- call d::reply_box() %}
+  <form class="form-layout-wide" action="#reply-box">
+    {%- call f::field("demo-reply", "Your reply") %}<textarea id="demo-reply" name="body" rows="3"></textarea>{% endcall %}
+    {%- call f::option("checkbox", "demo-resolve", "resolve", "1", "Resolve thread") %}{% endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">Send reply</button><button type="submit" name="mode" value="pending" class="button">Add to my review</button>{% call d::cancel() %}{% endcall %}{% endcall %}
+  </form>
+{%- endcall %}
+  <button type="button" class="button button-quiet reply-resolve">Resolve thread</button>
+</div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

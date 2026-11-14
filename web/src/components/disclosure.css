@@ -1,0 +1,78 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave disclosure: everything that expands or folds is a disclosure or a
+   menu, its summary ends with a chevron that turns when open, and the
+   browser's own marker isn't used. The reply box is the one exception.
+   Contracts: /-/design/disclosure. */
+
+details.disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inside);
+  min-height: var(--target-min);
+  list-style: none;
+  cursor: pointer;
+}
+details.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure-indicator {
+  display: inline-flex;
+  color: var(--text-secondary);
+}
+.disclosure-indicator svg,
+.menu > summary svg:has(use[href$="#chevron-down"]) {
+  transition: transform var(--motion-fast);
+}
+details[open] > summary .disclosure-indicator svg,
+.menu[open] > summary svg:has(use[href$="#chevron-down"]) {
+  transform: rotate(180deg);
+}
+/* What opens sits under its summary, at the inline distance. */
+details.disclosure > summary + * {
+  margin-block-start: var(--gap-inline);
+}
+@media (prefers-reduced-motion: reduce) {
+  .disclosure-indicator svg,
+  .menu > summary svg:has(use[href$="#chevron-down"]) {
+    transition: none;
+  }
+}
+
+/* The reply box: a one-line "Reply…" box at the end of a thread that grows
+   into the reply form; Cancel folds it back. */
+details.reply-box {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+details.reply-box > summary {
+  display: block;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  list-style: none;
+  cursor: text;
+}
+details.reply-box > summary::-webkit-details-marker {
+  display: none;
+}
+details.reply-box[open] {
+  flex-basis: 100%;
+}
+details.reply-box[open] > summary {
+  display: none;
+}
+
+/* A menu whose button sits at the start of a row opens towards the end. */
+.menu-panel-start {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+}
+
+/* While the reply box is open, resolving is its form's checkbox. */
+:has(> details.reply-box[open]) > .reply-resolve {
+  display: none;
+}
