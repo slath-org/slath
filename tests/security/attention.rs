@@ -423,4 +423,28 @@ fn conf_agent_09_only_bots_iterate_and_checks_can_be_skipped() {
         (m["draft"].clone(), m["attention"].clone()),
         (json!(false), json!("ready"))
     );
+
+    // An iterating merge request can become a draft and stays iterating;
+    // marking it ready ends both.
+    t.push(&bot_url, "agent-later", "later work");
+    let l = t.open(&t.bot, "agent-later");
+    let r = t.api(
+        &t.bot,
+        "PATCH",
+        &format!("/merge-requests/{l}"),
+        Some(json!({"draft": true})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let m = t.mr(l);
+    assert_eq!(
+        (m["draft"].clone(), m["attention"].clone()),
+        (json!(true), json!("iterating"))
+    );
+    assert!(t.bob_heard(l).is_empty());
+    t.ready(&t.bot, l);
+    let m = t.mr(l);
+    assert_eq!(
+        (m["draft"].clone(), m["attention"].clone()),
+        (json!(false), json!("ready"))
+    );
 }

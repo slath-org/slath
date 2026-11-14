@@ -183,7 +183,7 @@
   {%- when TimelineView::Group with (summary, events) %}
   <li class="timeline-event timeline-group">
     <details>
-      <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{{ summary }}</span></summary>
+      <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{{ summary }}<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
       <ul class="plain-list">
       {%- for e in events %}
         <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
@@ -194,7 +194,7 @@
   {%- when TimelineView::Iterations with (g) %}
   <li class="timeline-event timeline-group">
     <details>
-      <summary>{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ g.pusher }}</strong>{% call m::bot_badge(ctx, g.pusher) %}{% endcall %} pushed {{ g.revisions.len() }} iterations (revisions {{ g.first }}–{{ g.last }})</span></summary>
+      <summary>{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ g.pusher }}</strong>{% call m::bot_badge(ctx, g.pusher) %}{% endcall %} pushed {{ g.revisions.len() }} iterations (revisions {{ g.first }}–{{ g.last }})<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
       {%- if let Some(href) = g.compare_href %}
       <p><a href="{{ href }}">Compare revision {{ g.first - 1 }} with {{ g.last }}</a></p>
       {%- endif %}

@@ -31,12 +31,20 @@
     <summary class="button">More<span class="visually-hidden"> actions</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
     <div class="menu-panel">
       {%- if h.perms.edit && h.mr.state == "open" %}
+      {%- if h.mr.draft || h.mr.attention == "iterating" %}
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/draft">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        {%- let unready = h.mr.draft || h.mr.attention == "iterating" %}
-        <input type="hidden" name="draft" value="{% if unready %}false{% else %}true{% endif %}">
-        <button type="submit" class="button button-quiet menu-item">{% if unready %}Mark as ready{% else %}Mark as draft{% endif %}</button>
+        <input type="hidden" name="draft" value="false">
+        <button type="submit" class="button button-quiet menu-item">Mark as ready</button>
       </form>
+      {%- endif %}
+      {%- if !h.mr.draft %}
+      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/draft">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <input type="hidden" name="draft" value="true">
+        <button type="submit" class="button button-quiet menu-item">Mark as draft</button>
+      </form>
+      {%- endif %}
       {%- endif %}
       {%- if h.can_set_edits %}
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/maintainer-edits">

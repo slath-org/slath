@@ -262,9 +262,19 @@ test("conf_agent_09_a_bot_merge_request_iterates", async ({ page }) => {
   await expect(card).toContainText("Iterating");
   await expect(card.getByRole("button", { name: "Mark as ready" })).toBeVisible();
   await expect(page.getByText("They're asked once this is marked as ready.")).toBeVisible();
+  // More offers both: ready, or a draft that keeps iterating.
+  const more = page.locator("details.header-actions").filter({ has: page.locator("summary", { hasText: "More" }) });
+  await tapOrClick(page, more.locator("summary"));
+  await expect(more.getByRole("button", { name: "Mark as ready" })).toBeVisible();
+  await expect(more.getByRole("button", { name: "Mark as draft" })).toBeVisible();
+  // Only the open menu: its panel covers the page below it.
+  await expectAccessible(page, "details.header-actions[open]");
+  await tapOrClick(page, more.locator("summary"));
   // The bot's three revisions are one timeline entry, each still listed.
   const group = page.locator(".timeline-group").filter({ hasText: "pushed 3 iterations (revisions 1–3)" });
   await expect(group).toBeVisible();
+  // A chevron says it opens.
+  await expect(group.locator("summary .disclosure")).toBeVisible();
   await expectAccessible(page);
   await tapOrClick(page, group.locator("summary"));
   await expect(group.locator("#revision-2")).toContainText("pushed revision 2");

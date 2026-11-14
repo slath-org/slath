@@ -1960,6 +1960,7 @@ h1 > bdi code,
   font-size: var(--text-sm);
 }
 .timeline-group details > summary {
+  list-style: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
