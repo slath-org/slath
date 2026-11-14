@@ -1,0 +1,94 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave lists and data: list rows (components.css: .item-list), tables
+   that stack their rows on narrow screens, facts, the pager, and "and N
+   more". Contracts: /-/design/lists. */
+
+/* A table of records whose rows become blocks below 40 rem: the first
+   cell as the block's title, the others as labelled lines (each cell's
+   data-label), the row's actions at the end. */
+@container page (max-width: 40rem) {
+  .table-records thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .table-records,
+  .table-records tbody,
+  .table-records tr,
+  .table-records td,
+  .table-records th[scope="row"] {
+    display: block;
+    inline-size: auto;
+  }
+  .table-records tr {
+    padding-block: var(--gap-inline);
+    border-block-end: var(--border-width) solid var(--border);
+  }
+  .table-records td,
+  .table-records th[scope="row"] {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: var(--gap-inline);
+    height: auto;
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+  .table-records td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-weight: var(--weight-semibold);
+  }
+  .table-records :is(td, th):first-child {
+    display: block;
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+  }
+  .table-records :is(td, th):first-child::before,
+  .table-records td.table-actions::before {
+    content: none;
+  }
+  .table-records td.table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap-inline);
+    padding-block-start: var(--gap-inline);
+  }
+  .table-wrap:has(> .table-records) {
+    overflow-x: visible;
+  }
+}
+
+/* Facts: the names and values of one thing's properties. */
+dl.facts {
+  gap: var(--gap-inline) var(--gap-items);
+  margin: 0;
+}
+@container page (max-width: 30rem) {
+  dl.facts {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+  }
+  dl.facts dd {
+    margin-block-end: var(--gap-inline);
+  }
+}
+
+/* More results: buttons for the previous and next page below the list. */
+nav.pager-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+
+/* "and N more" after a short list in a small space. */
+.more-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}

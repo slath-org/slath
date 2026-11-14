@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/lists.html" as l %}
+{% import "design/catalog.html" as cat %}
+{% block title %}Lists and data · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "lists" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Lists and data</h1></div>
+  <p class="page-head-intro">List rows for things people open by their title, tables for records compared by column, facts for the properties of one thing. Nothing is ever cut without saying so.</p>
+</header>
+
+{%- call cat::entry("rows", "List rows", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Things people open by their title: issues, merge requests, repositories, notifications, commits, changes. Rows separated by lines, not cards: a state icon, the title, labels, and one line of secondary facts; counts at the end.</dd>
+  <dt>Markup</dt><dd><code>ul.item-list</code> &gt; <code>li.item-row</code> with <code>span.item-state</code>, <code>div.item-main</code> (<code>a.item-title</code>, <code>span.item-labels</code>, <code>p.item-meta</code>), and <code>span.item-count</code>.</dd>
+  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change. Compact density removes padding, never text size.</dd>
+  <dt>Accessibility</dt><dd>A list; the state icon has its word for screen readers; the title is the row's one link.</dd>
+  <dt>Not for</dt><dd>Records compared by column (a table); the properties of one thing (facts).</dd>
+</dl>
+{%- call cat::example("An open issue with a label, a merged merge request, and an unread notification.") %}
+<ul class="item-list">
+  <li class="item-row">
+    <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
+    <div class="item-main">
+      <a class="item-title" href="#rows">Crash when a branch name has a slash</a>
+      <span class="item-labels"><span class="label-chip"><svg class="label-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="#AA3F2E"/></svg>bug</span></span>
+      <p class="item-meta text-secondary">#14 opened 3 hours ago by alice</p>
+    </div>
+    <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}2<span class="visually-hidden"> comments</span></span>
+  </li>
+  <li class="item-row">
+    <span class="item-state item-state-merged">{% call m::icon(ctx, "git-merge") %}{% endcall %}<span class="visually-hidden">merged</span></span>
+    <div class="item-main">
+      <a class="item-title" href="#rows">Add the stack component</a>
+      <p class="item-meta text-secondary">!12 merged yesterday by bob</p>
+    </div>
+  </li>
+</ul>
+<ul class="item-list notification-list">
+  <li class="item-row item-unread">
+    <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
+    <div class="item-main">
+      <a class="item-title" href="#rows">Review requested: Add the stack component</a>
+      <p class="item-meta text-secondary">Unread · alice/demo · 5 minutes ago</p>
+    </div>
+  </li>
+</ul>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("table", "Table of records", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Records compared by column: tokens, keys, sessions, members, users, deliveries. Below 40 rem of page width each row becomes a block: the first cell as its title, the others as labelled lines, the row's actions at its end, so no value or action is off screen.</dd>
+  <dt>Markup</dt><dd><code>div.table-wrap[role=region][tabindex=0][aria-labelledby]</code> &gt; <code>table.table.table-records</code> with a caption; every <code>td</code> carries <code>data-label</code> with its column's name; the actions cell is <code>td.table-actions</code>.</dd>
+  <dt>Variants</dt><dd>Wide (a table); narrow (stacked blocks). Empty: an empty state instead of the table.</dd>
+  <dt>Accessibility</dt><dd>A real table with column headers and a caption; stacked, the column names show as labels and stay in the header for screen readers.</dd>
+  <dt>Not for</dt><dd>Things opened by title (list rows); layout.</dd>
+</dl>
+{%- call cat::example("Access tokens. Narrow the window, or open this page on a phone, to see the rows stack.") %}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="demo-tokens-caption">
+<table class="table table-records">
+  <caption id="demo-tokens-caption" class="visually-hidden">Your access tokens</caption>
+  <thead><tr><th scope="col">Name</th><th scope="col">Token</th><th scope="col">Scopes</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+  <tbody>
+    <tr><td data-label="Name">laptop</td><td data-label="Token"><code>slath_pat_JmqO…</code></td><td data-label="Scopes">repo:write</td><td data-label="Last used">2 hours ago</td><td data-label="Expires">in 28 days</td><td class="table-actions"><button type="button" class="button">Revoke<span class="visually-hidden"> laptop</span></button></td></tr>
+    <tr><td data-label="Name">CI deploy</td><td data-label="Token"><code>slath_pat_qVKy…</code></td><td data-label="Scopes">repo:read</td><td data-label="Last used">Never</td><td data-label="Expires">in 89 days</td><td class="table-actions"><button type="button" class="button">Revoke<span class="visually-hidden"> CI deploy</span></button></td></tr>
+  </tbody>
+</table>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("facts", "Facts", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The properties of one thing, as names and values: a bot's activity, a delivery, the instance's health.</dd>
+  <dt>Markup</dt><dd><code>dl.facts</code> with <code>dt</code> and <code>dd</code> pairs. On narrow screens each value goes under its name.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>A description list: each name labels its value.</dd>
+  <dt>Not for</dt><dd>Several records (a table).</dd>
+</dl>
+{%- call cat::example("A webhook delivery.") %}
+<dl class="facts">
+  <dt>Event</dt><dd>push</dd>
+  <dt>Result</dt><dd>Failed, will retry</dd>
+  <dt>Delivery ID</dt><dd><code>01a1da2f-cf42-71ba</code></dd>
+</dl>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("pager", "Pager", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>More results: "Next page", and "Previous page" where the list has it, as buttons in a navigation region below the list. A list that loads in place keeps the rest of the page.</dd>
+  <dt>Markup</dt><dd><code>l::pager(prev, next)</code>; an empty link leaves that button out, and with neither the pager isn't shown.</dd>
+  <dt>Variants</dt><dd>Next only; previous and next; previous only.</dd>
+  <dt>Accessibility</dt><dd>A <code>nav</code> named "Pages"; links with <code>rel=prev</code> and <code>rel=next</code>.</dd>
+  <dt>Not for</dt><dd>Steps of a process.</dd>
+</dl>
+{%- call cat::example("Both directions.") %}
+{%- call l::pager("#pager", "#pager") %}{% endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("more", "And N more", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A short list in a limited space (a details column, a card, a requirement) shows up to five items, then "and N more", which links to the full list.</dd>
+  <dt>Markup</dt><dd>The first five items, then <code>l::more(href, n)</code>.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>A link that says how many more there are.</dd>
+  <dt>Not for</dt><dd>Lists with their own page (they use the pager).</dd>
+</dl>
+{%- call cat::example("Files not viewed by an approver.") %}
+<ul class="plain-list">
+  <li><code>src/main.rs</code></li><li><code>src/lib.rs</code></li><li><code>README.md</code></li><li><code>Cargo.toml</code></li><li><code>docs/guide.md</code></li>
+  <li>{% call l::more("#more", 7) %}{% endcall %}</li>
+</ul>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

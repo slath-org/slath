@@ -1,0 +1,18 @@
+{#- Weave lists and data. Contracts and examples: /-/design/lists. -#}
+
+{#- More results: previous and next page as buttons below the list. An
+    empty href leaves that button out. -#}
+{%- macro pager(prev, next, prev_label = "Previous page", next_label = "Next page") -%}
+{%- if !prev.is_empty() || !next.is_empty() %}
+<nav class="pager-nav" aria-label="Pages">
+  {%- if !prev.is_empty() %}<a class="button" href="{{ prev }}" rel="prev">{{ prev_label }}</a>{% endif %}
+  {%- if !next.is_empty() %}<a class="button" href="{{ next }}" rel="next">{{ next_label }}</a>{% endif %}
+</nav>
+{%- endif %}
+{%- endmacro -%}
+
+{#- "and N more" after the first items of a short list; links to the full
+    list. -#}
+{%- macro more(href, n) -%}
+<a class="more-link" href="{{ href }}">and {{ n }} more</a>
+{%- endmacro -%}
