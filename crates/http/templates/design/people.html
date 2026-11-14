@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "components/people.html" as p %}
+{% import "design/catalog.html" as cat %}
+{% block title %}People · Design catalog{% endblock %}
+{% block sidebar %}{% let family = "people" %}{% include "design/sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>People</h1></div>
+  <p class="page-head-intro">Wherever Slath writes an account's name, its avatar comes right before it, for every name in a line. Text written by people (Markdown, mentions) shows names as written, and Git identities, which anyone can write into a commit, get a neutral person icon.</p>
+</header>
+
+{%- call cat::entry("account", "Account name", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A person's, organization's, or bot's name in status lines, timeline events, headers, list facts, details columns, check reporters, menus, and tables: the avatar, then the name, then the Bot badge for a bot.</dd>
+  <dt>Markup</dt><dd><code>p::account(ctx, name, link)</code>: one link to the account, or plain text where the line is already a link.</dd>
+  <dt>Variants</dt><dd>Linked; not linked; a bot (with its badge); uploaded or generated avatar. An account that no longer exists is <code>p::deleted(ctx, text)</code>.</dd>
+  <dt>Accessibility</dt><dd>The avatar is decorative; the name is text inside the same link, so there's one target and one tab stop.</dd>
+  <dt>Not for</dt><dd>Names in Markdown; Git authors and committers (Git identity); the global bar's own avatar and profile pages (larger avatars).</dd>
+</dl>
+{%- call cat::example("Timeline events with several names, a bot, and a deleted account.") %}
+<ul class="plain-list">
+  <li>{% call p::account(ctx, "alice") %}{% endcall %} requested a review from {% call p::account(ctx, "bob") %}{% endcall %} and {% call p::account(ctx, "acme") %}{% endcall %}</li>
+  <li>{% call p::account(ctx, "e2e-lint") %}{% endcall %} reported <strong>lint</strong>: failure</li>
+  <li>{% call p::deleted(ctx, "A deleted user") %}{% endcall %} opened this</li>
+</ul>
+{%- endcall %}
+{%- call cat::example("In a list row's facts, where the title is the row's link.") %}
+<p class="item-meta text-secondary">#14 opened 3 hours ago by {% call p::account(ctx, "alice", false) %}{% endcall %}</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("git-identity", "Git identity", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The author or committer written into a commit, which is a claim and not an account: a neutral person icon and the name as written. Where Slath knows the account because it authenticated it (who pushed, merged, or applied a suggestion), it's an account name.</dd>
+  <dt>Markup</dt><dd><code>p::git_identity(ctx, name)</code>.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>The icon is decorative.</dd>
+  <dt>Not for</dt><dd>Accounts.</dd>
+</dl>
+{%- call cat::example("A commit, pushed by an account.") %}
+<p>{% call p::git_identity(ctx, "Alice Example") %}{% endcall %} committed <code>a1e62f5c7d</code>, pushed by {% call p::account(ctx, "alice") %}{% endcall %}</p>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("avatar-group", "Avatar group", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Several accounts in a small space, such as the reviewers in a list row: up to three avatars side by side, then "+N".</dd>
+  <dt>Markup</dt><dd><code>p::avatar_group(ctx, names)</code>.</dd>
+  <dt>Variants</dt><dd>One to three; more than three.</dd>
+  <dt>Accessibility</dt><dd>All names are text for screen readers; the avatars and "+N" are hidden from them.</dd>
+  <dt>Not for</dt><dd>Lists where the names matter (account names).</dd>
+</dl>
+{%- call cat::example("Two reviewers; five reviewers.") %}
+<div class="cluster">{% call p::avatar_group(ctx, few) %}{% endcall %}{% call p::avatar_group(ctx, many) %}{% endcall %}</div>
+{%- endcall %}
+{%- endcall %}
+</div>
+{% endblock %}

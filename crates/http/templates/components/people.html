@@ -1,0 +1,47 @@
+{#- Weave people: avatars and names. Contracts and examples:
+    /-/design/people. -#}
+{%- import "macros.html" as m -%}
+
+{#- The avatar of the account `name`, at an icon's height. Decorative: the
+    name next to it carries the meaning. -#}
+{%- macro avatar(ctx, name) -%}
+{%- match ctx.avatar(name) -%}
+{%- when crate::ui::AvatarView::Uploaded with (url) -%}
+<img class="avatar" src="{{ url }}" alt="" width="20" height="20" loading="lazy" decoding="async">
+{%- when crate::ui::AvatarView::Generated with (tone, path) -%}
+<svg class="avatar avatar-generated avatar-tone-{{ tone }}" viewBox="0 0 7 7" aria-hidden="true" focusable="false"><path d="{{ path }}"/></svg>
+{%- endmatch -%}
+{%- endmacro -%}
+
+{#- An account's name: its avatar and name, one link to the account
+    unless `link` is false, and the Bot badge after a bot's name. -#}
+{%- macro account(ctx, name, link = true) -%}
+{%- if link -%}
+<a class="account" href="/{{ name }}">{% call avatar(ctx, name) %}{% endcall %}<bdi>{{ name }}</bdi></a>
+{%- else -%}
+<span class="account">{% call avatar(ctx, name) %}{% endcall %}<bdi>{{ name }}</bdi></span>
+{%- endif -%}
+{%- if ctx.is_bot(name) %} <span class="badge">Bot</span>{% endif -%}
+{%- endmacro -%}
+
+{#- An account that no longer exists: a neutral placeholder, never the
+    pattern of its old name. -#}
+{%- macro deleted(ctx, text = "a deleted user") -%}
+<span class="account"><span class="avatar avatar-deleted" aria-hidden="true">{% call m::icon(ctx, "user") %}{% endcall %}</span>{{ text }}</span>
+{%- endmacro -%}
+
+{#- An author or committer written into a commit: a claim, not an
+    account, so a neutral person icon and the name as written. -#}
+{%- macro git_identity(ctx, name) -%}
+<span class="git-identity">{% call m::icon(ctx, "user") %}{% endcall %}<bdi>{{ name }}</bdi></span>
+{%- endmacro -%}
+
+{#- Several accounts in a small space: up to three avatars, then "+N";
+    every name is text for screen readers. -#}
+{%- macro avatar_group(ctx, names) -%}
+<span class="avatar-group">
+  {%- for n in names.iter().take(3) %}{% call avatar(ctx, n) %}{% endcall %}{% endfor -%}
+  {%- if names.len() > 3 %}<span class="avatar-group-more" aria-hidden="true">+{{ names.len() - 3 }}</span>{% endif -%}
+  <span class="visually-hidden">{{ names|join(", ") }}</span>
+</span>
+{%- endmacro -%}

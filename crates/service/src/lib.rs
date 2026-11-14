@@ -105,6 +105,7 @@ pub struct Services {
     pub scan_rules: Arc<slath_core::secret_scan::RuleSet>,
     /// The names of all bots, cached.
     pub bot_names: Arc<bots::BotNames>,
+    pub avatar_index: Arc<avatars::AvatarIndex>,
 }
 
 impl Services {
@@ -143,6 +144,7 @@ impl Services {
             reference_limiter: Arc::default(),
             oidc_cache: Arc::default(),
             bot_names: Arc::default(),
+            avatar_index: Arc::default(),
         }
     }
 

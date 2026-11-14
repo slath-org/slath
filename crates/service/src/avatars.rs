@@ -146,7 +146,26 @@ impl Services {
             }
         }
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.avatar_index.invalidate();
         Ok(())
+    }
+
+    /// The uploaded avatars by lowercased account or organization name,
+    /// for drawing them next to names. Reloaded when older than
+    /// [`AvatarIndex::MAX_AGE`] and after an avatar changes here.
+    pub async fn uploaded_avatars(
+        &self,
+    ) -> std::sync::Arc<std::collections::HashMap<String, String>> {
+        if let Some(m) = self.avatar_index.fresh() {
+            return m;
+        }
+        match slath_db::blobs::uploaded_avatars(&self.pool).await {
+            Ok(v) => self.avatar_index.store(v.into_iter().collect()),
+            Err(e) => {
+                tracing::warn!(error = %e, "loading avatars failed");
+                self.avatar_index.current()
+            }
+        }
     }
 
     /// The avatar URL of a user or organization: the uploaded image, or the
@@ -171,5 +190,42 @@ impl Services {
             .await
             .map_err(ServiceError::internal)?
             .ok_or(ServiceError::NotFound)
+    }
+}
+
+/// Uploaded avatars: blob SHA-256 by lowercased name.
+type Avatars = std::sync::Arc<std::collections::HashMap<String, String>>;
+
+/// The uploaded avatars by name, shared by every page.
+#[derive(Debug, Default)]
+pub struct AvatarIndex {
+    inner: std::sync::RwLock<(Option<std::time::Instant>, Avatars)>,
+}
+
+impl AvatarIndex {
+    pub const MAX_AGE: std::time::Duration = std::time::Duration::from_secs(10);
+
+    fn fresh(&self) -> Option<Avatars> {
+        let g = self.inner.read().ok()?;
+        g.0.filter(|t| t.elapsed() < Self::MAX_AGE)
+            .map(|_| g.1.clone())
+    }
+
+    fn current(&self) -> Avatars {
+        self.inner.read().map(|g| g.1.clone()).unwrap_or_default()
+    }
+
+    fn store(&self, avatars: std::collections::HashMap<String, String>) -> Avatars {
+        let avatars = std::sync::Arc::new(avatars);
+        if let Ok(mut g) = self.inner.write() {
+            *g = (Some(std::time::Instant::now()), avatars.clone());
+        }
+        avatars
+    }
+
+    fn invalidate(&self) {
+        if let Ok(mut g) = self.inner.write() {
+            g.0 = None;
+        }
     }
 }

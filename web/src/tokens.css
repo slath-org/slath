@@ -103,6 +103,15 @@
   --syn-punctuation: #4F5852;
   --shadow-color: #262B28;
   --backdrop: #1F232899;
+  --avatar-bg: #EAECE7;
+  --avatar-0: #4A6B5A;
+  --avatar-1: #6B5A3A;
+  --avatar-2: #5A5A80;
+  --avatar-3: #7A4A4A;
+  --avatar-4: #3F6575;
+  --avatar-5: #6A507A;
+  --avatar-6: #5E6B3A;
+  --avatar-7: #7A5A30;
 }
 
 :root[data-density="compact"] {
@@ -212,6 +221,15 @@
     --syn-punctuation: #B9C1BB;
     --shadow-color: #000000;
     --backdrop: #000000B3;
+    --avatar-bg: #292F2B;
+    --avatar-0: #8FB5A0;
+    --avatar-1: #B8A27A;
+    --avatar-2: #A3A3CC;
+    --avatar-3: #C99393;
+    --avatar-4: #86B0C2;
+    --avatar-5: #B496C6;
+    --avatar-6: #A9B87C;
+    --avatar-7: #C9A270;
   }
 }
 
@@ -260,6 +278,15 @@
   --syn-punctuation: #B9C1BB;
   --shadow-color: #000000;
   --backdrop: #000000B3;
+  --avatar-bg: #292F2B;
+  --avatar-0: #8FB5A0;
+  --avatar-1: #B8A27A;
+  --avatar-2: #A3A3CC;
+  --avatar-3: #C99393;
+  --avatar-4: #86B0C2;
+  --avatar-5: #B496C6;
+  --avatar-6: #A9B87C;
+  --avatar-7: #C9A270;
 }
 
 @media (prefers-contrast: more) {
@@ -308,6 +335,15 @@
     --syn-punctuation: #2E3531;
     --shadow-color: #000000;
     --backdrop: #1F232899;
+    --avatar-bg: #EAECE7;
+    --avatar-0: #4A6B5A;
+    --avatar-1: #6B5A3A;
+    --avatar-2: #5A5A80;
+    --avatar-3: #7A4A4A;
+    --avatar-4: #3F6575;
+    --avatar-5: #6A507A;
+    --avatar-6: #5E6B3A;
+    --avatar-7: #7A5A30;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -355,6 +391,15 @@
       --syn-punctuation: #D3DAD5;
       --shadow-color: #000000;
       --backdrop: #000000B3;
+      --avatar-bg: #292F2B;
+      --avatar-0: #8FB5A0;
+      --avatar-1: #B8A27A;
+      --avatar-2: #A3A3CC;
+      --avatar-3: #C99393;
+      --avatar-4: #86B0C2;
+      --avatar-5: #B496C6;
+      --avatar-6: #A9B87C;
+      --avatar-7: #C9A270;
     }
   }
   :root[data-theme="dark"] {
@@ -402,6 +447,15 @@
     --syn-punctuation: #D3DAD5;
     --shadow-color: #000000;
     --backdrop: #000000B3;
+    --avatar-bg: #292F2B;
+    --avatar-0: #8FB5A0;
+    --avatar-1: #B8A27A;
+    --avatar-2: #A3A3CC;
+    --avatar-3: #C99393;
+    --avatar-4: #86B0C2;
+    --avatar-5: #B496C6;
+    --avatar-6: #A9B87C;
+    --avatar-7: #C9A270;
   }
 }
 

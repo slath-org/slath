@@ -1,0 +1,74 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Weave people: the avatar before every account name Slath writes, at an
+   icon's height, a small rounded square for people, organizations, and
+   bots alike; generated avatars drawn in the theme's avatar tones; a
+   neutral person icon for Git identities, which aren't accounts.
+   Contracts: /-/design/people. */
+
+.avatar {
+  display: inline-block;
+  flex: none;
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  border-radius: var(--radius-sm);
+  vertical-align: -0.25em;
+  object-fit: cover;
+}
+.avatar-generated {
+  background: var(--avatar-bg);
+}
+.avatar-tone-0 { fill: var(--avatar-0); }
+.avatar-tone-1 { fill: var(--avatar-1); }
+.avatar-tone-2 { fill: var(--avatar-2); }
+.avatar-tone-3 { fill: var(--avatar-3); }
+.avatar-tone-4 { fill: var(--avatar-4); }
+.avatar-tone-5 { fill: var(--avatar-5); }
+.avatar-tone-6 { fill: var(--avatar-6); }
+.avatar-tone-7 { fill: var(--avatar-7); }
+.avatar-deleted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+.avatar-deleted .icon {
+  inline-size: 0.875em;
+  block-size: 0.875em;
+}
+
+/* An account's name: the avatar, then the name; one link where it links. */
+.account,
+.git-identity {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--gap-inside);
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.account > .avatar,
+.git-identity > .icon {
+  align-self: center;
+}
+.git-identity > .icon {
+  color: var(--text-secondary);
+}
+
+/* Several accounts in a small space: up to three avatars, then "+N". */
+.avatar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-inside);
+}
+.avatar-group-more {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (forced-colors: active) {
+  .avatar {
+    border: var(--border-width) solid CanvasText;
+  }
+}

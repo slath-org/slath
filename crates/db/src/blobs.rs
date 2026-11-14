@@ -180,6 +180,21 @@ pub async fn set_org_avatar(
     Ok(())
 }
 
+/// Every uploaded avatar of an active account or an organization, as
+/// (lowercased name, blob SHA-256): what pages draw next to names.
+pub async fn uploaded_avatars(exec: impl PgExecutor<'_>) -> Result<Vec<(String, String)>, DbError> {
+    let rows = sqlx::query!(
+        "SELECT lower(n.name::text) AS \"name!\", COALESCE(u.avatar_blob_sha256, o.avatar_blob_sha256) AS \"sha!\"
+           FROM namespaces n
+           LEFT JOIN users u ON u.namespace_id = n.id AND u.state = 'active'
+           LEFT JOIN organizations o ON o.namespace_id = n.id
+          WHERE COALESCE(u.avatar_blob_sha256, o.avatar_blob_sha256) IS NOT NULL"
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.name, r.sha)).collect())
+}
+
 /// The uploaded avatar of a user or organization, by namespace name.
 pub async fn namespace_avatar(
     exec: impl PgExecutor<'_>,

@@ -150,6 +150,15 @@ struct ListsFamily {
     ctx: PageCtx,
 }
 
+/// The people family: avatars, account names, Git identities.
+#[derive(Template)]
+#[template(path = "design/people.html")]
+struct PeopleFamily {
+    ctx: PageCtx,
+    few: Vec<String>,
+    many: Vec<String>,
+}
+
 /// `GET /-/design/{family}`: one family of components, each with its
 /// contract and examples.
 async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppError> {
@@ -159,6 +168,14 @@ async fn family(ctx: PageCtx, Path(name): Path<String>) -> Result<Response, AppE
         "forms" => Ok(render(&FormsFamily { ctx })),
         "disclosure" => Ok(render(&DisclosureFamily { ctx })),
         "lists" => Ok(render(&ListsFamily { ctx })),
+        "people" => {
+            let names = |n: &[&str]| n.iter().map(|s| (*s).to_owned()).collect();
+            Ok(render(&PeopleFamily {
+                ctx,
+                few: names(&["alice", "bob"]),
+                many: names(&["alice", "bob", "carol", "dee", "eve"]),
+            }))
+        }
         _ => Err(AppError::not_found()),
     }
 }

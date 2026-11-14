@@ -128,6 +128,19 @@ pub struct PageCtx {
     /// The lowercased names of all bots, to mark them wherever names
     /// appear (empty on error pages).
     pub bots: std::sync::Arc<std::collections::HashSet<String>>,
+    /// Uploaded avatars by lowercased name, to draw them next to names
+    /// (empty on error pages: names then get their generated pattern).
+    pub avatars: std::sync::Arc<std::collections::HashMap<String, String>>,
+}
+
+/// How an account's avatar is drawn next to its name.
+#[derive(Debug, Clone)]
+pub enum AvatarView {
+    /// An uploaded image.
+    Uploaded(String),
+    /// The pattern generated from the name, drawn in the page in one of
+    /// the Weave avatar tones (0–7), so it follows the theme.
+    Generated(usize, String),
 }
 
 /// Returns the value of cookie `name`.
@@ -212,6 +225,19 @@ impl PageCtx {
                 !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
             }),
             bots: std::sync::Arc::default(),
+            avatars: std::sync::Arc::default(),
+        }
+    }
+
+    /// The avatar drawn next to `name`.
+    #[must_use]
+    pub fn avatar(&self, name: &str) -> AvatarView {
+        match self.avatars.get(&name.to_lowercase()) {
+            Some(sha) => AvatarView::Uploaded(format!("/-/avatars/{sha}.png")),
+            None => {
+                let (tone, path) = identicon::pattern(name);
+                AvatarView::Generated(tone, path)
+            }
         }
     }
 
@@ -242,6 +268,7 @@ impl FromRequestParts<AppState> for PageCtx {
     ) -> Result<Self, Self::Rejection> {
         let mut ctx = Self::build(state, &parts.extensions, &parts.headers, &parts.uri);
         ctx.bots = state.services.bot_names().await;
+        ctx.avatars = state.services.uploaded_avatars().await;
         Ok(ctx)
     }
 }
