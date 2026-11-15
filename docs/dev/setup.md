@@ -107,3 +107,11 @@ Pages not yet built from the components are listed in
 `scripts/weave-allowlist.txt`; the list only shrinks, so moving a page
 means removing its lines, and the check fails on a line that no longer
 applies.
+
+The browser tests measure the same rules on the rendered pages
+(`tests/e2e/tests/weave.spec.ts`): on every catalog page, gaps inside the
+layout components are the relationship distances in both densities,
+headings have more space above than below, and every disclosure shows a
+chevron that turns. One page per page group is checked for indicators and
+heading levels against `tests/e2e/weave-baseline.json`, which lists what
+pages not yet built from the components still break; it only shrinks too.
