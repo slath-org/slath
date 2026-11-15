@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "components/forms.html" as f %}
+{% import "components/people.html" as p %}
 {% import "design/catalog.html" as cat %}
 {% block title %}Layout · Design catalog{% endblock %}
 {% block sidebar %}{% let family = "layout" %}{% include "design/sidebar.html" %}{% endblock %}
@@ -49,7 +51,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>The page: its heading, then its sections, 32 px apart (24 px in compact). The heading holds the one <code>h1</code>, an optional state line under it, the page's actions on the title's row, and an optional one-sentence introduction.</dd>
   <dt>Markup</dt><dd><code>div.page</code> &gt; <code>header.page-head</code> (<code>div.page-head-row</code> with the <code>h1</code> and <code>div.page-head-actions</code>; optional <code>p.page-head-meta</code> and <code>p.page-head-intro</code>), then the sections.</dd>
-  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header.</dd>
+  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header. A form with long text or the Markdown editor (new issue, editing a comment) is <code>page-form-wide</code> (48 rem).</dd>
   <dt>Accessibility</dt><dd>Exactly one <code>h1</code>. The actions follow the title in reading order. At most one primary action.</dd>
   <dt>Not for</dt><dd>The code pages, whose <code>h1</code> is for screen readers and whose place shows in the breadcrumb.</dd>
 </dl>
@@ -69,6 +71,12 @@
     <p class="page-head-intro">A fork is your own copy of the branches and tags, to change freely and offer back with a merge request.</p>
   </header>
   <div class="catalog-block">The form</div>
+</div>
+{%- endcall %}
+{%- call cat::example("A wide form page, for the Markdown editor.") %}
+<div class="page page-form-wide">
+  <header class="page-head"><div class="page-head-row"><p class="type-title">New issue</p></div></header>
+  <div class="catalog-block">The form with the editor</div>
 </div>
 {%- endcall %}
 {%- call cat::example("A settings page's heading: title and introduction.") %}
@@ -145,6 +153,34 @@
     <p>Its tokens are revoked, its SSH keys removed, and its pushes refused.</p>
     <div class="cluster"><button type="button" class="button button-danger">Stop bot</button></div>
   </section>
+</div>
+{%- endcall %}
+{%- endcall %}
+{%- call cat::entry("detail", "Detail and details column", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A detail page (an issue, a merge request): the main column with the history and the forms that add to it, and, where the page is at least 56 rem wide, the details column (16 rem) with one section per property, such as assignees, labels, or checks; narrower, the column follows the main one.</dd>
+  <dt>Markup</dt><dd><code>div.detail</code> &gt; the main column (a <code>stack-groups</code>) and <code>aside.details-column[aria-label]</code> &gt; <code>section.details-section[aria-labelledby]</code> &gt; <code>h2.details-heading</code> (the details heading, 15 px), the value, and its form.</dd>
+  <dt>Variants</dt><dd>Read only; with forms (their labels 14 px, their buttons the column's width).</dd>
+  <dt>Accessibility</dt><dd>The column is a complementary region named after the page's subject ("Issue details"); each section is named by its heading. The reading order is the main column first.</dd>
+  <dt>Not for</dt><dd>Settings (sections with forms); navigation (the side menu).</dd>
+</dl>
+{%- call cat::example("An issue's conversation and its details, one with its form.") %}
+<div class="detail">
+  <div class="stack-groups"><div class="catalog-block">The timeline</div><div class="catalog-block">Add a comment</div></div>
+  <aside class="details-column" aria-label="Example issue details">
+    <section class="details-section" aria-labelledby="demo-details-1">
+      <h2 id="demo-details-1" class="details-heading">Assignees</h2>
+      <ul class="plain-list"><li>{% call p::account(ctx, "alice") %}{% endcall %}</li></ul>
+      <form class="form-layout" action="#detail">
+        {%- call f::field("demo-assign", "Assign people", "Usernames, separated by commas.") %}<input id="demo-assign" type="text" value="alice" data-names autocomplete="off"{% call f::described("demo-assign", "x", "") %}{% endcall %}>{% endcall %}
+        {%- call f::buttons() %}<button type="button" class="button">Save assignees</button>{% endcall %}
+      </form>
+    </section>
+    <section class="details-section" aria-labelledby="demo-details-2">
+      <h2 id="demo-details-2" class="details-heading">Milestone</h2>
+      <p class="text-secondary">None</p>
+    </section>
+  </aside>
 </div>
 {%- endcall %}
 {%- endcall %}

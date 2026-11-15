@@ -278,7 +278,8 @@ async fn create(
 
 struct CommentView {
     id: String,
-    author_text: String,
+    /// `None` when the account was deleted.
+    author: Option<String>,
     created: Time,
     edited: bool,
     deleted: bool,
@@ -290,8 +291,11 @@ struct CommentView {
 
 struct EventView {
     icon: &'static str,
-    actor: String,
+    /// `None` when the account was deleted.
+    actor: Option<String>,
     text: String,
+    /// The account the event names after `text` (assigned, unassigned).
+    user: Option<String>,
     link: Option<String>,
     link_text: String,
     created: Time,
@@ -313,6 +317,7 @@ fn event_view(
             .unwrap_or("")
             .to_owned()
     };
+    let mut user = None;
     let (icon, text, link, link_text) = match e.kind.as_str() {
         "closed" => {
             let text = match str_of("reason").as_str() {
@@ -368,18 +373,10 @@ fn event_view(
             None,
             String::new(),
         ),
-        "assigned" => (
-            "user",
-            format!("assigned {}", str_of("user")),
-            None,
-            String::new(),
-        ),
-        "unassigned" => (
-            "user",
-            format!("unassigned {}", str_of("user")),
-            None,
-            String::new(),
-        ),
+        "assigned" | "unassigned" => {
+            user = Some(str_of("user")).filter(|u| !u.is_empty());
+            ("user", e.kind.clone(), None, String::new())
+        }
         "milestoned" => (
             "flag",
             format!("added this to the milestone {}", str_of("milestone")),
@@ -396,8 +393,9 @@ fn event_view(
     };
     Some(EventView {
         icon,
-        actor: e.actor.unwrap_or_else(|| "A deleted user".to_owned()),
+        actor: e.actor,
         text,
+        user,
         link,
         link_text,
         created: e.created_at.into(),
@@ -466,10 +464,7 @@ pub(super) async fn issue_page(
                 own,
             } => timeline.push(TimelineView::Comment(CommentView {
                 id: comment.id.to_string(),
-                author_text: comment
-                    .author
-                    .clone()
-                    .unwrap_or_else(|| "A deleted user".to_owned()),
+                author: comment.author.clone(),
                 created: comment.created_at.into(),
                 edited: comment.edited_at.is_some(),
                 deleted: comment.deleted_at.is_some(),

@@ -168,3 +168,7 @@ input[type="date"] {
 .password-toggle[aria-pressed="true"] {
   color: var(--text);
 }
+/* Suggestions open under the field they belong to. */
+.field:has([data-suggest-users]) {
+  position: relative;
+}

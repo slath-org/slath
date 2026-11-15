@@ -1,43 +1,44 @@
-<aside class="issue-sidebar" aria-label="Issue details">
+{%- let triage = "/" ~ header.namespace ~ "/" ~ header.name ~ "/issues/" ~ issue.number %}
+<aside class="details-column" aria-label="Issue details">
   {%- if let Some(on) = subscribed %}
-  <section aria-labelledby="side-notifications">
-    <h2 id="side-notifications" class="sidebar-heading">Notifications</h2>
+  <section class="details-section" aria-labelledby="side-notifications">
+    <h2 id="side-notifications" class="details-heading">Notifications</h2>
     <p class="text-secondary">{% if *on %}You get notifications about this issue.{% else %}You don't get notifications about this issue.{% endif %}</p>
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/subscription" class="inline-form">
+    <form method="post" action="{{ triage }}/subscription" class="form-layout">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::buttons() %}
       {%- if *on %}
       <button type="submit" name="state" value="ignoring" class="button">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unsubscribe</button>
       {%- else %}
       <button type="submit" name="state" value="watching" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Subscribe</button>
       {%- endif %}
+      {%- endcall %}
     </form>
   </section>
   {%- endif %}
-  <section aria-labelledby="side-assignees">
-    <h2 id="side-assignees" class="sidebar-heading">Assignees</h2>
+  <section class="details-section" aria-labelledby="side-assignees">
+    <h2 id="side-assignees" class="details-heading">Assignees</h2>
     {%- if assignees.is_empty() %}
     <p class="text-secondary">No one</p>
     {%- else %}
     <ul class="plain-list">
       {%- for u in assignees %}
-      <li><a href="/{{ u }}">{{ u }}</a></li>
+      <li>{% call p::account(ctx, u) %}{% endcall %}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
     {%- if perms.triage %}
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/assignees" class="form sidebar-form" novalidate>
+    <form method="post" action="{{ triage }}/triage/assignees" class="form-layout" novalidate>
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <div class="field suggest-field">
-        <label for="assignees">Assign people</label>
-        <input id="assignees" name="assignees" type="text" value="{{ assignees|join(", ") }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="assignees-hint" data-suggest-users="{{ header.namespace }}/{{ header.name }}" data-suggest-item="{{ issue.number }}">
-        <p id="assignees-hint" class="hint">Usernames, separated by commas.</p>
-      </div>
-      <button type="submit" class="button">Save assignees</button>
+      {%- call f::field("assignees", "Assign people", "Usernames, separated by commas.") %}
+      <input id="assignees" name="assignees" type="text" value="{{ assignees|join(", ") }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}" data-suggest-item="{{ issue.number }}"{% call f::described("assignees", "x", "") %}{% endcall %}>
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">Save assignees</button>{% endcall %}
     </form>
     {%- endif %}
   </section>
-  <section aria-labelledby="side-labels">
-    <h2 id="side-labels" class="sidebar-heading">Labels</h2>
+  <section class="details-section" aria-labelledby="side-labels">
+    <h2 id="side-labels" class="details-heading">Labels</h2>
     {%- if labels.is_empty() %}
     <p class="text-secondary">None</p>
     {%- else %}
@@ -48,41 +49,40 @@
     </ul>
     {%- endif %}
     {%- if perms.triage && !label_choices.is_empty() %}
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/labels" class="form sidebar-form">
+    <form method="post" action="{{ triage }}/triage/labels" class="form-layout">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <fieldset class="field">
+      <fieldset class="question">
         <legend>Apply labels</legend>
         {%- for (l, on) in label_choices %}
-        <div class="checkbox">
+        <div class="option">
           <input type="checkbox" id="label-{{ l.id }}" name="labels" value="{{ l.name }}"{% if on %} checked{% endif %}>
           <label for="label-{{ l.id }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></label>
         </div>
         {%- endfor %}
       </fieldset>
-      <button type="submit" class="button">Save labels</button>
+      {%- call f::buttons() %}<button type="submit" class="button">Save labels</button>{% endcall %}
     </form>
     {%- endif %}
   </section>
-  <section aria-labelledby="side-milestone">
-    <h2 id="side-milestone" class="sidebar-heading">Milestone</h2>
-    {%- if let Some(m) = milestone %}
-    <p><a href="/{{ header.namespace }}/{{ header.name }}/milestones">{{ m }}</a></p>
+  <section class="details-section" aria-labelledby="side-milestone">
+    <h2 id="side-milestone" class="details-heading">Milestone</h2>
+    {%- if let Some(ms) = milestone %}
+    <p><a href="/{{ header.namespace }}/{{ header.name }}/milestones">{{ ms }}</a></p>
     {%- else %}
     <p class="text-secondary">None</p>
     {%- endif %}
     {%- if perms.triage && (!milestone_choices.is_empty() || milestone.is_some()) %}
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/issues/{{ issue.number }}/triage/milestone" class="form sidebar-form">
+    <form method="post" action="{{ triage }}/triage/milestone" class="form-layout">
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <div class="field">
-        <label for="milestone">Set milestone</label>
-        <select id="milestone" name="milestone">
-          <option value="">None</option>
-          {%- for t in milestone_choices %}
-          <option value="{{ t }}"{% if milestone.as_deref() == Some(t.as_str()) %} selected{% endif %}>{{ t }}</option>
-          {%- endfor %}
-        </select>
-      </div>
-      <button type="submit" class="button">Save milestone</button>
+      {%- call f::field("milestone", "Set milestone") %}
+      <select id="milestone" name="milestone">
+        <option value="">None</option>
+        {%- for t in milestone_choices %}
+        <option value="{{ t }}"{% if milestone.as_deref() == Some(t.as_str()) %} selected{% endif %}>{{ t }}</option>
+        {%- endfor %}
+      </select>
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">Save milestone</button>{% endcall %}
     </form>
     {%- endif %}
   </section>

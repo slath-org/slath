@@ -20,7 +20,6 @@ catalog-class change-versions                                           # markup
 catalog-class checkbox-hint                                             # markup of a page that hasn't moved to the components yet
 catalog-class checkout-menu                                             # markup of a page that hasn't moved to the components yet
 catalog-class closed                                                    # markup of a page that hasn't moved to the components yet
-catalog-class comment-actions                                           # markup of a page that hasn't moved to the components yet
 catalog-class comment-form                                              # markup of a page that hasn't moved to the components yet
 catalog-class commit-checks                                             # markup of a page that hasn't moved to the components yet
 catalog-class commit-list                                               # markup of a page that hasn't moved to the components yet
@@ -45,7 +44,6 @@ catalog-class issue-heading                                             # markup
 catalog-class issue-layout                                              # markup of a page that hasn't moved to the components yet
 catalog-class issue-main                                                # markup of a page that hasn't moved to the components yet
 catalog-class issue-sidebar                                             # markup of a page that hasn't moved to the components yet
-catalog-class issue-state-form                                          # markup of a page that hasn't moved to the components yet
 catalog-class issue-status                                              # markup of a page that hasn't moved to the components yet
 catalog-class item-actions                                              # markup of a page that hasn't moved to the components yet
 catalog-class item-checks                                               # markup of a page that hasn't moved to the components yet
@@ -55,7 +53,6 @@ catalog-class merge-step                                                # markup
 catalog-class merge-step-title                                          # markup of a page that hasn't moved to the components yet
 catalog-class milestone-progress                                        # markup of a page that hasn't moved to the components yet
 catalog-class narrow                                                    # markup of a page that hasn't moved to the components yet
-catalog-class narrow-wide                                               # markup of a page that hasn't moved to the components yet
 catalog-class open                                                      # markup of a page that hasn't moved to the components yet
 catalog-class page-heading                                              # markup of a page that hasn't moved to the components yet
 catalog-class pager                                                     # markup of a page that hasn't moved to the components yet
@@ -92,7 +89,6 @@ catalog-unused danger                                                   # no pag
 catalog-unused disclosure                                               # no page uses it until the pages move to the components
 catalog-unused frame                                                    # no page uses it until the pages move to the components
 catalog-unused more                                                     # no page uses it until the pages move to the components
-catalog-unused names                                                    # no page uses it until the pages move to the components
 catalog-unused popover                                                  # no page uses it until the pages move to the components
 catalog-unused reply-box                                                # no page uses it until the pages move to the components
 catalog-unused sort                                                     # no page uses it until the pages move to the components

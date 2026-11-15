@@ -42,7 +42,7 @@ ENTRY_MARKERS = {
     "global-bar": "*", "side-menu": r"m::side_menu\(", "context-header": r'class="repo-header|fr::context_header\(',
     "stack": r'class="(?:[^"]* )?stack(?:-inside|-groups|-sections)?[ "]', "cluster": r'class="(?:[^"]* )?cluster[ "]',
     "page": r'class="(?:[^"]* )?page-head[ "]', "section": r'class="(?:[^"]* )?section[ "]',
-    "subsection": r'class="(?:[^"]* )?subsection[ "]', "frame": r'class="(?:[^"]* )?frame[ "]',
+    "subsection": r'class="(?:[^"]* )?subsection[ "]', "frame": r'class="(?:[^"]* )?frame[ "]', "detail": r'class="detail"',
     "notice": r"msg::notice\(|class=\"notice", "saved": r"msg::saved\(|success-summary",
     "error-summary": r"msg::error_summary\(|error-summary", "notice-line": r"msg::notice_line\(|notice-line",
     "empty": r"msg::empty\(|empty-state", "busy": "*", "toast": "*",

@@ -217,6 +217,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The commit page lists the full hash and parents as facts, and Browse files is a button next to the title.
 - New repository, import, fork, and sync are narrow form pages; an import's credentials are a group of fields, and visibility is a question with explained options.
 - A failed fork or import shows as a warning on the repository instead of a form error; the commit list's pager says "Newer commits" and "Older commits".
+- An issue is closed from a Close menu next to its title, as completed, not planned, or a duplicate; Reopen is a button there.
+- Every name in issues shows the account's avatar: authors, commenters, assignees, and the people named in events.
+- Assignees take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 
 ### Removed
 

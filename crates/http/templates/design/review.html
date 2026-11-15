@@ -75,7 +75,7 @@
 {%- call cat::entry("timeline", "Timeline", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>The one history of an issue or merge request, oldest first: comments with a header line and their text, events as single lines with an icon and the actor first, consecutive events folded into one line, reviews with their verdict, and the marker of what's new since the viewer's review. Filters may narrow it but never split or reorder it.</dd>
-  <dt>Markup</dt><dd><code>ol.timeline</code> of <code>li.timeline-comment</code> (an <code>article</code> with <code>header.comment-header</code>), <code>li.timeline-event</code>, <code>li.timeline-event.timeline-group</code> (a disclosure), <code>li.timeline-review</code>, and <code>li.since-marker</code>. Names are account names; times are the time component.</dd>
+  <dt>Markup</dt><dd><code>ol.timeline</code> of <code>li.timeline-comment</code> (an <code>article</code> with <code>header.comment-header</code>, the text, and <code>div.comment-actions</code> for the author and moderators), <code>li.timeline-event</code>, <code>li.timeline-event.timeline-group</code> (a disclosure), <code>li.timeline-review</code>, and <code>li.since-marker</code>. Names are account names; times are the time component.</dd>
   <dt>Variants</dt><dd>Comment (edited, hidden, deleted); event; event group; review (approved, changes requested, stale); since marker.</dd>
   <dt>Accessibility</dt><dd>An ordered list; each comment is an article named by its author; icons are decorative.</dd>
   <dt>Not for</dt><dd>Lists of things (list rows).</dd>
@@ -86,6 +86,11 @@
     <article aria-label="Comment by bob">
       <header class="comment-header">{% call p::account(ctx, "bob") %}{% endcall %} <span class="text-secondary">wrote {% call c::time(recent) %}{% endcall %} · edited</span></header>
       <div class="markdown"><p>I can reproduce it with <code>Safari 19</code>.</p></div>
+      <div class="comment-actions">
+        <a class="button button-quiet button-icon" data-tip="Edit comment" href="#timeline">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit comment</span></a>
+        {%- call c::icon_button(ctx, "eye-off", "Hide comment") %}{% endcall %}
+        {%- call c::icon_button(ctx, "trash-2", "Delete comment") %}{% endcall %}
+      </div>
     </article>
   </li>
   <li class="timeline-event">{% call m::icon(ctx, "tag") %}{% endcall %}<span>{% call p::account(ctx, "alice") %}{% endcall %} added the label bug {% call c::time(recent) %}{% endcall %}</span></li>

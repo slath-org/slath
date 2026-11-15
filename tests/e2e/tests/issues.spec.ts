@@ -27,8 +27,11 @@ test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   await write(page, "Add a comment", "A comment.");
   await tapOrClick(page, page.getByRole("button", { name: "Comment", exact: true }));
   await expect(page.getByText("A comment.")).toBeVisible();
-  await tapOrClick(page, page.getByRole("button", { name: "Close issue" }));
+  // Closing is a menu next to the title: one item per reason.
+  await tapOrClick(page, page.locator("summary", { hasText: "Close issue" }));
+  await tapOrClick(page, page.getByRole("button", { name: "Close as completed" }));
   await expect(page.getByText("closed this as completed")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reopen issue" })).toBeVisible();
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("link", { name: "Edit issue", exact: true }));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Edit issue");
@@ -111,7 +114,9 @@ test("issue_page_actions_assignee_suggestions_and_comment_and_close", async ({ p
   await expect(people.getByRole("option").first()).toContainText("alice");
   await expectAccessible(page);
   await assignees.press("Enter");
-  await expect(assignees).toHaveValue("alice, ");
+  // The chosen name becomes a chip with its avatar.
+  await expect(page.getByRole("list", { name: "Chosen" })).toContainText("alice");
+  await expect(assignees).toHaveValue("");
   await tapOrClick(page, page.getByRole("button", { name: "Save assignees" }));
   await expect(page.getByRole("complementary", { name: "Issue details" }).getByRole("link", { name: "alice" })).toBeVisible();
   // Comment and close with Ctrl+Shift+Enter.

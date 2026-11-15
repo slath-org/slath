@@ -1,33 +1,28 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ heading }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
-<div class="narrow-wide">
-<h1>{{ heading }}</h1>
+<div class="page page-form-wide">
+<header class="page-head">
+  <div class="page-head-row"><h1>{{ heading }}</h1></div>
+</header>
+<form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
 {% include "settings/errors.html" %}
-<form method="post" action="{{ action }}" class="form form-wide" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   {%- if let Some(t) = title %}
-  <div class="field">
-    <label for="title">Title</label>
-    <input id="title" name="title" type="text" value="{{ t }}" maxlength="256" required
-      {%- if self.error("title").is_some() %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
-    {%- if let Some(e) = self.error("title") %}
-    <p id="title-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
+  {%- call f::field("title", "Title", "", self.error("title").unwrap_or_default()) %}
+  <input id="title" name="title" type="text" value="{{ t }}" maxlength="256" required{% call f::described("title", "", self.error("title").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
   {%- endif %}
-  <div class="field">
-    <label for="body">{% if title.is_some() %}Description{% else %}Comment{% endif %}</label>
-    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
-    <textarea id="body" name="body" rows="12" autocomplete="off"
-      {%- if self.error("body").is_some() %} aria-invalid="true" aria-describedby="body-error"{% endif %}>{{ body }}</textarea>
-    </slath-editor>
-    {%- if let Some(e) = self.error("body") %}
-    <p id="body-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="button-row"><button type="submit" class="button button-primary">Save</button> <a class="button button-quiet" href="{{ back }}">Cancel</a></div>
+  {%- let body_label %}{% if title.is_some() %}Description{% else %}Comment{% endif %}{% endlet %}
+  {%- call f::field("body", body_label, "", self.error("body").unwrap_or_default(), title.is_some()) %}
+  <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
+  <textarea id="body" name="body" rows="12" autocomplete="off"{% call f::described("body", "", self.error("body").unwrap_or_default()) %}{% endcall %}>{{ body }}</textarea>
+  </slath-editor>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save</button><a class="button button-quiet" href="{{ back }}">Cancel</a>{% endcall %}
 </form>
+</div>
 </div>
 {% endblock %}

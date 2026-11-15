@@ -1338,9 +1338,6 @@ main > .repo-context {
 .issue-heading h1 {
   margin: 0;
 }
-.narrow-wide {
-  max-width: 48rem;
-}
 .form-wide {
   max-width: 48rem;
 }
@@ -1503,9 +1500,6 @@ main > .repo-context {
 }
 .timeline-event a {
   overflow-wrap: anywhere;
-}
-.issue-state-form {
-  margin-block-start: var(--space-4);
 }
 
 /* Merge requests */

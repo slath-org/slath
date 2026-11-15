@@ -806,10 +806,13 @@ fn conf_auth_06_bots_are_marked_wherever_they_appear() {
     let badge = "<span class=\"badge\">Bot</span>";
     let page = s.client().get("/alice/app/issues/1").body;
     assert!(
-        page.contains(&format!("<strong>alice-triage</strong> {badge}")),
+        page.contains(&format!("<bdi>alice-triage</bdi></a> {badge}")),
         "{page}"
     );
-    assert!(!page.contains(&format!("alice</a> {badge}")), "{page}");
+    assert!(
+        !page.contains(&format!("<bdi>alice</bdi></a> {badge}")),
+        "{page}"
+    );
     let profile = s.client().get("/alice-ci").body;
     assert!(profile.contains(badge), "{profile}");
     assert!(

@@ -52,6 +52,10 @@
 .page-form {
   max-width: var(--measure-narrow);
 }
+/* A form page whose form holds long text or the Markdown editor. */
+.page-form-wide {
+  max-width: var(--measure-text);
+}
 
 /* Page heading: the title, an optional state line under it, and the
    actions on the title's row (wrapping below it when narrow). */
@@ -172,4 +176,52 @@
   .frame {
     border: var(--border-width) solid CanvasText;
   }
+}
+
+/* Detail: a detail page's main column and, where the page is at least
+   56 rem wide (with the side menu open or not), the details column. */
+.detail {
+  display: grid;
+  gap: var(--gap-sections);
+  min-width: 0;
+}
+@container page (min-width: 56rem) {
+  .detail {
+    grid-template-columns: minmax(0, 1fr) var(--details-width);
+  }
+}
+.detail > * {
+  margin-block: 0;
+}
+
+/* The details column: one section per property (a details heading, its
+   value, and the form that changes it), separated by lines. */
+.details-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-items);
+  min-width: 0;
+}
+.details-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inline);
+  padding-block-end: var(--gap-items);
+  border-block-end: var(--border-width) solid var(--border);
+}
+.details-section > * {
+  margin-block: 0;
+}
+/* The details heading: a section heading at the body size, above the
+   column's 14 px field labels. */
+.details-heading {
+  font-size: var(--text-base);
+  line-height: var(--leading-heading);
+}
+.details-column label,
+.details-column legend {
+  font-size: var(--text-sm);
+}
+.details-column :is(input:not([type="checkbox"], [type="radio"]), select) {
+  inline-size: 100%;
 }
