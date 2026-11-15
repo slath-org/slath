@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.oid AS \"oid!\", n.name::text AS \"name!\"\n           FROM bot_commits b\n           JOIN repositories r ON r.fork_network_id = b.network_id\n           JOIN users u ON u.id = b.bot_id\n           JOIN namespaces n ON n.id = u.namespace_id\n           WHERE r.id = $1 AND b.oid = ANY($2::text[]) AND u.state <> 'deleted'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "oid!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bot_commits",
+            "name": "oid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "6c04c4040558bfc1dd7b274759b83f88613078dd294bb86fe6ac480b26ef028f"
+}

@@ -504,8 +504,56 @@ impl Services {
         }
         if !v.denied.is_empty() {
             v.messages.push("slath: push rejected".to_owned());
+        } else {
+            self.record_bot_commits(grant, updates, quarantine).await;
         }
         v
+    }
+
+    /// Records the commits a bot's accepted push brings, so pages show the
+    /// bot as their committer (and author, unless a person's address is
+    /// written there). Failures are logged: attribution never blocks a push.
+    async fn record_bot_commits(
+        &self,
+        grant: &PushGrant,
+        updates: &[RefUpdate],
+        quarantine: &Quarantine,
+    ) {
+        let Subject::User {
+            id,
+            kind: slath_core::authz::UserKind::Bot,
+            ..
+        } = &grant.subject
+        else {
+            return;
+        };
+        let tips: Vec<slath_git::ObjectId> = updates
+            .iter()
+            .filter(|u| !is_zero(&u.new))
+            .filter_map(|u| slath_git::ObjectId::parse(&u.new).ok())
+            .collect();
+        let q = quarantine
+            .object_directory
+            .as_deref()
+            .map(std::path::Path::new);
+        let result = async {
+            let commits = slath_git::scan::new_commits(
+                &self.runner,
+                &self.repo_path(grant.repo_id),
+                q,
+                &tips,
+            )
+            .await
+            .map_err(ServiceError::internal)?;
+            let oids: Vec<String> = commits.iter().map(|c| c.as_str().to_owned()).collect();
+            if !oids.is_empty() {
+                slath_db::bot_commits::insert(&self.pool, grant.repo_id, *id, &oids).await?;
+            }
+            Ok::<_, ServiceError>(())
+        };
+        if let Err(e) = result.await {
+            tracing::warn!(error = %e, repo = %grant.repo_id, "recording a bot's commits failed");
+        }
     }
 
     /// Scans what the push adds; in `block` mode, a block-rule finding or a

@@ -397,14 +397,14 @@ pub async fn set_pushed_tool(
 }
 
 /// The accounts whose confirmed address (primary or another) is one of
-/// `emails`: (address in lower case, account name). Deleted accounts never
-/// match.
+/// `emails`: (address in lower case, account name, whether it's a bot).
+/// Deleted accounts never match.
 pub async fn names_by_confirmed_email(
     exec: impl PgExecutor<'_>,
     emails: &[String],
-) -> Result<Vec<(String, String)>, DbError> {
+) -> Result<Vec<(String, String, bool)>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT lower(e.email::text) AS "email!", n.name::text AS "name!"
+        r#"SELECT lower(e.email::text) AS "email!", n.name::text AS "name!", u.kind = 'bot' AS "bot!"
            FROM (SELECT id AS user_id, email FROM users WHERE email_verified
                  UNION ALL
                  SELECT user_id, email FROM user_emails WHERE verified) e
@@ -415,22 +415,22 @@ pub async fn names_by_confirmed_email(
     )
     .fetch_all(exec)
     .await?;
-    Ok(rows.into_iter().map(|r| (r.email, r.name)).collect())
+    Ok(rows.into_iter().map(|r| (r.email, r.name, r.bot)).collect())
 }
 
 /// Of `names` (lower case), the ones that are accounts that aren't
-/// deleted, as each account spells its name.
+/// deleted, as each account spells its name, and whether it's a bot.
 pub async fn existing_names(
     exec: impl PgExecutor<'_>,
     names: &[String],
-) -> Result<Vec<String>, DbError> {
+) -> Result<Vec<(String, bool)>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT n.name::text AS "name!"
+        r#"SELECT n.name::text AS "name!", u.kind = 'bot' AS "bot!"
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            WHERE u.state <> 'deleted' AND lower(n.name::text) = ANY($1::text[])"#,
         names
     )
     .fetch_all(exec)
     .await?;
-    Ok(rows.into_iter().map(|r| r.name).collect())
+    Ok(rows.into_iter().map(|r| (r.name, r.bot)).collect())
 }

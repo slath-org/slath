@@ -486,3 +486,107 @@ fn commit_authors_show_as_accounts_by_confirmed_address() {
         "{commit}"
     );
 }
+
+/// Commits a bot's push brings show the bot as their committer, and as
+/// their author unless a person's confirmed address is written there; the
+/// same commits pushed by a person show as written.
+#[test]
+fn commits_a_bot_pushes_show_the_bot() {
+    let s = TestServer::start_full(&[DEMO], "");
+    s.db.execute("UPDATE users SET email = 'alice@example.org', email_verified = true WHERE namespace_id = (SELECT id FROM namespaces WHERE name = 'alice')");
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alice-agent",
+            "--token-scopes",
+            "repo:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let bot = serde_json::from_str::<serde_json::Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut a = alice(&s);
+    let admin = slath_tests::http::create_token(&mut a, "alice", &["repo:write"]);
+    let r = s.client().api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/alice-agent",
+        Some(&admin),
+        Some(&serde_json::json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{} {}", r.status, r.body);
+
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    git.ok(w, &["clone", "-q", &s.url(&DEMO), "."]);
+    let commit = |i: usize, name: &str, email: &str| {
+        std::fs::write(w.join("bot.txt"), format!("{i}\n")).unwrap();
+        git.ok(w, &["add", "bot.txt"]);
+        git.ok(
+            w,
+            &[
+                "-c",
+                &format!("user.name={name}"),
+                "-c",
+                &format!("user.email={email}"),
+                "commit",
+                "-q",
+                "-m",
+                &format!("Bot test {i}"),
+            ],
+        );
+        git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned()
+    };
+    // The bot pushes a person's commit and one of its own.
+    let persons = commit(0, "Alice Example", "alice@example.org");
+    let own = commit(1, "Agent", "agent@example.org");
+    let bot_url = format!("http://alice-agent:{bot}@{}/alice/demo.git", s.addr);
+    git.ok(w, &["push", "-q", &bot_url, "HEAD:main"]);
+    // A person pushes a commit that claims the bot's name.
+    let claimed = commit(2, "alice-agent", "agent@example.org");
+    git.ok(w, &["push", "-q", &s.url(&DEMO), "HEAD:main"]);
+
+    let page = a.get("/alice/demo/commits").body;
+    let row = |oid: &str| -> String {
+        page.split("class=\"item-row\"")
+            .skip(1)
+            .find(|r| r.contains(&oid[..12]))
+            .unwrap_or_else(|| panic!("no row for {oid} in {page}"))
+            .to_owned()
+    };
+    assert!(
+        row(&own).contains("<a class=\"account\" href=\"/alice-agent\""),
+        "{}",
+        row(&own)
+    );
+    assert!(
+        row(&persons).contains("<a class=\"account\" href=\"/alice\""),
+        "{}",
+        row(&persons)
+    );
+    assert!(row(&claimed).contains("git-identity"), "{}", row(&claimed));
+    assert!(
+        !row(&claimed).contains("href=\"/alice-agent\""),
+        "{}",
+        row(&claimed)
+    );
+    // The person's commit was committed by the bot.
+    let c = a.get(&format!("/alice/demo/commit/{persons}")).body;
+    assert!(
+        c.contains("committed by <a class=\"account\" href=\"/alice-agent\""),
+        "{c}"
+    );
+    let blame = a.get("/alice/demo/blame/main/bot.txt").body;
+    assert!(blame.contains("git-identity"), "{blame}");
+}

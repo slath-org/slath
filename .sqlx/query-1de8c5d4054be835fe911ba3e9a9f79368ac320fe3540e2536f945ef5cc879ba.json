@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text AS \"name!\", u.kind = 'bot' AS \"bot!\"\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           WHERE u.state <> 'deleted' AND lower(n.name::text) = ANY($1::text[])",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "bot!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "1de8c5d4054be835fe911ba3e9a9f79368ac320fe3540e2536f945ef5cc879ba"
+}

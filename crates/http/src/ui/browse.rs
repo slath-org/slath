@@ -19,6 +19,7 @@ use slath_core::authz::{Action, Subject, Visibility};
 use slath_git::ObjectReader;
 use slath_git::browse::{self, PathObject, RefKind, RefPath};
 use slath_git::object::{Blob, EntryKind, ObjectId, TreeEntry};
+use slath_service::git_identities::CommitIdent;
 use slath_service::repos::RepoAccess;
 
 use super::repos::{RepoHeader, clone_urls};
@@ -671,10 +672,24 @@ async fn blame(
         Ok(Ok(h)) => h,
         _ => slath_markup::highlight("", &text),
     };
-    let accounts = state
+    let blamed: Vec<(&slath_git::ObjectId, &browse::BlameCommit)> = blame.commits.iter().collect();
+    let idents: Vec<CommitIdent<'_>> = blamed
+        .iter()
+        .map(|(oid, c)| CommitIdent {
+            oid: oid.as_str(),
+            author_email: &c.author_email,
+            committer_email: "",
+        })
+        .collect();
+    let people = state
         .services
-        .accounts_for_emails(blame.commits.values().map(|c| c.author_email.as_str()))
+        .commit_people(&subject, a.repo.id, &idents)
         .await?;
+    let accounts: std::collections::HashMap<String, String> = blamed
+        .iter()
+        .zip(people)
+        .map(|((oid, _), p)| (oid.as_str().to_owned(), p.author))
+        .collect();
     let mut htmls = h.lines.into_iter();
     let n = blame.lines.len();
     let mut i = 0;
@@ -685,10 +700,7 @@ async fn blame(
             .take_while(|l| l.commit == commit)
             .count();
         let info = blame.commits.get(&commit).cloned().unwrap_or_default();
-        let author_account = accounts
-            .get(&info.author_email.to_lowercase())
-            .cloned()
-            .unwrap_or_default();
+        let author_account = accounts.get(commit.as_str()).cloned().unwrap_or_default();
         for j in 0..span {
             let html = htmls.next().unwrap_or_default();
             page.rows.push(BlameRow {
@@ -889,10 +901,19 @@ async fn commits_for(
     .map_err(|e| git_err(&e))?;
     let more = entries.len() > PER_PAGE;
     entries.truncate(PER_PAGE);
-    let accounts = state
+    let idents: Vec<CommitIdent<'_>> = entries
+        .iter()
+        .map(|e| CommitIdent {
+            oid: e.oid.as_str(),
+            author_email: &e.author_email,
+            committer_email: "",
+        })
+        .collect();
+    let mut people = state
         .services
-        .accounts_for_emails(entries.iter().map(|e| e.author_email.as_str()))
-        .await?;
+        .commit_people(subject, a.repo.id, &idents)
+        .await?
+        .into_iter();
     let base = link(a, "commits", &r, r.path.as_bytes());
     Ok(render(&CommitsPage {
         header: RepoHeader::load(state, a, subject, "commits").await,
@@ -905,10 +926,7 @@ async fn commits_for(
                 short: e.oid.as_str()[..12].to_owned(),
                 oid: e.oid.as_str().to_owned(),
                 subject: slath_markup::reveal_bidi(&e.subject).into_owned(),
-                author_account: accounts
-                    .get(&e.author_email.to_lowercase())
-                    .cloned()
-                    .unwrap_or_default(),
+                author_account: people.next().unwrap_or_default().author,
                 author: e.author_name,
                 time: time(e.author_time),
             })
@@ -1068,11 +1086,20 @@ async fn commit(
         .map_or((message.as_str(), ""), |(s, b)| (s, b));
     let (author, author_email, author_t) = ident(c.header(b"author").unwrap_or_default());
     let (committer, committer_email, _) = ident(c.header(b"committer").unwrap_or_default());
-    let accounts = state
+    let people = state
         .services
-        .accounts_for_emails([author_email.as_str(), committer_email.as_str()])
-        .await?;
-    let account = |e: &str| accounts.get(&e.to_lowercase()).cloned().unwrap_or_default();
+        .commit_people(
+            &subject,
+            a.repo.id,
+            &[CommitIdent {
+                oid: oid.as_str(),
+                author_email: &author_email,
+                committer_email: &committer_email,
+            }],
+        )
+        .await?
+        .pop()
+        .unwrap_or_default();
     let statuses = state
         .services
         .commit_statuses(&subject, (&ns, &repo), oid.as_str())
@@ -1086,8 +1113,8 @@ async fn commit(
         short: oid.as_str()[..12].to_owned(),
         subject: slath_markup::reveal_bidi(subject_line).into_owned(),
         body: slath_markup::reveal_bidi(body.trim()).into_owned(),
-        author_account: account(&author_email),
-        committer_account: account(&committer_email),
+        author_account: people.author,
+        committer_account: people.committer,
         author,
         author_time: time(author_t),
         committer,

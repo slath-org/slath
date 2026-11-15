@@ -138,6 +138,31 @@ pub async fn new_content(
     })
 }
 
+/// The commits a push adds (`tips --not --all`), oldest first, with its
+/// objects in `quarantine` (pre-receive) or already in the repository.
+pub async fn new_commits(
+    runner: &Runner,
+    git_dir: &Path,
+    quarantine: Option<&Path>,
+    tips: &[ObjectId],
+) -> Result<Vec<ObjectId>, GitError> {
+    if tips.is_empty() {
+        return Ok(Vec::new());
+    }
+    let i = runner.repo(git_dir);
+    let i = match quarantine {
+        Some(q) => i.quarantine(git_dir, q)?,
+        None => i,
+    };
+    let out = i
+        .args(["rev-list", "--reverse"])
+        .args(tips.iter().map(ObjectId::as_str))
+        .args(["--not", "--all"])
+        .run()
+        .await?;
+    oids(&out.stdout)
+}
+
 /// The paths each commit of a push changes, for the commits the push adds
 /// (`tips --not --all`), oldest first. A root commit changes every path it
 /// has; a merge commit only the paths that differ from every parent; a

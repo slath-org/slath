@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO bot_commits (network_id, oid, bot_id)\n         SELECT r.fork_network_id, o, $2 FROM repositories r, unnest($3::text[]) AS o\n         WHERE r.id = $1\n         ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35f997c96dc2e9298d6af1a1fd362d171f826e498f5347f2f236c86e0f31d421"
+}
