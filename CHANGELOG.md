@@ -225,6 +225,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A merge request's pages share one heading: title, state line, Check out, and a More actions menu; the commits tab lists each commit as a row with its change.
 - The compare page puts choosing branches, the new merge request, the commits, and the changes in sections; reviewers, assignees, and labels take chips.
 - Commit authors on the compare page and a merge request's commits tab show as their accounts, like the repository's commit list.
+- A reply can resolve its thread: at once, or with a pending reply when the review is submitted; the API takes `resolve: true` on a thread comment.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

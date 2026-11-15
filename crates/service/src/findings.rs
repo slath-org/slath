@@ -105,7 +105,12 @@ impl Services {
                         )
                         .await?;
                         slath_db::mr_threads::insert_comment(
-                            &mut *tx, thread, r.reporter, &a.message, false, r.origin,
+                            &mut *tx,
+                            thread,
+                            r.reporter,
+                            &a.message,
+                            (false, false),
+                            r.origin,
                         )
                         .await?;
                         db::insert(

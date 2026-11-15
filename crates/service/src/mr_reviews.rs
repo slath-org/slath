@@ -292,6 +292,9 @@ impl Services {
             None
         };
         let origin = self.origin_of(subject, &a.repo).await?;
+        // Pending replies may resolve their threads: those the reviewer
+        // may still resolve now, and that are still open.
+        let threads = self.mr_threads(subject, &a, &m).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = db::insert(
             &mut *tx,
@@ -306,8 +309,17 @@ impl Services {
         if let Some((total, viewed)) = coverage {
             db::set_coverage(&mut tx, id, total, &viewed).await?;
         }
-        // The review publishes the reviewer's pending comments with it.
-        slath_db::mr_threads::publish_pending(&mut *tx, m.id, *me).await?;
+        // The review publishes the reviewer's pending comments with it,
+        // and resolves the threads they say to.
+        let published = slath_db::mr_threads::publish_pending(&mut *tx, m.id, *me).await?;
+        for t in threads
+            .iter()
+            .filter(|t| published.resolve.contains(&t.thread.id))
+        {
+            if t.thread.resolved_at.is_none() && Self::may_resolve(subject, &a, &m, t).is_ok() {
+                Self::resolve_in(&mut tx, &a, &m, t, *me).await?;
+            }
+        }
         db::mark_reviewed(&mut *tx, m.id, *me).await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;

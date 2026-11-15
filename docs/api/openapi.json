@@ -7642,7 +7642,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Answers in a thread.",
+        "summary": "Answers in a thread; with `resolve`, also resolves it (a bot can't\nresolve a thread a person started: 409).",
         "operationId": "reply",
         "parameters": [
           {
@@ -7718,6 +7718,15 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
             "content": {
               "application/json": {
                 "schema": {
@@ -13427,6 +13436,10 @@
           },
           "pending": {
             "type": "boolean"
+          },
+          "resolve": {
+            "type": "boolean",
+            "description": "Also resolve the thread: now, or with a pending reply when its\nreview is submitted. Needs the right to resolve it."
           }
         }
       },

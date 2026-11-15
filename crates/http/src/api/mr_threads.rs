@@ -253,11 +253,16 @@ pub struct ReplyBody {
     pub body: String,
     #[serde(default)]
     pub pending: bool,
+    /// Also resolve the thread: now, or with a pending reply when its
+    /// review is submitted. Needs the right to resolve it.
+    #[serde(default)]
+    pub resolve: bool,
 }
 
-/// Answers in a thread.
+/// Answers in a thread; with `resolve`, also resolves it (a bot can't
+/// resolve a thread a person started: 409).
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads/{id}/comments", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("id" = String, Path)), request_body = ReplyBody,
-    responses((status = 201, body = ThreadCommentBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+    responses((status = 201, body = ThreadCommentBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn reply(
     State(state): State<AppState>,
     ApiUser(s): ApiUser,
@@ -267,7 +272,13 @@ pub async fn reply(
     let id = id.parse().map_err(|_| AppError::not_found())?;
     let c = state
         .services
-        .reply(&s, (&ns, &repo, number), id, &b.body, b.pending)
+        .reply(
+            &s,
+            (&ns, &repo, number),
+            id,
+            &b.body,
+            (b.pending, b.resolve),
+        )
         .await?;
     Ok((
         StatusCode::CREATED,

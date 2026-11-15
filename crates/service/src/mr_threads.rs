@@ -147,8 +147,15 @@ impl Services {
         let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         let id = db::insert_thread(&mut *tx, m.id, seq, &anchor, author).await?;
-        let comment =
-            db::insert_comment(&mut *tx, id, author, t.body.trim_end(), t.pending, origin).await?;
+        let comment = db::insert_comment(
+            &mut *tx,
+            id,
+            author,
+            t.body.trim_end(),
+            (t.pending, false),
+            origin,
+        )
+        .await?;
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         if !t.pending {
@@ -252,14 +259,17 @@ impl Services {
         })
     }
 
-    /// Adds a comment to a thread.
+    /// Adds a comment to a thread. With `resolve`, the reply also resolves
+    /// the thread (for whoever may resolve it): a reply sent now resolves
+    /// it in the same transaction, a pending one when its review is
+    /// submitted.
     pub async fn reply(
         &self,
         subject: &Subject,
         (ns, repo, number): (&str, &str, i32),
         thread: uuid::Uuid,
         body: &str,
-        pending: bool,
+        (pending, resolve): (bool, bool),
     ) -> Result<ThreadComment> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
         if !a.can(subject, Action::MrComment) {
@@ -267,7 +277,7 @@ impl Services {
         }
         self.require_confirmed(subject).await?;
         let author = me(subject)?;
-        self.visible_thread(subject, &a, &m, thread).await?;
+        let t = self.visible_thread(subject, &a, &m, thread).await?;
         if body.trim().is_empty() {
             return Err(ServiceError::invalid(
                 "body",
@@ -276,24 +286,85 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
+        // Resolving needs the same right as the Resolve button; an
+        // already resolved thread stays as it is.
+        let resolve = resolve && t.thread.resolved_at.is_none();
+        if resolve {
+            Self::may_resolve(subject, &a, &m, &t)?;
+        }
         let origin = self.origin_of(subject, &a.repo).await?;
-        let id = db::insert_comment(&self.pool, thread, author, body.trim_end(), pending, origin)
-            .await?;
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        let id = db::insert_comment(
+            &mut *tx,
+            thread,
+            author,
+            body.trim_end(),
+            (pending, resolve),
+            origin,
+        )
+        .await?;
         // An answer by anyone but whoever marked it addressed reopens the
         // question (pending ones when their review is submitted).
         if !pending {
-            db::clear_addressed_unless(&self.pool, thread, author).await?;
+            db::clear_addressed_unless(&mut *tx, thread, author).await?;
+            if resolve {
+                Self::resolve_in(&mut tx, &a, &m, &t, author).await?;
+            }
         }
-        slath_db::merge_requests::touch(&self.pool, m.id).await?;
+        slath_db::merge_requests::touch(&mut *tx, m.id).await?;
+        tx.commit().await.map_err(ServiceError::internal)?;
         if !pending {
             self.notify_mr(Some(author), &m, MrActivity::ThreadComment(id))
                 .await;
+            if resolve {
+                self.queue_auto_merge(m.id).await;
+            }
         }
         db::comments(&self.pool, m.id)
             .await?
             .into_iter()
             .find(|c| c.id == id)
             .ok_or(ServiceError::NotFound)
+    }
+
+    /// Whether `subject` may resolve `t`: as for the Resolve button, and a
+    /// bot only threads bots started.
+    pub(crate) fn may_resolve(
+        subject: &Subject,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        t: &ThreadView,
+    ) -> Result<UserId> {
+        let user = Self::may_settle(subject, a, m, t)?;
+        if is_bot(subject) && !t.thread.author_bot {
+            return Err(ServiceError::Conflict(
+                "A person started this thread, so a person resolves it. Mark it as addressed instead."
+                    .to_owned(),
+            ));
+        }
+        Ok(user)
+    }
+
+    /// Resolves `t` for `user` with its timeline event, inside `tx`.
+    pub(crate) async fn resolve_in(
+        tx: &mut sqlx::PgConnection,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        t: &ThreadView,
+        user: UserId,
+    ) -> Result<()> {
+        db::set_resolved(&mut *tx, t.thread.id, Some(user)).await?;
+        slath_db::issues::insert_event(
+            &mut *tx,
+            a.repo.id,
+            "merge_request",
+            *m.id.as_uuid(),
+            Some(user),
+            "thread_resolved",
+            &serde_json::json!({"thread": t.thread.id, "path": t.thread.anchor.path}),
+        )
+        .await?;
+        Ok(())
     }
 
     async fn visible_thread(
@@ -341,13 +412,7 @@ impl Services {
     ) -> Result<()> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
         let t = self.visible_thread(subject, &a, &m, thread).await?;
-        let user = Self::may_settle(subject, &a, &m, &t)?;
-        if is_bot(subject) && !t.thread.author_bot {
-            return Err(ServiceError::Conflict(
-                "A person started this thread, so a person resolves it. Mark it as addressed instead."
-                    .to_owned(),
-            ));
-        }
+        let user = Self::may_resolve(subject, &a, &m, &t)?;
         if t.thread.resolved_at.is_some() == resolved {
             return Ok(());
         }

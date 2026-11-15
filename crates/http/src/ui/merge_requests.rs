@@ -3390,6 +3390,9 @@ struct ReplyForm {
     /// `pending` adds it to the review instead of sending it now.
     #[serde(default)]
     mode: String,
+    /// The reply box's Resolve thread checkbox.
+    #[serde(default)]
+    resolve: Option<String>,
     /// Where to go afterwards (a page of this merge request).
     #[serde(default)]
     back: String,
@@ -3422,7 +3425,7 @@ async fn thread_reply(
             (&ns, &repo, n),
             id,
             &f.body,
-            f.mode == "pending",
+            (f.mode == "pending", f.resolve.is_some()),
         )
         .await
     {

@@ -320,8 +320,10 @@ wrote (**Mine**).
 
 The API has `GET …/merge-requests/{n}/threads` (with each thread's current
 position; `?resolved=false` lists only the unresolved ones), `POST …/threads` (`path`, `side`, `line_start`, `line_end`,
-`pending`), `POST …/threads/{id}/comments`, and `PATCH …/threads/{id}`
-with `{"resolved": true}`. `PUT …/threads/{id}/addressed` marks a thread
+`pending`), `POST …/threads/{id}/comments` (`body`, `pending`, and
+`resolve`, which also resolves the thread: at once, or with a pending
+reply when your review is submitted), and `PATCH …/threads/{id}` with
+`{"resolved": true}`. `PUT …/threads/{id}/addressed` marks a thread
 addressed (`DELETE` clears it), for whoever may resolve it; the thread
 JSON names `addressed_by` and `addressed_at`.
 

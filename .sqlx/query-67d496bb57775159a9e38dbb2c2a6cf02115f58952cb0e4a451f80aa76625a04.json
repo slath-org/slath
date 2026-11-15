@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT c.id, c.thread_id, c.author_id, n.name::text AS author,\n                  (u.kind = 'bot') IS TRUE AS \"author_bot!\", c.body, c.origin, c.pending, c.created_at,\n                  c.edited_at, c.deleted_at\n           FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id\n           LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE t.mr_id = $1 ORDER BY c.created_at, c.id",
+  "query": "SELECT c.id, c.thread_id, c.author_id, n.name::text AS author,\n                  (u.kind = 'bot') IS TRUE AS \"author_bot!\", c.body, c.origin, c.pending, c.resolves, c.created_at,\n                  c.edited_at, c.deleted_at\n           FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id\n           LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           WHERE t.mr_id = $1 ORDER BY c.created_at, c.id",
   "describe": {
     "columns": [
       {
@@ -83,6 +83,17 @@
       },
       {
         "ordinal": 8,
+        "name": "resolves",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "mr_thread_comments",
+            "name": "resolves"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -93,7 +104,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "edited_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -104,7 +115,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "deleted_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -130,9 +141,10 @@
       false,
       false,
       false,
+      false,
       true,
       true
     ]
   },
-  "hash": "ce1052be09a7265a6add53f13e909590e1e1c49ed30cd46c3481ac29f8e1ec70"
+  "hash": "67d496bb57775159a9e38dbb2c2a6cf02115f58952cb0e4a451f80aa76625a04"
 }

@@ -395,3 +395,118 @@ fn line_comments_without_javascript_and_viewed_files() {
     assert!(!page.contains("You marked this file viewed"), "{page}");
     assert!(page.contains("Mark viewed"));
 }
+
+/// A reply can resolve its thread: sent now, in the same step; added to a
+/// review, when the review is submitted, by the reviewer. Only those who
+/// may resolve the thread can, and a bot never resolves a person's.
+#[test]
+fn replies_resolve_their_threads_now_or_with_the_review() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.create_user("carol", PASSWORD, false);
+    let (alice, bob, carol) = (token(&s, "alice"), token(&s, "bob"), token(&s, "carol"));
+    for (who, role) in [("bob", "write"), ("carol", "read")] {
+        let r = api(
+            &s,
+            &alice,
+            "PUT",
+            &format!("/collaborators/{who}"),
+            Some(json!({"role": role})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = s.url(&DEMO);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("f.txt"), lines(None)).unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "-c", "topic"]);
+    std::fs::write(w.join("f.txt"), lines(Some(3))).unwrap();
+    git.ok(w, &["commit", "-qam", "Change"]);
+    git.ok(w, &["push", "-q", &url, "topic"]);
+    let n = api(
+        &s,
+        &alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "T"})),
+    )
+    .json()["number"]
+        .as_i64()
+        .unwrap();
+    wait(&s, &alice, n, 1);
+    let new_thread = |body: &str| {
+        let r = api(
+            &s,
+            &bob,
+            "POST",
+            &format!("/merge-requests/{n}/threads"),
+            Some(json!({"body": body})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        r.json()["id"].as_str().unwrap().to_owned()
+    };
+    let reply = |token: &str, id: &str, body: Value| {
+        api(
+            &s,
+            token,
+            "POST",
+            &format!("/merge-requests/{n}/threads/{id}/comments"),
+            Some(body),
+        )
+    };
+    let resolved = |id: &str| {
+        let list = api(
+            &s,
+            &alice,
+            "GET",
+            &format!("/merge-requests/{n}/threads"),
+            None,
+        )
+        .json();
+        let t = thread(&list, id).clone();
+        (
+            t["resolved"].as_bool().unwrap(),
+            t["resolved_by"].as_str().map(str::to_owned),
+        )
+    };
+    let now = new_thread("Rename it");
+    let later = new_thread("And the other one");
+
+    // Someone who may not resolve it can reply, but not resolve.
+    let r = reply(&carol, &now, json!({"body": "Agreed", "resolve": true}));
+    assert_eq!(r.status, 403, "{}", r.body);
+    assert_eq!(resolved(&now), (false, None));
+
+    // Sent now: the reply and the resolution land together.
+    let r = reply(&alice, &now, json!({"body": "Renamed.", "resolve": true}));
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(resolved(&now), (true, Some("alice".to_owned())));
+
+    // Pending: resolved only when the review is submitted, by the reviewer.
+    let r = reply(
+        &bob,
+        &later,
+        json!({"body": "Fixed it myself.", "pending": true, "resolve": true}),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(resolved(&later), (false, None));
+    let r = api(
+        &s,
+        &bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "comment"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(resolved(&later), (true, Some("bob".to_owned())));
+    // Both are in the history, by whoever resolved them.
+    assert_eq!(
+        s.db.query_one("SELECT count(*)::text FROM timeline_events WHERE kind = 'thread_resolved'"),
+        "2"
+    );
+}

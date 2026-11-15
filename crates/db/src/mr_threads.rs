@@ -56,6 +56,9 @@ pub struct ThreadComment {
     /// Who wrote the body (origin labels).
     pub origin: Origin,
     pub pending: bool,
+    /// A pending reply that resolves its thread when its review is
+    /// submitted.
+    pub resolves: bool,
     pub created_at: time::OffsetDateTime,
     pub edited_at: Option<time::OffsetDateTime>,
     pub deleted_at: Option<time::OffsetDateTime>,
@@ -91,23 +94,26 @@ pub async fn insert_thread(
     Ok(id)
 }
 
+/// Adds a comment; `resolves` (pending comments only) resolves its thread
+/// when the review is submitted.
 pub async fn insert_comment(
     exec: impl PgExecutor<'_>,
     thread: uuid::Uuid,
     author: UserId,
     body: &str,
-    pending: bool,
+    (pending, resolves): (bool, bool),
     origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO mr_thread_comments (id, thread_id, author_id, body, pending, origin)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO mr_thread_comments (id, thread_id, author_id, body, pending, resolves, origin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
         id,
         thread,
         author.as_uuid(),
         body,
         pending,
+        pending && resolves,
         origin.as_str()
     )
     .execute(exec)
@@ -185,7 +191,7 @@ pub async fn comments(
 ) -> Result<Vec<ThreadComment>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT c.id, c.thread_id, c.author_id, n.name::text AS author,
-                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.origin, c.pending, c.created_at,
+                  (u.kind = 'bot') IS TRUE AS "author_bot!", c.body, c.origin, c.pending, c.resolves, c.created_at,
                   c.edited_at, c.deleted_at
            FROM mr_thread_comments c JOIN mr_threads t ON t.id = c.thread_id
            LEFT JOIN users u ON u.id = c.author_id AND u.state <> 'deleted'
@@ -206,6 +212,7 @@ pub async fn comments(
             body: r.body,
             origin: crate::origin(&r.origin),
             pending: r.pending,
+            resolves: r.resolves,
             created_at: r.created_at,
             edited_at: r.edited_at,
             deleted_at: r.deleted_at,
@@ -219,24 +226,43 @@ pub async fn publish_pending(
     exec: impl PgExecutor<'_>,
     mr: MergeRequestId,
     user: UserId,
-) -> Result<u64, DbError> {
+) -> Result<Published, DbError> {
     // A reply by anyone but whoever marked a thread addressed clears it.
-    let done = sqlx::query!(
-        "WITH published AS (
-             UPDATE mr_thread_comments c SET pending = false, created_at = now()
-             FROM mr_threads t
-             WHERE t.id = c.thread_id AND t.mr_id = $1 AND c.author_id = $2 AND c.pending
-             RETURNING c.thread_id),
-         cleared AS (
-             UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL
-             WHERE id IN (SELECT thread_id FROM published) AND addressed_by IS DISTINCT FROM $2)
-         SELECT count(*) AS \"n!\" FROM published",
+    let rows = sqlx::query!(
+        r#"WITH published AS (
+               UPDATE mr_thread_comments c SET pending = false, resolves = false, created_at = now()
+               FROM mr_threads t, mr_thread_comments old
+               WHERE t.id = c.thread_id AND t.mr_id = $1 AND c.author_id = $2 AND c.pending
+                 AND old.id = c.id
+               RETURNING c.thread_id, old.resolves),
+           cleared AS (
+               UPDATE mr_threads SET addressed_by = NULL, addressed_at = NULL
+               WHERE id IN (SELECT thread_id FROM published) AND addressed_by IS DISTINCT FROM $2)
+           SELECT thread_id AS "thread_id!", resolves AS "resolves!" FROM published"#,
         mr.as_uuid(),
         user.as_uuid()
     )
-    .fetch_one(exec)
+    .fetch_all(exec)
     .await?;
-    Ok(u64::try_from(done.n).unwrap_or(0))
+    let mut resolve: Vec<uuid::Uuid> = rows
+        .iter()
+        .filter(|r| r.resolves)
+        .map(|r| r.thread_id)
+        .collect();
+    resolve.sort();
+    resolve.dedup();
+    Ok(Published {
+        comments: u64::try_from(rows.len()).unwrap_or(0),
+        resolve,
+    })
+}
+
+/// What submitting a review published.
+#[derive(Debug, Default)]
+pub struct Published {
+    pub comments: u64,
+    /// Threads whose published replies resolve them.
+    pub resolve: Vec<uuid::Uuid>,
 }
 
 /// Resolves (`Some(user)`) or reopens (`None`) a thread for a person; a
