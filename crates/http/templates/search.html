@@ -53,8 +53,9 @@
   {%- else %}
   <ul class="item-list">
     {%- for i in issues %}
+    {%- let state %}{% if i.open %}open{% else %}closed{% endif %}{% endlet %}
     <li class="item-row">
-      <span class="item-state item-state-{% if i.open %}open{% else %}closed{% endif %}">{% if i.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if i.open %}open{% else %}closed{% endif %}</span></span>
+      <span class="item-state item-state-{{ state }}">{% if i.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if i.open %}open{% else %}closed{% endif %}</span></span>
       <div class="item-main">
         <a class="item-title" href="{{ i.href }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
         <p class="item-meta text-secondary">{{ i.repo }}#{{ i.number }} · updated {% call c::time(i.updated) %}{% endcall %}</p>

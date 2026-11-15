@@ -682,7 +682,7 @@ fn conf_sec_08_intentional_secrets_one_step_allows_all_findings_of_a_push() {
     assert!(
         page.body.contains("Allow 10 findings")
             && page.body.contains(
-                "<strong>OpenSSH private key</strong> in tests/keys/key3.pem line 2 in commit "
+                "OpenSSH private key <span class=\"text-secondary\">in tests/keys/key3.pem line 2 in commit "
             ),
         "{}",
         page.body

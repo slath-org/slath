@@ -30,6 +30,7 @@
   }
   .table-records td,
   .table-records th[scope="row"] {
+    overflow-wrap: anywhere;
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     gap: var(--gap-inline);

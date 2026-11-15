@@ -229,6 +229,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A thread's reply box opens in place with Cancel, and its Resolve thread checkbox replaces the Resolve button while it's open.
 - In the conversation, every name shows the account's avatar, bots included: who pushed a revision, merged, reviewed, commented, or changed labels; Slath itself is named as such.
 - The merge box is one frame per step (update the branch, apply suggestions, merge when ready, merge), and the details column uses the same fields as issues.
+- The push protection pages list findings as rows and allowances as a table that stacks on phones, with who allowed each one.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

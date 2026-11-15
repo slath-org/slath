@@ -29,7 +29,7 @@ struct AllowanceView {
     rule: String,
     /// What the finding is ("OpenSSH private key").
     description: String,
-    by: String,
+    by: super::Who,
     reason: Option<String>,
     expires: Time,
 }
@@ -178,7 +178,7 @@ async fn allow_page(
                 .unwrap_or_else(|| state.services.rule_description(&x.rule)),
             fingerprint: x.fingerprint,
             rule: x.rule,
-            by: x.created_by.unwrap_or_else(|| "a deleted user".into()),
+            by: super::Who::account(x.created_by),
             reason: x.reason,
             expires: x.expires_at.into(),
         })
