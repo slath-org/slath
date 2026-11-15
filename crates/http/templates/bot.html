@@ -49,6 +49,21 @@
 </ul>
 {%- endif %}
 
+<section class="section" aria-labelledby="commits-heading">
+  <h2 id="commits-heading">Commits</h2>
+  <p>Commits {{ bot.name }} pushes show as the bot. So do commits with its no-reply address, wherever they're pushed from: set it as the email address of the agent or CI that commits as {{ bot.name }}.</p>
+  {%- call f::copy_value(ctx, "noreply-address", "No-reply address", noreply, "Copy the no-reply address") %}{% endcall %}
+  <div class="choice">
+    <fieldset class="choice-options">
+      <legend>Set it with</legend>
+      <div class="radio"><input id="commit-tool-git" type="radio" name="commit-tool" value="git" data-remember="commit-tool" checked><label for="commit-tool-git">Git</label></div>
+      <div class="radio"><input id="commit-tool-jj" type="radio" name="commit-tool" value="jj" data-remember="commit-tool"><label for="commit-tool-jj">jj</label></div>
+    </fieldset>
+    <div class="choice-panel">{% call f::copy_value(ctx, "noreply-git", "Git command", "git config user.email " ~ noreply, "Copy the Git command") %}{% endcall %}</div>
+    <div class="choice-panel">{% call f::copy_value(ctx, "noreply-jj", "jj command", "jj config set --repo user.email " ~ noreply, "Copy the jj command") %}{% endcall %}</div>
+  </div>
+</section>
+
 <h2>Profile</h2>
 <div class="profile-avatar">
   <img src="{{ avatar_url }}" alt="" width="64" height="64">

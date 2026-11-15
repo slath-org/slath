@@ -22,6 +22,14 @@ test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "Bot created." })).toBeVisible();
   await expectAccessible(page);
 
+  // Its no-reply address, and the command to set it, in Git or jj.
+  await expect(page.getByLabel("No-reply address")).toHaveValue(new RegExp(`^${bot}@users\\.noreply\\.`));
+  await expect(page.getByLabel("Git command")).toBeVisible();
+  await expect(page.getByLabel("jj command")).toBeHidden();
+  await tapOrClick(page, page.getByRole("radio", { name: "jj" }));
+  await expect(page.getByLabel("jj command")).toHaveValue(new RegExp(`^jj config set --repo user\\.email ${bot}@users\\.noreply\\.`));
+  await expect(page.getByLabel("Git command")).toBeHidden();
+
   // Its profile can be changed on its page.
   await page.getByLabel("Display name").fill("Release automation");
   await tapOrClick(page, page.getByRole("button", { name: "Save profile" }));

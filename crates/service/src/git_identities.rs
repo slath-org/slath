@@ -41,6 +41,17 @@ struct Owner {
 }
 
 impl Services {
+    /// The no-reply address of an account, `<name>@users.noreply.<host>`:
+    /// Slath writes it into the commits it makes for someone, and commits
+    /// with it show as the account wherever they come from.
+    #[must_use]
+    pub fn noreply_address(&self, name: &str) -> String {
+        format!(
+            "{name}@users.noreply.{}",
+            self.config.server.public_url.host()
+        )
+    }
+
     /// The accounts to show for each commit of a repository the subject
     /// can read, in order. A commit a bot's push brought shows the bot as
     /// its committer, and as its author unless the author address is a

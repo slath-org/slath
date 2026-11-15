@@ -275,6 +275,23 @@ timeline, commit statuses, member and collaborator lists, and the audit
 log. A bot's profile says who owns it. Comments by bots are also marked as
 claims: Slath shows what a bot says, not that it's true.
 
+### Commits by bots
+
+Commits a bot pushes show as the bot, with its avatar and badge: the bot
+is their committer, and their author too, unless the author address is a
+person's confirmed address (a bot that rebases someone's work keeps them
+as the author). Commits with the bot's **no-reply address**
+(`<bot>@users.noreply.<host>`) show as the bot wherever they're pushed
+from. The bot's page shows the address and the command that sets it for
+the agent or CI that commits as the bot:
+
+```sh
+git config user.email ci-bot@users.noreply.slath.example
+jj config set --repo user.email ci-bot@users.noreply.slath.example
+```
+
+Bots have no other email addresses.
+
 ## What a bot can't do
 
 - **Sign in.** A bot has no password, no session, no second factor, and

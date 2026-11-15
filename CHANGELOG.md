@@ -13,6 +13,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Accounts can have several email addresses, each confirmed by a link, and choose which one is primary under Settings → Email addresses.
 - Commits with any of an account's confirmed addresses show as that account; `slath admin add-email` confirms an address when email is off.
 - Commits a bot pushed show the bot as committer, and as author unless a person's address is written there.
+- A bot's page shows its no-reply address, with the Git and jj commands that make an agent's or CI's commits show as the bot.
 - Merge requests (first part): open them through the API from a branch, and each push to the branch records a new revision, fetchable at `refs/merge-requests/<n>/head`. Numbers are shared with issues.
 - Merge request pages: a list with state tabs and filters, a compare page that creates them (template, draft, reviewers, assignees, labels, milestone), and the conversation.
 - Merge requests show their commits and changes, each revision with a link to what changed since the previous one, and copy-paste checkout commands for Git and jj.

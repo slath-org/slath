@@ -589,4 +589,31 @@ fn commits_a_bot_pushes_show_the_bot() {
     );
     let blame = a.get("/alice/demo/blame/main/bot.txt").body;
     assert!(blame.contains("git-identity"), "{blame}");
+
+    // The bot's page gives its owner the no-reply address; commits with
+    // it show as the bot, whoever pushes them.
+    let noreply = "alice-agent@users.noreply.127.0.0.1";
+    let botpage = a.get("/-/bots/alice-agent").body;
+    assert!(
+        botpage.contains(&format!("value=\"{noreply}\"")),
+        "{botpage}"
+    );
+    assert!(
+        botpage.contains(&format!(
+            "value=\"jj config set --repo user.email {noreply}\""
+        )),
+        "{botpage}"
+    );
+    let by_address = commit(3, "CI", noreply);
+    git.ok(w, &["push", "-q", &s.url(&DEMO), "HEAD:main"]);
+    let page = a.get("/alice/demo/commits").body;
+    let row = page
+        .split("class=\"item-row\"")
+        .skip(1)
+        .find(|r| r.contains(&by_address[..12]))
+        .unwrap();
+    assert!(
+        row.contains("<a class=\"account\" href=\"/alice-agent\""),
+        "{row}"
+    );
 }

@@ -80,12 +80,11 @@ impl Services {
             .chars()
             .filter(|c| !matches!(c, '<' | '>' | '\n') && !c.is_control())
             .collect();
-        let host = self.config.server.public_url.host();
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         Ok(format!(
-            "{} <{}@users.noreply.{host}> {now} +0000",
+            "{} <{}> {now} +0000",
             name.trim(),
-            u.name
+            self.noreply_address(&u.name)
         ))
     }
 

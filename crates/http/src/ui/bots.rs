@@ -417,6 +417,9 @@ struct BotPage {
     max_days: u32,
     key_title: String,
     key: String,
+    /// The bot's no-reply address, for the `user.email` of what commits
+    /// as the bot.
+    noreply: String,
 }
 
 impl BotPage {
@@ -523,6 +526,7 @@ async fn bot_page(
         .clone()
         .unwrap_or_else(|| bot.display_name.clone().unwrap_or_default());
     let mut res = render(&BotPage {
+        noreply: state.services.noreply_address(&bot.name),
         bot_limit: bot_limit(state),
         has_avatar: avatar_url.ends_with(".png"),
         avatar_url,
