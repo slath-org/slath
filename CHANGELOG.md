@@ -222,6 +222,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Every name in issues shows the account's avatar: authors, commenters, assignees, and the people named in events.
 - Names in list rows, such as an issue's author and assignees, link to the account like everywhere else.
 - Merge request lists have the same Sort menu and filters as issue lists; review requests show authors with their avatars.
+- A merge request's pages share one heading: title, state line, Check out, and a More actions menu; the commits tab lists each commit as a row with its change.
+- The compare page puts choosing branches, the new merge request, the commits, and the changes in sections; reviewers, assignees, and labels take chips.
+- Commit authors on the compare page and a merge request's commits tab show as their accounts, like the repository's commit list.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

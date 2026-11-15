@@ -76,7 +76,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>A file's lines with their numbers, highlighted, in a box that scrolls sideways while the numbers stay; a line's number links to it and marks it. Above it the file's links (Raw, Blame, History, Permalink) and its language and length. Blame adds each run of lines' commit: its hash, its summary cut to the column, its author, and when.</dd>
   <dt>Markup</dt><dd><code>p.file-actions</code>, then <code>div.code-wrap</code> &gt; <code>table.code-view.code-table</code>; blame adds <code>blame-table</code>, a <code>td.blame-commit</code> spanning the run, and <code>tr.blame-start</code> on its first line.</dd>
-  <dt>Variants</dt><dd>File; blame; too large or binary (a notice with the raw file instead).</dd>
+  <dt>Variants</dt><dd>File; blame; a range diff (<code>pre.range-diff</code>, plain text in the box); too large or binary (a notice with the raw file instead).</dd>
   <dt>Accessibility</dt><dd>A region named by what it shows; line numbers are row headers; the blame's column headers are there for screen readers.</dd>
   <dt>Not for</dt><dd>Changes (the diff); commands to copy (a code block).</dd>
 </dl>
@@ -94,6 +94,11 @@
 </table>
 </div>
 </div>
+{%- endcall %}
+
+{%- call cat::example("A range diff of two revisions.") %}
+<div class="code-wrap" tabindex="0" role="region" aria-label="Example range diff"><pre class="range-diff"><code>1:  a1e62f5 = 1:  b2f73a6 Start the command line
+2:  c3d4e5f ! 2:  d4e5f6a Print the help</code></pre></div>
 {%- endcall %}
 {%- endcall %}
 

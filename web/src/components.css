@@ -1136,22 +1136,6 @@ main > .repo-context {
     gap: var(--space-1);
   }
 }
-.commit-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 var(--space-4);
-}
-.commit-list li {
-  padding: var(--space-2) 0;
-  border-bottom: var(--border-width) solid var(--border);
-}
-.commit-list p {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-.commit-subject {
-  font-weight: var(--weight-semibold);
-}
 .commit-body {
   white-space: pre-wrap;
   font-family: var(--font-ui);
@@ -1325,8 +1309,7 @@ main > .repo-context {
 }
 
 /* Page headings with an action next to them */
-.page-heading,
-.issue-heading {
+.page-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1335,9 +1318,6 @@ main > .repo-context {
   margin-block-end: var(--space-3);
 }
 .page-heading h1,
-.issue-heading h1 {
-  margin: 0;
-}
 .form-wide {
   max-width: 48rem;
 }
@@ -1421,15 +1401,6 @@ main > .repo-context {
 }
 
 /* Issue view */
-.issue {
-  max-width: var(--content-max);
-}
-.issue-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
 .state-label {
   display: inline-flex;
   align-items: center;
@@ -1503,9 +1474,6 @@ main > .repo-context {
 }
 
 /* Merge requests */
-.branch-name {
-  overflow-wrap: anywhere;
-}
 /* Readiness card (Weave: ReadinessCard, StatusLine, RequirementRow) */
 .readiness {
   margin-block: var(--space-4);
@@ -1922,32 +1890,8 @@ h1 > bdi code,
   display: flex;
   gap: var(--space-2);
 }
-.header-actions .menu-panel form {
-  margin: 0;
-}
-.header-actions .menu-item {
-  width: 100%;
-  justify-content: flex-start;
-}
 .review-form {
   margin-block-end: var(--space-4);
-}
-.issue-heading .checkout-menu {
-  margin-inline-start: auto;
-}
-.commit-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 var(--space-4);
-  border-block-start: var(--border-width) solid var(--border);
-}
-.commit-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding-block: var(--space-2);
-  border-block-end: var(--border-width) solid var(--border);
 }
 .range-diff {
   margin: 0;
@@ -1968,11 +1912,6 @@ h1 > bdi code,
 }
 .change-form select {
   min-height: var(--control-height);
-}
-.commit-list .commit-subject {
-  flex: 1;
-  min-width: 12rem;
-  overflow-wrap: anywhere;
 }
 .markdown a.ref-closed {
   color: var(--text-secondary);
@@ -2011,15 +1950,6 @@ a.label-chip:hover {
   max-width: 20rem;
   margin-block-start: var(--space-1);
   accent-color: var(--success);
-}
-.filter-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-3);
-  max-width: none;
-}
-.filter-form .button-row {
-  grid-column: 1 / -1;
 }
 .issue-layout {
   display: grid;

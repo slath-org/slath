@@ -171,7 +171,7 @@
 {%- call cat::entry("chips", "Badges, state labels, counts, labels", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Small facts beside text, each for its own job: a badge for a category or flag (Private, Archived, Bot, Outdated); the state label for an issue's or merge request's state; a count for a number; a label as a color dot and its name; the evidence chip for what kind of evidence something is (observed, reported, claimed).</dd>
-  <dt>Markup</dt><dd><code>span.badge</code>; <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>
+  <dt>Markup</dt><dd><code>span.badge</code>, <code>span.badge.badge-danger</code> for a flag that blocks (Unresolved, Conflict); <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>
   <dt>Variants</dt><dd>As listed. No filled, saturated badges.</dd>
   <dt>Accessibility</dt><dd>Words, never color alone; a state label's icon is decorative.</dd>
   <dt>Not for</dt><dd>Statuses of checks or requirements (status line).</dd>
@@ -179,6 +179,7 @@
 {%- call cat::example("One of each.") %}
 <div class="cluster">
   <span class="badge">Private</span>
+  <span class="badge badge-danger">Conflict</span>
   <span class="state-label state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Open</span>
   <span class="state-label state-merged">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merged</span>
   <span>Unresolved <span class="count">3</span></span>

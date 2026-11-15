@@ -34,7 +34,7 @@ test("ux_mr_02_compare_page_creates_a_merge_request", async ({ page }, testInfo)
   await expect(page.getByLabel("Merge", { exact: true })).toHaveValue(branch);
   await expect(page.getByLabel("into")).toHaveValue("main");
   await expect(page.getByRole("heading", { name: "1 commit" })).toBeVisible();
-  await expect(page.locator(".commit-list")).toContainText(`Add notes for ${p}`);
+  await expect(page.locator("section[aria-labelledby=commits-heading] .item-list")).toContainText(`Add notes for ${p}`);
   await expect(page.getByRole("heading", { name: "1 changed file" })).toBeVisible();
   await expect(page.locator(".diff-file")).toContainText(`# Notes for ${p}`);
   await expect(page.getByLabel("Title")).toHaveValue(`Add notes for ${p}`);
@@ -50,7 +50,8 @@ test("ux_mr_02_compare_page_creates_a_merge_request", async ({ page }, testInfo)
   await expect(page.getByRole("alert")).toContainText("nobody-here isn't a user who can read this repository.");
   await expect(page.getByLabel("Title")).toHaveValue(`Add notes for ${p}`);
   await expectAccessible(page);
-  await page.getByLabel("Reviewers").fill("");
+  // The kept name is a chip; removing it leaves no reviewer.
+  await tapOrClick(page, page.getByRole("button", { name: "Remove nobody-here" }));
   await page.getByLabel("Create as draft").check();
   await tapOrClick(page, page.getByRole("button", { name: "Create merge request" }));
 
@@ -89,7 +90,7 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   // 5. Checkout commands for Git (the merge request ref) or jj, with copy
   // buttons, in the Check out menu: one tool at a time, preselected for
   // the viewer's tool (alice pushed with Git).
-  await tapOrClick(page, page.locator(".checkout-menu > summary"));
+  await tapOrClick(page, page.locator("summary", { hasText: "Check out" }));
   await expect(page.locator("#checkout-git")).toBeVisible();
   await expect(page.locator("#checkout-git")).toHaveValue(
     `git fetch origin refs/merge-requests/${n}/head && git switch --detach FETCH_HEAD`,
@@ -103,10 +104,10 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   );
   await expect(page.getByRole("button", { name: "Copy the jj commands" })).toBeVisible();
   await expect(page.locator("#checkout-git")).toBeHidden();
-  await expectAccessible(page, ".checkout-menu .menu-panel");
+  await expectAccessible(page, "details.menu[open] .copy-panel");
   // Opened again, the page shows her tool's commands again.
   await page.goto(page.url());
-  await tapOrClick(page, page.locator(".checkout-menu > summary"));
+  await tapOrClick(page, page.locator("summary", { hasText: "Check out" }));
   await expect(page.locator("#checkout-git")).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -128,9 +129,10 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
     page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Commits" }),
   );
   await expect(page.getByRole("heading", { name: "2 commits" })).toBeVisible();
-  await expect(page.locator(".commit-list")).toContainText("Revise review notes");
+  const rows = page.locator("section[aria-labelledby=commits-heading] .item-list > li");
+  await expect(rows.first()).toBeVisible();
+  await expect(page.locator("section[aria-labelledby=commits-heading]")).toContainText("Revise review notes");
   // Each commit shows its change ID (jj's format); the second one is new.
-  const rows = page.locator(".change-list > li");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).locator(".change-id")).toHaveText(/^[k-z]{8}$/);
   // How a commit was matched shows in the change's history, not here.
@@ -263,12 +265,12 @@ test("conf_agent_09_a_bot_merge_request_iterates", async ({ page }) => {
   await expect(card.getByRole("button", { name: "Mark as ready" })).toBeVisible();
   await expect(page.getByText("They're asked once this is marked as ready.")).toBeVisible();
   // More offers both: ready, or a draft that keeps iterating.
-  const more = page.locator("details.header-actions").filter({ has: page.locator("summary", { hasText: "More" }) });
+  const more = page.locator("details.menu").filter({ has: page.locator("summary", { hasText: "More actions" }) });
   await tapOrClick(page, more.locator("summary"));
   await expect(more.getByRole("button", { name: "Mark as ready" })).toBeVisible();
   await expect(more.getByRole("button", { name: "Mark as draft" })).toBeVisible();
   // Only the open menu: its panel covers the page below it.
-  await expectAccessible(page, "details.header-actions[open]");
+  await expectAccessible(page, "details.menu[open]");
   await tapOrClick(page, more.locator("summary"));
   // The bot's three revisions are one timeline entry, each still listed.
   const group = page.locator(".timeline-group").filter({ hasText: "pushed 3 iterations (revisions 1–3)" });

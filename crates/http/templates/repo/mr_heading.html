@@ -1,95 +1,100 @@
-<div class="issue-heading">
-  <h1><bdi>{{ crate::ui::title_html(h.mr.title.as_str()) }}</bdi> <span class="text-secondary">!{{ h.mr.number }}</span></h1>
-  {%- if h.perms.edit %}
-  <a class="button button-icon" title="Edit merge request" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit merge request</span></a>
-  {%- endif %}
-  <details class="menu checkout-menu header-actions">
-    <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-    <div class="menu-panel copy-panel copy-panel-wide">
-      {%- if let Some(action) = h.checkout_form %}
-      <form method="post" action="{{ action }}" class="form">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <p class="menu-hint text-secondary">This merge request comes from a fork. Checking it out makes it the branch <code class="branch-name">mr/{{ h.mr.number }}</code> in your fetches of this repository, without adding the fork as a remote.</p>
-        <div class="button-row"><button type="submit" class="button">Check out mr/{{ h.mr.number }}</button></div>
-      </form>
-      {%- else %}
-      <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
-      <div class="choice">
-        <fieldset class="choice-options">
-          <legend>Commands for</legend>
-          <div class="radio"><input id="checkout-tool-git" type="radio" name="checkout-tool" value="git"{% if h.tool.git || !h.tool.known() %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-git">Git</label></div>
-          <div class="radio"><input id="checkout-tool-jj" type="radio" name="checkout-tool" value="jj"{% if h.tool.jj %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-jj">jj</label></div>
-        </fieldset>
-        <div class="choice-panel">{% call m::copy_field(ctx, "checkout-git", "Git commands", h.git_checkout, "Copy the Git commands") %}{% endcall %}</div>
-        <div class="choice-panel">{% call m::copy_field(ctx, "checkout-jj", "jj commands", h.jj_checkout, "Copy the jj commands") %}{% endcall %}</div>
-      </div>
+{#- A merge request's heading on each of its pages: the title, its state
+    line, and the actions on the whole merge request; a notice when the
+    latest push was held back; the readiness card. -#}
+{%- let mr_base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
+<header class="page-head">
+  <div class="page-head-row">
+    <h1><bdi>{{ crate::ui::title_html(h.mr.title.as_str()) }}</bdi> <span class="text-secondary">!{{ h.mr.number }}</span></h1>
+    <div class="page-head-actions">
+      {%- if h.perms.edit %}
+      <a class="button button-icon" data-tip="Edit merge request" href="{{ mr_base }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit merge request</span></a>
+      {%- endif %}
+      <details class="menu">
+        <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+        <div class="menu-panel copy-panel copy-panel-wide">
+          {%- if let Some(action) = h.checkout_form %}
+          <form method="post" action="{{ action }}" class="form-layout">
+            <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+            <p class="menu-hint text-secondary">This merge request comes from a fork. Checking it out makes it the branch <code>mr/{{ h.mr.number }}</code> in your fetches of this repository, without adding the fork as a remote.</p>
+            {%- call f::buttons() %}<button type="submit" class="button">Check out mr/{{ h.mr.number }}</button>{% endcall %}
+          </form>
+          {%- else %}
+          <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
+          <div class="choice">
+            <fieldset class="choice-options">
+              <legend>Commands for</legend>
+              <div class="radio"><input id="checkout-tool-git" type="radio" name="checkout-tool" value="git"{% if h.tool.git || !h.tool.known() %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-git">Git</label></div>
+              <div class="radio"><input id="checkout-tool-jj" type="radio" name="checkout-tool" value="jj"{% if h.tool.jj %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="checkout-tool-jj">jj</label></div>
+            </fieldset>
+            <div class="choice-panel">{% call m::copy_field(ctx, "checkout-git", "Git commands", h.git_checkout, "Copy the Git commands") %}{% endcall %}</div>
+            <div class="choice-panel">{% call m::copy_field(ctx, "checkout-jj", "jj commands", h.jj_checkout, "Copy the jj commands") %}{% endcall %}</div>
+          </div>
+          {%- endif %}
+        </div>
+      </details>
+      {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}
+      {%- call d::menu(ctx, "More actions") %}
+        {%- if h.perms.edit && h.mr.state == "open" %}
+        {%- if h.mr.draft || h.mr.attention == "iterating" %}
+        <form method="post" action="{{ mr_base }}/draft">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="draft" value="false">
+          <button type="submit" class="button button-quiet menu-item">Mark as ready</button>
+        </form>
+        {%- endif %}
+        {%- if !h.mr.draft %}
+        <form method="post" action="{{ mr_base }}/draft">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="draft" value="true">
+          <button type="submit" class="button button-quiet menu-item">Mark as draft</button>
+        </form>
+        {%- endif %}
+        {%- endif %}
+        {%- if h.can_set_edits %}
+        <form method="post" action="{{ mr_base }}/maintainer-edits">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="allow" value="{% if h.mr.allow_maintainer_edits %}false{% else %}true{% endif %}">
+          <button type="submit" class="button button-quiet menu-item">{% if h.mr.allow_maintainer_edits %}Stop allowing edits by maintainers{% else %}Allow edits by maintainers{% endif %}</button>
+        </form>
+        {%- endif %}
+        {%- if h.perms.close %}
+        {%- if h.mr.state == "open" %}
+        <form method="post" action="{{ mr_base }}/state">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="state" value="closed">
+          <button type="submit" class="button button-quiet menu-item">Close merge request</button>
+        </form>
+        {%- else if h.source_exists %}
+        <form method="post" action="{{ mr_base }}/state">
+          <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+          <input type="hidden" name="state" value="open">
+          <button type="submit" class="button button-quiet menu-item">Reopen merge request</button>
+        </form>
+        {%- endif %}
+        {%- endif %}
+      {%- endcall %}
       {%- endif %}
     </div>
-  </details>
-  {%- if h.mr.state != "merged" && (h.perms.edit || h.perms.close || h.can_set_edits) %}
-  <details class="menu header-actions">
-    <summary class="button">More<span class="visually-hidden"> actions</span>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-    <div class="menu-panel">
-      {%- if h.perms.edit && h.mr.state == "open" %}
-      {%- if h.mr.draft || h.mr.attention == "iterating" %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/draft">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="draft" value="false">
-        <button type="submit" class="button button-quiet menu-item">Mark as ready</button>
-      </form>
-      {%- endif %}
-      {%- if !h.mr.draft %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/draft">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="draft" value="true">
-        <button type="submit" class="button button-quiet menu-item">Mark as draft</button>
-      </form>
-      {%- endif %}
-      {%- endif %}
-      {%- if h.can_set_edits %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/maintainer-edits">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="allow" value="{% if h.mr.allow_maintainer_edits %}false{% else %}true{% endif %}">
-        <button type="submit" class="button button-quiet menu-item">{% if h.mr.allow_maintainer_edits %}Stop allowing edits by maintainers{% else %}Allow edits by maintainers{% endif %}</button>
-      </form>
-      {%- endif %}
-      {%- if h.perms.close %}
-      {%- if h.mr.state == "open" %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/state">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="state" value="closed">
-        <button type="submit" class="button button-quiet menu-item">Close merge request</button>
-      </form>
-      {%- else if h.source_exists %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/state">
-        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="state" value="open">
-        <button type="submit" class="button button-quiet menu-item">Reopen merge request</button>
-      </form>
-      {%- endif %}
-      {%- endif %}
-    </div>
-  </details>
-  {%- endif %}
-</div>
-<p class="issue-status">
-  <span class="state-label state-{{ h.state }}">{% call m::icon(ctx, h.icon) %}{% endcall %}{{ h.state_text }}</span>
-  <span class="text-secondary">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}">{{ a }}</a>{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}A deleted user{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code class="branch-name"><bdi>{% if let Some(r) = h.source_repo %}{{ r }}:{% endif %}{{ h.source }}</bdi></code> into <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> · opened <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span>
-</p>
+  </div>
+  <p class="page-head-meta">
+    <span class="state-label state-{{ h.state }}">{% call m::icon(ctx, h.icon) %}{% endcall %}{{ h.state_text }}</span>
+    <span>{% if let Some(a) = h.mr.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx, "A deleted user") %}{% endcall %}{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code>{% if let Some(r) = h.source_repo %}<bdi>{{ r }}</bdi>:{% endif %}{% call c::path(h.source) %}{% endcall %}</code> into <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code> · opened {% call c::time(h.created) %}{% endcall %}</span>
+  </p>
+</header>
 {%- if let Some(held) = h.held %}
-<div class="notice held-source" role="note">
+{%- call msg::notice("warning") %}
   <h2>{% call m::icon(ctx, "shield") %}{% endcall %} The latest push to the source wasn't taken over</h2>
   {%- if let Some(why) = held.incomplete %}
   <p>Push protection couldn't check commit <code>{{ held.head }}</code>: {{ why }}. This merge request shows the previous revision.</p>
   {%- else %}
   <p>Push protection found possible secrets in commit <code>{{ held.head }}</code>, so this merge request shows the previous revision. Remove them from the source branch and push again{% if held.may_allow %}, or allow what isn't a secret{% endif %}.</p>
   <ul>
-  {%- for f in held.findings %}
-    <li>{{ f.description }} (<code>{{ f.rule }}</code>) in {{ f.place }}: <code>{{ f.excerpt }}</code>{% if let Some(href) = f.allow %} · <a href="{{ href }}">Allow</a>{% endif %}</li>
+  {%- for fd in held.findings %}
+    <li>{{ fd.description }} (<code>{{ fd.rule }}</code>) in {{ fd.place }}: <code>{{ fd.excerpt }}</code>{% if let Some(href) = fd.allow %} · <a href="{{ href }}">Allow</a>{% endif %}</li>
   {%- endfor %}
   </ul>
   {%- endif %}
-</div>
+{%- endcall %}
 {%- endif %}
 {% let card_top = true %}
 {% let card_id = "readiness" %}

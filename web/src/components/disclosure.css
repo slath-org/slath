@@ -76,3 +76,13 @@ details.reply-box[open] > summary {
 :has(> details.reply-box[open]) > .reply-resolve {
   display: none;
 }
+
+/* Menu items that act are buttons, each in its own form: as wide as the
+   panel, their words at the start like links'. */
+.menu-panel form {
+  margin: 0;
+}
+.menu-panel .button.menu-item {
+  inline-size: 100%;
+  justify-content: flex-start;
+}

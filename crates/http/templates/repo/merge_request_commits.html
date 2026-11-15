@@ -1,75 +1,80 @@
 {% extends "repo/layout.html" %}
 {% block title %}Commits · {{ h.mr.title }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let mr_base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
+<div class="page">
 {% include "repo/header.html" %}
-<div class="issue">
 {% let mr_tab = "commits" %}
 {% include "repo/mr_heading.html" %}
 {% include "repo/mr_nav.html" %}
 {%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- call msg::saved(m) %}{% endcall %}
 {%- endif %}
 {% include "settings/errors.html" %}
 {%- if blocked %}
-<div class="error-summary" role="note"><p>Some commits can't be merged yet: their IDs name more than one change, or jj recorded a conflict in them. Choose a change for each commit marked “Unresolved”, or push a fixed stack.</p></div>
+{%- call msg::notice("warning") %}<p>Some commits can't be merged yet: their IDs name more than one change, or jj recorded a conflict in them. Choose a change for each commit marked “Unresolved”, or push a fixed stack.</p>{% endcall %}
 {%- endif %}
 {%- if whole %}
-<div class="notice" role="note"><p>This revision can only be reviewed as a whole, so its commits aren't tracked as changes.</p></div>
+{%- call msg::notice() %}<p>This revision can only be reviewed as a whole, so its commits aren't tracked as changes.</p>{% endcall %}
 {%- endif %}
 {%- if rows.is_empty() %}
-<p class="text-secondary empty-state">No commits to show.</p>
+{%- call msg::empty("No commits to show.") %}{% endcall %}
 {%- else %}
-<h2>{{ rows.len() }} commit{% if rows.len() != 1 %}s{% endif %}</h2>
-<ol class="commit-list change-list">
+<section class="section" aria-labelledby="commits-heading">
+<h2 id="commits-heading">{{ rows.len() }} commit{% if rows.len() != 1 %}s{% endif %}</h2>
+<ol class="item-list">
 {%- for r in rows %}
-  <li>
-    {%- if let Some(e) = r.entry %}
-    {%- if let Some(id) = e.display_id %}
-    <a class="change-id" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ id }}" title="Change {{ id }}"><code>{{ id[..8] }}</code></a>
-    {%- endif %}
-    {%- if e.binding == "unresolved" %}<span class="badge badge-danger">Unresolved</span>{% endif %}
-    {%- if e.conflicted %} <span class="badge badge-danger">Conflict</span>{% endif %}
-    {%- endif %}
-    <a class="commit-subject" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}">{{ r.commit.subject }}</a>
-    <span class="text-secondary">{{ r.commit.author }} · <time datetime="{{ r.commit.time.iso }}">{{ r.commit.time.text }}</time></span>
-    <code>{{ r.commit.short }}</code>
-    {%- if let Some((tone, text)) = r.checks %}
-    <span class="commit-checks tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}{{ text }}</span>
-    {%- endif %}
-    {%- if let Some(e) = r.entry %}
-    {%- if !e.also_in.is_empty() %}
-    <span class="text-secondary">Also in {% for o in e.also_in %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ o }}">!{{ o }}</a>{% if !loop.last %}, {% endif %}{% endfor %}</span>
-    {%- endif %}
-    {%- if e.binding == "unresolved" %}
-    <p class="change-note">{% if e.reason.as_deref() == Some("duplicate-id") %}Another commit of this revision has the same ID.{% else %}This commit's IDs name {{ e.candidates.len() }} different changes.{% endif %}</p>
-    {%- else if e.binding == "new" && !e.candidates.is_empty() %}
-    <p class="change-note text-secondary">May continue {% for cand in e.candidates %}<code>{{ cand[..8] }}</code>{% if !loop.last %} or {% endif %}{% endfor %}.</p>
-    {%- endif %}
-    {%- endif %}
-    {%- if !r.options.is_empty() %}
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/stack/{% if let Some(e) = r.entry %}{{ e.position }}{% endif %}/bind" class="inline-form change-form">
-      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <label class="visually-hidden" for="change-{{ loop.index }}">Change for {{ r.commit.short }}</label>
-      <select id="change-{{ loop.index }}" name="change">
-        {%- for (v, label) in r.options %}
-        <option value="{{ v }}">{{ label }}</option>
-        {%- endfor %}
-      </select>
-      <button type="submit" class="button">Apply</button>
-    </form>
-    {%- endif %}
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}">{{ r.commit.subject }}</a>
+      {%- if let Some(e) = r.entry %}
+      {%- if e.binding == "unresolved" || e.conflicted %}
+      <span class="item-labels">{% if e.binding == "unresolved" %}<span class="badge badge-danger">Unresolved</span>{% endif %}{% if e.conflicted %}<span class="badge badge-danger">Conflict</span>{% endif %}</span>
+      {%- endif %}
+      {%- endif %}
+      <p class="item-meta text-secondary">
+        {%- if let Some(e) = r.entry %}{% if let Some(id) = e.display_id %}Change <a class="change-id" href="{{ mr_base }}/changes/{{ id }}" data-tip="Change {{ id }}"><code>{{ id[..8] }}</code></a> · {% endif %}{% endif -%}
+        {% call p::git_identity(ctx, r.commit.author, r.commit.author_account) %}{% endcall %} · {% call c::time(r.commit.time) %}{% endcall %} · <code>{{ r.commit.short }}</code>
+        {%- if let Some(e) = r.entry %}{% if !e.also_in.is_empty() %} · Also in {% for o in e.also_in %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ o }}">!{{ o }}</a>{% if !loop.last %}, {% endif %}{% endfor %}{% endif %}{% endif -%}
+      </p>
+      {%- if let Some((tone, text)) = r.checks %}
+      <p class="commit-checks tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+      {%- endif %}
+      {%- if let Some(e) = r.entry %}
+      {%- if e.binding == "unresolved" %}
+      <p class="change-note">{% if e.reason.as_deref() == Some("duplicate-id") %}Another commit of this revision has the same ID.{% else %}This commit's IDs name {{ e.candidates.len() }} different changes.{% endif %}</p>
+      {%- else if e.binding == "new" && !e.candidates.is_empty() %}
+      <p class="change-note text-secondary">May continue {% for cand in e.candidates %}<code>{{ cand[..8] }}</code>{% if !loop.last %} or {% endif %}{% endfor %}.</p>
+      {%- endif %}
+      {%- endif %}
+      {%- if !r.options.is_empty() %}
+      <form method="post" action="{{ mr_base }}/stack/{% if let Some(e) = r.entry %}{{ e.position }}{% endif %}/bind" class="cluster change-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <label class="visually-hidden" for="change-{{ loop.index }}">Change for {{ r.commit.short }}</label>
+        <select id="change-{{ loop.index }}" name="change">
+          {%- for (v, label) in r.options %}
+          <option value="{{ v }}">{{ label }}</option>
+          {%- endfor %}
+        </select>
+        <button type="submit" class="button">Apply</button>
+      </form>
+      {%- endif %}
+    </div>
   </li>
 {%- endfor %}
 </ol>
+</section>
 {%- endif %}
 {%- if !removed.is_empty() %}
-<h2>Removed changes</h2>
+<section class="section" aria-labelledby="removed-heading">
+<h2 id="removed-heading">Removed changes</h2>
 <p class="text-secondary">Not in the current revision: abandoned, squashed, or rewritten without an ID.</p>
 <ul class="plain-list">
-{%- for d in removed %}
-  <li><a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ d }}" title="Change {{ d }}"><code>{{ d[..8] }}</code></a></li>
+{%- for dd in removed %}
+  <li><a href="{{ mr_base }}/changes/{{ dd }}" data-tip="Change {{ dd }}"><code>{{ dd[..8] }}</code></a></li>
 {%- endfor %}
 </ul>
+</section>
 {%- endif %}
 </div>
 {% endblock %}

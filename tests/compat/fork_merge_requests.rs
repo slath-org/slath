@@ -715,7 +715,12 @@ fn conf_review_06_fork_merge_requests_in_the_ui() {
     assert_eq!(r.status, 303, "{}", r.body);
     let mr = r.headers["location"].clone();
     let m = web.get(&mr);
-    assert!(m.body.contains("bob/demo:topic"), "{}", m.body);
+    assert!(
+        m.body
+            .contains("<bdi>bob/demo</bdi>:<bdi class=\"path\">topic</bdi>"),
+        "{}",
+        m.body
+    );
     assert!(m.body.contains("Allow edits by maintainers"), "{}", m.body);
     let n = mr.rsplit('/').next().unwrap();
     assert_eq!(

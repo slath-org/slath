@@ -1,19 +1,21 @@
 {% extends "repo/layout.html" %}
 {% block title %}Revisions {{ from }} to {{ to }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
-<div class="issue">
 {% let mr_tab = "changes" %}
 {% include "repo/mr_heading.html" %}
 {% include "repo/mr_nav.html" %}
-<h2>Revision {{ from }} to revision {{ to }}</h2>
-<div class="notice" role="note"><p><strong>Heuristic:</strong> <code>git range-diff</code> pairs the commits of both revisions by similarity, and may pair them differently than the changes on the Commits tab. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ from }}">Show the tree diff between both revisions</a></p></div>
+<section class="section" aria-labelledby="interdiff-heading">
+<h2 id="interdiff-heading">Revision {{ from }} to revision {{ to }}</h2>
+{%- call msg::notice() %}<p><strong>Heuristic:</strong> <code>git range-diff</code> pairs the commits of both revisions by similarity, and may pair them differently than the changes on the Commits tab. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ from }}">Show the tree diff between both revisions</a></p>{% endcall %}
 {%- if too_big %}
-<div class="notice" role="note"><p>This comparison is too large to show.</p></div>
+{%- call msg::notice() %}<p>This comparison is too large to show.</p>{% endcall %}
 {%- else if text.is_empty() %}
-<p class="text-secondary empty-state">Both revisions have the same commits.</p>
+{%- call msg::empty("Both revisions have the same commits.") %}{% endcall %}
 {%- else %}
 <div class="code-wrap" tabindex="0" role="region" aria-label="Range diff"><pre class="range-diff"><code>{{ text }}</code></pre></div>
 {%- endif %}
+</section>
 </div>
 {% endblock %}

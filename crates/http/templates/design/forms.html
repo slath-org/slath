@@ -124,10 +124,19 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>A value to take elsewhere: a clone URL, checkout commands, a new token. Read-only, monospace, selected as one piece, with a copy button.</dd>
   <dt>Markup</dt><dd><code>f::copy_value(ctx, id, label, value, copy_label)</code>. A new secret shows once, in the success summary, with "It won't be shown again."</dd>
-  <dt>Variants</dt><dd>None. Without scripts the copy button stays hidden and the value can be selected.</dd>
+  <dt>Variants</dt><dd>On its own; in a menu (Clone, Check out), in <code>div.menu-panel.copy-panel</code>, <code>copy-panel-wide</code> for long commands. Without scripts the copy button stays hidden and the value can be selected.</dd>
   <dt>Accessibility</dt><dd>The field is labelled; the button is named ("Copy the token") and reports the copy in a toast.</dd>
   <dt>Not for</dt><dd>Values to edit (a field).</dd>
 </dl>
+{%- call cat::example("In a menu: commands to check out a merge request, in the wide copy panel.") %}
+<details class="menu">
+  <summary class="button">Check out{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+  <div class="menu-panel copy-panel copy-panel-wide">
+    <p class="menu-hint text-secondary">Run in your clone to get this merge request's latest revision.</p>
+    {%- call f::copy_value(ctx, "demo-checkout", "Git commands", "git fetch origin refs/merge-requests/12/head && git switch --detach FETCH_HEAD", "Copy the Git commands") %}{% endcall %}
+  </div>
+</details>
+{%- endcall %}
 {%- call cat::example("A new token, shown once.") %}
 {%- call msg::saved("Token created. It won't be shown again.") %}{% endcall %}
 {%- call f::copy_value(ctx, "demo-token", "New token", "slath_pat_0123456789abcdefghijklmnop", "Copy the token") %}{% endcall %}

@@ -70,20 +70,41 @@ struct CommitRow {
     short: String,
     subject: String,
     author: String,
+    /// The account the author is shown as, or empty (see
+    /// `Services::commit_people`).
+    author_account: String,
     time: Time,
 }
 
-fn commit_rows(commits: &[slath_git::browse::LogEntry]) -> Vec<CommitRow> {
-    commits
+/// The rows of `commits` of a repository the subject reads, with the
+/// accounts their authors are shown as.
+async fn commit_rows(
+    state: &AppState,
+    subject: &Subject,
+    repo: slath_core::ids::RepoId,
+    commits: &[slath_git::browse::LogEntry],
+) -> Result<Vec<CommitRow>, AppError> {
+    let idents: Vec<slath_service::git_identities::CommitIdent<'_>> = commits
         .iter()
-        .map(|c| CommitRow {
+        .map(|c| slath_service::git_identities::CommitIdent {
+            oid: c.oid.as_str(),
+            author_email: &c.author_email,
+            committer_email: "",
+        })
+        .collect();
+    let people = state.services.commit_people(subject, repo, &idents).await?;
+    Ok(commits
+        .iter()
+        .zip(people)
+        .map(|(c, p)| CommitRow {
             oid: c.oid.as_str().to_owned(),
             short: c.oid.as_str()[..12].to_owned(),
             subject: slath_markup::reveal_bidi(&c.subject).into_owned(),
             author: c.author_name.clone(),
+            author_account: p.author,
             time: time(c.author_time),
         })
-        .collect()
+        .collect())
 }
 
 // ---------------------------------------------------------------- list
@@ -493,7 +514,7 @@ async fn compare_page(
                     });
                 }
                 cmp = Some(CompareView {
-                    commits: commit_rows(&c.commits),
+                    commits: commit_rows(state, subject, a.repo.id, &c.commits).await?,
                     more_commits: c.more_commits,
                     nothing: c.commits.is_empty(),
                     unrelated: c.merge_base.is_none(),
@@ -2141,7 +2162,13 @@ async fn commits_page(
     errors: Vec<FieldError>,
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(subject, ns, repo, n).await?;
-    let commits = commit_rows(&state.services.mr_commits(&m).await?);
+    let commits = commit_rows(
+        state,
+        subject,
+        a.repo.id,
+        &state.services.mr_commits(&m).await?,
+    )
+    .await?;
     let stack = state.services.mr_stack(&m).await?;
     let can = m.state == "open" && slath_service::Services::can_rebind(subject, &a, &m);
     let oids: Vec<String> = commits.iter().map(|c| c.oid.clone()).collect();

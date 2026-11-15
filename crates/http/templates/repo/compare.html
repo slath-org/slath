@@ -1,153 +1,126 @@
 {% extends "repo/layout.html" %}
 {% block title %}{% if source.is_empty() %}New merge request{% else %}Compare {{ source }} into {{ target }}{% endif %} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+<div class="page">
 {% include "repo/header.html" %}
-<h1>{% if cmp.is_some() && can_create %}New merge request{% else %}Compare branches{% endif %}</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>{% if cmp.is_some() && can_create %}New merge request{% else %}Compare branches{% endif %}</h1></div>
+  <p class="page-head-intro">Choose the branch to merge and where it goes; its commits and changes show below.</p>
+</header>
 {% include "settings/errors.html" %}
-<form method="get" action="/{{ header.namespace }}/{{ header.name }}/compare" class="form filter-form" aria-label="Branches to compare">
+<section class="section" aria-labelledby="branches-heading">
+<h2 id="branches-heading">Branches</h2>
+<form method="get" action="{{ base }}/compare" class="form-layout">
   {%- if !source_repos.is_empty() %}
-  <div class="field">
-    <label for="source_repo">From</label>
-    <select id="source_repo" name="source_repo"{% if self.error("source_repo").is_some() %} aria-invalid="true" aria-describedby="source_repo-error"{% endif %}>
-      <option value=""{% if source_repo.is_empty() %} selected{% endif %}>{{ here }}</option>
-      {%- for r in source_repos %}
-      <option value="{{ r }}"{% if r.as_str() == source_repo.as_str() %} selected{% endif %}>{{ r }}</option>
-      {%- endfor %}
-    </select>
-    {%- if let Some(e) = self.error("source_repo") %}
-    <p id="source_repo-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
+  {%- call f::field("source_repo", "From", "", self.error("source_repo").unwrap_or_default()) %}
+  <select id="source_repo" name="source_repo"{% call f::described("source_repo", "", self.error("source_repo").unwrap_or_default()) %}{% endcall %}>
+    <option value=""{% if source_repo.is_empty() %} selected{% endif %}>{{ here }}</option>
+    {%- for r in source_repos %}
+    <option value="{{ r }}"{% if r.as_str() == source_repo.as_str() %} selected{% endif %}>{{ r }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
   {%- endif %}
-  <div class="field">
-    <label for="source_branch">Merge</label>
-    <select id="source_branch" name="source"{% if self.error("source_branch").is_some() %} aria-invalid="true" aria-describedby="source_branch-error"{% endif %}>
-      {%- if source.is_empty() %}
-      <option value="" selected>Choose a branch</option>
-      {%- endif %}
-      {%- for b in source_branches %}
-      <option value="{{ b }}"{% if b.as_str() == source.as_str() %} selected{% endif %}>{{ b }}</option>
-      {%- endfor %}
-    </select>
-    {%- if let Some(e) = self.error("source_branch") %}
-    <p id="source_branch-error" class="field-error">{{ e }}</p>
+  {%- call f::field("source_branch", "Merge", "", self.error("source_branch").unwrap_or_default()) %}
+  <select id="source_branch" name="source"{% call f::described("source_branch", "", self.error("source_branch").unwrap_or_default()) %}{% endcall %}>
+    {%- if source.is_empty() %}
+    <option value="" selected>Choose a branch</option>
     {%- endif %}
-  </div>
-  <div class="field">
-    <label for="target_branch">into</label>
-    <select id="target_branch" name="target"{% if self.error("target_branch").is_some() %} aria-invalid="true" aria-describedby="target_branch-error"{% endif %}>
-      {%- for b in branches %}
-      <option value="{{ b }}"{% if b.as_str() == target.as_str() %} selected{% endif %}>{{ b }}</option>
-      {%- endfor %}
-    </select>
-    {%- if let Some(e) = self.error("target_branch") %}
-    <p id="target_branch-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="button-row"><button type="submit" class="button">Compare</button></div>
+    {%- for b in source_branches %}
+    <option value="{{ b }}"{% if b.as_str() == source.as_str() %} selected{% endif %}>{{ b }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
+  {%- call f::field("target_branch", "into", "", self.error("target_branch").unwrap_or_default()) %}
+  <select id="target_branch" name="target"{% call f::described("target_branch", "", self.error("target_branch").unwrap_or_default()) %}{% endcall %}>
+    {%- for b in branches %}
+    <option value="{{ b }}"{% if b.as_str() == target.as_str() %} selected{% endif %}>{{ b }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Compare</button>{% endcall %}
 </form>
-{%- if let Some(c) = cmp %}
-{%- if let Some(n) = c.existing %}
-<div class="notice" role="note"><p>A merge request from <code class="branch-name"><bdi>{{ source }}</bdi></code> into <code class="branch-name"><bdi>{{ target }}</bdi></code> is already open: <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ n }}">!{{ n }}</a>.</p></div>
-{%- else if c.nothing %}
-<div class="notice" role="note"><p>There's nothing to merge: <code class="branch-name"><bdi>{{ source }}</bdi></code> has no commits that <code class="branch-name"><bdi>{{ target }}</bdi></code> doesn't have.</p></div>
+</section>
+{%- if let Some(cp) = cmp %}
+{%- if let Some(n) = cp.existing %}
+{%- call msg::notice() %}<p>A merge request from <code>{% call c::path(source) %}{% endcall %}</code> into <code>{% call c::path(target) %}{% endcall %}</code> is already open: <a href="{{ base }}/merge-requests/{{ n }}">!{{ n }}</a>.</p>{% endcall %}
+{%- else if cp.nothing %}
+{%- call msg::notice() %}<p>There's nothing to merge: <code>{% call c::path(source) %}{% endcall %}</code> has no commits that <code>{% call c::path(target) %}{% endcall %}</code> doesn't have.</p>{% endcall %}
 {%- else %}
-{%- if c.unrelated %}
-<div class="notice" role="note"><p>These branches have no common history. The changes show every file of <code class="branch-name"><bdi>{{ source }}</bdi></code>.</p></div>
+{%- if cp.unrelated %}
+{%- call msg::notice() %}<p>These branches have no common history. The changes show every file of <code>{% call c::path(source) %}{% endcall %}</code>.</p>{% endcall %}
 {%- endif %}
 {%- if can_create %}
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests" class="form form-wide" novalidate>
+<section class="section" aria-labelledby="create-heading">
+<h2 id="create-heading">Merge request</h2>
+<form method="post" action="{{ base }}/merge-requests" class="form-layout-wide" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="source_repo" value="{{ source_repo }}">
   <input type="hidden" name="source_branch" value="{{ source }}">
   <input type="hidden" name="target_branch" value="{{ target }}">
-  <div class="field">
-    <label for="title">Title</label>
-    <input id="title" name="title" type="text" value="{{ form.title }}" maxlength="256" required
-      {%- if self.error("title").is_some() %} aria-invalid="true" aria-describedby="title-error"{% endif %}>
-    {%- if let Some(e) = self.error("title") %}
-    <p id="title-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="description">Description</label>
-    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
-    <textarea id="description" name="description" rows="12" autocomplete="off" aria-describedby="description-hint{% if self.error("description").is_some() %} description-error{% endif %}"
-      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>{{ form.description }}</textarea>
-    </slath-editor>
-    <p id="description-hint" class="hint">Markdown. Refer to issues with #12, people with @name.</p>
-    {%- if let Some(e) = self.error("description") %}
-    <p id="description-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field suggest-field">
-    <label for="reviewers">Reviewers</label>
-    <input id="reviewers" name="reviewers" type="text" value="{{ form.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="reviewers-hint{% if self.error("reviewers").is_some() %} reviewers-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("reviewers").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="reviewers-hint" class="hint">Usernames, separated by commas. Reviews are requested once the merge request is ready.</p>
-    {%- if let Some(e) = self.error("reviewers") %}
-    <p id="reviewers-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field suggest-field">
-    <label for="assignees">Assignees</label>
-    <input id="assignees" name="assignees" type="text" value="{{ form.assignees }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="assignees-hint{% if self.error("assignees").is_some() %} assignees-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("assignees").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="assignees-hint" class="hint">Usernames, separated by commas.</p>
-    {%- if let Some(e) = self.error("assignees") %}
-    <p id="assignees-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="labels">Labels</label>
-    <input id="labels" name="labels" type="text" value="{{ form.labels }}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="labels-hint{% if self.error("labels").is_some() %} labels-error{% endif %}"{% if self.error("labels").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="labels-hint" class="hint">Label names, separated by commas.</p>
-    {%- if let Some(e) = self.error("labels") %}
-    <p id="labels-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
+  {%- call f::field("title", "Title", "", self.error("title").unwrap_or_default()) %}
+  <input id="title" name="title" type="text" value="{{ form.title }}" maxlength="256" required{% call f::described("title", "", self.error("title").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("description", "Description", "Markdown. Refer to issues with #12, people with @name.", self.error("description").unwrap_or_default(), true) %}
+  <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="{{ base }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}">
+  <textarea id="description" name="description" rows="12" autocomplete="off"{% call f::described("description", "x", self.error("description").unwrap_or_default()) %}{% endcall %}>{{ form.description }}</textarea>
+  </slath-editor>
+  {%- endcall %}
+  {%- call f::field("reviewers", "Reviewers", "Usernames, separated by commas. Reviews are requested once the merge request is ready.", self.error("reviewers").unwrap_or_default(), true) %}
+  <input id="reviewers" name="reviewers" type="text" value="{{ form.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("reviewers", "x", self.error("reviewers").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("assignees", "Assignees", "Usernames, separated by commas.", self.error("assignees").unwrap_or_default(), true) %}
+  <input id="assignees" name="assignees" type="text" value="{{ form.assignees }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("assignees", "x", self.error("assignees").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("labels", "Labels", "Label names, separated by commas.", self.error("labels").unwrap_or_default(), true) %}
+  <input id="labels" name="labels" type="text" value="{{ form.labels }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names="labels"{% call f::described("labels", "x", self.error("labels").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
   {%- if !milestones.is_empty() %}
-  <div class="field">
-    <label for="milestone">Milestone</label>
-    <select id="milestone" name="milestone">
-      <option value="">None</option>
-      {%- for m in milestones %}
-      <option value="{{ m }}"{% if m.as_str() == form.milestone.as_str() %} selected{% endif %}>{{ m }}</option>
-      {%- endfor %}
-    </select>
-  </div>
+  {%- call f::field("milestone", "Milestone", "", "", true) %}
+  <select id="milestone" name="milestone">
+    <option value="">None</option>
+    {%- for ms in milestones %}
+    <option value="{{ ms }}"{% if ms.as_str() == form.milestone.as_str() %} selected{% endif %}>{{ ms }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
   {%- endif %}
-  <div class="checkbox"><input id="draft" type="checkbox" name="draft" value="1"{% if form.draft.is_some() %} checked{% endif %} aria-describedby="draft-hint"><label for="draft">Create as draft</label></div>
-  <p id="draft-hint" class="hint">A draft can't be merged, and no reviews are requested until you mark it as ready.</p>
+  {%- call f::option("checkbox", "draft", "draft", "1", "Create as draft", form.draft.is_some(), "A draft can't be merged, and no reviews are requested until you mark it as ready.") %}{% endcall %}
   {%- if !source_repo.is_empty() %}
-  <div class="checkbox"><input id="allow_maintainer_edits" type="checkbox" name="allow_maintainer_edits" value="1"{% if form.allow_maintainer_edits.is_some() %} checked{% endif %} aria-describedby="allow_maintainer_edits-hint"><label for="allow_maintainer_edits">Allow edits by maintainers</label></div>
-  <p id="allow_maintainer_edits-hint" class="hint">People who can write to {{ here }} can push to <code class="branch-name"><bdi>{{ source }}</bdi></code> in {{ source_repo }} while this merge request is open.</p>
+  {%- let edits_hint %}People who can write to {{ here }} can push to {{ source }} in {{ source_repo }} while this merge request is open.{% endlet %}
+  {%- call f::option("checkbox", "allow_maintainer_edits", "allow_maintainer_edits", "1", "Allow edits by maintainers", form.allow_maintainer_edits.is_some(), edits_hint) %}{% endcall %}
   {%- endif %}
-  {%- if c.publishes_source %}
-  <div class="checkbox"><input id="publish_source" type="checkbox" name="publish_source" value="1"{% if form.publish_source.is_some() %} checked{% endif %} aria-describedby="publish_source-hint{% if self.error("publish_source").is_some() %} publish_source-error{% endif %}"{% if self.error("publish_source").is_some() %} aria-invalid="true"{% endif %}><label for="publish_source">Make these commits readable here</label></div>
-  <p id="publish_source-hint" class="hint">{{ source_repo }} is less visible than {{ here }}. Everyone who can read {{ here }} will be able to read this merge request's commits.</p>
-  {%- if let Some(e) = self.error("publish_source") %}
-  <p id="publish_source-error" class="field-error">{{ e }}</p>
+  {%- if cp.publishes_source %}
+  {%- let publish_hint %}{{ source_repo }} is less visible than {{ here }}. Everyone who can read {{ here }} will be able to read this merge request's commits.{% endlet %}
+  {%- call f::question("publish_source", "Commits from a less visible repository", "", self.error("publish_source").unwrap_or_default()) %}
+  {%- call f::option("checkbox", "publish_source-1", "publish_source", "1", "Make these commits readable here", form.publish_source.is_some(), publish_hint) %}{% endcall %}
+  {%- endcall %}
   {%- endif %}
-  {%- endif %}
-  <div class="button-row"><button type="submit" class="button button-primary">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</button></div>
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</button>{% endcall %}
 </form>
+</section>
 {%- else if ctx.user.is_none() %}
 <p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to create a merge request.</p>
 {%- endif %}
 {%- endif %}
-{%- if !c.commits.is_empty() %}
-<h2>{{ c.commits.len() }}{% if c.more_commits %}+{% endif %} commit{% if c.commits.len() != 1 %}s{% endif %}</h2>
-{%- if c.more_commits %}
-<p class="text-secondary">Only the newest {{ c.commits.len() }} commits are shown.</p>
+{%- if !cp.commits.is_empty() %}
+<section class="section" aria-labelledby="commits-heading">
+<h2 id="commits-heading">{{ cp.commits.len() }}{% if cp.more_commits %}+{% endif %} commit{% if cp.commits.len() != 1 %}s{% endif %}</h2>
+{%- if cp.more_commits %}
+<p class="text-secondary">Only the newest {{ cp.commits.len() }} commits are shown.</p>
 {%- endif %}
-{% let commits = c.commits %}
+{% let commits = cp.commits %}
 {% include "repo/commit_list.html" %}
+</section>
 {%- endif %}
-{%- if !c.nothing %}
-{%- if c.too_big %}
-<div class="notice" role="note"><p>This diff is too large to show.</p></div>
+{%- if !cp.nothing %}
+{%- if cp.too_big %}
+{%- call msg::notice() %}<p>This diff is too large to show.</p>{% endcall %}
 {%- endif %}
-{% let diff = c.diff %}
+{% let diff = cp.diff %}
 {% include "repo/diff_files.html" %}
 {%- endif %}
 {%- endif %}
+</div>
 {% endblock %}
