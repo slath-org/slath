@@ -18,7 +18,7 @@
   <li class="item-row">
     <div class="item-main">
       <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ cm.oid }}">{{ cm.subject }}</a>
-      <p class="item-meta text-secondary">{% call p::git_identity(ctx, cm.author) %}{% endcall %} · {% call c::time(cm.time) %}{% endcall %} · <code>{{ cm.short }}</code></p>
+      <p class="item-meta text-secondary">{% call p::git_identity(ctx, cm.author, cm.author_account) %}{% endcall %} · {% call c::time(cm.time) %}{% endcall %} · <code>{{ cm.short }}</code></p>
     </div>
   </li>
 {%- endfor %}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.name::text AS \"name!\"\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           WHERE u.state <> 'deleted' AND lower(n.name::text) = ANY($1::text[])",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9b28575fd93663aac5e5530b1c0e561fd0bd63b91c80ae8f40d1ab0ba36a0e67"
+}

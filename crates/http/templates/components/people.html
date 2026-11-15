@@ -30,10 +30,17 @@
 <span class="account"><span class="avatar avatar-deleted" aria-hidden="true">{% call m::icon(ctx, "user") %}{% endcall %}</span>{{ text }}</span>
 {%- endmacro -%}
 
-{#- An author or committer written into a commit: a claim, not an
-    account, so a neutral person icon and the name as written. -#}
-{%- macro git_identity(ctx, name) -%}
+{#- An author or committer written into a commit. `account` is the
+    account whose confirmed address the commit uses, or empty: matched,
+    it's that account's name, with the name as written in its tooltip;
+    unmatched, a neutral person icon and the name as written. -#}
+{%- macro git_identity(ctx, name, account) -%}
+{%- if account.is_empty() -%}
 <span class="git-identity">{% call m::icon(ctx, "user") %}{% endcall %}<bdi>{{ name }}</bdi></span>
+{%- else -%}
+<a class="account" href="/{{ account }}" data-tip="{{ name }}">{% call avatar(ctx, account) %}{% endcall %}<bdi>{{ account }}</bdi></a>
+{%- if ctx.is_bot(account) %} <span class="badge">Bot</span>{% endif -%}
+{%- endif -%}
 {%- endmacro -%}
 
 {#- Several accounts in a small space: up to three avatars, then "+N";

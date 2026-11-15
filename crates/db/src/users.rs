@@ -395,3 +395,38 @@ pub async fn set_pushed_tool(
     .await?;
     Ok(())
 }
+
+/// The accounts whose confirmed address is one of `emails`: (address in
+/// lower case, account name). Deleted accounts never match.
+pub async fn names_by_confirmed_email(
+    exec: impl PgExecutor<'_>,
+    emails: &[String],
+) -> Result<Vec<(String, String)>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT lower(u.email::text) AS "email!", n.name::text AS "name!"
+           FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           WHERE u.email_verified AND u.state <> 'deleted'
+             AND u.email = ANY($1::text[]::citext[])"#,
+        emails
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.email, r.name)).collect())
+}
+
+/// Of `names` (lower case), the ones that are accounts that aren't
+/// deleted, as each account spells its name.
+pub async fn existing_names(
+    exec: impl PgExecutor<'_>,
+    names: &[String],
+) -> Result<Vec<String>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT n.name::text AS "name!"
+           FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           WHERE u.state <> 'deleted' AND lower(n.name::text) = ANY($1::text[])"#,
+        names
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.name).collect())
+}

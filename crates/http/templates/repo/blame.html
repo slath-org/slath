@@ -24,7 +24,7 @@
   {%- for l in rows %}
     <tr id="L{{ l.no }}"{% if l.hunk.is_some() %} class="blame-start"{% endif %}>
       {%- if let Some(h) = l.hunk %}
-      <td class="blame-commit" rowspan="{{ h.span }}">{% call c::hash(h.oid, h.href) %}{% endcall %} {% call c::cut(h.summary) %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, h.author) %}{% endcall %}, {% call c::time(h.when) %}{% endcall %}</span></td>
+      <td class="blame-commit" rowspan="{{ h.span }}">{% call c::hash(h.oid, h.href) %}{% endcall %} {% call c::cut(h.summary) %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, h.author, h.author_account) %}{% endcall %}, {% call c::time(h.when) %}{% endcall %}</span></td>
       {%- endif %}
       <th scope="row"><a href="#L{{ l.no }}" class="line-no">{{ l.no }}</a></th><td><code>{{ l.html }}</code></td>
     </tr>

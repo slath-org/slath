@@ -730,6 +730,8 @@ pub struct BlameLine {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BlameCommit {
     pub author_name: String,
+    /// The address without its angle brackets.
+    pub author_email: String,
     pub author_time: i64,
     pub summary: String,
 }
@@ -782,6 +784,12 @@ pub fn parse_blame(out: &[u8]) -> Result<Blame, GitError> {
         let value = String::from_utf8_lossy(value).into_owned();
         match key {
             b"author" => c.author_name = value,
+            b"author-mail" => {
+                c.author_email = value
+                    .trim_start_matches('<')
+                    .trim_end_matches('>')
+                    .to_owned();
+            }
             b"author-time" => c.author_time = value.parse().unwrap_or(0),
             b"summary" => c.summary = value,
             _ => {}
@@ -833,6 +841,7 @@ mod blame_tests {
         assert_eq!(blame.lines[2].orig_line, 1);
         let ca = &blame.commits[&ObjectId::parse(a.as_bytes()).unwrap()];
         assert_eq!(ca.author_name, "Ann");
+        assert_eq!(ca.author_email, "ann@example.org");
         assert_eq!(ca.summary, "First");
         assert_eq!(
             blame.commits[&blame.lines[2].commit].author_time,

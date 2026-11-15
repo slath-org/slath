@@ -8,7 +8,7 @@
     <h1>{{ subject }}</h1>
     <div class="page-head-actions"><a class="button" href="{{ tree_href }}">{% call m::icon(ctx, "folder") %}{% endcall %}Browse files</a></div>
   </div>
-  <p class="page-head-meta"><span>{% call p::git_identity(ctx, author) %}{% endcall %} authored {% call c::time(author_time) %}{% endcall %}{% if committer != author %}, committed by {% call p::git_identity(ctx, committer) %}{% endcall %}{% endif %}</span></p>
+  <p class="page-head-meta"><span>{% call p::git_identity(ctx, author, author_account) %}{% endcall %} authored {% call c::time(author_time) %}{% endcall %}{% if committer != author || committer_account != author_account %}, committed by {% call p::git_identity(ctx, committer, committer_account) %}{% endcall %}{% endif %}</span></p>
 </header>
 <div class="stack">
 {%- if !body.is_empty() %}

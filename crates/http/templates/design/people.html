@@ -33,14 +33,14 @@
 
 {%- call cat::entry("git-identity", "Git identity", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>The author or committer written into a commit, which is a claim and not an account: a neutral person icon and the name as written. Where Slath knows the account because it authenticated it (who pushed, merged, or applied a suggestion), it's an account name.</dd>
-  <dt>Markup</dt><dd><code>p::git_identity(ctx, name)</code>.</dd>
-  <dt>Variants</dt><dd>None.</dd>
-  <dt>Accessibility</dt><dd>The icon is decorative.</dd>
-  <dt>Not for</dt><dd>Accounts.</dd>
+  <dt>Purpose</dt><dd>The author or committer written into a commit. When the commit's email address is a confirmed address of an account (any of its addresses, or its no-reply address), it's that account: the account name with its avatar, and the name as written in the commit in the tooltip, so one person's commits under several addresses all show as their one account. An address no account has confirmed is shown as written, with a neutral person icon. Who pushed, merged, or applied a suggestion is an account Slath authenticated, said in words.</dd>
+  <dt>Markup</dt><dd><code>p::git_identity(ctx, name, account)</code>: <code>account</code> is the matched account's name, or empty.</dd>
+  <dt>Variants</dt><dd>Matched (an account name); unmatched (the person icon and the name as written).</dd>
+  <dt>Accessibility</dt><dd>The avatar and the icon are decorative; a matched name links to the account.</dd>
+  <dt>Not for</dt><dd>Accounts Slath knows from a session or token (the account name); matching by name or by an unconfirmed address.</dd>
 </dl>
-{%- call cat::example("A commit, pushed by an account.") %}
-<p>{% call p::git_identity(ctx, "Alice Example") %}{% endcall %} committed <code>a1e62f5c7d</code>, pushed by {% call p::account(ctx, "alice") %}{% endcall %}</p>
+{%- call cat::example("A commit by an account's address, committed under an address no account has confirmed, pushed by an account.") %}
+<p>{% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} authored, {% call p::git_identity(ctx, "Build Server", "") %}{% endcall %} committed <code>a1e62f5c7d</code>, pushed by {% call p::account(ctx, "alice") %}{% endcall %}</p>
 {%- endcall %}
 {%- endcall %}
 

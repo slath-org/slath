@@ -409,3 +409,80 @@ fn conf_a11y_01_blame_of_a_large_file() {
     assert_eq!(a.get("/alice/demo/blame/main/nope.txt").status, 404);
     assert_eq!(s.client().get("/alice/demo/blame/main/big.txt").status, 404);
 }
+
+/// Commits show their author as the account whose confirmed address the
+/// commit uses, or its no-reply address; names, unconfirmed addresses,
+/// and unknown ones stay as written.
+#[test]
+fn commit_authors_show_as_accounts_by_confirmed_address() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.db.execute("UPDATE users SET email = 'Alice@Example.org', email_verified = true WHERE namespace_id = (SELECT id FROM namespaces WHERE name = 'alice')");
+    s.db.execute("UPDATE users SET email = 'bob@example.org', email_verified = false WHERE namespace_id = (SELECT id FROM namespaces WHERE name = 'bob')");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    for (i, (name, email)) in [
+        ("Alice Work", "alice@example.org"),
+        ("A. Example", "alice@users.noreply.127.0.0.1"),
+        ("Bob Unconfirmed", "bob@example.org"),
+        ("alice", "someone@example.net"),
+    ]
+    .iter()
+    .enumerate()
+    {
+        std::fs::write(w.join("f.txt"), format!("{i}\n")).unwrap();
+        git.ok(w, &["add", "f.txt"]);
+        git.ok(
+            w,
+            &[
+                "-c",
+                &format!("user.name={name}"),
+                "-c",
+                &format!("user.email={email}"),
+                "commit",
+                "-q",
+                "-m",
+                &format!("Commit {i}"),
+            ],
+        );
+    }
+    git.ok(w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let page = alice(&s).get("/alice/demo/commits").body;
+    let rows: Vec<&str> = page.split("class=\"item-row\"").skip(1).collect();
+    assert_eq!(rows.len(), 4, "{page}");
+    // Newest first: the name "alice" with an unknown address is no match.
+    assert!(
+        rows[0].contains("git-identity") && rows[0].contains("<bdi>alice</bdi>"),
+        "{}",
+        rows[0]
+    );
+    assert!(!rows[0].contains("href=\"/alice\""), "{}", rows[0]);
+    // An unconfirmed address is no match either.
+    assert!(
+        rows[1].contains("git-identity") && rows[1].contains("Bob Unconfirmed"),
+        "{}",
+        rows[1]
+    );
+    // The no-reply address and the confirmed one (in any case) are alice.
+    for r in &rows[2..] {
+        assert!(r.contains("<a class=\"account\" href=\"/alice\""), "{r}");
+        assert!(!r.contains("git-identity"), "{r}");
+    }
+    assert!(rows[3].contains("data-tip=\"Alice Work\""), "{}", rows[3]);
+    // Blame and the commit page map the same way.
+    let blame = alice(&s).get("/alice/demo/blame/main/f.txt").body;
+    assert!(
+        blame.contains("git-identity") && blame.contains("<bdi>alice</bdi>"),
+        "{blame}"
+    );
+    let oid = git.ok(w, &["rev-parse", "HEAD~3"]);
+    let commit = alice(&s)
+        .get(&format!("/alice/demo/commit/{}", oid.trim()))
+        .body;
+    assert!(
+        commit.contains("<a class=\"account\" href=\"/alice\" data-tip=\"Alice Work\""),
+        "{commit}"
+    );
+}

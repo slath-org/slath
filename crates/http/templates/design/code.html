@@ -87,9 +87,9 @@
 <table class="code-view code-table blame-table">
   <thead class="visually-hidden"><tr><th scope="col">Commit</th><th scope="col">Line</th><th scope="col">Code</th></tr></thead>
   <tbody>
-    <tr class="blame-start"><td class="blame-commit" rowspan="2">{% call c::hash("a1e62f5c7d0b9e8f6a5d4c3b2a1908f7e6d5c4b3", "#code-view") %}{% endcall %} {% call c::cut("Start the command line with a help text") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Alice Example") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">1</a></th><td><code>fn main() {</code></td></tr>
+    <tr class="blame-start"><td class="blame-commit" rowspan="2">{% call c::hash("a1e62f5c7d0b9e8f6a5d4c3b2a1908f7e6d5c4b3", "#code-view") %}{% endcall %} {% call c::cut("Start the command line with a help text") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">1</a></th><td><code>fn main() {</code></td></tr>
     <tr><th scope="row"><a href="#code-view" class="line-no">2</a></th><td><code>    println!("help");</code></td></tr>
-    <tr class="blame-start"><td class="blame-commit" rowspan="1">{% call c::hash("b2f73a6d8e1c0f9a7b6e5d4c3b2a1908f7e6d5c4", "#code-view") %}{% endcall %} {% call c::cut("Close the main function") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Bob Example") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">3</a></th><td><code>}</code></td></tr>
+    <tr class="blame-start"><td class="blame-commit" rowspan="1">{% call c::hash("b2f73a6d8e1c0f9a7b6e5d4c3b2a1908f7e6d5c4", "#code-view") %}{% endcall %} {% call c::cut("Close the main function") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Bob Example", "") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">3</a></th><td><code>}</code></td></tr>
   </tbody>
 </table>
 </div>

@@ -25,6 +25,7 @@ pub mod email;
 pub mod error;
 pub mod findings;
 pub mod forks;
+pub mod git_identities;
 pub mod imports;
 pub mod inventory;
 pub mod issues;

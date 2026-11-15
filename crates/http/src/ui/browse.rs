@@ -563,6 +563,8 @@ struct BlameHunk {
     oid: String,
     summary: String,
     author: String,
+    /// The account whose confirmed address the commit uses, or empty.
+    author_account: String,
     when: Time,
     /// Lines in the run (for `rowspan`).
     span: usize,
@@ -669,6 +671,10 @@ async fn blame(
         Ok(Ok(h)) => h,
         _ => slath_markup::highlight("", &text),
     };
+    let accounts = state
+        .services
+        .accounts_for_emails(blame.commits.values().map(|c| c.author_email.as_str()))
+        .await?;
     let mut htmls = h.lines.into_iter();
     let n = blame.lines.len();
     let mut i = 0;
@@ -679,6 +685,10 @@ async fn blame(
             .take_while(|l| l.commit == commit)
             .count();
         let info = blame.commits.get(&commit).cloned().unwrap_or_default();
+        let author_account = accounts
+            .get(&info.author_email.to_lowercase())
+            .cloned()
+            .unwrap_or_default();
         for j in 0..span {
             let html = htmls.next().unwrap_or_default();
             page.rows.push(BlameRow {
@@ -694,6 +704,7 @@ async fn blame(
                     oid: commit.as_str().to_owned(),
                     summary: info.summary.clone(),
                     author: info.author_name.clone(),
+                    author_account: author_account.clone(),
                     when: time::OffsetDateTime::from_unix_timestamp(info.author_time)
                         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
                         .into(),
@@ -828,6 +839,8 @@ struct CommitRow {
     short: String,
     subject: String,
     author: String,
+    /// The account whose confirmed address the commit uses, or empty.
+    author_account: String,
     time: Time,
 }
 
@@ -876,6 +889,10 @@ async fn commits_for(
     .map_err(|e| git_err(&e))?;
     let more = entries.len() > PER_PAGE;
     entries.truncate(PER_PAGE);
+    let accounts = state
+        .services
+        .accounts_for_emails(entries.iter().map(|e| e.author_email.as_str()))
+        .await?;
     let base = link(a, "commits", &r, r.path.as_bytes());
     Ok(render(&CommitsPage {
         header: RepoHeader::load(state, a, subject, "commits").await,
@@ -888,6 +905,10 @@ async fn commits_for(
                 short: e.oid.as_str()[..12].to_owned(),
                 oid: e.oid.as_str().to_owned(),
                 subject: slath_markup::reveal_bidi(&e.subject).into_owned(),
+                author_account: accounts
+                    .get(&e.author_email.to_lowercase())
+                    .cloned()
+                    .unwrap_or_default(),
                 author: e.author_name,
                 time: time(e.author_time),
             })
@@ -953,6 +974,9 @@ struct CommitPage {
     subject: String,
     body: String,
     author: String,
+    /// The accounts whose confirmed addresses the commit uses, or empty.
+    author_account: String,
+    committer_account: String,
     author_time: Time,
     committer: String,
     parents: Vec<(String, String)>,
@@ -962,17 +986,22 @@ struct CommitPage {
     statuses: Vec<super::StatusRow>,
 }
 
-/// Name and time from a raw `author`/`committer` header value.
-fn ident(value: &[u8]) -> (String, i64) {
+/// Name, address, and time from a raw `author`/`committer` header value.
+fn ident(value: &[u8]) -> (String, String, i64) {
     let s = String::from_utf8_lossy(value);
     let name = s.split(" <").next().unwrap_or("").to_owned();
+    let email = s
+        .split_once('<')
+        .and_then(|(_, r)| r.split_once('>'))
+        .map(|(e, _)| e.to_owned())
+        .unwrap_or_default();
     let t = s
         .rsplit('>')
         .next()
         .and_then(|r| r.split_whitespace().next())
         .and_then(|t| t.parse().ok())
         .unwrap_or(0);
-    (name, t)
+    (name, email, t)
 }
 
 async fn commit(
@@ -1037,8 +1066,13 @@ async fn commit(
     let (subject_line, body) = message
         .split_once('\n')
         .map_or((message.as_str(), ""), |(s, b)| (s, b));
-    let (author, author_t) = ident(c.header(b"author").unwrap_or_default());
-    let (committer, _) = ident(c.header(b"committer").unwrap_or_default());
+    let (author, author_email, author_t) = ident(c.header(b"author").unwrap_or_default());
+    let (committer, committer_email, _) = ident(c.header(b"committer").unwrap_or_default());
+    let accounts = state
+        .services
+        .accounts_for_emails([author_email.as_str(), committer_email.as_str()])
+        .await?;
+    let account = |e: &str| accounts.get(&e.to_lowercase()).cloned().unwrap_or_default();
     let statuses = state
         .services
         .commit_statuses(&subject, (&ns, &repo), oid.as_str())
@@ -1052,6 +1086,8 @@ async fn commit(
         short: oid.as_str()[..12].to_owned(),
         subject: slath_markup::reveal_bidi(subject_line).into_owned(),
         body: slath_markup::reveal_bidi(body.trim()).into_owned(),
+        author_account: account(&author_email),
+        committer_account: account(&committer_email),
         author,
         author_time: time(author_t),
         committer,

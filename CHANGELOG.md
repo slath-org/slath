@@ -206,7 +206,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Choosing a list view such as Closed, filtering, or paging replaces only the list.
 - Repository pages space their parts by how they belong together: the header and tabs, the page's heading, then its sections.
 - Commits, branches, tags, and forks are lists and tables like the rest of the UI; tables become stacked blocks on phones.
-- Commit authors show with a person icon, the accounts that reported statuses with their avatars, and times in short form with the exact time on hover or tap.
+- Commit authors show as the account whose confirmed email address (or no-reply address) the commit uses, with its avatar; other authors show as written, with a person icon.
+- Accounts that reported statuses show with their avatars, and times in short form with the exact time on hover or tap.
 - Commit hashes show their first 12 characters, with the full hash on hover or tap; blame cuts long summaries and shows them in full the same way.
 - The commit page lists the full hash and parents as facts, and Browse files is a button next to the title.
 - New repository, import, fork, and sync are narrow form pages; an import's credentials are a group of fields, and visibility is a question with explained options.
