@@ -15,7 +15,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>A person's, organization's, or bot's name in status lines, timeline events, headers, list facts, details columns, check reporters, menus, and tables: the avatar, then the name, then the Bot badge for a bot.</dd>
   <dt>Markup</dt><dd><code>p::account(ctx, name)</code>: one link to the account, also in a list row's facts. <code>p::account(ctx, name, false)</code> only where the name sits inside another link, which can't hold a second one.</dd>
-  <dt>Variants</dt><dd>Linked; inside another link (plain text); a bot (with its badge); uploaded or generated avatar. An account that no longer exists is <code>p::deleted(ctx, text)</code>.</dd>
+  <dt>Variants</dt><dd>Linked; inside another link or a summary (plain text); a bot (with its badge); uploaded or generated avatar. An account that no longer exists is <code>p::deleted(ctx, text)</code>. Where a page holds who did something, <code>p::who(ctx, who, start, link)</code> writes any of them, and Slath itself (the merge queue, jobs) or someone unknown (a push no account made) as words.</dd>
   <dt>Accessibility</dt><dd>The avatar is decorative; the name is text inside the same link, so there's one target and one tab stop.</dd>
   <dt>Not for</dt><dd>Names in Markdown; Git authors and committers (Git identity); the global bar's own avatar and profile pages (larger avatars).</dd>
 </dl>

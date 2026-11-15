@@ -1654,17 +1654,6 @@ h1 > bdi code,
 .readiness.tone-blocking .readiness-icon svg {
   color: var(--error);
 }
-.merge-area {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-block: var(--space-4);
-}
-/* Each action of the merge box is one group in its own frame, so a
-   button never seems to belong to the form after it. */
-.merge-area > .readiness {
-  margin-block: 0;
-}
 .merge-step {
   max-width: none;
   padding: var(--space-4);
@@ -1687,13 +1676,6 @@ h1 > bdi code,
 .merge-step > .merge-step-title {
   margin: 0;
   font-size: var(--text-lg);
-}
-.conflict-help > summary {
-  cursor: pointer;
-  font-weight: var(--weight-semibold);
-}
-.conflict-help[open] > summary {
-  margin-block-end: var(--space-3);
 }
 .merge-step.notice {
   margin: 0;
@@ -1775,13 +1757,6 @@ h1 > bdi code,
   gap: var(--space-1);
   font-size: var(--text-sm);
 }
-.timeline-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
 .diff-thread-row > td {
   padding: var(--space-2) var(--space-3);
   background: var(--surface-subtle);
@@ -1834,21 +1809,6 @@ h1 > bdi code,
   gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-3);
 }
-.thread-reply-box[open] {
-  flex-basis: 100%;
-}
-.thread-reply-box > summary {
-  list-style: none;
-}
-.thread-reply-box > summary::-webkit-details-marker {
-  display: none;
-}
-.thread-reply-box[open] > summary {
-  display: none;
-}
-.thread-reply {
-  margin-block-start: var(--space-2);
-}
 .evidence-chip {
   display: inline-block;
   padding: 0 var(--space-2);
@@ -1889,9 +1849,6 @@ h1 > bdi code,
 .timeline-group li {
   display: flex;
   gap: var(--space-2);
-}
-.review-form {
-  margin-block-end: var(--space-4);
 }
 .range-diff {
   margin: 0;
@@ -1950,44 +1907,6 @@ a.label-chip:hover {
   max-width: 20rem;
   margin-block-start: var(--space-1);
   accent-color: var(--success);
-}
-.issue-layout {
-  display: grid;
-  gap: var(--space-5);
-}
-/* The details column needs room next to the conversation, which depends on
-   the side menu as much as on the screen. */
-@container page (min-width: 56rem) {
-  .issue-layout {
-    grid-template-columns: minmax(0, 1fr) 16rem;
-  }
-}
-.issue-main {
-  min-width: 0;
-}
-.issue-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.issue-sidebar section {
-  padding-block-end: var(--space-3);
-  border-block-end: var(--border-width) solid var(--border);
-}
-.sidebar-heading {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  margin: 0 0 var(--space-2);
-}
-.issue-sidebar p {
-  margin: 0;
-}
-.sidebar-form {
-  margin-block-start: var(--space-2);
-}
-.sidebar-form input[type="text"],
-.sidebar-form select {
-  width: 100%;
 }
 
 /* Notifications */
@@ -2111,9 +2030,6 @@ slath-editor {
   padding: var(--space-1) var(--space-3);
   color: var(--text-secondary);
   font-size: var(--text-sm);
-}
-.suggest-field {
-  position: relative;
 }
 .editor .ac-list,
 .suggest-list {

@@ -337,6 +337,45 @@ pub fn title_html(title: &str) -> MarkupHtml {
     MarkupHtml::from_markup(slath_markup::title_html(title))
 }
 
+/// Who did something, as pages name them (the people component
+/// `p::who`): an account, an account that no longer exists, Slath itself
+/// (jobs, the merge queue), or someone unknown (a push no account made).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Who {
+    Account(String),
+    Deleted,
+    Slath,
+    Unknown,
+}
+
+impl Who {
+    /// An account's name, or a deleted account for `None`.
+    #[must_use]
+    pub fn account(name: Option<String>) -> Self {
+        name.map_or(Self::Deleted, Self::Account)
+    }
+
+    /// The account's name, if it's one.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Account(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    /// How a label (an article's name) says who it is.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        match self {
+            Self::Account(n) => n,
+            Self::Deleted => "a deleted user",
+            Self::Slath => "Slath",
+            Self::Unknown => "someone",
+        }
+    }
+}
+
 /// A commit status as pages show it, with its reporter.
 pub struct StatusRow {
     pub context: String,

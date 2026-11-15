@@ -23,7 +23,7 @@ use super::browse::time;
 use super::diff::{DiffQuery, DiffView};
 use super::repos::RepoHeader;
 use super::settings::error_for;
-use super::{MarkupHtml, PageCtx, Time, render};
+use super::{MarkupHtml, PageCtx, Time, Who, render};
 use crate::AppState;
 use crate::auth::{MaybeSession, RequireSession};
 use crate::error::AppError;
@@ -649,7 +649,7 @@ async fn create(
 
 struct CommentView {
     id: String,
-    author_text: String,
+    author: Who,
     /// Written by a bot: a claim, not a verdict (Weave: EvidenceChip).
     bot: bool,
     created: Time,
@@ -663,7 +663,7 @@ struct CommentView {
 
 struct EventView {
     icon: &'static str,
-    actor: String,
+    actor: Who,
     text: String,
     /// What the event points at (a reference's source).
     link: Option<(String, String)>,
@@ -675,11 +675,10 @@ struct EventView {
 
 struct RevisionView {
     seq: i32,
-    pusher: String,
+    pusher: Who,
     /// Pushed by a bot: consecutive ones fold into an iteration group.
     bot: bool,
     commits: i32,
-    short: String,
     oid: String,
     created: Time,
     /// "Compare with previous" link.
@@ -720,7 +719,7 @@ fn summary_text(s: &slath_service::mr_changes::RevisionSummary, target: &str) ->
 
 struct ReviewItem {
     id: String,
-    reviewer: String,
+    reviewer: Who,
     /// "approved", "requested changes", or "reviewed".
     verdict: &'static str,
     icon: &'static str,
@@ -741,7 +740,10 @@ struct SnippetLine {
 
 struct ThreadCommentView {
     id: String,
-    author: String,
+    author: Who,
+    /// A pending reply that resolves its thread when the review is
+    /// submitted.
+    resolves: bool,
     bot: bool,
     html: MarkupHtml,
     /// Nothing besides the suggestion.
@@ -797,14 +799,15 @@ enum TimelineView {
     Event(EventView),
     Revision(RevisionView),
     Review(ReviewItem),
-    /// Consecutive quiet events in one line: the summary and the events.
-    Group(String, Vec<EventView>),
+    /// Consecutive quiet events in one line: the one actor (if one), the
+    /// summary after their name, and the events.
+    Group(Option<Who>, String, Vec<EventView>),
     /// Consecutive revisions pushed by the same bot, nothing between them.
     Iterations(IterationGroup),
 }
 
 struct IterationGroup {
-    pusher: String,
+    pusher: Who,
     first: i32,
     last: i32,
     /// Compares the revision before the group with its last one.
@@ -875,11 +878,12 @@ fn fold_events(items: Vec<TimelineView>, since_at: &mut Option<usize>) -> Vec<Ti
         1 => out.push(TimelineView::Event(run.remove(0))),
         n => {
             let actors: std::collections::BTreeSet<&str> =
-                run.iter().map(|e| e.actor.as_str()).collect();
-            let who = if actors.len() == 1 {
-                format!("{} changed", run[0].actor)
+                run.iter().map(|e| e.actor.text()).collect();
+            // One actor leads with their name; several are counted.
+            let (lead, who) = if actors.len() == 1 {
+                (Some(run[0].actor.clone()), "changed".to_owned())
             } else {
-                format!("{} people changed", actors.len())
+                (None, format!("{} people changed", actors.len()))
             };
             let mut what: Vec<&str> = Vec::new();
             for e in run.iter() {
@@ -894,7 +898,7 @@ fn fold_events(items: Vec<TimelineView>, since_at: &mut Option<usize>) -> Vec<Ti
                 }
             }
             let summary = format!("{who} {} · {n} events", what.join(" and "));
-            out.push(TimelineView::Group(summary, std::mem::take(run)));
+            out.push(TimelineView::Group(lead, summary, std::mem::take(run)));
         }
     };
     for (i, item) in items.into_iter().enumerate() {
@@ -1078,9 +1082,11 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
     Some(EventView {
         quiet,
         icon,
-        actor: e
-            .actor
-            .unwrap_or_else(|| if system { "Slath" } else { "A deleted user" }.to_owned()),
+        actor: match e.actor {
+            Some(n) => Who::Account(n),
+            None if system => Who::Slath,
+            None => Who::Deleted,
+        },
         text,
         link: None,
         created: e.created_at.into(),
@@ -1542,7 +1548,7 @@ struct MergeForm {
 /// Merge when ready: the form while it isn't set, or what is set.
 struct AutoMergeView {
     /// Set: strategy label and who set it.
-    set: Option<(&'static str, String)>,
+    set: Option<(&'static str, Who)>,
     /// The viewer may cancel it.
     may_cancel: bool,
     /// Not set: the strategies to choose from (default first).
@@ -1669,10 +1675,8 @@ async fn thread_item(
         if i == 0 && t.thread.finding.is_some() {
             comments.push(ThreadCommentView {
                 id: c.id.to_string(),
-                author: c
-                    .author
-                    .clone()
-                    .unwrap_or_else(|| "A deleted user".to_owned()),
+                author: Who::account(c.author.clone()),
+                resolves: false,
                 bot: c.author_bot,
                 html: MarkupHtml::from_markup(String::new()),
                 html_empty: true,
@@ -1719,10 +1723,8 @@ async fn thread_item(
             id: c.id.to_string(),
             html_empty: html.trim().is_empty(),
             suggestion,
-            author: c
-                .author
-                .clone()
-                .unwrap_or_else(|| "A deleted user".to_owned()),
+            author: Who::account(c.author.clone()),
+            resolves: c.resolves,
             bot: c.author_bot,
             html: MarkupHtml::from_markup(html),
             pending: c.pending,
@@ -1814,10 +1816,7 @@ async fn mr_page_showing(
             }) => timeline.push(TimelineView::Comment(CommentView {
                 bot: comment.author_bot,
                 id: comment.id.to_string(),
-                author_text: comment
-                    .author
-                    .clone()
-                    .unwrap_or_else(|| "A deleted user".to_owned()),
+                author: Who::account(comment.author.clone()),
                 created: comment.created_at.into(),
                 edited: comment.edited_at.is_some(),
                 deleted: comment.deleted_at.is_some(),
@@ -1844,10 +1843,7 @@ async fn mr_page_showing(
                 };
                 timeline.push(TimelineView::Review(ReviewItem {
                     id: v.review.id.to_string(),
-                    reviewer: v
-                        .review
-                        .reviewer
-                        .unwrap_or_else(|| "A deleted user".to_owned()),
+                    reviewer: Who::account(v.review.reviewer),
                     verdict,
                     icon,
                     revision: v.review.revision_seq,
@@ -1864,7 +1860,7 @@ async fn mr_page_showing(
             }
             MrTimelineItem::Referenced(e, src) => timeline.push(TimelineView::Event(EventView {
                 icon: "link",
-                actor: e.actor.unwrap_or_else(|| "A deleted user".to_owned()),
+                actor: Who::account(e.actor),
                 text: "mentioned this in".to_owned(),
                 link: Some((src.path(), src.label())),
                 created: e.created_at.into(),
@@ -1876,9 +1872,8 @@ async fn mr_page_showing(
             } => timeline.push(TimelineView::Revision(RevisionView {
                 seq: r.seq,
                 bot: r.pushed_by.as_deref().is_some_and(|p| ctx.is_bot(p)),
-                pusher: r.pushed_by.unwrap_or_else(|| "Someone".to_owned()),
+                pusher: r.pushed_by.map_or(Who::Unknown, Who::Account),
                 commits: r.commit_count,
-                short: r.head_oid.chars().take(12).collect(),
                 since_href: previous_head.is_some().then(|| {
                     mr_url(
                         ns,
@@ -1910,8 +1905,8 @@ async fn mr_page_showing(
         timeline.retain(|t| match (show, t) {
             ("unresolved", TimelineView::Thread(x)) => !x.resolved,
             ("mine", TimelineView::Thread(x)) => x.mine,
-            ("mine", TimelineView::Comment(c)) => Some(&c.author_text) == my_name.as_ref(),
-            ("mine", TimelineView::Review(r)) => Some(&r.reviewer) == my_name.as_ref(),
+            ("mine", TimelineView::Comment(c)) => c.author.name() == my_name.as_deref(),
+            ("mine", TimelineView::Review(r)) => r.reviewer.name() == my_name.as_deref(),
             _ => false,
         });
     }
@@ -1947,10 +1942,13 @@ async fn mr_page_showing(
                 (_, true) => Some(format!("{}, stale", r.verdict)),
                 (v, false) => Some(v.to_owned()),
             };
-            match (reviewers.iter_mut().find(|(n, _)| *n == r.reviewer), st) {
+            let Some(name) = r.reviewer.name() else {
+                continue;
+            };
+            match (reviewers.iter_mut().find(|(n, _)| n == name), st) {
                 (Some(e), Some(st)) => e.1 = st,
-                (None, Some(st)) => reviewers.push((r.reviewer.clone(), st)),
-                (None, None) => reviewers.push((r.reviewer.clone(), "commented".to_owned())),
+                (None, Some(st)) => reviewers.push((name.to_owned(), st)),
+                (None, None) => reviewers.push((name.to_owned(), "commented".to_owned())),
                 (Some(_), None) => {}
             }
         }
@@ -2003,10 +2001,7 @@ async fn mr_page_showing(
                 .services
                 .may_cancel_auto_merge(subject, &a, &m, &am)
                 .await,
-            set: Some((
-                strategy_label(&am.strategy),
-                am.by.unwrap_or_else(|| "A deleted user".to_owned()),
-            )),
+            set: Some((strategy_label(&am.strategy), Who::account(am.by))),
             strategies: Vec::new(),
         }),
         None if open && !h.card.mergeable && a.can(subject, Action::MrAutoMerge) => {
@@ -2676,10 +2671,7 @@ async fn attach_review(
         };
         let mut comments = Vec::new();
         for (i, c) in t.comments.iter().enumerate() {
-            let author = c
-                .author
-                .clone()
-                .unwrap_or_else(|| "A deleted user".to_owned());
+            let author = Who::account(c.author.clone());
             if i == 0 && t.thread.finding.is_some() {
                 // A finding's message is plain text.
                 comments.push((

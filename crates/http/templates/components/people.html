@@ -30,6 +30,19 @@
 <span class="account"><span class="avatar avatar-deleted" aria-hidden="true">{% call m::icon(ctx, "user") %}{% endcall %}</span>{{ text }}</span>
 {%- endmacro -%}
 
+{#- Who did something (a `crate::ui::Who`): an account's name, the
+    deleted placeholder, Slath itself, or someone unknown. `start` writes
+    the words that begin a sentence capitalized; `link` false where the
+    name sits inside another control (a summary, a link). -#}
+{%- macro who(ctx, w, start = true, link = true) -%}
+{%- match w -%}
+{%- when crate::ui::Who::Account with (n) -%}{% call account(ctx, n, link) %}{% endcall %}
+{%- when crate::ui::Who::Deleted -%}{% if start %}{% call deleted(ctx, "A deleted user") %}{% endcall %}{% else %}{% call deleted(ctx) %}{% endcall %}{% endif %}
+{%- when crate::ui::Who::Slath -%}<span class="account">{% call m::icon(ctx, "bot") %}{% endcall %}<bdi>Slath</bdi></span>
+{%- when crate::ui::Who::Unknown -%}<span class="account">{% if start %}Someone{% else %}someone{% endif %}</span>
+{%- endmatch -%}
+{%- endmacro -%}
+
 {#- An author or committer written into a commit. `account` is the
     account whose confirmed address the commit uses, or empty: matched,
     it's that account's name, with the name as written in its tooltip;

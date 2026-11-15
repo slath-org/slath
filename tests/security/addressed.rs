@@ -171,7 +171,10 @@ fn conf_agent_12_bots_mark_threads_addressed_and_people_resolve_them() {
         .login("alice", PASSWORD)
         .get(&format!("/alice/demo/merge-requests/{n}"))
         .body;
-    assert!(page.contains("Addressed by alice-agent"), "{page}");
+    assert!(
+        page.contains("marked as addressed by</span> <a class=\"account\" href=\"/alice-agent\">"),
+        "{page}"
+    );
 
     // Its own reply keeps the mark; a person's answer clears it.
     ok(call(

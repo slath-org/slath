@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Review threads end with a reply box that opens the reply form in place
-// (`details.reply-box`, earlier `details.thread-reply-box`). A reply the
+// (`details.reply-box`). A reply the
 // browser restored (back, reload) opens its form again, so a started reply
 // is never hidden.
 
 function openStarted(root: ParentNode): void {
-  root.querySelectorAll<HTMLDetailsElement>("details.thread-reply-box, details.reply-box").forEach((d) => {
+  root.querySelectorAll<HTMLDetailsElement>("details.reply-box").forEach((d) => {
     const text = d.querySelector<HTMLTextAreaElement>("textarea");
     if (text && text.value.trim() !== "") d.open = true;
   });
@@ -25,7 +25,7 @@ export function installReplies(): void {
     "toggle",
     (e) => {
       const d = e.target;
-      const box = d instanceof HTMLDetailsElement && d.matches(".thread-reply-box, .reply-box");
+      const box = d instanceof HTMLDetailsElement && d.matches(".reply-box");
       if (box && d.open) {
         d.querySelector<HTMLTextAreaElement>("textarea")?.focus();
       }

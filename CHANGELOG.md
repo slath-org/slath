@@ -226,6 +226,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The compare page puts choosing branches, the new merge request, the commits, and the changes in sections; reviewers, assignees, and labels take chips.
 - Commit authors on the compare page and a merge request's commits tab show as their accounts, like the repository's commit list.
 - A reply can resolve its thread: at once, or with a pending reply when the review is submitted; the API takes `resolve: true` on a thread comment.
+- A thread's reply box opens in place with Cancel, and its Resolve thread checkbox replaces the Resolve button while it's open.
+- In the conversation, every name shows the account's avatar, bots included: who pushed a revision, merged, reviewed, commented, or changed labels; Slath itself is named as such.
+- The merge box is one frame per step (update the branch, apply suggestions, merge when ready, merge), and the details column uses the same fields as issues.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

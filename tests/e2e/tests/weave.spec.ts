@@ -59,6 +59,8 @@ const MIGRATED = [
   "/alice/demo/merge-requests?state=all&sort=updated",
   "/-/review-requests",
   "/alice/demo/compare?source=review",
+  "/alice/demo/merge-requests/1",
+  "/alice/demo/merge-requests/1?show=unresolved",
   "/alice/demo/merge-requests/1/commits",
   "/alice/demo/merge-requests/1/changes",
 ];

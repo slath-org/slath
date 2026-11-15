@@ -1,34 +1,36 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ h.mr.title }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let here = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
 <div class="page">
 {% include "repo/header.html" %}
 {% let mr_tab = "conversation" %}
 {% include "repo/mr_heading.html" %}
 {% include "repo/mr_nav.html" %}
 {%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- call msg::saved(m) %}{% endcall %}
 {%- endif %}
 {% include "settings/errors.html" %}
 {%- if let Some(k) = since_review %}
-<div class="notice" role="note"><p>You last reviewed revision {{ k }}. Changes since your last review: <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/interdiff?from={{ k }}">compare the revisions</a> or <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ k }}">see the tree diff</a>.</p></div>
+{%- call msg::notice() %}<p>You last reviewed revision {{ k }}. Changes since your last review: <a href="{{ here }}/interdiff?from={{ k }}">compare the revisions</a> or <a href="{{ here }}/changes?since={{ k }}">see the tree diff</a>.</p>{% endcall %}
 {%- endif %}
 {%- if h.mr.state == "closed" && !h.source_exists %}
-<div class="notice" role="note">
-  <p>The source branch <code class="branch-name"><bdi>{{ h.source }}</bdi></code> was deleted.</p>
-  {%- if h.can_push %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/restore" class="inline-form">
+{%- if h.can_push %}
+{%- call msg::notice_action() %}
+  <p>The source branch <code>{% call c::path(h.source) %}{% endcall %}</code> was deleted.</p>
+  <form method="post" action="{{ here }}/restore" class="inline-form">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <button type="submit" class="button">{% call m::icon(ctx, "git-branch") %}{% endcall %}Restore branch and reopen</button>
   </form>
-  {%- endif %}
-</div>
+{%- endcall %}
+{%- else %}
+{%- call msg::notice() %}<p>The source branch <code>{% call c::path(h.source) %}{% endcall %}</code> was deleted.</p>{% endcall %}
 {%- endif %}
-<div class="issue-layout">
-<div class="issue-main">
-<div id="timeline-view">
-<div class="timeline-tools">
-  {%- let here = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
+{%- endif %}
+<div class="detail">
+<div class="stack-groups">
+<div class="stack" id="timeline-view">
+<div class="cluster">
   {%- call m::view_menu(ctx, "Show", show|capitalize, "timeline-view") %}
   {%- call m::view_item(here, "All", show == "all", "") %}{% endcall %}
   {%- call m::view_item(here ~ "?show=unresolved", "Unresolved", show == "unresolved", unresolved.to_string()) %}{% endcall %}
@@ -41,7 +43,7 @@
 <ol class="timeline">
   <li class="timeline-comment">
     <article aria-label="Description">
-      <header class="comment-header">{% if let Some(a) = h.mr.author %}<a href="/{{ a }}"><strong>{{ a }}</strong></a>{% else %}<strong>A deleted user</strong>{% endif %} <span class="text-secondary">wrote <time datetime="{{ h.created.iso }}">{{ h.created.text }}</time></span></header>
+      <header class="comment-header">{% if let Some(a) = h.mr.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx, "A deleted user") %}{% endcall %}{% endif %} <span class="text-secondary">wrote {% call c::time(h.created) %}{% endcall %}</span></header>
       <div class="markdown" hx-ignore>{% if body_empty %}<p class="text-secondary">No description.</p>{% else %}{{ body_html }}{% endif %}</div>
     </article>
   </li>
@@ -55,11 +57,11 @@
     <article aria-label="Thread{% if let Some(l) = t.location %} on {{ l }}{% endif %}">
       <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}{% if let Some(l) = t.location %}<code>{{ l }}</code>{% else %}On the merge request{% endif %}
         <span class="text-secondary">revision {{ t.revision }}</span>
-        {%- if let Some(f) = t.finding %} <span class="badge">{{ f }}</span>
+        {%- if let Some(fl) = t.finding %} <span class="badge">{{ fl }}</span>
         {%- else if t.outdated %} <span class="badge">Outdated</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
-        {%- if t.resolved %} <span class="badge">Resolved{% if let Some(by) = t.resolved_by %} by {{ by }}{% endif %}</span>{% if let Some(by) = t.resolved_by %}{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}{% endif %}
-        {%- if let Some(by) = t.addressed_by %} <span class="badge">Addressed by {{ by }}</span>{% call m::bot_badge(ctx, by) %}{% endcall %}{% endif %}
+        {%- if t.resolved %} <span class="badge">Resolved</span>{% if let Some(by) = t.resolved_by %} <span class="text-secondary">by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}{% endif %}
+        {%- if let Some(by) = t.addressed_by %} <span class="text-secondary">· marked as addressed by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}
       </header>
       {%- if !t.snippet.is_empty() %}
       <div class="code-wrap" tabindex="0" role="region" aria-label="Code{% if let Some(l) = t.location %} at {{ l }}{% endif %}">
@@ -73,25 +75,25 @@
       </div>
       {%- endif %}
       <ol class="thread-comments">
-      {%- for c in t.comments %}
+      {%- for tc in t.comments %}
         <li>
-          <p class="thread-comment-head"><strong>{{ c.author }}</strong>{% call m::bot_badge(ctx, c.author) %}{% endcall %}{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if c.pending %} <span class="badge">Pending</span>{% endif %} <span class="text-secondary"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></span></p>
-          {%- if let Some(text) = c.text %}
+          <p class="thread-comment-head">{% call p::who(ctx, tc.author) %}{% endcall %}{% if tc.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %}{% if tc.pending %} <span class="badge">Pending</span>{% if tc.resolves %} <span class="text-secondary">resolves the thread when you submit your review</span>{% endif %}{% endif %} <span class="text-secondary">{% call c::time(tc.created) %}{% endcall %}</span></p>
+          {%- if let Some(text) = tc.text %}
           <p class="finding-message">{{ text }}</p>
-          {%- else if !c.html_empty %}
-          <div class="markdown" hx-ignore>{{ c.html }}</div>
+          {%- else if !tc.html_empty %}
+          <div class="markdown" hx-ignore>{{ tc.html }}</div>
           {%- endif %}
-          {%- if let Some(sg) = c.suggestion %}
+          {%- if let Some(sg) = tc.suggestion %}
           <div class="suggestion">
             <p class="suggestion-title">Suggested change</p>
             <div class="code-wrap" tabindex="0" role="region" aria-label="Suggested change">
             <table class="code-view diff-table">
               <tbody>
-              {%- for l in sg.old %}
-                <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>{{ l }}</code></td></tr>
+              {%- for ln in sg.old %}
+                <tr class="diff-del"><td class="diff-marker"><span aria-hidden="true">−</span><span class="visually-hidden">removed</span></td><td><code>{{ ln }}</code></td></tr>
               {%- endfor %}
-              {%- for l in sg.new %}
-                <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>{{ l }}</code></td></tr>
+              {%- for ln in sg.new %}
+                <tr class="diff-add"><td class="diff-marker"><span aria-hidden="true">+</span><span class="visually-hidden">added</span></td><td><code>{{ ln }}</code></td></tr>
               {%- endfor %}
               </tbody>
             </table>
@@ -99,9 +101,9 @@
             {%- if let Some(why) = sg.blocked %}
             <p class="text-secondary">{{ why }}</p>
             {%- else if sg.can_apply %}
-            <div class="button-row">
-              <button type="submit" class="button" form="apply-suggestions" name="only" value="{{ c.id }}">Apply suggestion</button>
-              <div class="checkbox"><input id="batch-{{ c.id }}" type="checkbox" form="apply-suggestions" name="comments" value="{{ c.id }}"><label for="batch-{{ c.id }}">Add to batch</label></div>
+            <div class="cluster">
+              <button type="submit" class="button" form="apply-suggestions" name="only" value="{{ tc.id }}">Apply suggestion</button>
+              <div class="option"><input id="batch-{{ tc.id }}" type="checkbox" form="apply-suggestions" name="comments" value="{{ tc.id }}"><label for="batch-{{ tc.id }}">Add to batch</label></div>
             </div>
             {%- endif %}
           </div>
@@ -112,26 +114,30 @@
       {%- if (h.perms.comment && !t.resolved) || t.can_resolve %}
       <div class="thread-actions">
       {%- if h.perms.comment && !t.resolved %}
-      <details class="thread-reply-box">
-        <summary class="button button-quiet">Reply</summary>
-        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/comments" class="form thread-reply" novalidate>
+      {%- call d::reply_box() %}
+        <form method="post" action="{{ here }}/threads/{{ t.id }}/comments" class="form-layout-wide" novalidate>
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
-          <div class="field">
-            <label for="reply-{{ t.id }}">Your reply</label>
-            <textarea id="reply-{{ t.id }}" name="body" rows="3" autocomplete="off"></textarea>
-          </div>
-          <div class="button-row">
+          <input type="hidden" name="back" value="{{ here }}">
+          {%- let reply_id = "reply-" ~ t.id %}
+          {%- call f::field(reply_id, "Your reply") %}
+          <textarea id="reply-{{ t.id }}" name="body" rows="3" autocomplete="off"></textarea>
+          {%- endcall %}
+          {%- if t.can_resolve %}
+          {%- let resolve_id = "resolve-" ~ t.id %}
+          {%- call f::option("checkbox", resolve_id, "resolve", "1", "Resolve thread", false, "With Add to my review, when you submit the review.") %}{% endcall %}
+          {%- endif %}
+          {%- call f::buttons() %}
             <button type="submit" class="button">Send reply</button>
             <button type="submit" name="mode" value="pending" class="button">Add to my review</button>
-          </div>
+            {%- call d::cancel() %}{% endcall %}
+          {%- endcall %}
         </form>
-      </details>
+      {%- endcall %}
       {%- endif %}
       {%- if t.can_resolve %}
-      <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/threads/{{ t.id }}/resolve" class="inline-form thread-resolve">
+      <form method="post" action="{{ here }}/threads/{{ t.id }}/resolve" class="inline-form reply-resolve">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <input type="hidden" name="back" value="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}">
+        <input type="hidden" name="back" value="{{ here }}">
         <input type="hidden" name="resolved" value="{% if t.resolved %}false{% else %}true{% endif %}">
         <button type="submit" class="button button-quiet">{% if t.resolved %}Reopen thread{% else %}Resolve thread{% endif %}</button>
       </form>
@@ -140,54 +146,58 @@
       {%- endif %}
     </article>
   </li>
-  {%- when TimelineView::Comment with (c) %}
-  <li class="timeline-comment" id="comment-{{ c.id }}">
-    <article aria-label="Comment by {{ c.author_text }}">
-      <header class="comment-header"><strong>{{ c.author_text }}</strong>{% call m::bot_badge(ctx, c.author_text) %}{% endcall %}{% if c.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %} <span class="text-secondary"><a href="#comment-{{ c.id }}"><time datetime="{{ c.created.iso }}">{{ c.created.text }}</time></a>{% if c.edited %} · edited{% endif %}{% if c.hidden %} · hidden by a moderator{% endif %}</span></header>
-      {%- if c.deleted %}
+  {%- when TimelineView::Comment with (cm) %}
+  <li class="timeline-comment" id="comment-{{ cm.id }}">
+    <article aria-label="Comment by {{ cm.author.text() }}">
+      <header class="comment-header">{% call p::who(ctx, cm.author) %}{% endcall %}{% if cm.bot %} {% call m::evidence("Claimed by a bot") %}{% endcall %}{% endif %} <span class="text-secondary"><a href="#comment-{{ cm.id }}">{% call c::time(cm.created) %}{% endcall %}</a>{% if cm.edited %} · edited{% endif %}{% if cm.hidden %} · hidden by a moderator{% endif %}</span></header>
+      {%- if cm.deleted %}
       <p class="text-secondary">This comment was deleted.</p>
-      {%- else if c.html_empty %}
+      {%- else if cm.html_empty %}
       <p class="text-secondary">This comment was hidden by a moderator.</p>
       {%- else %}
-      <div class="markdown" hx-ignore>{{ c.html }}</div>
+      <div class="markdown" hx-ignore>{{ cm.html }}</div>
       {%- endif %}
-      {%- if !c.deleted && (c.own || h.perms.moderate) %}
+      {%- if !cm.deleted && (cm.own || h.perms.moderate) %}
       <div class="comment-actions">
-        {%- if c.own %}
-        <a class="button button-quiet button-icon" title="Edit comment" href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/comments/{{ c.id }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit comment</span></a>
+        {%- if cm.own %}
+        <a class="button button-quiet button-icon" data-tip="Edit comment" href="{{ here }}/comments/{{ cm.id }}/edit">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit comment</span></a>
         {%- endif %}
         {%- if h.perms.moderate %}
-        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/comments/{{ c.id }}/{% if c.hidden %}unhide{% else %}hide{% endif %}" class="inline-form">
+        <form method="post" action="{{ here }}/comments/{{ cm.id }}/{% if cm.hidden %}unhide{% else %}hide{% endif %}" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button button-quiet button-icon" title="{% if c.hidden %}Unhide{% else %}Hide{% endif %} comment">{% if c.hidden %}{% call m::icon(ctx, "eye") %}{% endcall %}{% else %}{% call m::icon(ctx, "eye-off") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if c.hidden %}Unhide{% else %}Hide{% endif %} comment</span></button>
+          {%- if cm.hidden %}
+          {%- call c::icon_button(ctx, "eye", "Unhide comment", "submit") %}{% endcall %}
+          {%- else %}
+          {%- call c::icon_button(ctx, "eye-off", "Hide comment", "submit") %}{% endcall %}
+          {%- endif %}
         </form>
         {%- endif %}
-        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/comments/{{ c.id }}/delete" class="inline-form">
+        <form method="post" action="{{ here }}/comments/{{ cm.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button button-quiet button-icon" title="Delete comment">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete comment</span></button>
+          {%- call c::icon_button(ctx, "trash-2", "Delete comment", "submit") %}{% endcall %}
         </form>
       </div>
       {%- endif %}
     </article>
   </li>
   {%- when TimelineView::Event with (e) %}
-  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+  <li class="timeline-event">{% call m::icon(ctx, e.icon) %}{% endcall %}<span>{% call p::who(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} {% call c::time(e.created) %}{% endcall %}</span></li>
   {%- when TimelineView::Review with (r) %}
   <li class="timeline-comment timeline-review" id="review-{{ r.id }}">
-    <article aria-label="Review by {{ r.reviewer }}">
-      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}<strong>{{ r.reviewer }}</strong>{% call m::bot_badge(ctx, r.reviewer) %}{% endcall %} {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}"><time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
+    <article aria-label="Review by {{ r.reviewer.text() }}">
+      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}{% call p::who(ctx, r.reviewer) %}{% endcall %} {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}">{% call c::time(r.created) %}{% endcall %}</a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
       {%- if !r.body_empty %}
       <div class="markdown" hx-ignore>{{ r.body_html }}</div>
       {%- endif %}
     </article>
   </li>
-  {%- when TimelineView::Group with (summary, events) %}
+  {%- when TimelineView::Group with (lead, summary, events) %}
   <li class="timeline-event timeline-group">
     <details>
-      <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{{ summary }}<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+      <summary>{% call m::icon(ctx, "history") %}{% endcall %}<span>{% if let Some(w) = lead %}{% call p::who(ctx, w, true, false) %}{% endcall %} {% endif %}{{ summary }}<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
       <ul class="plain-list">
       {%- for e in events %}
-        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span><strong>{{ e.actor }}</strong>{% call m::bot_badge(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} <time datetime="{{ e.created.iso }}">{{ e.created.text }}</time></span></li>
+        <li>{% call m::icon(ctx, e.icon) %}{% endcall %}<span>{% call p::who(ctx, e.actor) %}{% endcall %} {{ e.text }}{% if let Some((href, text)) = e.link %} <a href="{{ href }}">{{ text }}</a>{% endif %} {% call c::time(e.created) %}{% endcall %}</span></li>
       {%- endfor %}
       </ul>
     </details>
@@ -195,31 +205,31 @@
   {%- when TimelineView::Iterations with (g) %}
   <li class="timeline-event timeline-group">
     <details>
-      <summary>{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ g.pusher }}</strong>{% call m::bot_badge(ctx, g.pusher) %}{% endcall %} pushed {{ g.revisions.len() }} iterations (revisions {{ g.first }}–{{ g.last }})<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
+      <summary>{% call m::icon(ctx, "bot") %}{% endcall %}<span>{% call p::who(ctx, g.pusher, true, false) %}{% endcall %} pushed {{ g.revisions.len() }} iterations (revisions {{ g.first }}–{{ g.last }})<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
       {%- if let Some(href) = g.compare_href %}
       <p><a href="{{ href }}">Compare revision {{ g.first - 1 }} with {{ g.last }}</a></p>
       {%- endif %}
       <ul class="plain-list">
       {%- for r in g.revisions %}
-        <li id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong>{% call m::bot_badge(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
+        <li id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span>{% call p::who(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} ({% call c::hash(r.oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ r.oid) %}{% endcall %}){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} {% call c::time(r.created) %}{% endcall %}{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
       {%- endfor %}
       </ul>
     </details>
   </li>
   {%- when TimelineView::Revision with (r) %}
-  <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span><strong>{{ r.pusher }}</strong>{% call m::bot_badge(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} (<a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ r.oid }}"><code>{{ r.short }}</code></a>){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time>{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
+  <li class="timeline-event" id="revision-{{ r.seq }}">{% call m::icon(ctx, "git-commit-horizontal") %}{% endcall %}<span>{% call p::who(ctx, r.pusher) %}{% endcall %} {% if r.seq == 1 %}opened{% else %}pushed{% endif %} revision {{ r.seq }} with {{ r.commits }} commit{% if r.commits != 1 %}s{% endif %} ({% call c::hash(r.oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ r.oid) %}{% endcall %}){% if let Some(sum) = r.summary %}: {{ sum }}{% endif %}{% if let Some(href) = r.since_href %} · <a href="{{ href }}">Compare with previous</a>{% endif %} {% call c::time(r.created) %}{% endcall %}{% if let Some(why) = r.whole_reason %}<br>Review the changes as a whole: {{ why }}.{% endif %}</span></li>
   {%- endmatch %}
   {%- endfor %}
 </ol>
 <span id="timeline-end"></span>
 </div>
-<div class="merge-area">
+<div class="stack-groups">
 {% let card_top = false %}
 {% let card_id = "merge-box" %}
 {% include "repo/readiness_card.html" %}
   {%- if let Some((git, jj)) = conflict_commands %}
-  <details class="conflict-help merge-step" id="conflicts">
-    <summary>Resolve the conflicts on your machine</summary>
+  <div id="conflicts">
+  {%- call d::disclosure(ctx, "Resolve the conflicts on your machine") %}
     <div class="choice">
       <fieldset class="choice-options">
         <legend>Commands for</legend>
@@ -228,164 +238,166 @@
       </fieldset>
       <div class="choice-panel">
         <pre><code id="conflicts-git">{{ git }}</code></pre>
-        <div class="button-row"><button type="button" class="button" data-copy="conflicts-git" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy Git commands</button></div>
+        <div class="cluster"><button type="button" class="button" data-copy="conflicts-git" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy Git commands</button></div>
       </div>
       <div class="choice-panel">
         <pre><code id="conflicts-jj">{{ jj }}</code></pre>
-        <div class="button-row"><button type="button" class="button" data-copy="conflicts-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button></div>
+        <div class="cluster"><button type="button" class="button" data-copy="conflicts-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button></div>
       </div>
     </div>
-  </details>
+  {%- endcall %}
+  </div>
   {%- endif %}
   {%- if let Some(u) = update_form %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/update-branch" class="form merge-step update-branch-form" id="update-branch" aria-labelledby="update-branch-title" novalidate>
-    <h3 id="update-branch-title" class="merge-step-title">Update the branch</h3>
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <input type="hidden" name="expected_head_oid" value="{{ u.head }}">
-    {%- if let Some(e) = self.error("update") %}
-    <div class="error-summary" role="alert"><p>{{ e }}</p></div>
-    {%- endif %}
-    <fieldset class="field">
-      <legend><code class="branch-name"><bdi>{{ h.source }}</bdi></code> is behind <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code>. Bring it up to date by:</legend>
-      <div class="radio"><input id="update-merge" type="radio" name="method" value="merge" checked><label for="update-merge">Merge <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> into the branch</label></div>
-      <div class="radio"><input id="update-rebase" type="radio" name="method" value="rebase"><label for="update-rebase">Rebase the branch onto <code class="branch-name"><bdi>{{ h.mr.target_branch }}</bdi></code> <span class="text-secondary">(rewrites its commits; {% if h.tool.jj %}run <code>jj git fetch</code>{% else if h.tool.git %}run <code>git pull --rebase</code>{% else %}fetch them{% endif %} before you push again)</span></label></div>
-    </fieldset>
-    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button></div>
-  </form>
+  <section class="frame" id="update-branch" aria-labelledby="update-branch-title">
+    <h3 id="update-branch-title" class="frame-title">Update the branch</h3>
+    <form method="post" action="{{ here }}/update-branch" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <input type="hidden" name="expected_head_oid" value="{{ u.head }}">
+      {%- if let Some(e) = self.error("update") %}
+      {%- call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}
+      {%- endif %}
+      <fieldset class="question" id="update-method">
+        <legend><code>{% call c::path(h.source) %}{% endcall %}</code> is behind <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code>. Bring it up to date by:</legend>
+        <div class="option"><input id="update-merge" type="radio" name="method" value="merge" checked><label for="update-merge">Merge <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code> into the branch</label></div>
+        <div class="option"><input id="update-rebase" type="radio" name="method" value="rebase"><label for="update-rebase">Rebase the branch onto <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code><span class="option-hint">Rewrites its commits; {% if h.tool.jj %}run <code>jj git fetch</code>{% else if h.tool.git %}run <code>git pull --rebase</code>{% else %}fetch them{% endif %} before you push again.</span></label></div>
+      </fieldset>
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Update branch</button>{% endcall %}
+    </form>
+  </section>
   {%- endif %}
   {%- if let Some(head) = apply_suggestions %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/suggestions/apply" class="form merge-step" id="apply-suggestions" aria-labelledby="apply-suggestions-title" novalidate>
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <input type="hidden" name="expected_head_oid" value="{{ head }}">
-    <h3 id="apply-suggestions-title" class="merge-step-title">Apply suggestions</h3>
-    {%- if let Some(e) = self.error("suggestions") %}
-    <div class="error-summary" role="alert"><p>{{ e }}</p></div>
-    {%- endif %}
+  <section class="frame" aria-labelledby="apply-suggestions-title">
+    <h3 id="apply-suggestions-title" class="frame-title">Apply suggestions</h3>
     <p class="text-secondary">Apply a suggestion with its own button, or check <strong>Add to batch</strong> on several and apply them together here.</p>
-    <fieldset class="field">
-      <legend>Apply them</legend>
-      <div class="radio"><input id="apply-commit" type="radio" name="mode" value="commit" checked><label for="apply-commit">As a new commit on top</label></div>
-      <div class="radio"><input id="apply-fold" type="radio" name="mode" value="fold"><label for="apply-fold">Folded into the change that added the lines <span class="text-secondary">(rewrites the branch; every change keeps its ID)</span></label></div>
-    </fieldset>
-    <div class="button-row"><button type="submit" class="button">Apply batch</button></div>
-  </form>
+    <form method="post" action="{{ here }}/suggestions/apply" class="form-layout" id="apply-suggestions" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <input type="hidden" name="expected_head_oid" value="{{ head }}">
+      {%- if let Some(e) = self.error("suggestions") %}
+      {%- call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}
+      {%- endif %}
+      {%- call f::question("apply-mode", "Apply them") %}
+      {%- call f::option("radio", "apply-commit", "mode", "commit", "As a new commit on top", true) %}{% endcall %}
+      {%- call f::option("radio", "apply-fold", "mode", "fold", "Folded into the change that added the lines", false, "Rewrites the branch; every change keeps its ID.") %}{% endcall %}
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">Apply batch</button>{% endcall %}
+    </form>
+  </section>
   {%- endif %}
   {%- if let Some(am) = auto_merge %}
   {%- if let Some((strategy, by)) = am.set %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/auto-merge/cancel" class="form notice merge-step auto-merge" id="auto-merge" aria-labelledby="auto-merge-title">
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <h3 id="auto-merge-title" class="merge-step-title">Merge when ready</h3>
-    <p class="notice-line">{% call m::icon(ctx, "clock") %}{% endcall %}<span>It merges ({{ strategy|lower }}) as soon as every requirement is met. Set by <strong>{{ by }}</strong>{% call m::bot_badge(ctx, by) %}{% endcall %}; a new revision pushed by anyone else cancels it.</span></p>
+  <section class="frame frame-notice" id="auto-merge" aria-labelledby="auto-merge-title">
+    <h3 id="auto-merge-title" class="frame-title">Merge when ready</h3>
+    <p class="notice-line">{% call m::icon(ctx, "clock") %}{% endcall %}<span>It merges ({{ strategy|lower }}) as soon as every requirement is met. Set by {% call p::who(ctx, by, false) %}{% endcall %}; a new revision pushed by anyone else cancels it.</span></p>
     {%- if am.may_cancel %}
-    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Cancel merge when ready</button></div>
+    <form method="post" action="{{ here }}/auto-merge/cancel" class="form-layout">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Cancel merge when ready</button>{% endcall %}
+    </form>
     {%- endif %}
-  </form>
+  </section>
   {%- else %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/auto-merge" class="form merge-step merge-form" id="auto-merge" aria-labelledby="auto-merge-title" novalidate>
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <h3 id="auto-merge-title" class="merge-step-title">Merge when ready</h3>
+  <section class="frame" id="auto-merge" aria-labelledby="auto-merge-title">
+    <h3 id="auto-merge-title" class="frame-title">Merge when ready</h3>
     <p class="text-secondary">It merges as you as soon as every requirement is met.</p>
-    <div class="field">
-      <label for="auto-strategy">Merge with</label>
+    <form method="post" action="{{ here }}/auto-merge" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::field("auto-strategy", "Merge with") %}
       <select id="auto-strategy" name="strategy">
         {%- for (value, label) in am.strategies %}
         <option value="{{ value }}">{{ label }}</option>
         {%- endfor %}
       </select>
-    </div>
-    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "clock") %}{% endcall %}Merge when ready</button></div>
-  </form>
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "clock") %}{% endcall %}Merge when ready</button>{% endcall %}
+    </form>
+  </section>
   {%- endif %}
   {%- endif %}
   {%- if let Some(e) = self.error("merge") %}
-  <div class="error-summary" role="alert" id="merge"><p>{{ e }}</p></div>
+  <div id="merge">{% call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}</div>
   {%- endif %}
-  {%- if let Some(f) = merge_form %}
-  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/merge" class="form merge-step merge-form" id="merge-form" aria-labelledby="merge-form-title" novalidate>
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <h3 id="merge-form-title" class="merge-step-title">Merge</h3>
-    <input type="hidden" name="expected_head_oid" value="{{ f.head }}">
-    <div class="field">
-      <label for="strategy">Merge with</label>
-      <select id="strategy" name="strategy"{% if self.error("strategy").is_some() %} aria-invalid="true" aria-describedby="strategy-error"{% endif %}>
-        {%- for (value, label) in f.strategies %}
+  {%- if let Some(mf) = merge_form %}
+  <section class="frame" aria-labelledby="merge-form-title">
+    <h3 id="merge-form-title" class="frame-title">Merge</h3>
+    <form method="post" action="{{ here }}/merge" class="form-layout" id="merge-form" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <input type="hidden" name="expected_head_oid" value="{{ mf.head }}">
+      {%- call f::field("strategy", "Merge with", "", self.error("strategy").unwrap_or_default()) %}
+      <select id="strategy" name="strategy"{% call f::described("strategy", "", self.error("strategy").unwrap_or_default()) %}{% endcall %}>
+        {%- for (value, label) in mf.strategies %}
         <option value="{{ value }}">{{ label }}</option>
         {%- endfor %}
       </select>
-      {%- if let Some(e) = self.error("strategy") %}
-      <p id="strategy-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="field">
-      <label for="commit_message">Commit message <span class="text-secondary">(optional; merge commit and squash)</span></label>
-      <textarea id="commit_message" name="commit_message" rows="3" autocomplete="off"></textarea>
-    </div>
-    <div class="checkbox"><input id="delete_source" type="checkbox" name="delete_source" value="1"{% if f.delete_source %} checked{% endif %}><label for="delete_source">Delete <code class="branch-name"><bdi>{{ h.source }}</bdi></code> after merging</label></div>
-    <div class="button-row"><button type="submit" class="button">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merge</button></div>
-  </form>
+      {%- endcall %}
+      {%- call f::field("commit_message", "Commit message", "For a merge commit or a squash.", "", true) %}
+      <textarea id="commit_message" name="commit_message" rows="3" autocomplete="off"{% call f::described("commit_message", "x", "") %}{% endcall %}></textarea>
+      {%- endcall %}
+      <div class="option"><input id="delete_source" type="checkbox" name="delete_source" value="1"{% if mf.delete_source %} checked{% endif %}><label for="delete_source">Delete <code>{% call c::path(h.source) %}{% endcall %}</code> after merging</label></div>
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merge</button>{% endcall %}
+    </form>
+  </section>
   {%- endif %}
 </div>
 {%- if can_review %}
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviews" class="form form-wide review-form" id="review-form" novalidate>
-  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  {%- if pending > 0 %}
-  <p class="notice">You have {{ pending }} pending comment{% if pending != 1 %}s{% endif %}; submitting the review sends {% if pending == 1 %}it{% else %}them{% endif %} along.</p>
-  {%- endif %}
-  <fieldset class="field">
-    <legend>Review revision {{ h.mr.revisions }}</legend>
-    <div class="radio"><input id="verdict-comment" type="radio" name="verdict" value="comment" checked><label for="verdict-comment">Comment</label></div>
+<section class="frame" aria-labelledby="review-form-title">
+  <h3 id="review-form-title" class="frame-title">Your review</h3>
+  <form method="post" action="{{ here }}/reviews" class="form-layout-wide" id="review-form" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    {%- if pending > 0 %}
+    {%- call msg::notice() %}<p>You have {{ pending }} pending comment{% if pending != 1 %}s{% endif %}; submitting the review sends {% if pending == 1 %}it{% else %}them{% endif %} along.</p>{% endcall %}
+    {%- endif %}
+    {%- let verdict_legend %}Review revision {{ h.mr.revisions }}{% endlet %}
+    {%- call f::question("verdict", verdict_legend) %}
+    {%- call f::option("radio", "verdict-comment", "verdict", "comment", "Comment", true) %}{% endcall %}
     {%- if can_approve %}
-    <div class="radio"><input id="verdict-approve" type="radio" name="verdict" value="approve"><label for="verdict-approve">Approve</label></div>
-    <div class="radio"><input id="verdict-request_changes" type="radio" name="verdict" value="request_changes"><label for="verdict-request_changes">Request changes</label></div>
+    {%- call f::option("radio", "verdict-approve", "verdict", "approve", "Approve") %}{% endcall %}
+    {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes") %}{% endcall %}
     {%- endif %}
-  </fieldset>
-  <div class="field">
-    <label for="review-body">Review comment</label>
+    {%- endcall %}
+    {%- call f::field("review-body", "Review comment", "", self.error("body").unwrap_or_default(), true) %}
     <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
-    <textarea id="review-body" name="body" rows="4" autocomplete="off"{% if self.error("body").is_some() %} aria-invalid="true" aria-describedby="review-body-error"{% endif %}></textarea>
+    <textarea id="review-body" name="body" rows="4" autocomplete="off"{% call f::described("review-body", "", self.error("body").unwrap_or_default()) %}{% endcall %}></textarea>
     </slath-editor>
-    {%- if let Some(e) = self.error("body") %}
-    <p id="review-body-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="button-row"><button type="submit" class="button">Submit review</button></div>
-</form>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">Submit review</button>{% endcall %}
+  </form>
+</section>
 {%- endif %}
 {%- if h.perms.comment %}
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/comments" class="form form-wide comment-form" novalidate>
+<form method="post" action="{{ here }}/comments" class="form-layout-wide" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="comment-body">Add a comment</label>
-    <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
-    <textarea id="comment-body" name="body" rows="6" required autocomplete="off"></textarea>
-    </slath-editor>
-  </div>
-  <div class="button-row">
-    <button type="submit" class="button" aria-keyshortcuts="Control+Enter" title="Comment (Ctrl+Enter)">Comment</button>
+  {%- call f::field("comment-body", "Add a comment") %}
+  <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
+  <textarea id="comment-body" name="body" rows="6" required autocomplete="off"></textarea>
+  </slath-editor>
+  {%- endcall %}
+  {%- call f::buttons() %}
+    <button type="submit" class="button" aria-keyshortcuts="Control+Enter" data-tip="Comment (Ctrl+Enter)">Comment</button>
     {%- if h.perms.close && h.mr.state != "merged" %}
     {%- if h.mr.state == "open" %}
-    <button type="submit" name="state" value="closed" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" title="Comment and close (Ctrl+Shift+Enter)">{% call m::icon(ctx, "git-pull-request-closed") %}{% endcall %}Comment and close</button>
+    <button type="submit" name="state" value="closed" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" data-tip="Comment and close (Ctrl+Shift+Enter)">{% call m::icon(ctx, "git-pull-request-closed") %}{% endcall %}Comment and close</button>
     {%- else if h.source_exists %}
-    <button type="submit" name="state" value="open" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" title="Comment and reopen (Ctrl+Shift+Enter)">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Comment and reopen</button>
+    <button type="submit" name="state" value="open" class="button" data-submit-alt formnovalidate aria-keyshortcuts="Control+Shift+Enter" data-tip="Comment and reopen (Ctrl+Shift+Enter)">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Comment and reopen</button>
     {%- endif %}
     {%- endif %}
-  </div>
+  {%- endcall %}
 </form>
 {%- else if ctx.user.is_none() %}
 <p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to comment.</p>
 {%- endif %}
 </div>
-<aside class="issue-sidebar" aria-label="Merge request details">
-  <section aria-labelledby="side-checks">
-    <h2 id="side-checks" class="sidebar-heading">Checks</h2>
+<aside class="details-column" aria-label="Merge request details">
+  <section class="details-section" aria-labelledby="side-checks">
+    <h2 id="side-checks" class="details-heading">Checks</h2>
     {%- if statuses.is_empty() %}
     <p class="text-secondary">No statuses reported.</p>
     {%- else %}
     {% include "repo/statuses.html" %}
     {%- endif %}
   </section>
-  <section aria-labelledby="side-reviewers">
-    <h2 id="side-reviewers" class="sidebar-heading">Reviewers</h2>
+  <section class="details-section" aria-labelledby="side-reviewers">
+    <h2 id="side-reviewers" class="details-heading">Reviewers</h2>
     {%- if h.mr.attention == "iterating" %}
     <p class="hint">They're asked once this is marked as ready.</p>
     {%- else if h.mr.attention == "waiting_for_checks" %}
@@ -396,39 +408,34 @@
     {%- else %}
     <ul class="plain-list">
       {%- for (u, st) in reviewers %}
-      <li><a href="/{{ u }}">{{ u }}</a>{% if !st.is_empty() %} <span class="text-secondary">({{ st }})</span>{% endif %}</li>
+      <li>{% call p::account(ctx, u) %}{% endcall %}{% if !st.is_empty() %} <span class="text-secondary">({{ st }})</span>{% endif %}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
     {%- if can_request %}
-    <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/reviewers" class="form sidebar-form" novalidate>
+    <form method="post" action="{{ here }}/reviewers" class="form-layout" novalidate>
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      <div class="field suggest-field">
-        <label for="reviewers">Ask for reviews</label>
-        <input id="reviewers" name="reviewers" type="text" value="{% for (u, st) in reviewers %}{% if st == "requested" %}{{ u }}, {% endif %}{% endfor %}" autocapitalize="none" spellcheck="false" autocomplete="off" aria-describedby="reviewers-hint{% if self.error("reviewers").is_some() %} reviewers-error{% endif %}" data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% if self.error("reviewers").is_some() %} aria-invalid="true"{% endif %}>
-        <p id="reviewers-hint" class="hint">Usernames, or organization/team, separated by commas.</p>
-        {%- if let Some(e) = self.error("reviewers") %}
-        <p id="reviewers-error" class="field-error">{{ e }}</p>
-        {%- endif %}
-      </div>
-      <button type="submit" class="button">Save reviewers</button>
+      {%- call f::field("reviewers", "Ask for reviews", "Usernames, or organization/team, separated by commas.", self.error("reviewers").unwrap_or_default()) %}
+      <input id="reviewers" name="reviewers" type="text" value="{% for (u, st) in reviewers %}{% if st == "requested" %}{{ u }}, {% endif %}{% endfor %}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("reviewers", "x", self.error("reviewers").unwrap_or_default()) %}{% endcall %}>
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">Save reviewers</button>{% endcall %}
     </form>
     {%- endif %}
   </section>
-  <section aria-labelledby="side-assignees">
-    <h2 id="side-assignees" class="sidebar-heading">Assignees</h2>
+  <section class="details-section" aria-labelledby="side-assignees">
+    <h2 id="side-assignees" class="details-heading">Assignees</h2>
     {%- if assignees.is_empty() %}
     <p class="text-secondary">No one</p>
     {%- else %}
     <ul class="plain-list">
       {%- for u in assignees %}
-      <li><a href="/{{ u }}">{{ u }}</a></li>
+      <li>{% call p::account(ctx, u) %}{% endcall %}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
   </section>
-  <section aria-labelledby="side-labels">
-    <h2 id="side-labels" class="sidebar-heading">Labels</h2>
+  <section class="details-section" aria-labelledby="side-labels">
+    <h2 id="side-labels" class="details-heading">Labels</h2>
     {%- if labels.is_empty() %}
     <p class="text-secondary">None</p>
     {%- else %}
@@ -439,9 +446,9 @@
     </ul>
     {%- endif %}
   </section>
-  <section aria-labelledby="side-milestone">
-    <h2 id="side-milestone" class="sidebar-heading">Milestone</h2>
-    <p{% if milestone.is_none() %} class="text-secondary"{% endif %}>{% if let Some(m) = milestone %}{{ m }}{% else %}None{% endif %}</p>
+  <section class="details-section" aria-labelledby="side-milestone">
+    <h2 id="side-milestone" class="details-heading">Milestone</h2>
+    <p{% if milestone.is_none() %} class="text-secondary"{% endif %}>{% if let Some(ms) = milestone %}{{ ms }}{% else %}None{% endif %}</p>
   </section>
 </aside>
 </div>

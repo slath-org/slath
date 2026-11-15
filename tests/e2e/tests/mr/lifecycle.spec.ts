@@ -212,6 +212,36 @@ test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await expect(seeded()).toContainText(text);
 });
 
+test("conf_review_reply_resolves_its_thread", async ({ page }, testInfo) => {
+  test.slow();
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  await expect(page).toHaveURL(/\/merge-requests\/\d+$/);
+  const conversation = page.url();
+  // A thread of this browser's own, started on a line.
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  await tapOrClick(page, page.locator(".diff-unified a[title='Comment on this line']").first());
+  const note = `Resolve me on ${testInfo.project.name}`;
+  await page.getByLabel("Comment", { exact: true }).fill(note);
+  await tapOrClick(page, page.getByRole("button", { name: "Comment now" }));
+  await expect(page.locator(".diff-thread-row").filter({ hasText: note })).toBeVisible();
+  await page.goto(conversation);
+  const mine = page.locator("li.timeline-thread").filter({ hasText: note });
+  await expect(mine.getByRole("button", { name: "Resolve thread" })).toBeVisible();
+  // The reply box resolves while replying; its own button stands aside.
+  await tapOrClick(page, mine.locator("summary", { hasText: "Reply" }));
+  await expect(mine.getByRole("button", { name: "Resolve thread" })).toBeHidden();
+  await mine.getByLabel("Your reply").fill("Done.");
+  await mine.getByRole("checkbox", { name: /^Resolve thread/ }).check();
+  await expectAccessible(page);
+  await tapOrClick(page, mine.getByRole("button", { name: "Send reply" }));
+  const done = page.locator("li.timeline-thread").filter({ hasText: note });
+  await expect(done.locator(".comment-header")).toContainText("Resolved");
+  await expect(done).toContainText("Done.");
+  await expect(done.getByRole("button", { name: "Reopen thread" })).toBeVisible();
+});
+
 test("conf_agent_02_findings_show_as_bot_threads", async ({ page }) => {
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");
@@ -289,12 +319,12 @@ test("conf_agent_12_a_bot_marks_a_persons_thread_addressed", async ({ page }) =>
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Agent fixture" }));
   const thread = page.getByRole("article", { name: "Thread on agent-notes.txt, line 1" });
-  await expect(thread.locator(".comment-header")).toContainText("Addressed by e2e-agent");
+  await expect(thread.locator(".comment-header")).toContainText(/marked as addressed by\s*e2e-agent/);
   await expect(thread.locator(".comment-header")).toContainText("Bot");
   // Still open: a person resolves it.
   await expect(thread.getByRole("button", { name: "Resolve thread" })).toBeVisible();
   await expectAccessible(page);
   await page.goto(page.url().replace(/#.*$/, "") + "/changes");
-  await expect(page.locator(".inline-thread").filter({ hasText: "Addressed by e2e-agent" })).toBeVisible();
+  await expect(page.locator(".inline-thread").filter({ hasText: /Marked as addressed by\s*e2e-agent/ })).toBeVisible();
   await expectAccessible(page);
 });

@@ -313,8 +313,11 @@ file you've reviewed; it opens again by itself when the file changes in a
 new revision.
 
 In the conversation, each thread shows the code it's about, its replies,
-and whether it's outdated or resolved. **Reply** sends an answer right
-away; **Add to my review** keeps it pending. The **Show** menu above the
+and whether it's outdated or resolved. **Reply…** opens the reply form in
+place, and **Cancel** folds it again. **Send reply** sends the answer right
+away; **Add to my review** keeps it pending. If you may resolve the thread,
+**Resolve thread** in the form resolves it with your reply: at once, or,
+with **Add to my review**, when you submit the review. The **Show** menu above the
 timeline narrows the conversation to **Unresolved** threads or to what you
 wrote (**Mine**).
 

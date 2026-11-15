@@ -107,7 +107,7 @@ pub struct InlineThread {
     /// Where a finding thread came from.
     pub finding: Option<String>,
     /// (author, rendered body, pending, a finding's plain-text message)
-    pub comments: Vec<(String, super::MarkupHtml, bool, Option<String>)>,
+    pub comments: Vec<(super::Who, super::MarkupHtml, bool, Option<String>)>,
     /// The thread in the conversation, for answering.
     pub link: String,
 }

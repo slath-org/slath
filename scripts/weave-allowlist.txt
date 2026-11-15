@@ -7,13 +7,9 @@ catalog-class attempt                                                   # markup
 catalog-class attempt-head                                              # markup of a page that hasn't moved to the components yet
 catalog-class attempt-list                                              # markup of a page that hasn't moved to the components yet
 catalog-class attempt-response                                          # markup of a page that hasn't moved to the components yet
-catalog-class auto-merge                                                # markup of a page that hasn't moved to the components yet
 catalog-class bot-control                                               # markup of a page that hasn't moved to the components yet
-catalog-class branch-name                                               # markup of a page that hasn't moved to the components yet
 catalog-class checkbox-hint                                             # markup of a page that hasn't moved to the components yet
 catalog-class closed                                                    # markup of a page that hasn't moved to the components yet
-catalog-class comment-form                                              # markup of a page that hasn't moved to the components yet
-catalog-class conflict-help                                             # markup of a page that hasn't moved to the components yet
 catalog-class delivery-facts                                            # markup of a page that hasn't moved to the components yet
 catalog-class delivery-state                                            # markup of a page that hasn't moved to the components yet
 catalog-class filters                                                   # markup of a page that hasn't moved to the components yet
@@ -21,13 +17,7 @@ catalog-class finding-id                                                # markup
 catalog-class finding-list                                              # markup of a page that hasn't moved to the components yet
 catalog-class form-actions                                              # markup of a page that hasn't moved to the components yet
 catalog-class form-section                                              # markup of a page that hasn't moved to the components yet
-catalog-class form-wide                                                 # markup of a page that hasn't moved to the components yet
 catalog-class inline-list                                               # markup of a page that hasn't moved to the components yet
-catalog-class issue-layout                                              # markup of a page that hasn't moved to the components yet
-catalog-class issue-main                                                # markup of a page that hasn't moved to the components yet
-catalog-class issue-sidebar                                             # markup of a page that hasn't moved to the components yet
-catalog-class merge-area                                                # markup of a page that hasn't moved to the components yet
-catalog-class merge-form                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-step                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-step-title                                          # markup of a page that hasn't moved to the components yet
 catalog-class narrow                                                    # markup of a page that hasn't moved to the components yet
@@ -38,35 +28,22 @@ catalog-class profile-avatar                                            # markup
 catalog-class profile-handle                                            # markup of a page that hasn't moved to the components yet
 catalog-class profile-head                                              # markup of a page that hasn't moved to the components yet
 catalog-class qr-code                                                   # markup of a page that hasn't moved to the components yet
-catalog-class readiness-since                                           # markup of a page that hasn't moved to the components yet
 catalog-class recovery-codes                                            # markup of a page that hasn't moved to the components yet
 catalog-class repo-list                                                 # markup of a page that hasn't moved to the components yet
 catalog-class repo-name                                                 # markup of a page that hasn't moved to the components yet
-catalog-class review-form                                               # markup of a page that hasn't moved to the components yet
 catalog-class role-form                                                 # markup of a page that hasn't moved to the components yet
 catalog-class row-actions                                               # markup of a page that hasn't moved to the components yet
 catalog-class secret-key                                                # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-defaults                                        # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-instance-note                                   # markup of a page that hasn't moved to the components yet
-catalog-class sidebar-form                                              # markup of a page that hasn't moved to the components yet
-catalog-class sidebar-heading                                           # markup of a page that hasn't moved to the components yet
 catalog-class steps                                                     # markup of a page that hasn't moved to the components yet
-catalog-class suggest-field                                             # markup of a page that hasn't moved to the components yet
-catalog-class thread-reply                                              # markup of a page that hasn't moved to the components yet
-catalog-class thread-reply-box                                          # markup of a page that hasn't moved to the components yet
-catalog-class thread-resolve                                            # markup of a page that hasn't moved to the components yet
-catalog-class timeline-tools                                            # markup of a page that hasn't moved to the components yet
 catalog-class token-value                                               # markup of a page that hasn't moved to the components yet
-catalog-class update-branch-form                                        # markup of a page that hasn't moved to the components yet
 catalog-class webhook-section                                           # markup of a page that hasn't moved to the components yet
 catalog-class webhook-section-head                                      # markup of a page that hasn't moved to the components yet
 catalog-unused avatar-group                                             # no page uses it until the pages move to the components
 catalog-unused danger                                                   # no page uses it until the pages move to the components
-catalog-unused frame                                                    # no page uses it until the pages move to the components
 catalog-unused more                                                     # no page uses it until the pages move to the components
 catalog-unused popover                                                  # no page uses it until the pages move to the components
-catalog-unused reply-box                                                # no page uses it until the pages move to the components
 catalog-unused subsection                                               # no page uses it until the pages move to the components
-details-indicator crates/http/templates/repo/merge_request.html         # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/settings_protections.html  # the page hasn't moved to the components yet
 field-group crates/http/templates/repo/settings_protections.html        # the page hasn't moved to the components yet
