@@ -2012,15 +2012,6 @@ a.label-chip:hover {
   margin-block-start: var(--space-1);
   accent-color: var(--success);
 }
-.issue-filters {
-  margin-block-end: var(--space-3);
-}
-.issue-filters summary {
-  cursor: pointer;
-  min-height: var(--target-min);
-  display: inline-flex;
-  align-items: center;
-}
 .filter-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));

@@ -39,13 +39,11 @@ catalog-class header-actions                                            # markup
 catalog-class held-source                                               # markup of a page that hasn't moved to the components yet
 catalog-class inline-list                                               # markup of a page that hasn't moved to the components yet
 catalog-class issue                                                     # markup of a page that hasn't moved to the components yet
-catalog-class issue-filters                                             # markup of a page that hasn't moved to the components yet
 catalog-class issue-heading                                             # markup of a page that hasn't moved to the components yet
 catalog-class issue-layout                                              # markup of a page that hasn't moved to the components yet
 catalog-class issue-main                                                # markup of a page that hasn't moved to the components yet
 catalog-class issue-sidebar                                             # markup of a page that hasn't moved to the components yet
 catalog-class issue-status                                              # markup of a page that hasn't moved to the components yet
-catalog-class item-checks                                               # markup of a page that hasn't moved to the components yet
 catalog-class merge-area                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-form                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-step                                                # markup of a page that hasn't moved to the components yet
@@ -90,6 +88,5 @@ catalog-unused reply-box                                                # no pag
 catalog-unused subsection                                               # no page uses it until the pages move to the components
 details-indicator crates/http/templates/repo/merge_request.html         # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/merge_request_change.html  # the page hasn't moved to the components yet
-details-indicator crates/http/templates/repo/merge_requests.html        # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/settings_protections.html  # the page hasn't moved to the components yet
 field-group crates/http/templates/repo/settings_protections.html        # the page hasn't moved to the components yet

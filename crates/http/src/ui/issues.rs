@@ -65,9 +65,6 @@ struct ListPage {
     query: String,
     /// The filter alone, without the order.
     filters: String,
-    sort_updated: bool,
-    /// The order shown, for the sort menu.
-    sort_label: &'static str,
     milestones: Vec<String>,
     filtered: bool,
 }
@@ -78,22 +75,24 @@ impl ListPage {
     }
 }
 
+/// The filter and order of an issue or merge request list, from its query
+/// string.
 #[derive(Deserialize, Default, Clone)]
-struct ListQuery {
-    state: Option<String>,
-    page: Option<i64>,
-    /// Comma-separated; issues must have all of them.
+pub(super) struct ListQuery {
+    pub(super) state: Option<String>,
+    pub(super) page: Option<i64>,
+    /// Comma-separated; items must have all of them.
     #[serde(default)]
-    labels: String,
+    pub(super) labels: String,
     #[serde(default)]
-    assignee: String,
+    pub(super) assignee: String,
     #[serde(default)]
-    author: String,
+    pub(super) author: String,
     #[serde(default)]
-    milestone: String,
+    pub(super) milestone: String,
     /// `created` (default) or `updated`.
     #[serde(default)]
-    sort: String,
+    pub(super) sort: String,
 }
 
 /// Percent-encodes a query parameter value.
@@ -110,7 +109,7 @@ pub(super) fn enc(v: &str) -> String {
 }
 
 impl ListQuery {
-    fn input(&self, state: &str) -> FilterInput {
+    pub(super) fn input(&self, state: &str) -> FilterInput {
         FilterInput {
             state: Some(state.to_owned()),
             labels: self.labels.split(',').map(str::to_owned).collect(),
@@ -122,8 +121,8 @@ impl ListQuery {
     }
 
     /// The filter and order as `&key=value` pairs (empty values left out).
-    fn query(&self) -> String {
-        let sort = if self.sort == "updated" {
+    pub(super) fn query(&self) -> String {
+        let sort = if self.sort_updated() {
             "&sort=updated"
         } else {
             ""
@@ -132,7 +131,7 @@ impl ListQuery {
     }
 
     /// The filter alone as `&key=value` pairs (empty values left out).
-    fn filters(&self) -> String {
+    pub(super) fn filters(&self) -> String {
         [
             ("labels", &self.labels),
             ("assignee", &self.assignee),
@@ -143,6 +142,19 @@ impl ListQuery {
         .filter(|(_, v)| !v.trim().is_empty())
         .map(|(k, v)| format!("&{k}={}", enc(v.trim())))
         .collect()
+    }
+
+    pub(super) fn sort_updated(&self) -> bool {
+        self.sort == "updated"
+    }
+
+    /// The order shown, for the sort menu.
+    pub(super) fn sort_label(&self) -> &'static str {
+        if self.sort_updated() {
+            "Recently updated"
+        } else {
+            "Newest"
+        }
     }
 }
 
@@ -177,17 +189,10 @@ async fn list(
     let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
     let query = q.query();
     let filters = q.filters();
-    let sort_updated = q.sort == "updated";
     Ok(render(&ListPage {
         milestones: ms.into_iter().map(|m| m.title).collect(),
         filtered: !filters.is_empty(),
         filters,
-        sort_updated,
-        sort_label: if sort_updated {
-            "Recently updated"
-        } else {
-            "Newest"
-        },
         header: RepoHeader::load(&state, &a, &subject, "issues").await,
         can_create: a.can(&subject, Action::IssueCreate),
         issues: items

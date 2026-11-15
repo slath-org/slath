@@ -1,0 +1,34 @@
+{#- The filters of an issue or merge request list, as a disclosure; the
+    page sets `list_path`, `noun` ("issues", "merge requests"), `state`,
+    `filtered`, `q`, and `milestones`. -#}
+{%- let filter_summary %}Filters{% if filtered %} (active){% endif %}{% endlet %}
+{%- call d::disclosure(ctx, filter_summary, filtered) %}
+  <form method="get" {% call m::swap_region(ctx, "list-view") %}{% endcall %} action="{{ list_path }}" class="form-layout">
+    <input type="hidden" name="state" value="{{ state }}">
+    {%- if q.sort_updated() %}<input type="hidden" name="sort" value="updated">{% endif %}
+    {%- let labels_hint %}Separate labels with commas; {{ noun }} must have all of them.{% endlet %}
+    {%- call f::field("f-labels", "Labels", labels_hint) %}
+    <input id="f-labels" name="labels" type="text" value="{{ q.labels }}" autocapitalize="none" spellcheck="false" data-names="labels" autocomplete="off"{% call f::described("f-labels", "x", "") %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::field("f-assignee", "Assignee") %}
+    <input id="f-assignee" name="assignee" type="text" value="{{ q.assignee }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-suggest-users="{{ header.namespace }}/{{ header.name }}">
+    {%- endcall %}
+    {%- call f::field("f-author", "Author") %}
+    <input id="f-author" name="author" type="text" value="{{ q.author }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-suggest-users="{{ header.namespace }}/{{ header.name }}">
+    {%- endcall %}
+    {%- call f::field("f-milestone", "Milestone") %}
+    <select id="f-milestone" name="milestone">
+      <option value="">Any</option>
+      {%- for ms in milestones %}
+      <option value="{{ ms }}"{% if ms.as_str() == q.milestone.as_str() %} selected{% endif %}>{{ ms }}</option>
+      {%- endfor %}
+    </select>
+    {%- endcall %}
+    {%- call f::buttons() %}
+      <button type="submit" class="button">Apply filters</button>
+      {%- if filtered %}
+      <a class="button button-quiet" href="?state={{ state }}{% if q.sort_updated() %}&amp;sort=updated{% endif %}">Clear filters</a>
+      {%- endif %}
+    {%- endcall %}
+  </form>
+{%- endcall %}

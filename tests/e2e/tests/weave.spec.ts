@@ -55,6 +55,9 @@ const MIGRATED = [
   "/-/search?q=demo",
   "/-/search?q=demo&type=repos",
   "/-/search?q=nothing-matches-this",
+  "/alice/demo/merge-requests",
+  "/alice/demo/merge-requests?state=all&sort=updated",
+  "/-/review-requests",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(

@@ -13,7 +13,6 @@ use slath_core::authz::{Action, Subject};
 use slath_db::merge_requests::MergeRequest;
 use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
-use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{Compare, MrPerms, MrTimelineItem, NewMr};
 use slath_service::mr_changes::{ChangeInfo, Interdiff, Rebind, StackEntry, VersionInfo};
 use slath_service::mr_reviews::Mergeability;
@@ -44,7 +43,7 @@ fn number(s: &str) -> Result<i32, AppError> {
         .ok_or_else(AppError::not_found)
 }
 
-use super::issues::enc;
+use super::issues::{ListQuery, enc};
 
 /// Comma-separated names from a form field.
 fn names(v: &str) -> Vec<String> {
@@ -158,7 +157,10 @@ struct ListPage {
     can_create: bool,
     next: Option<String>,
     q: ListQuery,
+    /// The filter and order as a query string without the state.
     query: String,
+    /// The filter alone, without the order.
+    filters: String,
     milestones: Vec<String>,
     filtered: bool,
 }
@@ -171,49 +173,6 @@ impl ListPage {
             self.header.name,
             enc(name)
         )
-    }
-}
-
-#[derive(Deserialize, Default, Clone)]
-struct ListQuery {
-    state: Option<String>,
-    page: Option<i64>,
-    #[serde(default)]
-    labels: String,
-    #[serde(default)]
-    assignee: String,
-    #[serde(default)]
-    author: String,
-    #[serde(default)]
-    milestone: String,
-    #[serde(default)]
-    sort: String,
-}
-
-impl ListQuery {
-    fn input(&self, state: &str) -> FilterInput {
-        FilterInput {
-            state: Some(state.to_owned()),
-            labels: self.labels.split(',').map(str::to_owned).collect(),
-            assignee: Some(self.assignee.clone()),
-            author: Some(self.author.clone()),
-            milestone: Some(self.milestone.clone()),
-            sort_updated: self.sort == "updated",
-        }
-    }
-
-    fn query(&self) -> String {
-        [
-            ("labels", &self.labels),
-            ("assignee", &self.assignee),
-            ("author", &self.author),
-            ("milestone", &self.milestone),
-            ("sort", &self.sort),
-        ]
-        .iter()
-        .filter(|(_, v)| !v.trim().is_empty())
-        .map(|(k, v)| format!("&{k}={}", enc(v.trim())))
-        .collect()
     }
 }
 
@@ -270,9 +229,11 @@ async fn list(
         });
     }
     let query = q.query();
+    let filters = q.filters();
     Ok(render(&ListPage {
         milestones: ms.into_iter().map(|m| m.title).collect(),
-        filtered: !query.is_empty(),
+        filtered: !filters.is_empty(),
+        filters,
         header: RepoHeader::load(&state, &a, &subject, TAB)
             .await
             .with_recent_pushes(&state, &a, &subject)

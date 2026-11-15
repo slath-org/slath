@@ -1,0 +1,6 @@
+{#- The Sort menu of an issue or merge request list; the page sets
+    `state`, `filters`, and `q`. -#}
+{%- call m::view_menu(ctx, "Sort", q.sort_label(), "list-view") %}
+{%- call m::view_item("?state=" ~ state ~ filters, "Newest", !q.sort_updated(), "") %}{% endcall %}
+{%- call m::view_item("?state=" ~ state ~ filters ~ "&sort=updated", "Recently updated", q.sort_updated(), "") %}{% endcall %}
+{%- endcall %}

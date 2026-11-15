@@ -2,21 +2,25 @@
 {% block title %}Review requests{% endblock %}
 {% block sidebar %}{% let area = "review-requests" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Review requests</h1>
-<p class="text-secondary">Open merge requests that ask for your review, directly or through one of your teams.</p>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Review requests</h1></div>
+  <p class="page-head-intro">Open merge requests that ask for your review, directly or through one of your teams.</p>
+</header>
 {%- if rows.is_empty() %}
-<p class="text-secondary empty-state">Nothing waits for your review.</p>
+{%- call msg::empty("Nothing waits for your review.") %}{% endcall %}
 {%- else %}
 <ul class="item-list">
 {%- for r in rows %}
   <li class="item-row">
-    <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}</span>
+    <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>
     <div class="item-main">
       <a class="item-title" href="{{ r.href }}"><bdi>{{ crate::ui::title_html(r.title.as_str()) }}</bdi></a>
-      <p class="item-meta text-secondary">{{ r.repo }} !{{ r.number }}{% if let Some(a) = r.author %} by {{ a }}{% call m::bot_badge(ctx, a) %}{% endcall %}{% endif %} · updated <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
+      <p class="item-meta text-secondary">{{ r.repo }} !{{ r.number }}{% if let Some(a) = r.author %} by {% call p::account(ctx, a) %}{% endcall %}{% endif %} · updated {% call c::time(r.updated) %}{% endcall %}</p>
     </div>
   </li>
 {%- endfor %}
 </ul>
 {%- endif %}
+</div>
 {% endblock %}
