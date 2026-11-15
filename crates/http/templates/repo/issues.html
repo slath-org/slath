@@ -1,72 +1,76 @@
 {% extends "repo/layout.html" %}
 {% block title %}Issues · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+<div class="page">
+<div class="stack">
 {% include "repo/header.html" %}
 {% let section = "issues" %}
 {% include "repo/issues_nav.html" %}
-<div class="page-heading">
-  <h1>Issues</h1>
-  <a class="button" href="/-/search?type=issues&amp;repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}">{% call m::icon(ctx, "search") %}{% endcall %}Search issues</a>
-  {%- if can_create %}
-  <a class="button button-primary" href="/{{ header.namespace }}/{{ header.name }}/issues/new">New issue</a>
-  {%- endif %}
 </div>
-<div id="list-view">
-<details class="issue-filters"{% if filtered %} open{% endif %}>
-  <summary>Filter{% if filtered %} (active){% endif %}</summary>
-  <form method="get" {% call m::swap_region(ctx, "list-view") %}{% endcall %} action="/{{ header.namespace }}/{{ header.name }}/issues" class="form filter-form">
-    <input type="hidden" name="state" value="{{ state }}">
-    <div class="field">
-      <label for="f-labels">Labels</label>
-      <input id="f-labels" name="labels" type="text" value="{{ q.labels }}" aria-describedby="f-labels-hint" autocapitalize="none" spellcheck="false">
-      <p id="f-labels-hint" class="hint">Separate labels with commas; issues must have all of them.</p>
-    </div>
-    <div class="field">
-      <label for="f-assignee">Assignee</label>
-      <input id="f-assignee" name="assignee" type="text" value="{{ q.assignee }}" autocapitalize="none" spellcheck="false">
-    </div>
-    <div class="field">
-      <label for="f-author">Author</label>
-      <input id="f-author" name="author" type="text" value="{{ q.author }}" autocapitalize="none" spellcheck="false">
-    </div>
-    <div class="field">
-      <label for="f-milestone">Milestone</label>
-      <select id="f-milestone" name="milestone">
-        <option value="">Any</option>
-        {%- for m in milestones %}
-        <option value="{{ m }}"{% if m.as_str() == q.milestone.as_str() %} selected{% endif %}>{{ m }}</option>
-        {%- endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="f-sort">Sort by</label>
-      <select id="f-sort" name="sort">
-        <option value="created">Newest</option>
-        <option value="updated"{% if q.sort == "updated" %} selected{% endif %}>Recently updated</option>
-      </select>
-    </div>
-    <div class="button-row">
-      <button type="submit" class="button">Apply filters</button>
-      {%- if filtered %}
-      <a class="button button-quiet" href="?state={{ state }}">Clear filters</a>
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>Issues</h1>
+    <div class="page-head-actions">
+      <a class="button" href="/-/search?type=issues&amp;repo={{ header.namespace|urlencode }}/{{ header.name|urlencode }}">{% call m::icon(ctx, "search") %}{% endcall %}Search issues</a>
+      {%- if can_create %}
+      <a class="button button-primary" href="{{ base }}/issues/new">New issue</a>
       {%- endif %}
     </div>
-  </form>
-</details>
+  </div>
+</header>
+<div class="stack" id="list-view">
+<div class="cluster">
 {%- call m::view_menu(ctx, "State", state|capitalize, "list-view") %}
 {%- call m::view_item("?state=open" ~ query, "Open", state == "open", open.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=closed" ~ query, "Closed", state == "closed", closed.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=all" ~ query, "All", state == "all", "") %}{% endcall %}
 {%- endcall %}
+{%- call m::view_menu(ctx, "Sort", sort_label, "list-view") %}
+{%- call m::view_item("?state=" ~ state ~ filters, "Newest", !sort_updated, "") %}{% endcall %}
+{%- call m::view_item("?state=" ~ state ~ filters ~ "&sort=updated", "Recently updated", sort_updated, "") %}{% endcall %}
+{%- endcall %}
+</div>
+{%- let filter_summary %}Filters{% if filtered %} (active){% endif %}{% endlet %}
+{%- call d::disclosure(ctx, filter_summary, filtered) %}
+  <form method="get" {% call m::swap_region(ctx, "list-view") %}{% endcall %} action="{{ base }}/issues" class="form-layout">
+    <input type="hidden" name="state" value="{{ state }}">
+    {%- if sort_updated %}<input type="hidden" name="sort" value="updated">{% endif %}
+    {%- call f::field("f-labels", "Labels", "Separate labels with commas; issues must have all of them.") %}
+    <input id="f-labels" name="labels" type="text" value="{{ q.labels }}" autocapitalize="none" spellcheck="false" data-names="labels" autocomplete="off"{% call f::described("f-labels", "x", "") %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::field("f-assignee", "Assignee") %}
+    <input id="f-assignee" name="assignee" type="text" value="{{ q.assignee }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-suggest-users="{{ header.namespace }}/{{ header.name }}">
+    {%- endcall %}
+    {%- call f::field("f-author", "Author") %}
+    <input id="f-author" name="author" type="text" value="{{ q.author }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-suggest-users="{{ header.namespace }}/{{ header.name }}">
+    {%- endcall %}
+    {%- call f::field("f-milestone", "Milestone") %}
+    <select id="f-milestone" name="milestone">
+      <option value="">Any</option>
+      {%- for ms in milestones %}
+      <option value="{{ ms }}"{% if ms.as_str() == q.milestone.as_str() %} selected{% endif %}>{{ ms }}</option>
+      {%- endfor %}
+    </select>
+    {%- endcall %}
+    {%- call f::buttons() %}
+      <button type="submit" class="button">Apply filters</button>
+      {%- if filtered %}
+      <a class="button button-quiet" href="?state={{ state }}{% if sort_updated %}&amp;sort=updated{% endif %}">Clear filters</a>
+      {%- endif %}
+    {%- endcall %}
+  </form>
+{%- endcall %}
 {%- if issues.is_empty() %}
-<p class="text-secondary empty-state">{% if filtered %}No issues match these filters.{% else if state == "closed" %}No closed issues.{% else if state == "all" %}No issues yet.{% else %}No open issues.{% endif %}</p>
+{%- let empty_text %}{% if filtered %}No issues match these filters.{% else if state == "closed" %}No closed issues.{% else if state == "all" %}No issues yet.{% else %}No open issues.{% endif %}{% endlet %}
+{%- call msg::empty(empty_text) %}{% endcall %}
 {%- else %}
 <ul class="item-list">
 {%- for i in issues %}
   <li class="item-row">
     <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/issues/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
+      <a class="item-title" href="{{ base }}/issues/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
       {%- if !i.labels.is_empty() %}
       <span class="item-labels">
         {%- for l in i.labels %}
@@ -74,7 +78,7 @@
         {%- endfor %}
       </span>
       {%- endif %}
-      <p class="item-meta text-secondary">#{{ i.number }} opened <time datetime="{{ i.created.iso }}">{{ i.created.text }}</time> by {% if let Some(a) = i.author %}{{ a }}{% call m::bot_badge(ctx, a) %}{% endcall %}{% else %}a deleted user{% endif %}{% if !i.assignees.is_empty() %} · assigned to {{ i.assignees|join(", ") }}{% endif %}</p>
+      <p class="item-meta text-secondary">#{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a, false) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %}{% if !i.assignees.is_empty() %} · assigned to {% for u in i.assignees %}{% if !loop.first %}, {% endif %}{% call p::account(ctx, u, false) %}{% endcall %}{% endfor %}{% endif %}</p>
     </div>
     {%- if i.comments > 0 %}
     <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
@@ -84,7 +88,10 @@
 </ul>
 {%- endif %}
 {%- if let Some(n) = next %}
-<p {% call m::swap_region(ctx, "list-view") %}{% endcall %}><a class="button" href="{{ n }}">Next page</a></p>
+<div {% call m::swap_region(ctx, "list-view") %}{% endcall %}>
+{%- call l::pager("", n) %}{% endcall %}
+</div>
 {%- endif %}
+</div>
 </div>
 {% endblock %}

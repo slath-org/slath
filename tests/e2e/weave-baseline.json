@@ -1,4 +1,5 @@
 {
-  "/alice/demo/issues": ["details-no-indicator issue-filters"],
-  "/alice/demo/merge-requests/1": ["details-no-indicator thread-reply-box"]
+  "/alice/demo/merge-requests/1": [
+    "details-no-indicator thread-reply-box"
+  ]
 }

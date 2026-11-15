@@ -1,16 +1,20 @@
 {% extends "repo/layout.html" %}
 {% block title %}Labels · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
+<div class="stack">
 {% include "repo/header.html" %}
 {% let section = "labels" %}
 {% include "repo/issues_nav.html" %}
-<h1>Labels</h1>
+</div>
+<header class="page-head">
+  <div class="page-head-row"><h1>Labels</h1></div>
+</header>
 {%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- call msg::saved(m) %}{% endcall %}
 {%- endif %}
-{% include "settings/errors.html" %}
 {%- if labels.is_empty() %}
-<p class="text-secondary empty-state">No labels yet.</p>
+{%- call msg::empty("No labels yet.") %}{% endcall %}
 {%- else %}
 <ul class="item-list">
 {%- for l in labels %}
@@ -24,10 +28,10 @@
     <span class="item-count text-secondary">{{ l.open_issues }} open issue{% if l.open_issues != 1 %}s{% endif %}</span>
     {%- if manage %}
     <div class="item-actions">
-      <a class="button button-quiet button-icon" title="Edit label" href="?edit={{ l.id }}#name">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit label {{ l.name }}</span></a>
+      <a class="button button-quiet button-icon" data-tip="Edit label" href="?edit={{ l.id }}#name">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit label {{ l.name }}</span></a>
       <form method="post" action="/{{ header.namespace }}/{{ header.name }}/labels/{{ l.id }}/delete" class="inline-form">
         <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-        <button type="submit" class="button button-quiet button-icon" title="Delete label">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete label {{ l.name }}</span></button>
+        <button type="submit" class="button button-quiet button-icon" data-tip="Delete label">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete label {{ l.name }}</span></button>
       </form>
     </div>
     {%- endif %}
@@ -36,36 +40,30 @@
 </ul>
 {%- endif %}
 {%- if manage %}
-<h2>{% if editing.is_some() %}Edit label{% else %}New label{% endif %}</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/labels{% if let Some(id) = editing %}/{{ id }}{% endif %}" class="form" novalidate>
+<section class="section" aria-labelledby="label-form-heading">
+<h2 id="label-form-heading">{% if editing.is_some() %}Edit label{% else %}New label{% endif %}</h2>
+<form method="post" action="/{{ header.namespace }}/{{ header.name }}/labels{% if let Some(id) = editing %}/{{ id }}{% endif %}" class="form-layout" novalidate>
+{% include "settings/errors.html" %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" value="{{ name }}" required maxlength="50"{% if let Some(e) = self.error("name") %} aria-invalid="true" aria-describedby="name-error"{% endif %}>
-    {%- if let Some(e) = self.error("name") %}
-    <p id="name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="color">Color</label>
-    <input id="color" name="color" type="color" value="{{ color }}"{% if let Some(e) = self.error("color") %} aria-invalid="true" aria-describedby="color-error"{% endif %}>
-    {%- if let Some(e) = self.error("color") %}
-    <p id="color-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="description">Description <span class="text-secondary">(optional)</span></label>
-    <input id="description" name="description" type="text" value="{{ description }}" maxlength="200"{% if let Some(e) = self.error("description") %} aria-invalid="true" aria-describedby="description-error"{% endif %}>
-    {%- if let Some(e) = self.error("description") %}
-    <p id="description-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="button-row">
+  {%- call f::field("name", "Name", "", self.error("name").unwrap_or_default()) %}
+  <input id="name" name="name" type="text" value="{{ name }}" required maxlength="50"{% call f::described("name", "", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("color", "Color", "", self.error("color").unwrap_or_default()) %}
+  <input id="color" name="color" type="color" value="{{ color }}"{% call f::described("color", "", self.error("color").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("description", "Description", "", self.error("description").unwrap_or_default(), true) %}
+  <input id="description" name="description" type="text" value="{{ description }}" maxlength="200"{% call f::described("description", "", self.error("description").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}
     <button type="submit" class="button button-primary">{% if editing.is_some() %}Save label{% else %}Create label{% endif %}</button>
     {%- if editing.is_some() %}
-    <a class="button" href="/{{ header.namespace }}/{{ header.name }}/labels">Cancel</a>
+    <a class="button button-quiet" href="/{{ header.namespace }}/{{ header.name }}/labels">Cancel</a>
     {%- endif %}
-  </div>
+  {%- endcall %}
 </form>
+</section>
+{%- else %}
+{% include "settings/errors.html" %}
 {%- endif %}
+</div>
 {% endblock %}

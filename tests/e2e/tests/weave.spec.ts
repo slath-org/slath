@@ -46,6 +46,15 @@ const MIGRATED = [
   "/-/new",
   "/-/import",
   "/-/settings/emails",
+  "/alice/demo/issues",
+  "/alice/demo/issues?state=closed&labels=no-such-label",
+  "/alice/demo/issues/", // a new issue
+  "/alice/demo/issues/new",
+  "/alice/demo/labels",
+  "/alice/demo/milestones",
+  "/-/search?q=demo",
+  "/-/search?q=demo&type=repos",
+  "/-/search?q=nothing-matches-this",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(
@@ -175,6 +184,11 @@ for (const path of MIGRATED) {
       await page.goto("/alice/demo/commits");
       await page.locator(".item-title").first().click();
       await expect(page).toHaveURL(/\/commit\/[0-9a-f]{40}$/);
+    } else if (path.endsWith("/issues/")) {
+      await page.goto("/alice/demo/issues/new");
+      await page.getByLabel("Title").fill(`Weave ${test.info().project.name}`);
+      await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
+      await expect(page).toHaveURL(/\/issues\/[0-9]+$/);
     } else await page.goto(path);
     expect(await structure(page)).toEqual([]);
     expect(await spacing(page)).toEqual([]);

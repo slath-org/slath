@@ -45,13 +45,11 @@ catalog-class issue-layout                                              # markup
 catalog-class issue-main                                                # markup of a page that hasn't moved to the components yet
 catalog-class issue-sidebar                                             # markup of a page that hasn't moved to the components yet
 catalog-class issue-status                                              # markup of a page that hasn't moved to the components yet
-catalog-class item-actions                                              # markup of a page that hasn't moved to the components yet
 catalog-class item-checks                                               # markup of a page that hasn't moved to the components yet
 catalog-class merge-area                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-form                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-step                                                # markup of a page that hasn't moved to the components yet
 catalog-class merge-step-title                                          # markup of a page that hasn't moved to the components yet
-catalog-class milestone-progress                                        # markup of a page that hasn't moved to the components yet
 catalog-class narrow                                                    # markup of a page that hasn't moved to the components yet
 catalog-class open                                                      # markup of a page that hasn't moved to the components yet
 catalog-class page-heading                                              # markup of a page that hasn't moved to the components yet
@@ -68,7 +66,6 @@ catalog-class repo-name                                                 # markup
 catalog-class review-form                                               # markup of a page that hasn't moved to the components yet
 catalog-class role-form                                                 # markup of a page that hasn't moved to the components yet
 catalog-class row-actions                                               # markup of a page that hasn't moved to the components yet
-catalog-class search-form                                               # markup of a page that hasn't moved to the components yet
 catalog-class secret-key                                                # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-defaults                                        # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-instance-note                                   # markup of a page that hasn't moved to the components yet
@@ -86,14 +83,11 @@ catalog-class webhook-section                                           # markup
 catalog-class webhook-section-head                                      # markup of a page that hasn't moved to the components yet
 catalog-unused avatar-group                                             # no page uses it until the pages move to the components
 catalog-unused danger                                                   # no page uses it until the pages move to the components
-catalog-unused disclosure                                               # no page uses it until the pages move to the components
 catalog-unused frame                                                    # no page uses it until the pages move to the components
 catalog-unused more                                                     # no page uses it until the pages move to the components
 catalog-unused popover                                                  # no page uses it until the pages move to the components
 catalog-unused reply-box                                                # no page uses it until the pages move to the components
-catalog-unused sort                                                     # no page uses it until the pages move to the components
 catalog-unused subsection                                               # no page uses it until the pages move to the components
-details-indicator crates/http/templates/repo/issues.html                # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/merge_request.html         # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/merge_request_change.html  # the page hasn't moved to the components yet
 details-indicator crates/http/templates/repo/merge_requests.html        # the page hasn't moved to the components yet

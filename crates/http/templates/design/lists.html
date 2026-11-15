@@ -15,11 +15,11 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>Things people open by their title: issues, merge requests, repositories, notifications, commits, changes. Rows separated by lines, not cards: a state icon, the title, labels, and one line of secondary facts; counts at the end.</dd>
   <dt>Markup</dt><dd><code>ul.item-list</code> &gt; <code>li.item-row</code> with <code>span.item-state</code>, <code>div.item-main</code> (<code>a.item-title</code>, <code>span.item-labels</code>, <code>p.item-meta</code>), and <code>span.item-count</code>.</dd>
-  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change. Compact density removes padding, never text size.</dd>
+  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change, label, milestone (with <code>progress.milestone-progress</code>). Rows that can be changed end with <code>div.item-actions</code>, icon buttons with tooltips. Compact density removes padding, never text size.</dd>
   <dt>Accessibility</dt><dd>A list; the state icon has its word for screen readers; the title is the row's one link.</dd>
   <dt>Not for</dt><dd>Records compared by column (a table); the properties of one thing (facts).</dd>
 </dl>
-{%- call cat::example("An open issue with a label, a merged merge request, and an unread notification.") %}
+{%- call cat::example("An open issue with a label, a merged merge request, a milestone with its progress and the row's actions, and an unread notification.") %}
 <ul class="item-list">
   <li class="item-row">
     <span class="item-state item-state-open">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">open</span></span>
@@ -35,6 +35,20 @@
     <div class="item-main">
       <a class="item-title" href="#rows">Add the stack component</a>
       <p class="item-meta text-secondary">!12 merged yesterday by bob</p>
+    </div>
+  </li>
+</ul>
+<ul class="item-list">
+  <li class="item-row">
+    <span class="item-state item-state-open">{% call m::icon(ctx, "flag") %}{% endcall %}<span class="visually-hidden">open</span></span>
+    <div class="item-main">
+      <a class="item-title" href="#rows">Release 1.0</a>
+      <p class="item-meta text-secondary">Due 2026-12-31 · 3 of 8 issues closed</p>
+      <progress class="milestone-progress" max="100" value="38" aria-label="Release 1.0: 38% complete">38%</progress>
+    </div>
+    <div class="item-actions">
+      <a class="button button-quiet button-icon" data-tip="Edit milestone" href="#rows">{% call m::icon(ctx, "pencil") %}{% endcall %}<span class="visually-hidden">Edit milestone Release 1.0</span></a>
+      <button type="button" class="button button-quiet button-icon" data-tip="Delete milestone">{% call m::icon(ctx, "trash-2") %}{% endcall %}<span class="visually-hidden">Delete milestone Release 1.0</span></button>
     </div>
   </li>
 </ul>

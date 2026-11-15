@@ -61,8 +61,13 @@ struct ListPage {
     can_create: bool,
     next: Option<String>,
     q: ListQuery,
-    /// The filter as a query string without the state.
+    /// The filter and order as a query string without the state.
     query: String,
+    /// The filter alone, without the order.
+    filters: String,
+    sort_updated: bool,
+    /// The order shown, for the sort menu.
+    sort_label: &'static str,
     milestones: Vec<String>,
     filtered: bool,
 }
@@ -116,14 +121,23 @@ impl ListQuery {
         }
     }
 
-    /// The filter as `&key=value` pairs (empty values left out).
+    /// The filter and order as `&key=value` pairs (empty values left out).
     fn query(&self) -> String {
+        let sort = if self.sort == "updated" {
+            "&sort=updated"
+        } else {
+            ""
+        };
+        format!("{}{sort}", self.filters())
+    }
+
+    /// The filter alone as `&key=value` pairs (empty values left out).
+    fn filters(&self) -> String {
         [
             ("labels", &self.labels),
             ("assignee", &self.assignee),
             ("author", &self.author),
             ("milestone", &self.milestone),
-            ("sort", &self.sort),
         ]
         .iter()
         .filter(|(_, v)| !v.trim().is_empty())
@@ -162,9 +176,18 @@ async fn list(
     let mut meta = state.services.issue_meta(&ids).await?;
     let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
     let query = q.query();
+    let filters = q.filters();
+    let sort_updated = q.sort == "updated";
     Ok(render(&ListPage {
         milestones: ms.into_iter().map(|m| m.title).collect(),
-        filtered: !query.is_empty(),
+        filtered: !filters.is_empty(),
+        filters,
+        sort_updated,
+        sort_label: if sort_updated {
+            "Recently updated"
+        } else {
+            "Newest"
+        },
         header: RepoHeader::load(&state, &a, &subject, "issues").await,
         can_create: a.can(&subject, Action::IssueCreate),
         issues: items

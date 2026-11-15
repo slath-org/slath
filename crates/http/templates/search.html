@@ -2,62 +2,71 @@
 {% block title %}{% if searched %}{{ q }} · {% endif %}Search{% endblock %}
 {% block sidebar %}{% let area = "search" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Search</h1>
-<form method="get" action="/-/search" class="form search-form" role="search">
-  <div class="field">
-    <label for="q">Search {% if !repo.is_empty() %}issues in {{ repo }}{% else if kind == "repos" %}repositories{% else %}issues{% endif %}</label>
-    <input id="q" name="q" type="search" value="{{ q }}" maxlength="200" aria-describedby="q-hint">
-    <p id="q-hint" class="hint">{% if kind == "repos" %}Part of a name or description.{% else %}Words, "exact phrases", -excluded words, or alternatives with or.{% endif %}</p>
+{%- let what %}{% if kind == "repos" %}repositories{% else %}issues{% endif %}{% endlet %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Search</h1></div>
+</header>
+<div class="stack">
+<form method="get" action="/-/search" class="form-layout" role="search">
+  {%- let label %}Search {% if !repo.is_empty() %}issues in {{ repo }}{% else %}{{ what }}{% endif %}{% endlet %}
+  {%- let hint %}{% if kind == "repos" %}Part of a name or description.{% else %}Words, "exact phrases", -excluded words, or alternatives with or.{% endif %}{% endlet %}
+  {%- call f::field("q", label, hint) %}
+  <div class="input-with-button">
+    <input id="q" name="q" type="search" value="{{ q }}" maxlength="200"{% call f::described("q", "x", "") %}{% endcall %}>
+    <button type="submit" class="button button-primary">{% call m::icon(ctx, "search") %}{% endcall %}Search</button>
   </div>
+  {%- endcall %}
   <input type="hidden" name="type" value="{{ kind }}">
   {%- if !repo.is_empty() %}
   <input type="hidden" name="repo" value="{{ repo }}">
   {%- endif %}
-  <div><button type="submit" class="button button-primary">{% call m::icon(ctx, "search") %}{% endcall %}Search</button></div>
 </form>
-<nav class="tabs" aria-label="What to search">
-  <ul>
-    <li><a href="/-/search?q={{ q|urlencode }}&type=issues"{% if kind == "issues" %} aria-current="page"{% endif %}>Issues</a></li>
-    <li><a href="/-/search?q={{ q|urlencode }}&type=repos"{% if kind == "repos" %} aria-current="page"{% endif %}>Repositories</a></li>
-  </ul>
-</nav>
+{%- let qe %}{{ q|urlencode }}{% endlet %}
+{%- call m::tabs("What to search") %}
+{%- call m::tab("/-/search?q=" ~ qe ~ "&type=issues", "Issues", kind == "issues", "") %}{% endcall %}
+{%- call m::tab("/-/search?q=" ~ qe ~ "&type=repos", "Repositories", kind == "repos", "") %}{% endcall %}
+{%- endcall %}
+</div>
 {%- if !searched %}
-<p class="text-secondary empty-state">Enter what you're looking for.</p>
-{%- else if kind == "repos" %}
-  {%- if repos.is_empty() %}
-<p class="text-secondary empty-state">No repositories match.</p>
-  {%- else %}
-<ul class="item-list">
-  {%- for r in repos %}
-  <li class="item-row">
-    <div class="item-main">
-      <a class="item-title" href="/{{ r.full }}"><bdi>{{ r.full }}</bdi></a>{% if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
-      {%- if let Some(d) = r.description %}
-      <p class="item-meta text-secondary">{{ d }}</p>
-      {%- endif %}
-    </div>
-  </li>
-  {%- endfor %}
-</ul>
-  {%- endif %}
+{%- call msg::empty("Enter what you're looking for.") %}{% endcall %}
 {%- else %}
-  {%- if issues.is_empty() %}
-<p class="text-secondary empty-state">No issues match.</p>
+<section class="section" aria-labelledby="results-heading">
+  {%- let found = issues.len() + repos.len() %}
+  <h2 id="results-heading">{% if found == 0 %}No results{% else if next.is_some() %}More than {{ found }} results{% else %}{{ found }} result{% if found != 1 %}s{% endif %}{% endif %} for “<bdi>{{ q }}</bdi>”</h2>
+  {%- if found == 0 %}
+  <p class="empty-state">No {{ what }} match “<bdi>{{ q }}</bdi>”. Try fewer or other words{% if !repo.is_empty() %}, or <a href="/-/search?q={{ q|urlencode }}&amp;type=issues">search every repository</a>{% endif %}.</p>
+  {%- else if kind == "repos" %}
+  <ul class="item-list">
+    {%- for r in repos %}
+    <li class="item-row">
+      <div class="item-main">
+        <a class="item-title" href="/{{ r.full }}"><bdi>{{ r.full }}</bdi></a>
+        {%- if r.visibility == "private" %}<span class="item-labels"><span class="badge">Private</span></span>{% else if r.visibility == "internal" %}<span class="item-labels"><span class="badge">Internal</span></span>{% endif %}
+        {%- if let Some(d) = r.description %}
+        <p class="item-meta text-secondary">{{ d }}</p>
+        {%- endif %}
+      </div>
+    </li>
+    {%- endfor %}
+  </ul>
   {%- else %}
-<ul class="item-list">
-  {%- for i in issues %}
-  <li class="item-row">
-    <span class="item-state item-state-{% if i.open %}open{% else %}closed{% endif %}">{% if i.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if i.open %}open{% else %}closed{% endif %}</span></span>
-    <div class="item-main">
-      <a class="item-title" href="{{ i.href }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
-      <p class="item-meta text-secondary">{{ i.repo }}#{{ i.number }} · updated <time datetime="{{ i.updated.iso }}">{{ i.updated.text }}</time></p>
-    </div>
-  </li>
-  {%- endfor %}
-</ul>
+  <ul class="item-list">
+    {%- for i in issues %}
+    <li class="item-row">
+      <span class="item-state item-state-{% if i.open %}open{% else %}closed{% endif %}">{% if i.open %}{% call m::icon(ctx, "circle-dot") %}{% endcall %}{% else %}{% call m::icon(ctx, "circle-check") %}{% endcall %}{% endif %}<span class="visually-hidden">{% if i.open %}open{% else %}closed{% endif %}</span></span>
+      <div class="item-main">
+        <a class="item-title" href="{{ i.href }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>
+        <p class="item-meta text-secondary">{{ i.repo }}#{{ i.number }} · updated {% call c::time(i.updated) %}{% endcall %}</p>
+      </div>
+    </li>
+    {%- endfor %}
+  </ul>
   {%- endif %}
+  {%- if let Some(n) = next %}
+  {%- call l::pager("", n) %}{% endcall %}
+  {%- endif %}
+</section>
 {%- endif %}
-{%- if let Some(n) = next %}
-<p><a class="button" href="{{ n }}">Next page</a></p>
-{%- endif %}
+</div>
 {% endblock %}

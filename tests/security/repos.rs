@@ -402,7 +402,9 @@ fn conf_rbac_01_internal_repositories_need_a_sign_in() {
         assert_eq!(anon.get(path).status, 404, "{path}");
     }
     assert!(!anon.get("/alice").body.contains("alice/team"));
-    assert!(!anon.get("/-/search?q=walrus").body.contains("walrus</bdi>"));
+    let found = anon.get("/-/search?q=walrus").body;
+    assert!(!found.contains("Internal walrus"), "{found}");
+    assert!(found.contains("No results for"), "{found}");
     assert_eq!(
         anon.api("GET", "/api/v1/repos/alice/team", None, None)
             .status,
