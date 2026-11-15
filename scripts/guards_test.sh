@@ -119,6 +119,20 @@ expect htmx-stamped-ok pass "" \
     "printf '<a href=\"/x\" hx-get=\"/x\" {%% call m::hx(n) %%}{%% endcall %%}>x</a>\n' > crates/http/templates/page.html"
 expect htmx-safe-eval-script fail htmx \
     "printf '// SPDX-License-Identifier: AGPL-3.0-or-later\nhtmx.config.safeEval = true;\n' > web/src/a.ts"
+expect weave-details-without-indicator fail weave \
+    "printf '<details><summary>More</summary><p>x</p></details>\n' > crates/http/templates/page.html"
+expect weave-disclosure-ok pass "" \
+    "printf '<details class=\"disclosure\"><summary>More</summary><p>x</p></details>\n' > crates/http/templates/page.html && mkdir -p crates/http/templates/design && printf '<details class=\"disclosure\"></details>\n' > crates/http/templates/design/d.html"
+expect weave-heading-skip fail weave \
+    "printf '<h1>Title</h1>\n<h3>Part</h3>\n' > crates/http/templates/page.html"
+expect weave-fields-without-group fail weave \
+    "printf '<fieldset><legend>Who</legend><div class=\"field\"></div><div class=\"field\"></div></fieldset>\n' > crates/http/templates/page.html"
+expect weave-inline-style fail weave \
+    "printf '<p style=\"margin: 0\">x</p>\n' > crates/http/templates/page.html"
+expect weave-class-not-in-catalog fail weave \
+    "printf '<p class=\"my-own-layout\">x</p>\n' > crates/http/templates/page.html"
+expect weave-stale-allowlist fail weave \
+    "printf 'details-indicator crates/http/templates/gone.html  # gone\n' > scripts/weave-allowlist.txt"
 
 expect e2e-hover fail e2e-hover \
     "mkdir -p tests/e2e/tests && printf '// SPDX-License-Identifier: AGPL-3.0-or-later\nawait page.locator(\"a\").hover();\n' > tests/e2e/tests/x.spec.ts"

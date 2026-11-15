@@ -97,3 +97,13 @@ tokens too (`--measure-form`, `--measure-text`, `--measure-narrow`,
 
 A new or changed component comes with its contract and catalog entry in
 the same change.
+
+`just guards` checks the templates against the rules
+(`scripts/check_weave.py`): every `<details>` is a disclosure, menu,
+popover, or reply box; heading levels never skip; two or more fields in a
+`fieldset` make a group of fields; no inline styles; every class a page
+uses is shown in the catalog, and every catalog entry is used by a page.
+Pages not yet built from the components are listed in
+`scripts/weave-allowlist.txt`; the list only shrinks, so moving a page
+means removing its lines, and the check fails on a line that no longer
+applies.

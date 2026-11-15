@@ -12,6 +12,10 @@
 #   external-url  no third-party URLs in resource positions
 #   htmx          hx-* elements carry the nonce macro; no eval-based htmx features
 #   e2e-hover     browser tests never hover (no hover-only affordances)
+#   weave         templates follow the Weave rules (disclosures, headings,
+#                 groups of fields, no inline style) and use only components
+#                 the design catalog shows; known violations in
+#                 weave-allowlist.txt, which only shrinks
 #   commit-scan   server code that writes Git objects also runs push
 #                 protection's scanner (`scan_rules`)
 #   secret-literal no complete token-shaped strings or private keys in the
@@ -167,6 +171,12 @@ while IFS= read -r f; do
         fail e2e-hover "$f hovers; use tapOrClick and keyboard instead"
     fi
 done < <(files '*.ts' tests/e2e)
+
+# --- weave ---------------------------------------------------------------------
+# Rules, the catalog check, and the allowlist live in check_weave.py.
+if ! python3 "$GUARD_DIR/check_weave.py" "$ROOT"; then
+    fail weave "templates break the Weave rules or use components the catalog doesn't show (see above)"
+fi
 
 if ((failures)); then
     echo "guards: $failures violation(s)" >&2
