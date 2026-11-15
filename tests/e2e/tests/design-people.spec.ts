@@ -50,9 +50,14 @@ test("conf_design_03_generated_avatar_follows_the_theme", async ({ page }) => {
 
 test("conf_design_03_git_identity_and_avatar_group", async ({ page }) => {
   await page.goto("/-/design/people");
-  const id = page.locator(".git-identity");
-  await expect(id).toContainText("Alice Example");
+  // Unmatched: the person icon and the name as written, no avatar.
+  const id = page.locator("section[aria-labelledby=git-identity] .git-identity").first();
+  await expect(id).toContainText("Build Server");
   await expect(id.locator("img, svg.avatar")).toHaveCount(0);
+  // Matched by a confirmed address: the account, the written name in its tooltip.
+  const matched = page.locator("section[aria-labelledby=git-identity] a.account[data-tip='Alice Example']").first();
+  await expect(matched).toContainText("alice");
+  await expect(matched.locator("img, svg.avatar")).toHaveCount(1);
   const many = page.locator(".avatar-group").nth(1);
   await expect(many.locator(".avatar")).toHaveCount(3);
   await expect(many.locator(".avatar-group-more")).toHaveText("+2");

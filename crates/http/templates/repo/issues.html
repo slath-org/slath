@@ -78,7 +78,7 @@
         {%- endfor %}
       </span>
       {%- endif %}
-      <p class="item-meta text-secondary">#{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a, false) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %}{% if !i.assignees.is_empty() %} · assigned to {% for u in i.assignees %}{% if !loop.first %}, {% endif %}{% call p::account(ctx, u, false) %}{% endcall %}{% endfor %}{% endif %}</p>
+      <p class="item-meta text-secondary">#{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %}{% if !i.assignees.is_empty() %} · assigned to {% for u in i.assignees %}{% if !loop.first %}, {% endif %}{% call p::account(ctx, u) %}{% endcall %}{% endfor %}{% endif %}</p>
     </div>
     {%- if i.comments > 0 %}
     <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>

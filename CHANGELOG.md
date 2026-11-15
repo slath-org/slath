@@ -220,6 +220,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Issue lists sort with a Sort menu next to the state menu; filters open in place with a turning arrow and keep the order.
 - An issue is closed from a Close menu next to its title, as completed, not planned, or a duplicate; Reopen is a button there.
 - Every name in issues shows the account's avatar: authors, commenters, assignees, and the people named in events.
+- Names in list rows, such as an issue's author and assignees, link to the account like everywhere else.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

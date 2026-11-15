@@ -73,6 +73,16 @@ fn conf_issue_01_lifecycle_and_permissions_per_role() {
         new_issue(&mut a, "alice/priv", "Private one", ""),
         "/alice/priv/issues/1"
     );
+    // The list links each author to their account.
+    let list = s.client().get("/alice/pub/issues").body;
+    assert!(
+        list.contains("<a class=\"account\" href=\"/bob\">"),
+        "{list}"
+    );
+    assert!(
+        list.contains("<a class=\"account\" href=\"/alice\">"),
+        "{list}"
+    );
     let page = s.client().get(&one);
     assert_eq!(page.status, 200, "anonymous readers see public issues");
     assert!(
