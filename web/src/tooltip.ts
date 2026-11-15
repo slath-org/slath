@@ -8,13 +8,22 @@
 // as the element's description; a tooltip that only repeats the name of an
 // icon-only control stays visual, since the name is already there.
 
+// The id is Slath's own, so it can't meet an id the page uses (the
+// catalog's Tooltip entry is `#tooltip`).
+const ID = "slath-tooltip";
+
 let tip: HTMLElement | null = null;
 let owner: HTMLElement | null = null;
 
 function element(): HTMLElement {
+  // Going back swaps the whole body for the page's HTML, which takes the
+  // tooltip out: use the page's own, or a new one.
+  if (!tip?.isConnected) {
+    tip = document.getElementById(ID);
+  }
   if (!tip) {
     tip = document.createElement("div");
-    tip.id = "tooltip";
+    tip.id = ID;
     tip.className = "tooltip";
     tip.setAttribute("role", "tooltip");
     tip.hidden = true;
@@ -24,7 +33,7 @@ function element(): HTMLElement {
 }
 
 function hide(): void {
-  if (owner?.getAttribute("aria-describedby") === "tooltip") owner.removeAttribute("aria-describedby");
+  if (owner?.getAttribute("aria-describedby") === ID) owner.removeAttribute("aria-describedby");
   owner = null;
   if (tip) tip.hidden = true;
 }
@@ -37,7 +46,7 @@ function show(el: HTMLElement): void {
   t.hidden = false;
   owner = el;
   const name = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim();
-  if (!name.includes(text) && !el.hasAttribute("aria-describedby")) el.setAttribute("aria-describedby", "tooltip");
+  if (!name.includes(text) && !el.hasAttribute("aria-describedby")) el.setAttribute("aria-describedby", ID);
   // Below the element, or above it where there's no room; inside the screen.
   const r = el.getBoundingClientRect();
   const w = t.offsetWidth;

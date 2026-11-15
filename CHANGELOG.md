@@ -239,6 +239,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The jj checkout command for a merge request from a fork fetches the branch from the fork.
 - The administration Upgrades page has a proper browser tab title.
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.
+- Tooltips, such as the exact time behind "3 days ago", work again after going back to a page, and no longer clash with a heading of the same name.
 
 ## [0.2.0] - 2026-11-02
 

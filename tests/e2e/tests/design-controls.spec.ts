@@ -3,7 +3,7 @@
 //
 // The catalog's basic controls: tooltips that work with a mouse, the
 // keyboard, and touch; times, hashes, paths, and cut text.
-import { expect, expectAccessible, tapOrClick, test } from "../fixtures";
+import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 test("conf_design_03_controls_family_accessible", async ({ page }) => {
   await page.goto("/-/design/controls");
@@ -40,6 +40,22 @@ test("conf_design_03_time_shows_short_form_and_exact_tip", async ({ page }) => {
   if (test.info().project.use.hasTouch) {
     await expect(page.getByRole("tooltip")).toHaveText(/UTC$/);
   }
+});
+
+test("conf_design_03_tooltips_still_work_after_going_back", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/commits");
+  await tapOrClick(page, page.locator("main .item-title").first());
+  await expect(page).toHaveURL(/\/commit\/[0-9a-f]{40}$/);
+  const commit = page.url();
+  // Follow the parent, then come back to the restored page.
+  await tapOrClick(page, page.locator("main .facts .hash").first());
+  await expect(page).not.toHaveURL(commit);
+  await page.goBack();
+  await expect(page).toHaveURL(commit);
+  const parent = page.locator("main .facts .hash").first();
+  await parent.focus();
+  await expect(page.getByRole("tooltip")).toHaveText(/^[0-9a-f]{40}$/);
 });
 
 test("conf_design_03_hash_path_cut", async ({ page }) => {

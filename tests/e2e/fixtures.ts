@@ -181,9 +181,12 @@ export const test: ReturnType<typeof base.extend<Fixtures>> = base.extend<Fixtur
       });
       await page.exposeFunction("__slathStrip", (desc: string) => guard.stripped.push(desc));
       await page.addInitScript(() => {
-        document.addEventListener("DOMContentLoaded", () => {
+        // Pages that links swap in without a reload count too.
+        const check = () => {
           if (document.querySelector("select")) console.log("slath-e2e:has-select");
-        });
+        };
+        document.addEventListener("DOMContentLoaded", check);
+        document.addEventListener("htmx:after:swap", check);
         document.addEventListener("securitypolicyviolation", (e) => {
           console.error(`Content Security Policy violation: ${e.violatedDirective} ${e.blockedURI}`);
         });
