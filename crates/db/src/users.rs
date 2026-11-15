@@ -396,17 +396,21 @@ pub async fn set_pushed_tool(
     Ok(())
 }
 
-/// The accounts whose confirmed address is one of `emails`: (address in
-/// lower case, account name). Deleted accounts never match.
+/// The accounts whose confirmed address (primary or another) is one of
+/// `emails`: (address in lower case, account name). Deleted accounts never
+/// match.
 pub async fn names_by_confirmed_email(
     exec: impl PgExecutor<'_>,
     emails: &[String],
 ) -> Result<Vec<(String, String)>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT lower(u.email::text) AS "email!", n.name::text AS "name!"
-           FROM users u JOIN namespaces n ON n.id = u.namespace_id
-           WHERE u.email_verified AND u.state <> 'deleted'
-             AND u.email = ANY($1::text[]::citext[])"#,
+        r#"SELECT lower(e.email::text) AS "email!", n.name::text AS "name!"
+           FROM (SELECT id AS user_id, email FROM users WHERE email_verified
+                 UNION ALL
+                 SELECT user_id, email FROM user_emails WHERE verified) e
+           JOIN users u ON u.id = e.user_id
+           JOIN namespaces n ON n.id = u.namespace_id
+           WHERE u.state <> 'deleted' AND e.email = ANY($1::text[]::citext[])"#,
         emails
     )
     .fetch_all(exec)

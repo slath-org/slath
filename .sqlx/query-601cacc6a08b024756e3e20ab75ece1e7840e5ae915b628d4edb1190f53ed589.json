@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE user_emails SET verified = true WHERE user_id = $1 AND email = $2::text::citext",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "601cacc6a08b024756e3e20ab75ece1e7840e5ae915b628d4edb1190f53ed589"
+}

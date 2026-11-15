@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_emails (user_id, email, verified)\n         SELECT id, email, email_verified FROM users WHERE id = $1 AND email IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e95e08f187e63717f9952305186e953606eeaf08aaa6ef11a6b370e610de7fb"
+}

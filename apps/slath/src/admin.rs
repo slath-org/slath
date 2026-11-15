@@ -695,6 +695,35 @@ pub fn send_test_email(path: &Path, to: &str, format: OutputFormat) -> ExitCode 
     }
 }
 
+/// `slath admin add-email --username NAME --email ADDRESS`.
+pub fn add_email(path: &Path, username: &str, email: &str, format: OutputFormat) -> ExitCode {
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        svc.admin_add_email(&Subject::System, username, email)
+            .await
+            .map_err(|e| match e {
+                ServiceError::NotFound => format!("no user named {username}"),
+                other => describe(&other),
+            })
+    });
+    match result {
+        Ok(()) => {
+            match format {
+                OutputFormat::Text => println!("added {email} to {username}, confirmed"),
+                OutputFormat::Json => {
+                    print_json(&json!({"ok": true, "username": username, "email": email}))
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
 /// `slath admin reset-mfa --username NAME`.
 pub fn reset_mfa(path: &Path, username: &str, format: OutputFormat) -> ExitCode {
     let rt = match runtime() {

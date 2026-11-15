@@ -21,7 +21,7 @@ use crate::routes::{Access, RouteExt};
 
 #[derive(Deserialize, Default)]
 pub struct StatusQuery {
-    status: Option<String>,
+    pub status: Option<String>,
 }
 
 /// Success messages after redirects (`?status=`), from a fixed set.
@@ -35,7 +35,6 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "token-revoked" => "Token revoked.",
         "appearance-saved" => "Appearance saved.",
         "mfa-off" => "Two-factor authentication is off.",
-        "verification-sent" => "We sent a confirmation link to your email address.",
         "passkey-added" => "Passkey added.",
         "passkey-removed" => "Passkey removed.",
         "passkey-failed" => "The passkey couldn't be added. Try again.",
@@ -73,9 +72,6 @@ struct ProfilePage<'a> {
     avatar_url: String,
     has_avatar: bool,
     display_name: &'a str,
-    email: &'a str,
-    email_verified: bool,
-    email_enabled: bool,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -113,9 +109,6 @@ async fn profile_page(
         .await
         .map_err(|e| AppError::internal(&e))?
         .ok_or_else(AppError::not_found)?;
-    let (email, verified) = slath_db::email_tokens::email_status(&state.pool, session.user_id())
-        .await
-        .map_err(|e| AppError::internal(&e))?;
     let avatar_url = state.services.avatar_url(&user.name).await;
     let status = if errors.is_empty() {
         StatusCode::OK
@@ -129,9 +122,6 @@ async fn profile_page(
         has_avatar: avatar_url.ends_with(".png"),
         avatar_url,
         display_name: user.display_name.as_deref().unwrap_or(""),
-        email: email.as_deref().unwrap_or(""),
-        email_verified: verified,
-        email_enabled: state.services.email_enabled(),
         message,
         errors,
     });
@@ -181,8 +171,6 @@ async fn avatar_save(
 struct ProfileForm {
     #[serde(default)]
     display_name: String,
-    /// Absent: the address stays as it is.
-    email: Option<String>,
 }
 
 async fn profile_save(
@@ -191,16 +179,11 @@ async fn profile_save(
     RequireSession(session): RequireSession,
     Form(f): Form<ProfileForm>,
 ) -> Result<Response, AppError> {
-    let mut result = state
+    match state
         .services
         .update_profile(&session, &f.display_name)
-        .await;
-    if result.is_ok()
-        && let Some(email) = &f.email
+        .await
     {
-        result = state.services.change_email(&session, email).await;
-    }
-    match result {
         Ok(()) => Ok(Redirect::to("/-/settings/profile?status=profile-saved").into_response()),
         Err(e) => {
             let errors = field_errors(e)?;
@@ -211,9 +194,6 @@ async fn profile_save(
                 avatar_url: state.services.avatar_url(&session.row.user_name).await,
                 has_avatar: false,
                 display_name: &f.display_name,
-                email: f.email.as_deref().unwrap_or(""),
-                email_verified: false,
-                email_enabled: state.services.email_enabled(),
                 message: None,
                 errors,
             });
@@ -221,15 +201,6 @@ async fn profile_save(
             Ok(res)
         }
     }
-}
-
-/// `POST /-/settings/profile/verify`: sends the confirmation link again.
-async fn resend_verification(
-    State(state): State<AppState>,
-    RequireSession(session): RequireSession,
-) -> Result<Response, AppError> {
-    state.services.send_verification(session.user_id()).await?;
-    Ok(Redirect::to("/-/settings/profile?status=verification-sent").into_response())
 }
 
 #[derive(Template)]
@@ -1172,11 +1143,6 @@ pub fn router() -> Router<AppState> {
             get(profile).post(profile_save),
         )
         .route_as("/-/settings/avatar", Access::Account, post(avatar_save))
-        .route_as(
-            "/-/settings/profile/verify",
-            Access::Account,
-            post(resend_verification),
-        )
         .route_as("/-/settings/security", Access::Account, get(security))
         .route_as(
             "/-/settings/security/password",

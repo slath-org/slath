@@ -130,6 +130,25 @@ This also signs the user out everywhere. It's recorded in the audit log, and
 the user gets an email. They then sign in with their password and set up
 two-factor authentication again.
 
+### Email addresses
+
+An account can have several email addresses and chooses one of them as
+primary under *Settings → Email addresses*. Password resets and
+notifications go to the primary address; commits with any confirmed
+address show as the account, with its avatar. Each address counts only
+once it's confirmed through the link Slath emails to it, and a confirmed
+address belongs to one account. Only a confirmed address can become
+primary, and the primary address can only be removed when it's the last
+one. An account has at most `limits.emails_per_account` (10) addresses.
+
+Without email, the links can't be sent: an administrator confirms an
+address for the account instead (it becomes primary if the account has
+none). This is recorded in the audit log.
+
+```sh
+slath admin add-email --username alice --email alice@work.example
+```
+
 ## Organizations and teams
 
 A user's role on a repository is the highest of everything that grants

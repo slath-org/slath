@@ -22,6 +22,7 @@ pub mod bots;
 pub mod cross_refs;
 pub mod deploy_keys;
 pub mod email;
+pub mod emails;
 pub mod error;
 pub mod findings;
 pub mod forks;

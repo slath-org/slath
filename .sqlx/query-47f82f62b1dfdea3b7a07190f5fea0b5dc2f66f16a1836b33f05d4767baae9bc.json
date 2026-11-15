@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM user_emails WHERE user_id = $1 AND email = $2::text::citext",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "47f82f62b1dfdea3b7a07190f5fea0b5dc2f66f16a1836b33f05d4767baae9bc"
+}

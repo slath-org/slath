@@ -10,6 +10,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Accounts can have several email addresses, each confirmed by a link, and choose which one is primary under Settings → Email addresses.
+- Commits with any of an account's confirmed addresses show as that account; `slath admin add-email` confirms an address when email is off.
 - Merge requests (first part): open them through the API from a branch, and each push to the branch records a new revision, fetchable at `refs/merge-requests/<n>/head`. Numbers are shared with issues.
 - Merge request pages: a list with state tabs and filters, a compare page that creates them (template, draft, reviewers, assignees, labels, milestone), and the conversation.
 - Merge requests show their commits and changes, each revision with a link to what changed since the previous one, and copy-paste checkout commands for Git and jj.
@@ -207,6 +209,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repository pages space their parts by how they belong together: the header and tabs, the page's heading, then its sections.
 - Commits, branches, tags, and forks are lists and tables like the rest of the UI; tables become stacked blocks on phones.
 - Commit authors show as the account whose confirmed email address (or no-reply address) the commit uses, with its avatar; other authors show as written, with a person icon.
+- The email address moved from the profile settings to its own settings page.
 - Accounts that reported statuses show with their avatars, and times in short form with the exact time on hover or tap.
 - Commit hashes show their first 12 characters, with the full hash on hover or tap; blame cuts long summaries and shows them in full the same way.
 - The commit page lists the full hash and parents as facts, and Browse files is a button next to the title.

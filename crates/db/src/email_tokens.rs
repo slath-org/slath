@@ -110,9 +110,10 @@ pub async fn verification(
     Ok(r.map(|r| (UserId::from_uuid(r.user_id), r.email)))
 }
 
-/// Uses a verification token and marks the address verified, if it is
-/// still the user's address. Returns false for a stale token; a conflict if
-/// another account already verified the address.
+/// Uses a verification token and marks the address verified, if the
+/// account still has it (as its primary address or another one). Returns
+/// false for a stale token; a conflict if another account already
+/// confirmed the address.
 pub async fn use_verification(exec: &mut sqlx::PgConnection, hash: &[u8]) -> Result<bool, DbError> {
     let Some(r) = sqlx::query!(
         r#"UPDATE email_verifications SET used_at = now()
@@ -125,6 +126,14 @@ pub async fn use_verification(exec: &mut sqlx::PgConnection, hash: &[u8]) -> Res
     else {
         return Ok(false);
     };
+    let user = UserId::from_uuid(r.user_id);
+    crate::user_emails::lock(&mut *exec, &r.email).await?;
+    if crate::user_emails::confirmed_owner(&mut *exec, &r.email)
+        .await?
+        .is_some_and(|o| o != user)
+    {
+        return Err(DbError::Conflict("email"));
+    }
     let done = sqlx::query!(
         "UPDATE users SET email_verified = true, updated_at = now()
          WHERE id = $1 AND email = $2::text::citext",
@@ -134,7 +143,10 @@ pub async fn use_verification(exec: &mut sqlx::PgConnection, hash: &[u8]) -> Res
     .execute(&mut *exec)
     .await
     .map_err(|e| DbError::from_unique(e, "email"))?;
-    Ok(done.rows_affected() == 1)
+    if done.rows_affected() == 1 {
+        return Ok(true);
+    }
+    crate::user_emails::confirm(&mut *exec, user, &r.email).await
 }
 
 /// The user with this verified address (sign-in by email, resets).

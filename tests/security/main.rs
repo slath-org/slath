@@ -14,6 +14,7 @@ mod bot_stop;
 mod bots;
 mod browse;
 mod email;
+mod emails;
 mod git;
 mod headers;
 mod issues;

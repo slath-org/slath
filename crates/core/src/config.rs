@@ -398,6 +398,8 @@ pub struct Limits {
     pub archive_timeout: Dur,
     /// Webhooks per repository or organization.
     pub webhooks_per_owner: usize,
+    /// Email addresses of one account, its primary one included.
+    pub emails_per_account: usize,
     /// Line annotations (findings) per commit status.
     pub status_annotations: usize,
     /// The longest message of one annotation.
@@ -458,6 +460,7 @@ impl Default for Limits {
             api_page_max: 100,
             archive_timeout: Dur::secs(120),
             webhooks_per_owner: 20,
+            emails_per_account: 10,
             status_annotations: 50,
             status_annotation_max_bytes: Bytes(4096),
             iteration_interdiff_max_bytes: Bytes(1024 * 1024),

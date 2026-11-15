@@ -246,6 +246,16 @@ impl Services {
         else {
             return Ok(false);
         };
+        self.send_verification_to(user, &email).await
+    }
+
+    /// Sends a link that confirms `email` for `user`, which is one of its
+    /// addresses. Returns whether it did (email may be off).
+    pub(crate) async fn send_verification_to(&self, user: UserId, email: &str) -> Result<bool> {
+        if !self.email_enabled() {
+            return Ok(false);
+        }
+        let email = email.to_owned();
         let (t, h) = new_token()?;
         slath_db::email_tokens::insert_verification(
             &self.pool,

@@ -262,6 +262,19 @@ enum AdminCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Add a confirmed email address to an account, for instances without
+    /// email; it becomes the primary one if the account has none. Commits
+    /// with the address show as the account. Audited.
+    AddEmail {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        username: String,
+        #[arg(long)]
+        email: String,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Send the test message now (checks the [smtp] settings).
     SendTestEmail {
         #[arg(long)]
@@ -522,6 +535,15 @@ fn main() -> ExitCode {
                     output,
                 },
         } => admin::reset_mfa(&config::resolve_path(config), &username, output),
+        Command::Admin {
+            command:
+                AdminCommand::AddEmail {
+                    config,
+                    username,
+                    email,
+                    output,
+                },
+        } => admin::add_email(&config::resolve_path(config), &username, &email, output),
         Command::Admin {
             command: AdminCommand::SendTestEmail { config, to, output },
         } => admin::send_test_email(&config::resolve_path(config), &to, output),

@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT lower(e.email::text) AS \"email!\", n.name::text AS \"name!\"\n           FROM (SELECT id AS user_id, email FROM users WHERE email_verified\n                 UNION ALL\n                 SELECT user_id, email FROM user_emails WHERE verified) e\n           JOIN users u ON u.id = e.user_id\n           JOIN namespaces n ON n.id = u.namespace_id\n           WHERE u.state <> 'deleted' AND e.email = ANY($1::text[]::citext[])",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "email!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "0ae02e546ff0f0875b2a7365b54156ffb5181c7c4075fb43e1c8e4865181b872"
+}

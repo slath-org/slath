@@ -10,6 +10,7 @@ pub mod browse;
 pub mod design;
 pub mod diff;
 pub mod editor;
+pub mod emails;
 pub mod forks;
 pub mod identicon;
 pub mod import;
@@ -571,6 +572,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(import::router())
         .merge(forks::router())
         .merge(settings::router())
+        .merge(emails::router())
         .merge(profiles::router())
         .merge(repos::router())
         .merge(webhooks::router())

@@ -88,7 +88,6 @@ catalog-class update-branch-form                                        # markup
 catalog-class webhook-section                                           # markup of a page that hasn't moved to the components yet
 catalog-class webhook-section-head                                      # markup of a page that hasn't moved to the components yet
 catalog-unused avatar-group                                             # no page uses it until the pages move to the components
-catalog-unused cluster                                                  # no page uses it until the pages move to the components
 catalog-unused danger                                                   # no page uses it until the pages move to the components
 catalog-unused disclosure                                               # no page uses it until the pages move to the components
 catalog-unused frame                                                    # no page uses it until the pages move to the components

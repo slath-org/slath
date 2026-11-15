@@ -45,6 +45,7 @@ const MIGRATED = [
   "/alice/demo/sync?branch=main",
   "/-/new",
   "/-/import",
+  "/-/settings/emails",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(

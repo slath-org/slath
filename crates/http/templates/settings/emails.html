@@ -1,0 +1,76 @@
+{% extends "settings/layout.html" %}
+{% block title %}Email addresses{% endblock %}
+{% block settings %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Email addresses</h1></div>
+  <p class="page-head-intro">Password resets and notifications go to your primary address. Commits with any of your confirmed addresses show as you. Your addresses are never shown to others.</p>
+</header>
+{%- if !email_enabled %}
+{%- call msg::notice() %}<p>Email is off on this instance, so addresses can't be confirmed by a link. An administrator can confirm them for you.</p>{% endcall %}
+{%- endif %}
+{%- if self.error("addresses").is_some() %}
+{%- call msg::error_summary() %}<li><a href="#addresses-heading">{{ self.error("addresses").unwrap_or_default() }}</a></li>{% endcall %}
+{%- endif %}
+<section class="section" aria-labelledby="addresses-heading">
+  <h2 id="addresses-heading">Your addresses</h2>
+  {%- if addresses.is_empty() %}
+  {%- call msg::empty("You have no email addresses.") %}{% endcall %}
+  {%- else %}
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="addresses-caption">
+  <table class="table table-records">
+    <caption id="addresses-caption" class="visually-hidden">Your email addresses</caption>
+    <thead><tr><th scope="col">Address</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+    {%- for a in addresses %}
+      <tr>
+        <td data-label="Address"><bdi>{{ a.email }}</bdi>{% if a.primary %} <span class="badge">Primary</span>{% endif %}</td>
+        <td data-label="State">{% if a.verified %}<span class="tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>Confirmed</span></span>{% else %}<span class="tone-waiting">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span>Not confirmed</span></span>{% endif %}</td>
+        <td class="table-actions">
+          <div class="cluster">
+          {%- if a.verified && !a.primary %}
+          <form method="post" action="/-/settings/emails/primary" class="inline-form">
+            <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+            <input type="hidden" name="email" value="{{ a.email }}">
+            <button type="submit" class="button">Make primary<span class="visually-hidden"> {{ a.email }}</span></button>
+          </form>
+          {%- endif %}
+          {%- if !a.verified && email_enabled %}
+          <form method="post" action="/-/settings/emails/resend" class="inline-form">
+            <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+            <input type="hidden" name="email" value="{{ a.email }}">
+            <button type="submit" class="button">Send the link again<span class="visually-hidden"> to {{ a.email }}</span></button>
+          </form>
+          {%- endif %}
+          {%- if !a.primary || addresses.len() == 1 %}
+          <form method="post" action="/-/settings/emails/remove" class="inline-form">
+            <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+            <input type="hidden" name="email" value="{{ a.email }}">
+            <button type="submit" class="button">Remove<span class="visually-hidden"> {{ a.email }}</span></button>
+          </form>
+          {%- endif %}
+          </div>
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {%- endif %}
+</section>
+<section class="section" aria-labelledby="add-heading">
+  <h2 id="add-heading">Add an address</h2>
+  <form method="post" action="/-/settings/emails" class="form-layout" novalidate>
+    {%- if self.error("email").is_some() %}
+    {%- call msg::error_summary() %}<li><a href="#email">{{ self.error("email").unwrap_or_default() }}</a></li>{% endcall %}
+    {%- endif %}
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    {%- let hint %}{% if email_enabled %}We send a link to it; it counts once you open the link.{% else %}An administrator confirms it.{% endif %}{% endlet %}
+    {%- call f::field("email", "Email address", hint, self.error("email").unwrap_or_default()) %}
+    <input id="email" name="email" type="email" value="{{ email }}" maxlength="254" autocomplete="email" spellcheck="false"{% call f::described("email", "x", self.error("email").unwrap_or_default()) %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button button-primary">Add address</button>{% endcall %}
+  </form>
+</section>
+</div>
+{% endblock %}

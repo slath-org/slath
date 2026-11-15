@@ -4,6 +4,7 @@ import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } f
 
 for (const [path, heading] of [
   ["/-/settings/profile", "Profile"],
+  ["/-/settings/emails", "Email addresses"],
   ["/-/settings/security", "Security"],
   ["/-/settings/sessions", "Sessions"],
   ["/-/settings/keys", "SSH keys"],
@@ -41,4 +42,20 @@ test("conf_a11y_04_settings_navigation_by_touch_or_click", async ({ page }) => {
   await tapOrClick(page, (await sideMenu(page, "Settings")).getByRole("link", { name: "Sessions" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sessions");
   await expect((await sideMenu(page, "Settings")).getByRole("link", { name: "Sessions" })).toHaveAttribute("aria-current", "page");
+});
+
+test("conf_a11y_04_add_and_remove_an_email_address", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  const address = `alice-${test.info().project.name}@example.net`;
+  await page.goto("/-/settings/emails");
+  await page.getByRole("textbox", { name: "Email address" }).fill(address);
+  await tapOrClick(page, page.getByRole("button", { name: "Add address" }));
+  await expect(page.locator(".success-summary")).toContainText("Address added.");
+  const row = page.getByRole("row").filter({ hasText: address });
+  await expect(row).toContainText("Not confirmed");
+  await expect(row.getByRole("button", { name: /^Make primary/ })).toHaveCount(0);
+  await expectAccessible(page);
+  await tapOrClick(page, row.getByRole("button", { name: `Remove ${address}` }));
+  await expect(page.locator(".success-summary")).toContainText("Address removed.");
+  await expect(page.getByRole("row").filter({ hasText: address })).toHaveCount(0);
 });

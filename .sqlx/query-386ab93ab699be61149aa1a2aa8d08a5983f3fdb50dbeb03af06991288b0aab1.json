@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_emails (user_id, email, verified) VALUES ($1, $2::text::citext, true)\n         ON CONFLICT (user_id, email) DO UPDATE SET verified = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "386ab93ab699be61149aa1a2aa8d08a5983f3fdb50dbeb03af06991288b0aab1"
+}

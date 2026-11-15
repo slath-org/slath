@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!\" FROM users WHERE email = $1::text::citext AND email_verified\n           UNION ALL\n           SELECT user_id AS \"id!\" FROM user_emails WHERE email = $1::text::citext AND verified\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "bdf7ec4da0777129487061998694ead556e503e5f40d6abc75a4d1e65a818668"
+}
