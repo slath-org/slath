@@ -204,6 +204,32 @@ fn administrators_confirm_addresses_and_commits_with_any_of_them_show_the_accoun
         addresses(&s, "alice"),
         "a.example@home.example:true,alice@work.example:true"
     );
+    // Bots have no addresses.
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alice-ci",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let (ok, _, err) = s.slath(
+        &[
+            "admin",
+            "add-email",
+            "--username",
+            "alice-ci",
+            "--email",
+            "ci@example.org",
+        ],
+        None,
+    );
+    assert!(!ok && err.contains("Bots have no email addresses"), "{err}");
+    assert_eq!(addresses(&s, "alice-ci"), "");
 
     let git = GitClient::new();
     let d = tempfile::tempdir().unwrap();

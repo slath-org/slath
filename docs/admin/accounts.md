@@ -143,7 +143,8 @@ one. An account has at most `limits.emails_per_account` (10) addresses.
 
 Without email, the links can't be sent: an administrator confirms an
 address for the account instead (it becomes primary if the account has
-none). This is recorded in the audit log.
+none). This is recorded in the audit log. Bot accounts have no email
+addresses, and the command refuses them.
 
 ```sh
 slath admin add-email --username alice --email alice@work.example

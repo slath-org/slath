@@ -6,7 +6,7 @@
 //! administrator when email is off. A confirmed address belongs to one
 //! account. Only a confirmed address can become the primary one.
 
-use slath_core::authz::Subject;
+use slath_core::authz::{Subject, UserKind};
 use slath_core::ids::UserId;
 use slath_db::user_emails::{self as db, Address};
 
@@ -27,6 +27,16 @@ fn not_yours() -> ServiceError {
     ServiceError::NotFound
 }
 
+/// Bots have no email addresses: their commits show as the bot because a
+/// bot pushed them, or by its no-reply address.
+fn no_bot_addresses() -> ServiceError {
+    ServiceError::invalid(
+        "email",
+        "bot",
+        "Bots have no email addresses. Commits a bot pushes, or that use its no-reply address, show as the bot.",
+    )
+}
+
 impl Services {
     /// The signed-in person's addresses, the primary one first.
     pub async fn emails(&self, session: &Session) -> Result<Vec<Address>> {
@@ -40,6 +50,15 @@ impl Services {
         let email = email.trim();
         if !crate::accounts::valid_email(email) {
             return Err(invalid_address());
+        }
+        if matches!(
+            session.subject,
+            Subject::User {
+                kind: UserKind::Bot,
+                ..
+            }
+        ) {
+            return Err(no_bot_addresses());
         }
         let user = session.user_id();
         let mut c = self.pool.acquire().await.map_err(ServiceError::internal)?;
@@ -190,6 +209,9 @@ impl Services {
         let user = slath_db::users::get_by_name(&self.pool, username)
             .await?
             .ok_or(ServiceError::NotFound)?;
+        if user.kind == UserKind::Bot {
+            return Err(no_bot_addresses());
+        }
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
         db::lock(&mut *tx, email).await?;
         if db::confirmed_owner(&mut *tx, email)
