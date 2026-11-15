@@ -49,7 +49,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>The page: its heading, then its sections, 32 px apart (24 px in compact). The heading holds the one <code>h1</code>, an optional state line under it, the page's actions on the title's row, and an optional one-sentence introduction.</dd>
   <dt>Markup</dt><dd><code>div.page</code> &gt; <code>header.page-head</code> (<code>div.page-head-row</code> with the <code>h1</code> and <code>div.page-head-actions</code>; optional <code>p.page-head-meta</code> and <code>p.page-head-intro</code>), then the sections.</dd>
-  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title.</dd>
+  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header.</dd>
   <dt>Accessibility</dt><dd>Exactly one <code>h1</code>. The actions follow the title in reading order. At most one primary action.</dd>
   <dt>Not for</dt><dd>The code pages, whose <code>h1</code> is for screen readers and whose place shows in the breadcrumb.</dd>
 </dl>
@@ -61,6 +61,15 @@
   </div>
   <p class="page-head-meta"><span class="state-label state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Open</span> alice wants to merge 2 revisions of <code>stack</code> into <code>main</code></p>
 </header>
+{%- endcall %}
+{%- call cat::example("A form page: the narrow column, its heading, then the form.") %}
+<div class="page page-form">
+  <header class="page-head">
+    <div class="page-head-row"><p class="type-title">Fork this repository</p></div>
+    <p class="page-head-intro">A fork is your own copy of the branches and tags, to change freely and offer back with a merge request.</p>
+  </header>
+  <div class="catalog-block">The form</div>
+</div>
 {%- endcall %}
 {%- call cat::example("A settings page's heading: title and introduction.") %}
 <header class="page-head">

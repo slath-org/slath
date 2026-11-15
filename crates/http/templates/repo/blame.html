@@ -1,8 +1,10 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
 <h1 class="visually-hidden">{{ title }}</h1>
+<div class="stack">
 {% include "repo/ref_line.html" %}
 {% include "repo/crumbs.html" %}
 <p class="file-actions">
@@ -10,7 +12,7 @@
   {%- if !rows.is_empty() %} · <span class="text-secondary">{{ rows.len() }} lines</span>{% endif %}
 </p>
 {%- if let Some(n) = notice %}
-<div class="notice" role="note"><p>{{ n }}</p></div>
+{%- call msg::notice() %}<p>{{ n }}</p>{% endcall %}
 {%- endif %}
 {%- if !rows.is_empty() %}
 <div class="code-wrap" tabindex="0" role="region" aria-label="Blame">
@@ -22,7 +24,7 @@
   {%- for l in rows %}
     <tr id="L{{ l.no }}"{% if l.hunk.is_some() %} class="blame-start"{% endif %}>
       {%- if let Some(h) = l.hunk %}
-      <td class="blame-commit" rowspan="{{ h.span }}"><a href="{{ h.href }}" title="{{ h.summary }}"><code>{{ h.short }}</code></a> <span class="blame-summary">{{ h.summary }}</span><br><span class="text-secondary">{{ h.author }}, <time datetime="{{ h.when.iso }}">{{ h.when.text }}</time></span></td>
+      <td class="blame-commit" rowspan="{{ h.span }}">{% call c::hash(h.oid, h.href) %}{% endcall %} {% call c::cut(h.summary) %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, h.author) %}{% endcall %}, {% call c::time(h.when) %}{% endcall %}</span></td>
       {%- endif %}
       <th scope="row"><a href="#L{{ l.no }}" class="line-no">{{ l.no }}</a></th><td><code>{{ l.html }}</code></td>
     </tr>
@@ -31,4 +33,6 @@
 </table>
 </div>
 {%- endif %}
+</div>
+</div>
 {% endblock %}

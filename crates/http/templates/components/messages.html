@@ -9,6 +9,14 @@
 </div>
 {%- endmacro -%}
 
+{#- A notice whose one action resolves it, on the same row: the body is
+    a paragraph, then the button or link. -#}
+{%- macro notice_action() -%}
+<div class="notice notice-action" role="note">
+{{ caller() }}
+</div>
+{%- endmacro -%}
+
 {#- What a submitted form did, in the past tense: "Webhook saved." -#}
 {%- macro saved(text) -%}
 <div class="success-summary" role="status"><p>{{ text }}</p></div>

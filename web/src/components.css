@@ -582,57 +582,62 @@ fieldset.field {
   align-items: center;
 }
 
-/* Repository header and tabs */
+/* Repository context: the header, the code area's tabs, and notices
+   about the whole repository, the items distance apart. */
 .repo-header {
-  margin: 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inline);
+  margin: 0;
 }
-/* Breadcrumb on the left; repository-wide actions (Watch, …) on the
-   right of the same row, wrapping below it on narrow screens. */
+/* Pages not yet built from the components put no space of their own
+   above their first element. */
+main > .repo-context {
+  margin-block-end: var(--gap-items);
+}
+.repo-context > .tabs {
+  margin: 0;
+}
+/* Owner / name on the start side; repository-wide actions (Watch, Fork)
+   at the end of the same row, wrapping below it on narrow screens. */
 .repo-title-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin: 0 0 var(--space-2);
+  gap: var(--gap-inline) var(--gap-items);
 }
 .repo-title-row .repo-actions {
   margin-inline-start: auto;
-}
-/* A fork's origin and how its default branch compares, next to the title. */
-.repo-fork-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-4);
-  font-size: var(--text-sm);
 }
 .repo-title {
   font-size: var(--text-lg);
   margin: 0;
 }
-.fork-compare {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.fork-compare p {
-  margin: 0;
-}
+/* A fork's origin, under the title. */
 .repo-fork-of {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   margin: 0;
+  font-size: var(--text-sm);
 }
 .repo-description {
-  margin: 0 0 var(--space-3);
+  margin: 0;
 }
 .repo-title .badge {
   margin-inline-start: var(--space-3);
 }
 .repo-title .badge + .badge {
   margin-inline-start: var(--space-1);
+}
+.fork-compare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-inline);
+}
+.fork-compare p {
+  margin: 0;
 }
 /* Tabs: the sections inside an area, in a row with a rule below. */
 .tabs {
@@ -693,8 +698,6 @@ fieldset.field {
 }
 /* The branch picker: long lists scroll inside the panel. */
 .ref-panel {
-  inset-inline-end: auto;
-  inset-inline-start: 0;
   min-width: 16rem;
 }
 .ref-panel-list {
@@ -778,16 +781,12 @@ fieldset.field {
   min-height: var(--target-min);
   min-width: var(--target-min);
 }
-.readme {
-  margin-top: var(--space-5);
-}
 /* The file name labels the box below it; it sits outside the box so it
-   isn't read as the first line of the file. */
+   isn't read as the first line of the file (the file heading). */
 .readme .readme-name {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-2);
   font-size: var(--text-base);
   line-height: var(--leading-heading);
 }
@@ -1510,16 +1509,6 @@ fieldset.field {
 }
 
 /* Merge requests */
-.recent-push {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.recent-push p {
-  margin: 0;
-}
 .branch-name {
   overflow-wrap: anywhere;
 }
@@ -2110,14 +2099,6 @@ a.label-chip:hover {
 }
 .blame-table .blame-start > * {
   border-block-start: var(--border-width) solid var(--border);
-}
-.blame-summary {
-  display: inline-block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
 }
 
 /* Markdown editor (<slath-editor>). Without JavaScript it is just its

@@ -2,42 +2,24 @@
 {% block title %}New repository{% endblock %}
 {% block sidebar %}{% let area = "" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>New repository</h1>
-<p>Or <a href="/-/import">import one from another server</a>.</p>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>New repository</h1></div>
+  <p class="page-head-intro">Or <a href="/-/import">import one from another server</a>.</p>
+</header>
+<form method="post" action="/-/new" class="form-layout" novalidate>
 {% include "settings/errors.html" %}
-<form method="post" action="/-/new" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="namespace">Owner</label>
-    <select id="namespace" name="namespace"{% if self.error("namespace").is_some() %} aria-invalid="true"{% endif %}>
-    {%- for n in namespaces %}
-      <option value="{{ n }}"{% if n.as_str() == selected.as_str() %} selected{% endif %}>{{ n }}</option>
-    {%- endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
-      aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="name-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters.</p>
-    {%- if let Some(e) = self.error("name") %}
-    <p id="name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="description">Description <span class="text-secondary">(optional)</span></label>
-    <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"
-      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
+{% include "repo/owner_name_fields.html" %}
+  {%- call f::field("description", "Description", "", self.error("description").unwrap_or_default(), true) %}
+  <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"{% call f::described("description", "", self.error("description").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
 {%- let max_visibility = 2 %}
 {% include "repo/visibility_field.html" %}
-  <div class="field">
-    <label for="default_branch">Default branch</label>
-    <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"
-      {%- if self.error("default_branch").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div><button type="submit" class="button button-primary">Create repository</button></div>
+  {%- call f::field("default_branch", "Default branch", "", self.error("default_branch").unwrap_or_default()) %}
+  <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"{% call f::described("default_branch", "", self.error("default_branch").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create repository</button>{% endcall %}
 </form>
 </div>
 {% endblock %}

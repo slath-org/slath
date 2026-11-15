@@ -38,20 +38,32 @@
 {%- call cat::entry("context-header", "Context header", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Where you are, at the top of every page of a context, and the actions on the whole context: a repository (owner / name, visibility, Watch, Fork), an organization, a user, a bot. User settings and administration show their context in the side menu only.</dd>
-  <dt>Markup</dt><dd>Repositories: <code>repo/header.html</code>. Others: <code>fr::context_header(ctx, kind, name)</code> around the actions.</dd>
-  <dt>Variants</dt><dd>Repository; organization; user; bot. With or without actions; on narrow screens the actions wrap below the name.</dd>
+  <dt>Markup</dt><dd>Repositories: <code>repo/header.html</code>, the header, the code tabs, and the notices about the repository in a stack. Others: <code>fr::context_header(ctx, kind, name)</code> around the actions.</dd>
+  <dt>Variants</dt><dd>Repository (with the fork it is and its description); organization; user; bot. With or without actions; on narrow screens the actions wrap below the name.</dd>
   <dt>Accessibility</dt><dd>The name links to the context's front page; the kind is a word.</dd>
   <dt>Not for</dt><dd>The page's title (the page heading follows it).</dd>
 </dl>
-{%- call cat::example("A repository, with the path breadcrumb of its code pages.") %}
-<div class="stack-inside">
-  <div class="repo-header">
-    <div class="repo-title-row">
-      <p class="repo-title"><a href="#context-header">alice</a> / <a href="#context-header"><strong>proj</strong></a> <span class="badge">Private</span></p>
-      <div class="repo-actions"><button type="button" class="button">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button></div>
+{%- call cat::example("A repository with its tabs, then a fork with its description; a code page adds the path breadcrumb.") %}
+<div class="stack-groups">
+  <div class="stack repo-context">
+    <div class="repo-header">
+      <div class="repo-title-row">
+        <p class="repo-title"><a href="#context-header">alice</a> / <a href="#context-header"><strong>proj</strong></a> <span class="badge">Private</span></p>
+        <div class="repo-actions"><button type="button" class="button" data-tip="Get notifications about every issue">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button><a class="button" href="#context-header" data-tip="Copy this repository into a namespace of yours">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a></div>
+      </div>
     </div>
+    {%- call m::tabs("Example code tabs") %}{% call m::tab("#context-header", "Files", true, "") %}{% endcall %}{% call m::tab("#context-header", "Commits", false, "") %}{% endcall %}{% call m::tab("#context-header", "Branches", false, "") %}{% endcall %}{% endcall %}
   </div>
-  <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#context-header">proj</a></li><li><a href="#context-header">src</a></li><li>main.rs</li></ol></nav>
+  <div class="stack-inside">
+    <div class="repo-header">
+      <div class="repo-title-row">
+        <p class="repo-title"><a href="#context-header">bob</a> / <a href="#context-header"><strong>proj</strong></a> <span class="badge">Public</span></p>
+      </div>
+      <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}<span>Forked from <a href="#context-header">alice/proj</a> · <a href="#context-header">Contribute</a></span></p>
+      <p class="repo-description text-secondary">Tools &amp; more for the project.</p>
+    </div>
+    <nav class="crumbs" aria-label="Example breadcrumbs"><ol><li><a href="#context-header">proj</a></li><li><a href="#context-header">src</a></li><li><span aria-current="page">main.rs</span></li></ol></nav>
+  </div>
 </div>
 {%- endcall %}
 {%- call cat::example("An organization and a bot.") %}

@@ -31,8 +31,8 @@
 {%- call cat::entry("notice", "Notice", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>A state of the page or its subject the person should know: the repository is archived, being imported, read-only for maintenance; or a warning about something that may need action, such as a failing webhook.</dd>
-  <dt>Markup</dt><dd><code>msg::notice(tone)</code> with one or more paragraphs; <code>tone</code> is <code>info</code> (default) or <code>warning</code>. At the top of the page, under its heading.</dd>
-  <dt>Variants</dt><dd>Information; warning. Either may hold a link or a button that resolves it.</dd>
+  <dt>Markup</dt><dd><code>msg::notice(tone)</code> with one or more paragraphs; <code>tone</code> is <code>info</code> (default) or <code>warning</code>. With the one action that resolves it on the same row: <code>msg::notice_action()</code> with a paragraph and the button. At the top of the page, under its heading.</dd>
+  <dt>Variants</dt><dd>Information; warning; with an action (the action wraps below the text on narrow screens).</dd>
   <dt>Accessibility</dt><dd><code>role=note</code>: read in place, not announced. The tone is in the words too; color only adds to them.</dd>
   <dt>Not for</dt><dd>The result of a form (success or error summary); a part of the page (notice line); errors.</dd>
 </dl>
@@ -41,6 +41,9 @@
 {%- call msg::notice() %}<p>This repository is archived. It's read-only.</p>{% endcall %}
 {%- call msg::notice("warning") %}<p>The last 5 attempts failed. After 50 failures in a row, Slath switches the webhook off.</p>{% endcall %}
 </div>
+{%- endcall %}
+{%- call cat::example("With an action: a branch pushed recently.") %}
+{%- call msg::notice_action() %}<p>You pushed to <a href="#notice"><code>review</code></a> recently.</p><a class="button button-primary" href="#notice">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</a>{% endcall %}
 {%- endcall %}
 {%- endcall %}
 

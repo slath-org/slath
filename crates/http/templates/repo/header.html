@@ -1,31 +1,33 @@
+{#- The repository's context: its header (owner / name, visibility, the
+    fork it is, its description, Watch and Fork), the code area's tabs,
+    and the notices about the whole repository. -#}
+<div class="stack repo-context">
 <div class="repo-header">
   <div class="repo-title-row">
   <p class="repo-title"><a href="/{{ header.namespace }}">{{ header.namespace }}</a> / <a href="/{{ header.namespace }}/{{ header.name }}"><strong>{{ header.name }}</strong></a>
   {%- if header.visibility == "private" %} <span class="badge">Private</span>{% else if header.visibility == "internal" %} <span class="badge">Internal</span>{% else %} <span class="badge">Public</span>{% endif %}
   {%- if header.archived %} <span class="badge">Archived</span>{% endif %}</p>
-  {%- if let Some(f) = header.fork %}
-  <div class="repo-fork-meta text-secondary">
-    <p class="repo-fork-of">{% call m::icon(ctx, "git-fork") %}{% endcall %}Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}{% if f.contribute %}{% if let Some(p) = f.parent %} · <a href="/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}">Contribute</a>{% endif %}{% endif %}</p>
-  </div>
-  {%- endif %}
   {%- if header.watch.is_some() || header.can_fork %}
   <div class="repo-actions">
   {%- if let Some(w) = header.watch %}
   <form method="post" action="/{{ header.namespace }}/{{ header.name }}/subscription" class="inline-form">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     {%- if *w == "watching" %}
-    <button type="submit" name="state" value="default" class="button" title="Stop getting notifications about every issue">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
+    <button type="submit" name="state" value="default" class="button" data-tip="Stop getting notifications about every issue">{% call m::icon(ctx, "eye-off") %}{% endcall %}Unwatch</button>
     {%- else %}
-    <button type="submit" name="state" value="watching" class="button" title="Get notifications about every issue">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button>
+    <button type="submit" name="state" value="watching" class="button" data-tip="Get notifications about every issue">{% call m::icon(ctx, "eye") %}{% endcall %}Watch</button>
     {%- endif %}
   </form>
   {%- endif %}
   {%- if header.can_fork %}
-  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork" title="Copy this repository into a namespace of yours">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a>
+  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork" data-tip="Copy this repository into a namespace of yours">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a>
   {%- endif %}
   </div>
   {%- endif %}
   </div>
+  {%- if let Some(f) = header.fork %}
+  <p class="repo-fork-of text-secondary">{% call m::icon(ctx, "git-fork") %}{% endcall %}<span>Forked from {% if let Some(p) = f.parent %}<a href="/{{ p }}"><bdi>{{ p }}</bdi></a>{% else if f.parent_deleted %}a deleted repository{% else %}a repository you can't see{% endif %}{% if f.contribute %}{% if let Some(p) = f.parent %} · <a href="/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}">Contribute</a>{% endif %}{% endif %}</span></p>
+  {%- endif %}
   {%- if let Some(d) = header.description %}
   <p class="repo-description text-secondary">{{ d }}</p>
   {%- endif %}
@@ -41,27 +43,28 @@
 {%- endcall %}
 {%- endif %}
 {%- if header.archived %}
-<div class="notice" role="note"><p>This repository is archived. It's read-only.</p></div>
+{%- call msg::notice() %}<p>This repository is archived. It's read-only.</p>{% endcall %}
 {%- endif %}
 {%- if let Some(f) = header.fork %}
   {%- if f.state == "queued" || f.state == "running" %}
-<div class="notice" role="status"><p>This fork is being created: its branches and tags are being copied. Pushes wait until it's done. Reload the page to see when.</p></div>
+{%- call msg::notice() %}<p>This fork is being created: its branches and tags are being copied. Pushes wait until it's done. Reload the page to see when.</p>{% endcall %}
   {%- else if f.state == "failed" %}
-<div class="error-summary" role="alert"><p>Creating this fork failed. {% if let Some(e) = f.error %}{{ e }}{% endif %} Delete it and fork again.</p></div>
+{%- call msg::notice("warning") %}<p>Creating this fork failed. {% if let Some(e) = f.error %}{{ e }}{% endif %} Delete it and fork again.</p>{% endcall %}
   {%- endif %}
 {%- endif %}
 {%- if let Some(i) = header.import %}
   {%- if i.state == "queued" || i.state == "running" %}
-<div class="notice" role="status"><p>This repository is being imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}. Reload the page to see when it's done.</p></div>
+{%- call msg::notice() %}<p>This repository is being imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}. Reload the page to see when it's done.</p>{% endcall %}
   {%- else if i.state == "failed" && i.url.is_some() %}
-<div class="error-summary" role="alert"><p>The import{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %} failed. {% if let Some(e) = i.error %}{{ e }}{% endif %} Delete this repository and try again.</p></div>
+{%- call msg::notice("warning") %}<p>The import{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %} failed. {% if let Some(e) = i.error %}{{ e }}{% endif %} Delete this repository and try again.</p>{% endcall %}
   {%- else if i.state == "done" && i.url.is_some() %}
-<div class="notice" role="note"><p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p>{% if i.secrets > 0 %}<p><strong>Push protection found {{ i.secrets }} possible secret(s) in the imported history.</strong> They were imported anyway, since that history exists elsewhere: revoke them. New pushes are scanned.</p>{% endif %}{% if i.secrets_allowed > 0 %}<p>{{ i.secrets_allowed }} finding(s) in the imported history are allowed by the repository: its allowlist on the default branch covers them, so they aren't secrets to revoke.</p>{% endif %}</div>
+{%- call msg::notice() %}<p>Imported{% if let Some(u) = i.url %} from <bdi>{{ u }}</bdi>{% endif %}: {{ i.branches }} branches and {{ i.tags }} tags. Only branches and tags are imported, not issues, merge requests, or releases.</p>{% if i.secrets > 0 %}<p><strong>Push protection found {{ i.secrets }} possible secret(s) in the imported history.</strong> They were imported anyway, since that history exists elsewhere: revoke them. New pushes are scanned.</p>{% endif %}{% if i.secrets_allowed > 0 %}<p>{{ i.secrets_allowed }} finding(s) in the imported history are allowed by the repository: its allowlist on the default branch covers them, so they aren't secrets to revoke.</p>{% endif %}{% endcall %}
   {%- endif %}
 {%- endif %}
 {%- for b in header.recent_pushes %}
-<div class="notice recent-push" role="note">
+{%- call msg::notice_action() %}
   <p>You pushed to <a href="/{{ header.namespace }}/{{ header.name }}/tree/{{ b|urlencode }}"><code><bdi>{{ b }}</bdi></code></a> recently.</p>
   <a class="button button-primary" href="{% if let Some(p) = header.contribute_to() %}/{{ p }}/compare?source_repo={{ header.namespace|urlencode }}%2F{{ header.name|urlencode }}&amp;{% else %}/{{ header.namespace }}/{{ header.name }}/compare?{% endif %}source={{ b|urlencode }}">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Create merge request</a>
-</div>
+{%- endcall %}
 {%- endfor %}
+</div>

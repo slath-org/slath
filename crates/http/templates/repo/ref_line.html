@@ -1,32 +1,31 @@
+{#- The code toolbar: the branch, tag, or commit shown and the switcher on
+    the start side, Download and Clone at the end. -#}
 <div class="repo-toolbar">
   <div class="repo-toolbar-start">
     <p class="ref-line text-secondary">{{ reference.kind }}
     <details class="menu ref-menu">
       <summary class="button" aria-label="{{ reference.kind }} {{ reference.name }}: switch branch">{% call m::icon(ctx, "git-branch") %}{% endcall %}<bdi>{{ reference.name }}</bdi>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-      <div class="menu-panel ref-panel">
+      <div class="menu-panel menu-panel-start ref-panel">
         <p class="menu-heading">Switch branch</p>
         <div class="ref-panel-list">
         {%- for b in reference.branches %}
         <a class="menu-item" href="{{ b.href }}"{% if b.current %} aria-current="true"{% endif %}>{% if b.current %}{% call m::icon(ctx, "check") %}{% endcall %}{% endif %}<bdi>{{ b.name }}</bdi></a>
         {%- endfor %}
         </div>
-        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/branches">All branches</a>
-        <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/tags">Tags</a>
+        {%- call d::menu_link("/" ~ header.namespace ~ "/" ~ header.name ~ "/branches", "All branches") %}{% endcall %}
+        {%- call d::menu_link("/" ~ header.namespace ~ "/" ~ header.name ~ "/tags", "Tags") %}{% endcall %}
       </div>
     </details>
-    {%- if reference.kind != "Commit" %} at <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ reference.commit }}"><code>{{ reference.short }}</code></a>{% endif %}</p>
+    {%- if reference.kind != "Commit" %} at {% call c::hash(reference.commit, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ reference.commit) %}{% endcall %}{% endif %}</p>
     {%- if let Some(c) = header.fork_compare %}
     {% include "repo/fork_compare.html" %}
     {%- endif %}
   </div>
   <div class="repo-toolbar-end">
-    <details class="menu download-menu">
-      <summary class="button">Download{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
-      <div class="menu-panel">
+    {%- call d::menu(ctx, "Download") %}
         <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.tar.gz" download>tar.gz archive</a>
         <a class="menu-item" href="/{{ header.namespace }}/{{ header.name }}/archive/{{ reference.commit }}.zip" download>zip archive</a>
-      </div>
-    </details>
+    {%- endcall %}
     {%- if let Some((https_url, ssh_url)) = reference.clone %}
     {% include "repo/clone.html" %}
     {%- endif %}

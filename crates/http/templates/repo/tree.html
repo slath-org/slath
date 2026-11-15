@@ -1,9 +1,10 @@
 {% extends "repo/layout.html" %}
-{% import "macros.html" as m %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
 <h1 class="visually-hidden">{{ title }}</h1>
+<div class="stack">
 {% include "repo/ref_line.html" %}
 {% include "repo/crumbs.html" %}
 <div class="table-wrap table-boxed" tabindex="0" role="region" aria-label="Files">
@@ -21,8 +22,9 @@
 </table>
 </div>
 <p><a href="{{ commits_href }}">History</a></p>
+</div>
 {%- if let Some(r) = readme %}
-<section class="readme" aria-labelledby="readme-heading">
+<section class="section readme" aria-labelledby="readme-heading">
   <h2 id="readme-heading" class="readme-name">{% call m::icon(ctx, "file") %}{% endcall %}{{ r.name }}</h2>
   <div class="readme-body">
   {%- if let Some(html) = r.html %}
@@ -33,4 +35,5 @@
   </div>
 </section>
 {%- endif %}
+</div>
 {% endblock %}

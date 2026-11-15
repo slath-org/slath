@@ -1,23 +1,35 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ subject }} · {{ short }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
-<h1 class="commit-title">{{ subject }}</h1>
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>{{ subject }}</h1>
+    <div class="page-head-actions"><a class="button" href="{{ tree_href }}">{% call m::icon(ctx, "folder") %}{% endcall %}Browse files</a></div>
+  </div>
+  <p class="page-head-meta"><span>{% call p::git_identity(ctx, author) %}{% endcall %} authored {% call c::time(author_time) %}{% endcall %}{% if committer != author %}, committed by {% call p::git_identity(ctx, committer) %}{% endcall %}{% endif %}</span></p>
+</header>
+<div class="stack">
 {%- if !body.is_empty() %}
 <pre class="commit-body">{{ body }}</pre>
 {%- endif %}
-<p class="text-secondary">{{ author }} authored <time datetime="{{ author_time.iso }}">{{ author_time.text }}</time>{% if committer != author %}, committed by {{ committer }}{% endif %}</p>
-<p class="text-secondary">Commit <code>{{ oid }}</code>
-{%- for (p, ps) in parents %} · parent <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ p }}"><code>{{ ps }}</code></a>{% endfor %}
-· <a href="{{ tree_href }}">Browse files</a></p>
+<dl class="facts">
+  <dt>Commit</dt><dd><code>{{ oid }}</code></dd>
+  {%- if !parents.is_empty() %}
+  <dt>Parent{% if parents.len() != 1 %}s{% endif %}</dt><dd>{% for parent in parents %}{% if !loop.first %}, {% endif %}{% call c::hash(parent.0, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ parent.0) %}{% endcall %}{% endfor %}</dd>
+  {%- endif %}
+</dl>
+</div>
 {%- if !statuses.is_empty() %}
-<section aria-labelledby="statuses-title">
+<section class="section" aria-labelledby="statuses-title">
 <h2 id="statuses-title">Statuses</h2>
 {% include "repo/statuses.html" %}
 </section>
 {%- endif %}
 {%- if too_big %}
-<div class="notice" role="note"><p>This diff is too large to show.</p></div>
+{%- call msg::notice() %}<p>This diff is too large to show.</p>{% endcall %}
 {%- endif %}
 {% include "repo/diff_files.html" %}
+</div>
 {% endblock %}

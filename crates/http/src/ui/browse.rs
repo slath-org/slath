@@ -192,7 +192,6 @@ struct RefView {
     kind: &'static str,
     name: String,
     commit: String,
-    short: String,
     /// The branch picker: each branch with the same view on it.
     branches: Vec<BranchLink>,
     /// The clone URLs (HTTPS, SSH), on the front page only.
@@ -242,7 +241,6 @@ async fn ref_view(state: &AppState, a: &RepoAccess, r: &RefPath, view: &str) -> 
         },
         name: lossy(&r.name),
         commit: r.commit.as_str().to_owned(),
-        short: r.commit.as_str()[..12].to_owned(),
         branches,
         clone: None,
     }
@@ -562,7 +560,7 @@ struct BlameRow {
 
 struct BlameHunk {
     href: String,
-    short: String,
+    oid: String,
     summary: String,
     author: String,
     when: Time,
@@ -693,7 +691,7 @@ async fn blame(
                         a.repo.name,
                         commit.as_str()
                     ),
-                    short: commit.as_str()[..10].to_owned(),
+                    oid: commit.as_str().to_owned(),
                     summary: info.summary.clone(),
                     author: info.author_name.clone(),
                     when: time::OffsetDateTime::from_unix_timestamp(info.author_time)
@@ -844,7 +842,6 @@ struct CommitsPage {
     empty_text: String,
     path: String,
     commits: Vec<CommitRow>,
-    page: usize,
     prev_href: Option<String>,
     next_href: Option<String>,
 }
@@ -895,7 +892,6 @@ async fn commits_for(
                 time: time(e.author_time),
             })
             .collect(),
-        page,
         prev_href: (page > 1).then(|| format!("{base}?page={}", page - 1)),
         next_href: (more && page < MAX_PAGE).then(|| format!("{base}?page={}", page + 1)),
         ctx,
@@ -941,7 +937,6 @@ async fn commits(
         },
         path: String::new(),
         commits: Vec::new(),
-        page: 1,
         prev_href: None,
         next_href: None,
         ctx,
@@ -1082,7 +1077,6 @@ struct RefRow {
     name: String,
     href: String,
     commit: String,
-    short: String,
     subject: String,
     time: Time,
     default: bool,
@@ -1138,7 +1132,6 @@ async fn refs(
                     pct(&r.name)
                 ),
                 name: lossy(&r.name),
-                short: r.commit.as_str()[..12].to_owned(),
                 commit: r.commit.as_str().to_owned(),
                 subject: slath_markup::reveal_bidi(&r.subject).into_owned(),
                 time: time(r.time),

@@ -9,7 +9,7 @@ import { USERS, expect, expectAccessible, signIn, tapOrClick, test, write } from
 
 test("ux_mr_01_recently_pushed_banner_on_home_and_branches", async ({ page }) => {
   await signIn(page, USERS.alice);
-  const banner = page.locator(".recent-push").filter({ hasText: "You pushed to pushed recently." });
+  const banner = page.locator(".notice-action").filter({ hasText: "You pushed to pushed recently." });
   for (const path of ["/alice/demo/branches", "/alice/demo"]) {
     await page.goto(path);
     await expect(banner).toBeVisible();

@@ -1,8 +1,10 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
 <h1 class="visually-hidden">{{ title }}</h1>
+<div class="stack">
 {% include "repo/ref_line.html" %}
 {% include "repo/crumbs.html" %}
 <p class="file-actions">
@@ -10,7 +12,7 @@
   {%- if !language.is_empty() %} · <span class="text-secondary">{{ language }}, {{ lines.len() }} lines</span>{% endif %}
 </p>
 {%- if let Some(n) = notice %}
-<div class="notice" role="note"><p>{{ n }} <a href="{{ raw_href }}" hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %}>Download the raw file</a>.</p></div>
+{%- call msg::notice() %}<p>{{ n }} <a href="{{ raw_href }}" hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %}>Download the raw file</a>.</p>{% endcall %}
 {%- endif %}
 {%- if let Some(s) = special %}
 <p><code>{{ s }}</code></p>
@@ -26,4 +28,6 @@
 </table>
 </div>
 {%- endif %}
+</div>
+</div>
 {% endblock %}

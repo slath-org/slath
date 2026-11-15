@@ -1,7 +1,7 @@
 {%- if !statuses.is_empty() %}
-<ul class="plain-list statuses">
+<ul class="plain-list">
 {%- for st in statuses %}
-  <li class="status status-{{ st.state }}">{% call m::icon(ctx, st.icon) %}{% endcall %}<span><strong>{{ st.context }}</strong>: {{ st.state }}{% if let Some(d) = st.description %} – {{ d }}{% endif %}{% if let Some(u) = st.url %} (<a href="{{ u }}" rel="nofollow noopener noreferrer">details</a>){% endif %}<br><span class="text-secondary">Reported by {{ st.reporter }}{% call m::bot_badge(ctx, st.reporter) %}{% endcall %}, <time datetime="{{ st.time.iso }}">{{ st.time.text }}</time></span></span></li>
+  <li class="tone-{{ st.tone }}">{% call m::tone_icon(ctx, st.tone) %}{% endcall %}<span><strong>{{ st.context }}</strong>: {{ st.state }}{% if let Some(d) = st.description %} – {{ d }}{% endif %}{% if let Some(u) = st.url %} ({% call c::external(ctx, u, "details") %}{% endcall %}){% endif %}<br><span class="text-secondary">Reported by {% if let Some(r) = st.reporter %}{% call p::account(ctx, r) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %}, {% call c::time(st.time) %}{% endcall %}</span></span></li>
 {%- endfor %}
 </ul>
 {%- endif %}

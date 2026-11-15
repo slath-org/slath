@@ -8,7 +8,9 @@
 // - on one page per page group, the structural rules (indicators, heading
 //   levels) against weave-baseline.json, which lists the violations of
 //   pages not yet built from the components. The baseline only shrinks: a
-//   new violation fails, and so does a listed one that's gone.
+//   new violation fails, and so does a listed one that's gone;
+// - on the pages of the groups built from the components, every rule,
+//   strictly, as on the catalog.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type Page } from "@playwright/test";
@@ -26,6 +28,23 @@ const GROUPS: { path: string; who: "anon" | "alice" }[] = [
   { path: "/-/settings/profile", who: "alice" },
   { path: "/-/login", who: "anon" },
   { path: "/-/no-such-page", who: "anon" },
+];
+
+/** The pages of the groups built from the components, signed in as alice. */
+const MIGRATED = [
+  "/alice/demo",
+  "/alice/demo/tree/main/src",
+  "/alice/demo/blob/main/src/main.rs",
+  "/alice/demo/blame/main/src/main.rs",
+  "/alice/demo/commits",
+  "/alice/demo/commit/", // the newest commit, opened from the list
+  "/alice/demo/branches",
+  "/alice/demo/tags",
+  "/alice/demo/forks",
+  "/alice/demo/fork",
+  "/alice/demo/sync?branch=main",
+  "/-/new",
+  "/-/import",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(
@@ -145,6 +164,23 @@ for (const { path, who } of GROUPS) {
     expect(found, `${path}: new violations, or fixed ones still in tests/e2e/weave-baseline.json`).toEqual(
       [...(baseline[path] ?? [])].sort(),
     );
+  });
+}
+
+for (const path of MIGRATED) {
+  test(`conf_design_03_migrated_pages_follow_the_rules ${path}`, async ({ page }) => {
+    await signIn(page, USERS.alice);
+    if (path.endsWith("/commit/")) {
+      await page.goto("/alice/demo/commits");
+      await page.locator(".item-title").first().click();
+      await expect(page).toHaveURL(/\/commit\/[0-9a-f]{40}$/);
+    } else await page.goto(path);
+    expect(await structure(page)).toEqual([]);
+    expect(await spacing(page)).toEqual([]);
+    await page.evaluate(() => {
+      document.documentElement.dataset.density = "compact";
+    });
+    expect(await spacing(page), "compact").toEqual([]);
   });
 }
 

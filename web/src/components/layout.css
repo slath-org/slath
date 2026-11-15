@@ -47,6 +47,11 @@
 .page > * {
   margin-block: 0;
 }
+/* A page that is one form (sign in, new repository, fork): the narrow
+   column. On a page with a context it follows the context header. */
+.page-form {
+  max-width: var(--measure-narrow);
+}
 
 /* Page heading: the title, an optional state line under it, and the
    actions on the title's row (wrapping below it when narrow). */

@@ -1,28 +1,30 @@
 {% extends "repo/layout.html" %}
 {% block title %}Commits · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
-<h1>Commits{% if !path.is_empty() %} for <code>{{ path }}</code>{% endif %}</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>Commits{% if !path.is_empty() %} for <code>{{ path }}</code>{% endif %}</h1></div>
+</header>
+<div class="stack">
 {%- if let Some(reference) = reference %}
 {% include "repo/ref_line.html" %}
 {%- endif %}
 {%- if commits.is_empty() %}
-<p class="text-secondary empty-state">{{ empty_text }}</p>
+{%- call msg::empty(empty_text) %}{% endcall %}
 {%- else %}
-<ol class="commit-list">
-{%- for c in commits %}
-  <li>
-    <a href="/{{ header.namespace }}/{{ header.name }}/commit/{{ c.oid }}" class="commit-subject">{{ c.subject }}</a>
-    <p class="text-secondary">{{ c.author }} · <time datetime="{{ c.time.iso }}">{{ c.time.text }}</time> · <code>{{ c.short }}</code></p>
+<ol class="item-list">
+{%- for cm in commits %}
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="/{{ header.namespace }}/{{ header.name }}/commit/{{ cm.oid }}">{{ cm.subject }}</a>
+      <p class="item-meta text-secondary">{% call p::git_identity(ctx, cm.author) %}{% endcall %} · {% call c::time(cm.time) %}{% endcall %} · <code>{{ cm.short }}</code></p>
+    </div>
   </li>
 {%- endfor %}
 </ol>
 {%- endif %}
-{%- if !commits.is_empty() || page > 1 %}
-<nav aria-label="Pages" class="pager">
-  {%- if let Some(p) = prev_href %}<a href="{{ p }}" rel="prev">Newer</a>{% endif %}
-  <span class="text-secondary">Page {{ page }}</span>
-  {%- if let Some(n) = next_href %}<a href="{{ n }}" rel="next">Older</a>{% endif %}
-</nav>
-{%- endif %}
+{%- call l::pager(prev_href.as_deref().unwrap_or_default(), next_href.as_deref().unwrap_or_default(), "Newer commits", "Older commits") %}{% endcall %}
+</div>
+</div>
 {% endblock %}

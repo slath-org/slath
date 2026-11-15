@@ -15,6 +15,18 @@
   color: var(--warning-fg);
 }
 
+/* A notice with the one action that resolves it, on the same row. */
+.notice-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-inline) var(--gap-items);
+}
+.notice-action > p {
+  margin: 0;
+}
+
 /* In a stack, messages take their space from it. */
 :is(.stack, .stack-groups, .section, .subsection, .frame, .page) > :is(.notice, .error-summary, .success-summary) {
   margin-block: 0;

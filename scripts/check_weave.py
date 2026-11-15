@@ -59,6 +59,8 @@ ENTRY_MARKERS = {
     "names": r"data-names", "sort": r"m::view_menu\(ctx, \"Sort\"", "switches": r'type="checkbox"',
     "status-line": r"m::tone_icon\(", "readiness": r"readiness_card", "timeline": r'class="timeline"',
     "thread": r"timeline-thread", "chips": r'class="badge',
+    "code-toolbar": r"repo/ref_line\.html", "file-list": r"table file-list", "code-view": r"code-table",
+    "readme": r"section readme", "commit-message": r"commit-body",
     "diff": r"diff_files\.html", "markdown": r'class="markdown', "editor": r"<slath-editor",
 }
 

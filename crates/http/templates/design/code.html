@@ -10,6 +10,124 @@
   <p class="page-head-intro">Code is one of Slath's most important content types: diffs that read correctly, long-form text people write, and the editor they write it in.</p>
 </header>
 
+{%- call cat::entry("code-toolbar", "Code toolbar", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Above the files of the code pages: the branch, tag, or commit shown with its switcher and its commit on the start side, how a fork's branch compares with its parent, and Download and Clone at the end.</dd>
+  <dt>Markup</dt><dd><code>repo/ref_line.html</code> (the branch switcher is a menu with <code>ref-panel</code>, whose branch list scrolls), <code>repo/fork_compare.html</code>, and <code>repo/clone.html</code> (alternatives one at a time, each a value to copy).</dd>
+  <dt>Variants</dt><dd>Branch, tag, commit (no commit after the switcher); a fork's branch ahead or behind, with Sync fork; the repository home's Clone alone.</dd>
+  <dt>Accessibility</dt><dd>The switcher's button says what's shown and what it does ("Branch main: switch branch"); the current branch is marked as current.</dd>
+  <dt>Not for</dt><dd>Views of a list (a view menu).</dd>
+</dl>
+{%- call cat::example("A fork's branch, behind its parent.") %}
+<div class="repo-toolbar">
+  <div class="repo-toolbar-start">
+    <p class="ref-line text-secondary">Branch
+    <details class="menu ref-menu">
+      <summary class="button" aria-label="Branch main: switch branch">{% call m::icon(ctx, "git-branch") %}{% endcall %}<bdi>main</bdi>{% call m::icon(ctx, "chevron-down") %}{% endcall %}</summary>
+      <div class="menu-panel menu-panel-start ref-panel">
+        <p class="menu-heading">Switch branch</p>
+        <div class="ref-panel-list">
+          <a class="menu-item" href="#code-toolbar" aria-current="true">{% call m::icon(ctx, "check") %}{% endcall %}<bdi>main</bdi></a>
+          <a class="menu-item" href="#code-toolbar"><bdi>review</bdi></a>
+        </div>
+        {%- call d::menu_link("#code-toolbar", "All branches") %}{% endcall %}
+        {%- call d::menu_link("#code-toolbar", "Tags") %}{% endcall %}
+      </div>
+    </details>
+    at {% call c::hash("a1e62f5c7d0b9e8f6a5d4c3b2a1908f7e6d5c4b3", "#code-toolbar") %}{% endcall %}</p>
+    <div class="fork-compare">
+      <p><code><bdi>main</bdi></code> is <span class="numeric">2</span> behind <bdi>alice/proj</bdi>.</p>
+      <button type="button" class="button">{% call m::icon(ctx, "refresh-cw") %}{% endcall %}Sync fork</button>
+    </div>
+  </div>
+  <div class="repo-toolbar-end">
+    {%- call d::menu(ctx, "Download") %}<a class="menu-item" href="#code-toolbar">tar.gz archive</a><a class="menu-item" href="#code-toolbar">zip archive</a>{% endcall %}
+    {%- let https_url = "https://slath.example/alice/proj.git" %}
+    {%- let ssh_url = "ssh://git@slath.example/alice/proj.git" %}
+    {% include "repo/clone.html" %}
+  </div>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("file-list", "File list", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The files and folders of a folder, in a box of its own, folders first; each name is a full-height link with its icon.</dd>
+  <dt>Markup</dt><dd><code>div.table-wrap.table-boxed</code> &gt; <code>table.table.file-list</code> with a caption for screen readers.</dd>
+  <dt>Variants</dt><dd>None. An empty folder doesn't exist in Git.</dd>
+  <dt>Accessibility</dt><dd>A table named "Files"; the icon is decorative and the type is a column.</dd>
+  <dt>Not for</dt><dd>Changed files (the diff).</dd>
+</dl>
+{%- call cat::example("A folder.") %}
+<div class="table-wrap table-boxed" tabindex="0" role="region" aria-label="Example files">
+<table class="table file-list">
+  <caption class="visually-hidden">Files and directories</caption>
+  <thead><tr><th scope="col">Name</th><th scope="col">Type</th></tr></thead>
+  <tbody>
+    <tr><td><a href="#file-list">{% call m::icon(ctx, "folder") %}{% endcall %} src</a></td><td class="text-secondary">Directory</td></tr>
+    <tr><td><a href="#file-list">{% call m::icon(ctx, "file") %}{% endcall %} README.md</a></td><td class="text-secondary">File</td></tr>
+  </tbody>
+</table>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("code-view", "Code view and blame", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A file's lines with their numbers, highlighted, in a box that scrolls sideways while the numbers stay; a line's number links to it and marks it. Above it the file's links (Raw, Blame, History, Permalink) and its language and length. Blame adds each run of lines' commit: its hash, its summary cut to the column, its author, and when.</dd>
+  <dt>Markup</dt><dd><code>p.file-actions</code>, then <code>div.code-wrap</code> &gt; <code>table.code-view.code-table</code>; blame adds <code>blame-table</code>, a <code>td.blame-commit</code> spanning the run, and <code>tr.blame-start</code> on its first line.</dd>
+  <dt>Variants</dt><dd>File; blame; too large or binary (a notice with the raw file instead).</dd>
+  <dt>Accessibility</dt><dd>A region named by what it shows; line numbers are row headers; the blame's column headers are there for screen readers.</dd>
+  <dt>Not for</dt><dd>Changes (the diff); commands to copy (a code block).</dd>
+</dl>
+{%- call cat::example("Blame of three lines from two commits.") %}
+<div class="stack">
+<p class="file-actions"><a href="#code-view">File</a> · <a href="#code-view">History</a> · <span class="text-secondary">3 lines</span></p>
+<div class="code-wrap" tabindex="0" role="region" aria-label="Example blame">
+<table class="code-view code-table blame-table">
+  <thead class="visually-hidden"><tr><th scope="col">Commit</th><th scope="col">Line</th><th scope="col">Code</th></tr></thead>
+  <tbody>
+    <tr class="blame-start"><td class="blame-commit" rowspan="2">{% call c::hash("a1e62f5c7d0b9e8f6a5d4c3b2a1908f7e6d5c4b3", "#code-view") %}{% endcall %} {% call c::cut("Start the command line with a help text") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Alice Example") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">1</a></th><td><code>fn main() {</code></td></tr>
+    <tr><th scope="row"><a href="#code-view" class="line-no">2</a></th><td><code>    println!("help");</code></td></tr>
+    <tr class="blame-start"><td class="blame-commit" rowspan="1">{% call c::hash("b2f73a6d8e1c0f9a7b6e5d4c3b2a1908f7e6d5c4", "#code-view") %}{% endcall %} {% call c::cut("Close the main function") %}{% endcall %}<br><span class="text-secondary">{% call p::git_identity(ctx, "Bob Example") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></td><th scope="row"><a href="#code-view" class="line-no">3</a></th><td><code>}</code></td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("readme", "README", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>A folder's README under its files: the file's name as a file heading, outside the box so it isn't read as the file's first line, then the rendered Markdown (or the plain text) in a box.</dd>
+  <dt>Markup</dt><dd><code>section.section.readme</code> &gt; <code>h2.readme-name</code>, then <code>div.readme-body</code> around rendered Markdown.</dd>
+  <dt>Variants</dt><dd>Markdown; plain text.</dd>
+  <dt>Accessibility</dt><dd>A section named by the file's name; the Markdown's own headings start below it.</dd>
+  <dt>Not for</dt><dd>Other files (the code view).</dd>
+</dl>
+{%- call cat::example("A README.") %}
+<section class="section readme" aria-labelledby="demo-readme">
+  <h2 id="demo-readme" class="readme-name">{% call m::icon(ctx, "file") %}{% endcall %}README.md</h2>
+  <div class="readme-body"><div class="markdown"><p>A tool to sort photos by the day they were taken.</p></div></div>
+</section>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("commit-message", "Commit message", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>The body of a commit message under its subject (the page title), as written: line breaks kept, in the interface font, not interpreted as Markdown.</dd>
+  <dt>Markup</dt><dd><code>pre.commit-body</code>.</dd>
+  <dt>Variants</dt><dd>None; a commit without a body has none.</dd>
+  <dt>Accessibility</dt><dd>Plain text.</dd>
+  <dt>Not for</dt><dd>Text written in Slath (rendered Markdown).</dd>
+</dl>
+{%- call cat::example("A body of two paragraphs.") %}
+<pre class="commit-body">The help text lists every subcommand.
+
+Closes #12.</pre>
+{%- endcall %}
+{%- endcall %}
+
 {%- call cat::entry("diff", "Diff", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Every diff, rendered by the same code: each file in its frame, folded files with their reason, changed characters marked (not by color alone), line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. Side by side only where there's room.</dd>

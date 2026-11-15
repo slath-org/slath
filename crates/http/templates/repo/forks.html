@@ -1,27 +1,30 @@
 {% extends "repo/layout.html" %}
 {% block title %}Forks · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
-<div class="page-heading">
-  <h1>Forks</h1>
-  {%- if header.can_fork %}
-  <a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a>
-  {%- endif %}
-</div>
-{%- if rows.is_empty() %}
-<p class="text-secondary empty-state">No forks you can see.</p>
-{%- else %}
-<ul class="repo-list">
-{%- for r in rows %}
-  <li>
-    <a href="/{{ r.full_name }}" class="repo-name"><bdi>{{ r.full_name }}</bdi></a>
-    {%- if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
-    <span class="text-secondary"> · forked <time datetime="{{ r.created.iso }}">{{ r.created.text }}</time></span>
-    {%- if let Some(d) = r.description %}
-    <p class="text-secondary">{{ d }}</p>
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>Forks</h1>
+    {%- if header.can_fork %}
+    <div class="page-head-actions"><a class="button" href="/{{ header.namespace }}/{{ header.name }}/fork">{% call m::icon(ctx, "git-fork") %}{% endcall %}Fork</a></div>
     {%- endif %}
+  </div>
+</header>
+{%- if rows.is_empty() %}
+{%- call msg::empty("No forks you can see.") %}{% endcall %}
+{%- else %}
+<ul class="item-list">
+{%- for r in rows %}
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="/{{ r.full_name }}"><bdi>{{ r.full_name }}</bdi></a>
+      {%- if r.visibility == "private" %}<span class="item-labels"><span class="badge">Private</span></span>{% else if r.visibility == "internal" %}<span class="item-labels"><span class="badge">Internal</span></span>{% endif %}
+      <p class="item-meta text-secondary">Forked {% call c::time(r.created) %}{% endcall %}{% if let Some(d) = r.description %} · {{ d }}{% endif %}</p>
+    </div>
   </li>
 {%- endfor %}
 </ul>
 {%- endif %}
+</div>
 {% endblock %}

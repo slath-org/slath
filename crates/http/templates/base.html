@@ -1,4 +1,12 @@
 {%- import "macros.html" as m -%}
+{#- The Weave components, for every page. -#}
+{%- import "components/controls.html" as c -%}
+{%- import "components/disclosure.html" as d -%}
+{%- import "components/forms.html" as f -%}
+{%- import "components/frame.html" as fr -%}
+{%- import "components/lists.html" as l -%}
+{%- import "components/messages.html" as msg -%}
+{%- import "components/people.html" as p -%}
 <!doctype html>
 <html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}"{% if ctx.sidebar_collapsed %} data-sidebar="collapsed"{% endif %}{% if let Some(size) = ctx.code_size %} data-code-size="{{ size }}"{% endif %}>
 <head>

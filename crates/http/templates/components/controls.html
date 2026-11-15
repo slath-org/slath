@@ -30,7 +30,7 @@
 
 {#- A link to another site: the external-link icon after its text. -#}
 {%- macro external(ctx, href, text) -%}
-<a class="link-external" href="{{ href }}" rel="noopener noreferrer">{{ text }}{% call m::icon(ctx, "external-link") %}{% endcall %}<span class="visually-hidden"> (another site)</span></a>
+<a class="link-external" href="{{ href }}" rel="nofollow noopener noreferrer">{{ text }}{% call m::icon(ctx, "external-link") %}{% endcall %}<span class="visually-hidden"> (another site)</span></a>
 {%- endmacro -%}
 
 {#- An icon-only button: the icon, its name for screen readers, and the

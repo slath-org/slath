@@ -1,22 +1,12 @@
-  <fieldset class="field" id="visibility">
-    <legend>Who can see this repository</legend>
-    <div class="checkbox">
-      <input id="vis-private" type="radio" name="visibility" value="private"{% if visibility == "private" %} checked{% endif %}>
-      <label for="vis-private"><strong>Private</strong>. Only people you give access.</label>
-    </div>
-    {%- if max_visibility >= 1 %}
-    <div class="checkbox">
-      <input id="vis-internal" type="radio" name="visibility" value="internal"{% if visibility == "internal" %} checked{% endif %}>
-      <label for="vis-internal"><strong>Internal</strong>. Everyone who is signed in to this instance; not signed-out visitors.</label>
-    </div>
-    {%- endif %}
-    {%- if max_visibility >= 2 %}
-    <div class="checkbox">
-      <input id="vis-public" type="radio" name="visibility" value="public"{% if visibility == "public" %} checked{% endif %}>
-      <label for="vis-public"><strong>Public</strong>. Everyone, including signed-out visitors.</label>
-    </div>
-    {%- endif %}
-    {%- if max_visibility < 2 %}
-    <p class="hint">A fork can't be more visible than the repository it was forked from was.</p>
-    {%- endif %}
-  </fieldset>
+{#- The question "Who can see this repository", up to `max_visibility`
+    (0 private, 1 internal, 2 public). -#}
+{%- let vis_hint -%}{% if max_visibility < 2 %}A fork can't be more visible than the repository it was forked from was.{% endif %}{%- endlet -%}
+{%- call f::question("visibility", "Who can see this repository", vis_hint) %}
+{%- call f::option("radio", "vis-private", "visibility", "private", "Private", visibility == "private", "Only people you give access.") %}{% endcall %}
+{%- if max_visibility >= 1 %}
+{%- call f::option("radio", "vis-internal", "visibility", "internal", "Internal", visibility == "internal", "Everyone who is signed in to this instance; not signed-out visitors.") %}{% endcall %}
+{%- endif %}
+{%- if max_visibility >= 2 %}
+{%- call f::option("radio", "vis-public", "visibility", "public", "Public", visibility == "public", "Everyone, including signed-out visitors.") %}{% endcall %}
+{%- endif %}
+{%- endcall %}

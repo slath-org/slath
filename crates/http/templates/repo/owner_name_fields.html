@@ -1,0 +1,11 @@
+{#- The owner and name of a new repository (new, import, fork). -#}
+  {%- call f::field("namespace", "Owner", "", self.error("namespace").unwrap_or_default()) %}
+  <select id="namespace" name="namespace"{% call f::described("namespace", "", self.error("namespace").unwrap_or_default()) %}{% endcall %}>
+  {%- for n in namespaces %}
+    <option value="{{ n }}"{% if n.as_str() == selected.as_str() %} selected{% endif %}>{{ n }}</option>
+  {%- endfor %}
+  </select>
+  {%- endcall %}
+  {%- call f::field("name", "Name", "Letters, digits, \".\", \"_\" and \"-\"; up to 39 characters.", self.error("name").unwrap_or_default()) %}
+  <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"{% call f::described("name", "x", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}

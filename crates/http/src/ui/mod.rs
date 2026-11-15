@@ -341,8 +341,10 @@ pub struct StatusRow {
     pub context: String,
     /// `pending`, `success`, `failure`, or `error`.
     pub state: String,
-    pub icon: &'static str,
-    pub reporter: String,
+    /// The status line's tone: `done`, `waiting`, or `blocking`.
+    pub tone: &'static str,
+    /// `None` when the reporting account was deleted.
+    pub reporter: Option<String>,
     pub description: Option<String>,
     pub url: Option<String>,
     pub time: Time,
@@ -351,14 +353,14 @@ pub struct StatusRow {
 impl From<slath_db::statuses::Status> for StatusRow {
     fn from(s: slath_db::statuses::Status) -> Self {
         Self {
-            icon: match s.state.as_str() {
-                "success" => "circle-check",
-                "pending" => "clock",
-                _ => "circle-x",
+            tone: match s.state.as_str() {
+                "success" => "done",
+                "pending" => "waiting",
+                _ => "blocking",
             },
             context: s.context,
             state: s.state,
-            reporter: s.reporter.unwrap_or_else(|| "a deleted user".to_owned()),
+            reporter: s.reporter,
             description: s.description,
             url: s.target_url,
             time: s.created_at.into(),

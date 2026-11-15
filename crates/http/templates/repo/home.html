@@ -1,6 +1,7 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "repo/header.html" %}
 <h1 class="visually-hidden">{{ header.namespace }}/{{ header.name }}</h1>
 <div class="repo-toolbar">
@@ -9,7 +10,7 @@
   </div>
 </div>
 {%- if empty %}
-<section aria-labelledby="empty-heading">
+<section class="section" aria-labelledby="empty-heading">
   <h2 id="empty-heading">This repository is empty</h2>
   {%- if can_push %}
   <div class="choice">
@@ -31,8 +32,9 @@ git push -u origin {{ default_branch }}</code></pre>
   </div>
   <p class="text-secondary">Git over HTTPS uses a <a href="/-/settings/tokens">personal access token</a> as the password.</p>
   {%- else %}
-  <p class="text-secondary">Nothing has been pushed yet.</p>
+  {%- call msg::empty("Nothing has been pushed yet.") %}{% endcall %}
   {%- endif %}
 </section>
 {%- endif %}
+</div>
 {% endblock %}

@@ -12,8 +12,9 @@ test("conf_design_03_messages_family_accessible", async ({ page }) => {
 
 test("conf_design_03_messages_roles_and_tones", async ({ page }) => {
   await page.goto("/-/design/messages");
-  const notes = page.locator("section[aria-labelledby=notice] [role=note]");
+  const notes = page.locator("section[aria-labelledby=notice] [role=note]:not(.notice-action)");
   await expect(notes).toHaveCount(2);
+  await expect(page.locator("section[aria-labelledby=notice] .notice-action").getByRole("link", { name: "Create merge request" })).toBeVisible();
   // The warning has its own tone, not information's.
   const [info, warning] = await notes.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
   expect(warning).not.toBe(info);

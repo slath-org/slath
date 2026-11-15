@@ -8,7 +8,7 @@ test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) 
   await page.goto("/-/new");
   await expectAccessible(page);
   await page.getByLabel("Name", { exact: true }).fill(name);
-  await tapOrClick(page, page.getByLabel(/^Public\./));
+  await tapOrClick(page, page.getByRole("radio", { name: /^Public/ }));
   await tapOrClick(page, page.getByRole("button", { name: "Create repository" }));
   await expect(page.getByRole("heading", { name: "This repository is empty" })).toBeVisible();
   await expectAccessible(page);

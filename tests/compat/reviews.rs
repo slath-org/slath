@@ -488,7 +488,10 @@ fn conf_review_04_only_statuses_on_the_landing_commit_count() {
         u.s.login("alice", PASSWORD)
             .get(&format!("/alice/demo/merge-requests/{n}"))
             .body;
-    assert!(page.contains("Reported by bob"));
+    assert!(
+        page.contains("Reported by <a class=\"account\" href=\"/bob\">"),
+        "{page}"
+    );
 }
 
 #[test]

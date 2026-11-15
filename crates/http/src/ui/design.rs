@@ -105,12 +105,14 @@ struct FoundationsFamily {
     icons: Vec<&'static str>,
 }
 
-/// The code family: diffs, rendered Markdown, the editor.
+/// The code family: the code pages' parts, diffs, rendered Markdown, the
+/// editor.
 #[derive(Template)]
 #[template(path = "design/code.html")]
 struct CodeFamily {
     ctx: PageCtx,
     diff: super::diff::DiffView,
+    recent: super::Time,
 }
 
 /// The layout family: stack, cluster, page, section, subsection, frame.
@@ -211,6 +213,7 @@ async fn family(
             let page = CodeFamily {
                 ctx: ctx.clone(),
                 diff,
+                recent: (time::OffsetDateTime::now_utc() - time::Duration::hours(3)).into(),
             };
             Ok(super::diff::respond(hx, &ctx, &page.diff, &page))
         }
