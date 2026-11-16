@@ -11,7 +11,7 @@ use std::process::Stdio;
 use serde_json::{Value, json};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
 
-use crate::jj::{Jj, jj_binaries};
+use crate::jj::{Jj, git_store, jj_binaries, raw_commit};
 
 /// A server with alice/demo, `main` pushed, and an API token.
 struct Ctx {
@@ -440,6 +440,65 @@ fn conf_jj_09_mixed_git_and_jj_without_setup() {
             "{version}"
         );
         assert_eq!(ids(&third), want, "{version}");
+    }
+}
+
+/// jj set not to write `change-id` headers (`git.write-change-id-header =
+/// false`) still keeps its changes: Slath gets Git commits without an ID,
+/// shows the predicted ID, and follows rewrites by identical patch and by
+/// content (marked inferred), as for plain Git.
+#[test]
+fn conf_jj_05_jj_without_change_id_headers() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    seed(&c, d.path());
+    for (version, bin) in jj_binaries() {
+        let v = version.replace(['.', ' '], "_");
+        let jj = Jj::new(&version, &bin);
+        jj.configure("[git]\nwrite-change-id-header = false\n");
+        let j = d.path().join(format!("no-header-{v}"));
+        jj.ok(d.path(), &["git", "clone", &c.url, j.to_str().unwrap()]);
+        let branch = format!("no-header-{v}");
+        jj.ok(&j, &["new", "main@origin", "-m", "Add n"]);
+        std::fs::write(j.join("n.txt"), lines("n", None)).unwrap();
+        jj.ok(&j, &["bookmark", "create", &branch, "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        let oid = jj.show(&j, &branch, "commit_id");
+        assert_eq!(
+            raw_commit(&c.git, &git_store(&j), &oid).header(b"change-id"),
+            None,
+            "{version}: header written despite the setting"
+        );
+        let n = c.open_mr(&branch);
+        let first = c.stack(n, 1);
+        assert_eq!(bindings(&first), vec![pair("new", "")], "{version}");
+        assert_eq!(
+            ids(&first),
+            vec![slath_core::change_identity::predict(&oid).unwrap()],
+            "{version}: display ID"
+        );
+
+        // Reworded: the identical patch.
+        jj.ok(&j, &["describe", "-m", "Add n, reworded"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        let second = c.stack(n, 2);
+        assert_eq!(
+            bindings(&second),
+            vec![pair("confirmed", "patch")],
+            "{version}: reworded"
+        );
+        assert_eq!(ids(&second), ids(&first), "{version}");
+
+        // Content changed: paired by content, inferred.
+        std::fs::write(j.join("n.txt"), lines("n", Some(4))).unwrap();
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        let third = c.stack(n, 3);
+        assert_eq!(
+            bindings(&third),
+            vec![pair("inferred", "content")],
+            "{version}: edited"
+        );
+        assert_eq!(ids(&third), ids(&first), "{version}");
     }
 }
 

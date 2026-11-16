@@ -78,6 +78,14 @@ impl Jj {
         }
     }
 
+    /// Adds settings to this machine's jj configuration.
+    pub(crate) fn configure(&self, toml: &str) {
+        let path = self.home.path().join("jj.toml");
+        let mut text = std::fs::read_to_string(&path).unwrap();
+        text.push_str(toml);
+        std::fs::write(path, text).unwrap();
+    }
+
     pub(crate) fn cmd(&self, cwd: &Path) -> Command {
         let mut c = Command::new(&self.bin);
         c.current_dir(cwd)
@@ -119,7 +127,7 @@ impl Jj {
 
 /// The Git object store of a jj repository: `.git` when colocated (the
 /// default for `jj git init` in recent versions), else the internal store.
-fn git_store(repo: &Path) -> PathBuf {
+pub(crate) fn git_store(repo: &Path) -> PathBuf {
     let colocated = repo.join(".git");
     if colocated.is_dir() {
         colocated
@@ -129,7 +137,7 @@ fn git_store(repo: &Path) -> PathBuf {
 }
 
 /// The raw commit object `rev` resolves to in `git_dir`.
-fn raw_commit(git: &GitClient, git_dir: &Path, rev: &str) -> RawCommit {
+pub(crate) fn raw_commit(git: &GitClient, git_dir: &Path, rev: &str) -> RawCommit {
     let out = git
         .cmd(git_dir)
         .args(["cat-file", "commit", rev])
@@ -401,5 +409,79 @@ fn conf_sec_08_jj_pushes_with_secrets_are_rejected() {
             !present.status.success(),
             "{version}: the commit reached the server"
         );
+    }
+}
+
+/// jj pushes tags (`--tag`, and `--all` with bookmarks): a writer creates
+/// one, moving it needs the maintain role, and push protection scans what
+/// a tag brings, as for Git.
+#[test]
+fn conf_jj_01_tag_pushes_meet_tag_rules_and_push_protection() {
+    let jjs = jj_binaries();
+    if jjs.is_empty() {
+        return;
+    }
+    let server = seeded_server("");
+    server.create_user("bob", slath_tests::server::PASSWORD, false);
+    let r = server.client().api(
+        "PUT",
+        "/api/v1/repos/alice/demo/collaborators/bob",
+        Some(&server.token),
+        Some(&serde_json::json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let mut web = server.login("bob", slath_tests::server::PASSWORD);
+    let token = slath_tests::http::create_token(&mut web, "tags", &["repo:write"]);
+    let url = format!("http://bob:{token}@{}/alice/demo.git", server.addr);
+    let git = GitClient::new();
+    let repo = server.repo_path(&DEMO);
+    let (_, secret) = slath_core::secret_scan::samples()
+        .into_iter()
+        .find(|(r, _)| *r == "aws-access-key-id")
+        .unwrap();
+    for (version, bin) in jjs {
+        let v = version.replace(['.', ' '], "_");
+        let work = tempfile::tempdir().unwrap();
+        let bob = Jj::new(&version, &bin);
+        bob.ok(work.path(), &["git", "clone", &url, "b"]);
+        let b = work.path().join("b");
+        bob.ok(&b, &["new", "main@origin", "-m", "Tagged"]);
+        std::fs::write(b.join(format!("tagged-{v}")), "t\n").unwrap();
+        let tag = format!("t-{v}");
+        bob.ok(&b, &["tag", "set", &tag, "-r", "@"]);
+        // jj makes a tagged working-copy commit immutable and starts a new one.
+        let tagged = bob.show(&b, &tag, "commit_id");
+        bob.ok(&b, &["git", "push", "--tag", &tag]);
+        let on_server = git.ok(&repo, &["rev-parse", &format!("refs/tags/{tag}")]);
+        assert_eq!(on_server.trim(), tagged, "{version}: tag created");
+
+        // Moving it needs the maintain role.
+        bob.ok(
+            &b,
+            &["tag", "set", &tag, "-r", "main@origin", "--allow-move"],
+        );
+        let out = bob.run(&b, &["git", "push", "--tag", &tag]);
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success(), "{version}: moved: {err}");
+        assert!(err.contains("needs the maintain role"), "{version}: {err}");
+        let on_server = git.ok(&repo, &["rev-parse", &format!("refs/tags/{tag}")]);
+        assert_eq!(on_server.trim(), tagged, "{version}: tag kept");
+
+        // A tag on a commit with a secret is refused; nothing arrives.
+        bob.ok(&b, &["new", "main@origin", "-m", "Secret"]);
+        std::fs::write(b.join("credentials"), &secret).unwrap();
+        let secret_tag = format!("s-{v}");
+        bob.ok(&b, &["tag", "set", &secret_tag, "-r", "@"]);
+        let commit_id = bob.show(&b, &secret_tag, "commit_id");
+        let out = bob.run(&b, &["git", "push", "--tag", &secret_tag]);
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(!out.status.success(), "{version}: {err}");
+        assert!(err.contains("(aws-access-key-id)"), "{version}: {err}");
+        let present = git
+            .cmd(&repo)
+            .args(["cat-file", "-e", &commit_id])
+            .output()
+            .unwrap();
+        assert!(!present.status.success(), "{version}: the commit arrived");
     }
 }
