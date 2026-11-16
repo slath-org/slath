@@ -4,7 +4,7 @@
 // The catalog's people family: an avatar before every account name,
 // drawn in the theme's tones, one link per account; Git identities get a
 // neutral icon.
-import { expect, expectAccessible, test } from "../fixtures";
+import { expect, expectAccessible, tapOrClick, test } from "../fixtures";
 
 test("conf_design_03_people_family_accessible", async ({ page }) => {
   await page.goto("/-/design/people");
@@ -61,5 +61,14 @@ test("conf_design_03_git_identity_and_avatar_group", async ({ page }) => {
   const many = page.locator(".avatar-group").nth(1);
   await expect(many.locator(".avatar")).toHaveCount(3);
   await expect(many.locator(".avatar-group-more")).toHaveText("+2");
-  await expect(many.locator(".visually-hidden")).toHaveText("alice, bob, carol, dee, eve");
+  await expect(many.locator(".visually-hidden")).toHaveText("Reviewers: alice, bob, carol, dee, eve");
+  // Every name, those behind "+2" too, in the group's tooltip, and read
+  // once: the tooltip doesn't become a second description.
+  await many.scrollIntoViewIfNeeded();
+  await tapOrClick(page, many);
+  const tip = page.locator("#slath-tooltip");
+  await expect(tip).toBeVisible();
+  await expect(tip).toHaveText("Reviewers: alice, bob, carol, dee, eve");
+  await expect(many).not.toHaveAttribute("aria-describedby", /./);
+  await expectAccessible(page);
 });

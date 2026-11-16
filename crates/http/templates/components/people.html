@@ -56,12 +56,14 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- Several accounts in a small space: up to three avatars, then "+N";
-    every name is text for screen readers. -#}
-{%- macro avatar_group(ctx, names) -%}
-<span class="avatar-group">
+{#- Several accounts in a small space: up to three avatars, then "+N".
+    Every name, after `label` ("Reviewers") when given, is the group's
+    tooltip and the same text for screen readers, so it's read once. -#}
+{%- macro avatar_group(ctx, names, label = "") -%}
+{%- let group_names %}{% if !label.is_empty() %}{{ label }}: {% endif %}{{ names|join(", ") }}{% endlet -%}
+<span class="avatar-group" data-tip="{{ group_names }}">
   {%- for n in names.iter().take(3) %}{% call avatar(ctx, n) %}{% endcall %}{% endfor -%}
   {%- if names.len() > 3 %}<span class="avatar-group-more" aria-hidden="true">+{{ names.len() - 3 }}</span>{% endif -%}
-  <span class="visually-hidden">{{ names|join(", ") }}</span>
+  <span class="visually-hidden">{{ group_names }}</span>
 </span>
 {%- endmacro -%}

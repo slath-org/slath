@@ -248,7 +248,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Notifications put their mark buttons at the end of each row with a tooltip, and say "Unread" in the row's details.
 - Error pages say in plain words what went wrong and what to do, with Sign in first when signing in may help and the request ID for administrators.
 - Empty details of issues and merge requests are full sentences, such as "No one is assigned." and "No labels.", in the same style as other empty states.
-- Merge request lists show each request's reviewers as a small group of avatars.
+- Merge request lists show each request's reviewers as a small group of avatars; hovering or tapping it shows all their names.
 - A merge request's readiness names five files an approver didn't view, then links to the full list in the merge box.
 - Push protection settings and a bot's API request count explain themselves in a popover next to them.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.

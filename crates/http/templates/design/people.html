@@ -70,14 +70,14 @@
 
 {%- call cat::entry("avatar-group", "Avatar group", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>Several accounts in a small space, such as the reviewers in a list row: up to three avatars side by side, then "+N".</dd>
-  <dt>Markup</dt><dd><code>p::avatar_group(ctx, names)</code>.</dd>
+  <dt>Purpose</dt><dd>Several accounts in a small space, such as the reviewers in a list row: up to three avatars side by side, then "+N". Every name, also those behind "+N", is in the group's tooltip, after what they are ("Reviewers: alice, bob").</dd>
+  <dt>Markup</dt><dd><code>p::avatar_group(ctx, names, label)</code>; <code>label</code> says what the names are.</dd>
   <dt>Variants</dt><dd>One to three; more than three.</dd>
-  <dt>Accessibility</dt><dd>All names are text for screen readers; the avatars and "+N" are hidden from them.</dd>
+  <dt>Accessibility</dt><dd>The tooltip's text is the group's text for screen readers, read once; the avatars and "+N" are hidden from them. The tooltip opens on hover and on a tap; the group isn't a keyboard stop, so the names are also on the page the row opens.</dd>
   <dt>Not for</dt><dd>Lists where the names matter (account names).</dd>
 </dl>
-{%- call cat::example("Two reviewers; five reviewers.") %}
-<div class="cluster">{% call p::avatar_group(ctx, few) %}{% endcall %}{% call p::avatar_group(ctx, many) %}{% endcall %}</div>
+{%- call cat::example("Two reviewers; five reviewers. Hover or tap a group for the names.") %}
+<div class="cluster">{% call p::avatar_group(ctx, few, "Reviewers") %}{% endcall %}{% call p::avatar_group(ctx, many, "Reviewers") %}{% endcall %}</div>
 {%- endcall %}
 {%- endcall %}
 </div>

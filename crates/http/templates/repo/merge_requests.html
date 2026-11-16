@@ -43,7 +43,7 @@
         {%- endfor %}
       </span>
       {%- endif %}
-      <p class="item-meta text-secondary">!{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %} · <code>{% call c::path(i.source) %}{% endcall %}</code> into <code>{% call c::path(i.target) %}{% endcall %}</code>{% if !i.reviewers.is_empty() %} · reviewers {% call p::avatar_group(ctx, i.reviewers) %}{% endcall %}{% endif %}</p>
+      <p class="item-meta text-secondary">!{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %} · <code>{% call c::path(i.source) %}{% endcall %}</code> into <code>{% call c::path(i.target) %}{% endcall %}</code>{% if !i.reviewers.is_empty() %} · {% call p::avatar_group(ctx, i.reviewers, "Reviewers") %}{% endcall %}{% endif %}</p>
     </div>
     {%- if i.comments > 0 %}
     <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
