@@ -1,23 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Confirm your email address{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>Confirm your email address</h1>
-{%- if let Some(m) = outcome %}
-<div class="{% if ok %}success-summary{% else %}error-summary{% endif %}" role="{% if ok %}status{% else %}alert{% endif %}"><p>{{ m }}</p></div>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>Confirm your email address</h1></div>
+  {%- if outcome.is_none() %}{% if let Some(email) = email %}
+  <p class="page-head-intro">Confirm that <strong><bdi>{{ email }}</bdi></strong> is your address.</p>
+  {%- endif %}{% endif %}
+</header>
+{%- if let Some(om) = outcome %}
+<div class="stack-groups">
+{%- if ok %}
+{%- call msg::saved(om) %}{% endcall %}
+{%- else %}
+{%- call msg::notice("warning") %}<p>{{ om }}</p>{% endcall %}
+{%- endif %}
 <p><a href="/">Continue</a></p>
-{%- else if let Some(email) = email %}
-<p>Confirm that <strong>{{ email }}</strong> is your address.</p>
-<form method="post" action="/-/verify-email" class="form">
+</div>
+{%- else if email.is_some() %}
+<form method="post" action="/-/verify-email" class="form-layout">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="token" value="{{ token }}">
-  <div><button type="submit" class="button button-primary">Confirm</button></div>
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Confirm</button>{% endcall %}
 </form>
 {%- else %}
-<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
-  <h2>This link doesn't work</h2>
-  <p>It has expired or was already used. You can send a new one from your profile settings.</p>
-</div>
+{%- call msg::notice("warning") %}<p>This link doesn't work: it has expired or was already used. You can send a new one from your <a href="/-/settings/emails">email settings</a>.</p>{% endcall %}
 {%- endif %}
 </div>
 {% endblock %}

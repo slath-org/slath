@@ -241,6 +241,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Freezing bots is a danger section at the end of the bots page; while they're frozen, a notice at the top says since when and by whom, with Unfreeze.
 - Administration pages use tables that stack on phones; a new user's password and an invitation link come with a copy button.
 - The audit log's filters fold away, and its actors show with their avatars; health problems are marked with an icon.
+- Sign-in, two-factor, password reset, registration, and email confirmation pages share one narrow layout; other ways to sign in sit apart from the password form.
+- An expired or used link for a password reset or an email confirmation is a warning with the way to get a new one.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

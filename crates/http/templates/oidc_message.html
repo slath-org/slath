@@ -1,9 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ heading }}{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>{{ heading }}</h1>
-<div class="{% if error %}error-summary{% else %}notice{% endif %}" role="{% if error %}alert{% else %}status{% endif %}"><p>{{ message }}</p></div>
-<p><a href="/-/login">Back to sign-in</a></p>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>{{ heading }}</h1></div>
+</header>
+<div class="stack-groups">
+{%- if error %}
+{%- call msg::notice("warning") %}<p>{{ message }}</p>{% endcall %}
+{%- else %}
+{%- call msg::notice() %}<p>{{ message }}</p>{% endcall %}
+{%- endif %}
+<p><a href="/-/login">Back to sign in</a></p>
+</div>
 </div>
 {% endblock %}

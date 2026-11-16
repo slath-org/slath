@@ -86,6 +86,9 @@ const MIGRATED = [
   "org:/-/bots",
   "org:/-/webhooks",
   "org:bot",
+  // Account, sign-in, and onboarding; "anon:" pages signed out.
+  "/-/sudo?next=/-/settings/security",
+  "anon:/-/login",
   // Administration, as the site administrator.
   "/-/admin/users",
   "/-/admin/invites",
@@ -219,7 +222,7 @@ for (const { path, who } of GROUPS) {
 
 for (const path of MIGRATED) {
   test(`conf_design_03_migrated_pages_follow_the_rules ${path}`, async ({ page }) => {
-    await signIn(page, path.startsWith("/-/admin/") ? USERS.admin : USERS.alice);
+    if (!path.startsWith("anon:")) await signIn(page, path.startsWith("/-/admin/") ? USERS.admin : USERS.alice);
     if (path.endsWith("/commit/")) {
       await page.goto("/alice/demo/commits");
       await page.locator(".item-title").first().click();
@@ -251,7 +254,7 @@ for (const path of MIGRATED) {
         await tapOrClick(page, page.getByRole("button", { name: "Create bot" }));
         await expect(page.getByRole("status").filter({ hasText: "Bot created." })).toBeVisible();
       } else await page.goto(`/${org}${rest}`);
-    } else await page.goto(path);
+    } else await page.goto(path.replace(/^anon:/, ""));
     expect(await structure(page)).toEqual([]);
     expect(await spacing(page)).toEqual([]);
     await page.evaluate(() => {

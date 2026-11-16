@@ -199,10 +199,6 @@ textarea[aria-invalid="true"] {
   margin-bottom: 0;
 }
 
-.narrow {
-  max-width: 36rem;
-}
-
 @media (pointer: coarse) {
   .button,
   input[type="text"],

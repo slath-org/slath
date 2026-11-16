@@ -1,14 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Unsubscribe{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>Unsubscribe</h1>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>Unsubscribe</h1></div>
+  {%- if !done %}
+  <p class="page-head-intro">Stop notifications about {% if let Some(t) = target %}<strong>{{ t }}</strong>{% else %}this thread{% endif %}?</p>
+  {%- endif %}
+</header>
 {%- if done %}
-<div class="success-summary" role="status"><p>You won't get notifications about {% if let Some(t) = target %}{{ t }}{% else %}this thread{% endif %} anymore.</p></div>
+{%- let unsub_done %}You won't get notifications about {% if let Some(t) = target %}{{ t }}{% else %}this thread{% endif %} anymore.{% endlet %}
+{%- call msg::saved(unsub_done) %}{% endcall %}
 {%- else %}
-<p>Stop notifications about {% if let Some(t) = target %}<strong>{{ t }}</strong>{% else %}this thread{% endif %}?</p>
-<form method="post" action="/-/unsubscribe/{{ token }}" class="form">
-  <div><button type="submit" class="button button-primary">Unsubscribe</button></div>
+<form method="post" action="/-/unsubscribe/{{ token }}" class="form-layout">
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Unsubscribe</button>{% endcall %}
 </form>
 {%- endif %}
 </div>

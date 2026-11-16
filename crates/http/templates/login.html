@@ -1,58 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Sign in{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>Sign in</h1>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>Sign in</h1></div>
+</header>
 {%- if let Some(n) = notice %}
-<div class="success-summary" role="status"><p>{{ n }}</p></div>
+{%- call msg::saved(n) %}{% endcall %}
 {%- endif %}
-{% if let Some(e) = error -%}
-<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
-  <h2>There is a problem</h2>
-  <p><a href="#username">{{ e }}</a></p>
-</div>
-{%- endif %}
-{% if empty_instance -%}
-<div class="notice" role="note">
-  <h2>No accounts yet</h2>
-  <p>Create the first administrator on the server:</p>
+{%- if empty_instance %}
+{%- call msg::notice() %}
+  <p>No accounts yet. Create the first administrator on the server:</p>
   <pre class="code-view" tabindex="0" role="region" aria-label="Command"><code>slath admin create-user --admin --username NAME --email EMAIL --password-stdin</code></pre>
-</div>
+{%- endcall %}
 {%- endif %}
-<form method="post" action="/-/login" class="form">
+{%- let failed = error.is_some() %}
+<div class="stack-groups">
+<form method="post" action="/-/login" class="form-layout">
+  {%- if let Some(e) = error %}
+  {%- call msg::error_summary() %}<li><a href="#username">{{ e }}</a></li>{% endcall %}
+  {%- endif %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="next" value="{{ next }}">
-  <div class="field">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username"
-           autocapitalize="none" spellcheck="false" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div class="field">
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" required{% if error.is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <button type="submit" class="button button-primary">Sign in</button>
+  {%- call f::field("username", "Username") %}
+  <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false" required{% if failed %} aria-invalid="true"{% endif %}>
+  {%- endcall %}
+  {%- call f::field("password", "Password") %}
+  <input id="password" name="password" type="password" autocomplete="current-password" required{% if failed %} aria-invalid="true"{% endif %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Sign in</button>{% endcall %}
 </form>
 {%- if passkeys %}
-<form method="post" action="/-/login/passkey" class="form" data-passkey="/-/login/passkey/options" data-passkey-mode="get" hidden>
+<form method="post" action="/-/login/passkey" data-passkey="/-/login/passkey/options" data-passkey-mode="get" hidden>
+<div class="stack">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="next" value="{{ next }}">
   <input type="hidden" name="ceremony" value="">
   <input type="hidden" name="credential" value="">
-  <button type="submit" class="button">Sign in with a passkey</button>
+  <div class="cluster"><button type="submit" class="button">Sign in with a passkey</button></div>
   <p data-passkey-status role="status" aria-live="polite"></p>
+</div>
 </form>
 {%- endif %}
-{%- for (key, name) in providers %}
-<p><a class="button" hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/login/oidc/{{ key }}?next={{ next|urlencode }}">Sign in with {{ name }}</a></p>
-{%- endfor %}
-{%- if can_reset %}
-<p><a href="/-/password/reset">Forgot your password?</a></p>
-{%- else if !empty_instance %}
-<p class="text-secondary">Forgot your password? Ask an administrator to reset it.</p>
+{%- if !providers.is_empty() %}
+<div class="stack">
+  {%- for (key, name) in providers %}
+  <div class="cluster"><a class="button" hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/login/oidc/{{ key }}?next={{ next|urlencode }}">Sign in with {{ name }}</a></div>
+  {%- endfor %}
+</div>
 {%- endif %}
-{%- if can_register %}
-<p>New here? <a href="/-/register">Create an account</a></p>
+{%- if can_reset || !empty_instance || can_register %}
+<div class="stack">
+  {%- if can_reset %}
+  <p><a href="/-/password/reset">Forgot your password?</a></p>
+  {%- else if !empty_instance %}
+  <p class="text-secondary">Forgot your password? Ask an administrator to reset it.</p>
+  {%- endif %}
+  {%- if can_register %}
+  <p>New here? <a href="/-/register">Create an account</a></p>
+  {%- endif %}
+</div>
 {%- endif %}
+</div>
 </div>
 {% endblock %}
