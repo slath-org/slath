@@ -2,13 +2,23 @@
 {% block title %}Explore{% endblock %}
 {% block sidebar %}{% let area = "explore" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Explore</h1>
-{%- if ctx.user.is_some() %}
-<ul class="inline-list">
-  <li><a href="/-/new">New repository</a></li>
-  <li><a href="/-/import">Import a repository</a></li>
-  <li><a href="/-/orgs/new">New organization</a></li>
-</ul>
-{%- endif %}
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>Explore</h1>
+    {%- if ctx.user.is_some() %}
+    <div class="page-head-actions">
+      <a class="button" href="/-/orgs/new">New organization</a>
+      <a class="button" href="/-/import">Import a repository</a>
+      <a class="button button-primary" href="/-/new">New repository</a>
+    </div>
+    {%- endif %}
+  </div>
+  <p class="page-head-intro">Repositories you can see on this server.</p>
+</header>
+<section class="section" aria-labelledby="repos-heading">
+<h2 id="repos-heading" class="visually-hidden">Repositories</h2>
 {% include "repo_list.html" %}
+</section>
+</div>
 {% endblock %}

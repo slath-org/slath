@@ -93,6 +93,25 @@
   margin: 0;
   max-width: var(--measure-text);
 }
+/* A profile's heading: the account's avatar (64 px) before the title, its
+   state line, and its introduction. */
+.page-head-profile {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--gap-items);
+}
+.page-head-avatar {
+  flex: none;
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--border);
+}
+.page-head-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--gap-inline);
+  min-width: 0;
+}
 
 /* Section: an h2 and its content. The heading sits closer to its content
    than the content's items sit to each other; the page's stack puts the

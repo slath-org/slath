@@ -243,6 +243,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The audit log's filters fold away, and its actors show with their avatars; health problems are marked with an icon.
 - Sign-in, two-factor, password reset, registration, and email confirmation pages share one narrow layout; other ways to sign in sit apart from the password form.
 - An expired or used link for a password reset or an email confirmation is a warning with the way to get a new one.
+- Profiles show the avatar next to the display name, with the account name under it; a bot's profile links its owner with their avatar.
+- Explore puts New repository, Import, and New organization on the heading's row; repository lists use the same rows as other lists.
+- Notifications put their mark buttons at the end of each row with a tooltip, and say "Unread" in the row's details.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

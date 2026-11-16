@@ -1,15 +1,22 @@
+{#- A list of repositories: home, profiles. The page sets repos. -#}
 {%- if repos.is_empty() %}
-<p class="text-secondary empty-state">No repositories yet.</p>
+{%- call msg::empty("No repositories yet.") %}{% endcall %}
 {%- else %}
-<ul class="repo-list">
+<ul class="item-list">
 {%- for r in repos %}
-  <li>
-    <a href="/{{ r.namespace }}/{{ r.name }}" class="repo-name">{{ r.namespace }}/{{ r.name }}</a>
-    {%- if r.visibility == "private" %} <span class="badge">Private</span>{% else if r.visibility == "internal" %} <span class="badge">Internal</span>{% endif %}
-    {%- if r.archived %} <span class="badge">Archived</span>{% endif %}
-    {%- if let Some(d) = r.description %}
-    <p class="text-secondary">{{ d }}</p>
-    {%- endif %}
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="/{{ r.namespace }}/{{ r.name }}"><bdi>{{ r.namespace }}/{{ r.name }}</bdi></a>
+      {%- if r.visibility != "public" || r.archived %}
+      <span class="item-labels">
+        {%- if r.visibility == "private" %}<span class="badge">Private</span>{% else if r.visibility == "internal" %}<span class="badge">Internal</span>{% endif %}
+        {%- if r.archived %}<span class="badge">Archived</span>{% endif %}
+      </span>
+      {%- endif %}
+      {%- if let Some(d) = r.description %}
+      <p class="item-meta text-secondary">{{ d }}</p>
+      {%- endif %}
+    </div>
   </li>
 {%- endfor %}
 </ul>

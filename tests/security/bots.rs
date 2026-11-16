@@ -816,7 +816,7 @@ fn conf_auth_06_bots_are_marked_wherever_they_appear() {
     let profile = s.client().get("/alice-ci").body;
     assert!(profile.contains(badge), "{profile}");
     assert!(
-        profile.contains("A bot of <a href=\"/alice\">alice</a>"),
+        profile.contains("A bot of <a class=\"account\" href=\"/alice\">"),
         "{profile}"
     );
     assert!(!s.client().get("/alice").body.contains(badge));

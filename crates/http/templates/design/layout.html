@@ -51,7 +51,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>The page: its heading, then its sections, 32 px apart (24 px in compact). The heading holds the one <code>h1</code>, an optional state line under it, the page's actions on the title's row, and an optional one-sentence introduction.</dd>
   <dt>Markup</dt><dd><code>div.page</code> &gt; <code>header.page-head</code> (<code>div.page-head-row</code> with the <code>h1</code> and <code>div.page-head-actions</code>; optional <code>p.page-head-meta</code> and <code>p.page-head-intro</code>), then the sections.</dd>
-  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header. A form with long text or the Markdown editor (new issue, editing a comment) is <code>page-form-wide</code> (48 rem).</dd>
+  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header. A form with long text or the Markdown editor (new issue, editing a comment) is <code>page-form-wide</code> (48 rem). A profile (a user, a bot, an organization) is <code>header.page-head.page-head-profile</code>: its 64 px avatar <code>img.page-head-avatar</code>, then <code>div.page-head-text</code> with the row, the state line, and the introduction; the title is the display name, the state line starts with the account name.</dd>
   <dt>Accessibility</dt><dd>Exactly one <code>h1</code>. The actions follow the title in reading order. At most one primary action.</dd>
   <dt>Not for</dt><dd>The code pages, whose <code>h1</code> is for screen readers and whose place shows in the breadcrumb.</dd>
 </dl>
@@ -78,6 +78,16 @@
   <header class="page-head"><div class="page-head-row"><p class="type-title">New issue</p></div></header>
   <div class="catalog-block">The form with the editor</div>
 </div>
+{%- endcall %}
+{%- call cat::example("A profile's heading: avatar, display name, state line, introduction.") %}
+<header class="page-head page-head-profile">
+  <img class="page-head-avatar" src="/-/avatars/alice.svg" alt="" width="64" height="64">
+  <div class="page-head-text">
+    <div class="page-head-row"><p class="type-title">Alice Example</p></div>
+    <p class="page-head-meta"><bdi>alice</bdi> · Joined 3 months ago</p>
+    <p class="page-head-intro">Works on the parser and the Git server.</p>
+  </div>
+</header>
 {%- endcall %}
 {%- call cat::example("A settings page's heading: title and introduction.") %}
 <header class="page-head">

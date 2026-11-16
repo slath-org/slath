@@ -3,12 +3,6 @@
 # The pages move to the components one group at a time; each move removes
 # its lines here. The list only shrinks: the check fails on a line that no
 # longer matches a violation, and on any violation not listed.
-catalog-class inline-list                                               # markup of a page that hasn't moved to the components yet
-catalog-class page-heading                                              # markup of a page that hasn't moved to the components yet
-catalog-class profile-handle                                            # markup of a page that hasn't moved to the components yet
-catalog-class profile-head                                              # markup of a page that hasn't moved to the components yet
-catalog-class repo-list                                                 # markup of a page that hasn't moved to the components yet
-catalog-class repo-name                                                 # markup of a page that hasn't moved to the components yet
 catalog-unused avatar-group                                             # no page uses it until the pages move to the components
 catalog-unused more                                                     # no page uses it until the pages move to the components
 catalog-unused popover                                                  # no page uses it until the pages move to the components

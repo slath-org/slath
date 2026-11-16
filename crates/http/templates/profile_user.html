@@ -2,21 +2,27 @@
 {% block title %}{{ name }}{% endblock %}
 {% block sidebar %}{% let area = "" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<div class="profile-head">
-  <img src="{{ avatar_url }}" alt="" width="64" height="64">
-  <div>
-    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}{% if bot_owner.is_some() %} <span class="badge">Bot</span>{% endif %}</h1>
-    <p class="text-secondary">{% if let Some(o) = bot_owner %}A bot of <a href="/{{ o }}">{{ o }}</a>, created{% else %}Joined{% endif %} <time datetime="{{ joined.iso }}">{{ joined.text }}</time></p>
+<div class="page">
+<header class="page-head page-head-profile">
+  <img class="page-head-avatar" src="{{ avatar_url }}" alt="" width="64" height="64">
+  <div class="page-head-text">
+    <div class="page-head-row"><h1>{% if let Some(d) = display_name %}{{ d }}{% else %}{{ name }}{% endif %}{% if bot_owner.is_some() %} <span class="badge">Bot</span>{% endif %}</h1></div>
+    <p class="page-head-meta">{% if display_name.is_some() %}<bdi>{{ name }}</bdi> · {% endif %}{% if let Some(o) = bot_owner %}A bot of {% call p::account(ctx, o) %}{% endcall %}, created{% else %}Joined{% endif %} {% call c::time(joined) %}{% endcall %}</p>
   </div>
-</div>
+</header>
 {%- if !orgs.is_empty() %}
-<h2>Organizations</h2>
-<ul class="inline-list">
+<section class="section" aria-labelledby="orgs-heading">
+<h2 id="orgs-heading">Organizations</h2>
+<ul class="plain-list">
 {%- for o in orgs %}
-  <li><a href="/{{ o }}">{{ o }}</a></li>
+  <li>{% call p::account(ctx, o) %}{% endcall %}</li>
 {%- endfor %}
 </ul>
+</section>
 {%- endif %}
-<h2>Repositories</h2>
+<section class="section" aria-labelledby="repos-heading">
+<h2 id="repos-heading">Repositories</h2>
 {% include "repo_list.html" %}
+</section>
+</div>
 {% endblock %}

@@ -86,7 +86,12 @@ const MIGRATED = [
   "org:/-/bots",
   "org:/-/webhooks",
   "org:bot",
+  "org:",
   // Account, sign-in, and onboarding; "anon:" pages signed out.
+  "/",
+  "/alice",
+  "/-/notifications",
+  "/-/notifications?all=true",
   "/-/sudo?next=/-/settings/security",
   "anon:/-/login",
   // Administration, as the site administrator.

@@ -2,46 +2,59 @@
 {% block title %}Notifications{% endblock %}
 {% block sidebar %}{% let area = "notifications" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<div class="page-heading">
-  <h1>Notifications</h1>
-  {%- if !rows.is_empty() %}
-  <form method="post" action="/-/notifications/read" class="inline-form">
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <button type="submit" class="button">{% call m::icon(ctx, "check") %}{% endcall %}Mark all as read</button>
-  </form>
-  {%- endif %}
-</div>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>Notifications</h1>
+    {%- if !rows.is_empty() %}
+    <div class="page-head-actions">
+      <form method="post" action="/-/notifications/read" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <button type="submit" class="button">{% call m::icon(ctx, "check") %}{% endcall %}Mark all as read</button>
+      </form>
+    </div>
+    {%- endif %}
+  </div>
+</header>
 {%- let view %}{% if all %}All{% else %}Unread{% endif %}{% endlet %}
-<div id="list-view">
+<div class="stack" id="list-view">
+<div class="cluster">
 {%- call m::view_menu(ctx, "Show", view, "list-view") %}
 {%- call m::view_item("/-/notifications", "Unread", !all, "") %}{% endcall %}
 {%- call m::view_item("/-/notifications?all=true", "All", all, "") %}{% endcall %}
 {%- endcall %}
+</div>
 {%- if rows.is_empty() %}
-<p class="text-secondary empty-state">{% if all %}No notifications yet. You get them about issues and merge requests you take part in, are mentioned in, or watch.{% else %}You're all caught up.{% endif %}</p>
+{%- let empty_text %}{% if all %}No notifications yet. You get them about issues and merge requests you take part in, are mentioned in, or watch.{% else %}You're all caught up.{% endif %}{% endlet %}
+{%- call msg::empty(empty_text) %}{% endcall %}
 {%- else %}
 <ul class="item-list notification-list">
 {%- for r in rows %}
   <li class="item-row{% if r.unread %} item-unread{% endif %}">
     <span class="item-state item-state-{{ r.state }}">{% call m::icon(ctx, r.icon) %}{% endcall %}<span class="visually-hidden">{{ r.state }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="{{ r.href }}"><bdi>{{ crate::ui::title_html(r.title.as_str()) }}</bdi></a>{% if r.unread %} <span class="badge">Unread</span>{% endif %}
-      <p class="item-meta text-secondary">{{ r.reference }} · {{ r.reason }} · <time datetime="{{ r.updated.iso }}">{{ r.updated.text }}</time></p>
+      <a class="item-title" href="{{ r.href }}"><bdi>{{ crate::ui::title_html(r.title.as_str()) }}</bdi></a>
+      <p class="item-meta text-secondary">{% if r.unread %}Unread · {% endif %}{{ r.reference }} · {{ r.reason }} · {% call c::time(r.updated) %}{% endcall %}</p>
     </div>
-    <form method="post" action="/-/notifications/{{ r.id }}/mark" class="inline-form">
-      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-      {%- if r.unread %}
-      <button type="submit" name="mark" value="read" class="button button-quiet button-icon" title="Mark as read">{% call m::icon(ctx, "check") %}{% endcall %}<span class="visually-hidden">Mark as read: {{ r.title }}</span></button>
-      {%- else %}
-      <button type="submit" name="mark" value="unread" class="button button-quiet button-icon" title="Mark as unread">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">Mark as unread: {{ r.title }}</span></button>
-      {%- endif %}
-    </form>
+    <div class="item-actions">
+      <form method="post" action="/-/notifications/{{ r.id }}/mark" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        {%- if r.unread %}
+        <button type="submit" name="mark" value="read" class="button button-quiet button-icon" data-tip="Mark as read">{% call m::icon(ctx, "check") %}{% endcall %}<span class="visually-hidden">Mark as read: {{ r.title }}</span></button>
+        {%- else %}
+        <button type="submit" name="mark" value="unread" class="button button-quiet button-icon" data-tip="Mark as unread">{% call m::icon(ctx, "circle-dot") %}{% endcall %}<span class="visually-hidden">Mark as unread: {{ r.title }}</span></button>
+        {%- endif %}
+      </form>
+    </div>
   </li>
 {%- endfor %}
 </ul>
 {%- endif %}
 {%- if let Some(n) = next %}
-<p {% call m::swap_region(ctx, "list-view") %}{% endcall %}><a class="button" href="{{ n }}">Next page</a></p>
+<div {% call m::swap_region(ctx, "list-view") %}{% endcall %}>
+{%- call l::pager("", n) %}{% endcall %}
+</div>
 {%- endif %}
+</div>
 </div>
 {% endblock %}

@@ -2,18 +2,25 @@
 {% block title %}{{ name }}{% endblock %}
 {% block sidebar %}{% let org_name = name.as_str() %}{% let org_area = "repositories" %}{% let org_member = is_member %}{% let org_manage = can_manage %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
-{%- endif %}
-<div class="profile-head">
-  <img src="{{ avatar_url }}" alt="" width="64" height="64">
-  <div>
-    <h1>{% if let Some(d) = display_name %}{{ d }} <span class="text-secondary profile-handle">{{ name }}</span>{% else %}{{ name }}{% endif %}</h1>
+<div class="page">
+<header class="page-head page-head-profile">
+  <img class="page-head-avatar" src="{{ avatar_url }}" alt="" width="64" height="64">
+  <div class="page-head-text">
+    <div class="page-head-row"><h1>{% if let Some(d) = display_name %}{{ d }}{% else %}{{ name }}{% endif %}</h1></div>
+    {%- if display_name.is_some() %}
+    <p class="page-head-meta"><bdi>{{ name }}</bdi></p>
+    {%- endif %}
     {%- if let Some(d) = description %}
-    <p>{{ d }}</p>
+    <p class="page-head-intro">{{ d }}</p>
     {%- endif %}
   </div>
-</div>
-<h2>Repositories</h2>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
+{%- endif %}
+<section class="section" aria-labelledby="repos-heading">
+<h2 id="repos-heading">Repositories</h2>
 {% include "repo_list.html" %}
+</section>
+</div>
 {% endblock %}
