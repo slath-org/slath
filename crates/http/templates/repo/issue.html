@@ -60,7 +60,7 @@
   <li class="timeline-comment">
     <article aria-label="Description">
       <header class="comment-header">{% if let Some(a) = issue.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx, "A deleted user") %}{% endcall %}{% endif %} <span class="text-secondary">wrote {% call c::time(created) %}{% endcall %}</span></header>
-      <div class="markdown" hx-ignore>{% if body_empty %}<p class="text-secondary">No description.</p>{% else %}{{ body_html }}{% endif %}</div>
+      <div class="markdown" hx-ignore>{% if body_empty %}<p class="empty-state">No description.</p>{% else %}{{ body_html }}{% endif %}</div>
     </article>
   </li>
   {%- for item in timeline %}

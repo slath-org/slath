@@ -12,6 +12,9 @@ Template rules (crates/http/templates, every file but the catalog's):
   field-group        a fieldset holding two or more fields is a group of
                      fields (class field-group)
   inline-style       no style attributes (spacing comes from components)
+  empty-state        an empty state is the empty state component (msg::empty
+                     or p.empty-state) and a sentence with its full stop,
+                     never a bare secondary paragraph ("None", "No one")
 
 Catalog rules:
   catalog-class      every class a page template uses is shown in the design
@@ -101,6 +104,15 @@ def check_template(path: str, text: str) -> list[tuple[str, str]]:
             out.append(("field-group", f"{path}:{line_of(text, m.start())}: a fieldset with {fields} fields isn't a group of fields"))
     for m in re.finditer(r"\sstyle=", plain):
         out.append(("inline-style", f"{path}:{line_of(text, m.start())}: style attribute"))
+    for m in re.finditer(r'msg::empty\("([^"]*)"\)', text):
+        if not m.group(1).rstrip().endswith((".", "?", "!")):
+            out.append(("empty-state", f"{path}:{line_of(text, m.start())}: empty state without its full stop"))
+    for m in re.finditer(r'<p class="empty-state">(.*?)</p>', text, re.S):
+        words = re.sub(r"<[^>]+>", "", EXPR.sub("", m.group(1))).rstrip()
+        if words and not words.endswith((".", "?", "!")):
+            out.append(("empty-state", f"{path}:{line_of(text, m.start())}: empty state without its full stop"))
+    for m in re.finditer(r'<p class="text-secondary">\s*(No |None\b|Nothing\b)', plain):
+        out.append(("empty-state", f"{path}:{line_of(text, m.start())}: empty state as a secondary paragraph; use msg::empty"))
     return out
 
 

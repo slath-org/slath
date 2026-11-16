@@ -64,7 +64,7 @@
 <h2 id="teams-heading">Teams</h2>
 <div class="stack-groups">
 {%- if teams.is_empty() %}
-<p class="empty-state">No teams have access. <a href="/{{ header.namespace }}/-/teams">Teams of {{ header.namespace }}</a></p>
+<p class="empty-state">No teams have access yet; {{ header.namespace }}'s teams are on <a href="/{{ header.namespace }}/-/teams">its Teams page</a>.</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="teams-caption">
 <table class="table table-records">

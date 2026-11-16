@@ -19,7 +19,7 @@
   <section class="details-section" aria-labelledby="side-assignees">
     <h2 id="side-assignees" class="details-heading">Assignees</h2>
     {%- if assignees.is_empty() %}
-    <p class="text-secondary">No one</p>
+    {%- call msg::empty("No one is assigned.") %}{% endcall %}
     {%- else %}
     <ul class="plain-list">
       {%- for u in assignees %}
@@ -40,7 +40,7 @@
   <section class="details-section" aria-labelledby="side-labels">
     <h2 id="side-labels" class="details-heading">Labels</h2>
     {%- if labels.is_empty() %}
-    <p class="text-secondary">None</p>
+    {%- call msg::empty("No labels.") %}{% endcall %}
     {%- else %}
     <ul class="plain-list">
       {%- for l in labels %}
@@ -69,7 +69,7 @@
     {%- if let Some(ms) = milestone %}
     <p><a href="/{{ header.namespace }}/{{ header.name }}/milestones">{{ ms }}</a></p>
     {%- else %}
-    <p class="text-secondary">None</p>
+    {%- call msg::empty("No milestone.") %}{% endcall %}
     {%- endif %}
     {%- if perms.triage && (!milestone_choices.is_empty() || milestone.is_some()) %}
     <form method="post" action="{{ triage }}/triage/milestone" class="form-layout">
