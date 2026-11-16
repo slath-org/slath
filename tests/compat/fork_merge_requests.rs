@@ -930,3 +930,265 @@ fn conf_review_06_fork_merge_requests_with_jj() {
         assert_eq!(mr(n)["state"], "merged", "{version}");
     }
 }
+
+/// Public alice/demo with carol as a writer; bob's fork bob/demo with
+/// `topic` (and `other`); merge request !1 from bob/demo:topic into
+/// alice/demo, edits by maintainers allowed.
+struct EditWorld {
+    s: TestServer,
+    alice: String,
+    bob: String,
+    carol: String,
+    git: GitClient,
+    d: tempfile::TempDir,
+}
+
+impl EditWorld {
+    fn start() -> Self {
+        let s = TestServer::start();
+        for u in ["bob", "carol"] {
+            s.create_user(u, PASSWORD, false);
+        }
+        let (alice, bob, carol) = (token(&s, "alice"), token(&s, "bob"), token(&s, "carol"));
+        let git = GitClient::new();
+        let d = tempfile::tempdir().unwrap();
+        let w = d.path().join("alice");
+        std::fs::create_dir_all(&w).unwrap();
+        git.ok(&w, &["init", "-q", "-b", "main"]);
+        commit(&git, &w, "README");
+        git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+        for (method, path, body) in [
+            ("PATCH", "/alice/demo", json!({"visibility": "public"})),
+            (
+                "PUT",
+                "/alice/demo/collaborators/carol",
+                json!({"role": "write"}),
+            ),
+        ] {
+            let r = api(&s, &alice, method, path, Some(body));
+            assert!(r.status < 300, "{}", r.body);
+        }
+        fork(&s, &bob, json!({"namespace": "bob"}), "/bob/demo/fork");
+        let b = d.path().join("bob");
+        git.ok(
+            d.path(),
+            &["clone", "-q", &http_url(&s, &bob, "bob/demo"), "bob"],
+        );
+        git.ok(&b, &["switch", "-q", "-c", "topic"]);
+        commit(&git, &b, "a.txt");
+        git.ok(&b, &["push", "-q", "origin", "topic", "main:other"]);
+        let w = Self {
+            s,
+            alice,
+            bob,
+            carol,
+            git,
+            d,
+        };
+        assert_eq!(w.open("topic"), 1);
+        w
+    }
+
+    fn open(&self, branch: &str) -> i64 {
+        let r = api(
+            &self.s,
+            &self.bob,
+            "POST",
+            "/alice/demo/merge-requests",
+            Some(json!({"source_repo": "bob/demo", "source_branch": branch,
+                        "title": branch, "allow_maintainer_edits": true})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        eventually(&self.s, "no first revision", || {
+            api(
+                &self.s,
+                &self.bob,
+                "GET",
+                &format!("/alice/demo/merge-requests/{n}"),
+                None,
+            )
+            .json()["revisions"]
+                == 1
+        });
+        n
+    }
+
+    /// carol's clone of the fork on `branch`.
+    fn carol_on(&self, branch: &str) -> std::path::PathBuf {
+        let c = self.d.path().join(format!("carol-{branch}"));
+        self.git.ok(
+            self.d.path(),
+            &[
+                "clone",
+                "-q",
+                "-b",
+                branch,
+                &http_url(&self.s, &self.carol, "bob/demo"),
+                c.to_str().unwrap(),
+            ],
+        );
+        c
+    }
+
+    fn fork_refs(&self) -> String {
+        let repo = self.s.repo_path(&TestRepo {
+            namespace: "bob",
+            name: "demo",
+        });
+        self.git.ok(
+            &repo,
+            &["for-each-ref", "--format=%(objectname) %(refname)"],
+        )
+    }
+}
+
+/// The reverse merge request (Gitea CVE-2026-26231): mallory, owner of a
+/// fork, can't open a merge request from the parent into her fork with
+/// edits by maintainers, which would let her push to the parent.
+#[test]
+fn conf_rbac_02_reverse_mr_maintainer_edit_denied() {
+    let w = EditWorld::start();
+    let mallory = &w.bob;
+    let r = api(
+        &w.s,
+        mallory,
+        "POST",
+        "/bob/demo/merge-requests",
+        Some(json!({"source_repo": "alice/demo", "source_branch": "main",
+                    "target_branch": "other", "title": "Reverse",
+                    "allow_maintainer_edits": true})),
+    );
+    // She can't push to the source, so she can't allow edits on it; the
+    // merge request may exist, but without them.
+    if r.status == 201 {
+        assert_eq!(r.json()["allow_maintainer_edits"], false, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        let r = api(
+            &w.s,
+            mallory,
+            "PATCH",
+            &format!("/bob/demo/merge-requests/{n}"),
+            Some(json!({"allow_maintainer_edits": true})),
+        );
+        assert!(matches!(r.status, 403 | 422), "{}", r.body);
+    } else {
+        assert!(matches!(r.status, 403 | 422), "{}", r.body);
+    }
+    let b = w.d.path().join("bob");
+    w.git.ok(&b, &["switch", "-q", "main"]);
+    commit(&w.git, &b, "upstream.txt");
+    let before = w.git.ok(&w.s.repo_path(&DEMO), &["rev-parse", "main"]);
+    let err = w.git.fails(
+        &b,
+        &["push", &http_url(&w.s, mallory, "alice/demo"), "main"],
+    );
+    assert!(!err.is_empty());
+    assert_eq!(
+        w.git.ok(&w.s.repo_path(&DEMO), &["rev-parse", "main"]),
+        before
+    );
+}
+
+/// A push by a maintainer to a fork is judged ref by ref: one push with
+/// the merge request's branch plus another branch and a tag is refused as
+/// a whole and changes nothing; the branch alone goes through; deleting
+/// it doesn't.
+#[test]
+fn conf_rbac_02_maintainer_edit_multi_ref_push() {
+    let w = EditWorld::start();
+    let c = w.carol_on("topic");
+    let url = http_url(&w.s, &w.carol, "bob/demo");
+    commit(&w.git, &c, "carol.txt");
+    w.git.ok(&c, &["tag", "v9"]);
+    let before = w.fork_refs();
+    let err = w.git.fails(
+        &c,
+        &[
+            "push",
+            "--atomic",
+            &url,
+            "topic",
+            "topic:main",
+            "refs/tags/v9",
+        ],
+    );
+    assert!(err.contains("edits by maintainers"), "{err}");
+    let err = w
+        .git
+        .fails(&c, &["push", &url, "topic", "topic:main", "refs/tags/v9"]);
+    assert!(!err.is_empty());
+    // Nothing changed: not even the merge request's branch.
+    assert_eq!(w.fork_refs(), before);
+    w.git.ok(&c, &["push", "-q", &url, "topic"]);
+    w.git.fails(&c, &["push", &url, ":topic"]);
+}
+
+/// Edits by maintainers end with the merge request: after it's closed and
+/// after it's merged, pushes to its branch are refused.
+#[test]
+fn conf_rbac_02_maintainer_edit_closed_mr() {
+    let w = EditWorld::start();
+    let url = http_url(&w.s, &w.carol, "bob/demo");
+    let c = w.carol_on("topic");
+    commit(&w.git, &c, "open.txt");
+    w.git.ok(&c, &["push", "-q", &url, "topic"]);
+    let r = api(
+        &w.s,
+        &w.bob,
+        "PATCH",
+        "/alice/demo/merge-requests/1",
+        Some(json!({"state": "closed"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    commit(&w.git, &c, "closed.txt");
+    w.git.fails(&c, &["push", &url, "topic"]);
+
+    // Merged.
+    let b = w.d.path().join("bob");
+    w.git.ok(&b, &["switch", "-q", "-c", "second", "main"]);
+    commit(&w.git, &b, "second.txt");
+    w.git.ok(&b, &["push", "-q", "origin", "second"]);
+    let n = w.open("second");
+    let head = w.git.ok(&b, &["rev-parse", "HEAD"]).trim().to_owned();
+    let r = api(
+        &w.s,
+        &w.alice,
+        "POST",
+        &format!("/alice/demo/merge-requests/{n}/merge"),
+        Some(json!({"expected_head_oid": head, "strategy": "merge-commit"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let c = w.carol_on("second");
+    commit(&w.git, &c, "after-merge.txt");
+    w.git.fails(&c, &["push", &url, "second"]);
+}
+
+/// Only someone who can push to the source turns edits by maintainers on
+/// or off, and a token needs `mrs:write` for it (Forgejo F8): a target
+/// writer, the target's owner, and a `repo:read` token of the source's
+/// owner are all refused.
+#[test]
+fn conf_rbac_02_token_cannot_toggle_maintainer_edits() {
+    let w = EditWorld::start();
+    let toggle = |t: &str| {
+        api(
+            &w.s,
+            t,
+            "PATCH",
+            "/alice/demo/merge-requests/1",
+            Some(json!({"allow_maintainer_edits": false})),
+        )
+        .status
+    };
+    let mut bob = w.s.login("bob", PASSWORD);
+    let read_only = slath_tests::http::create_token(&mut bob, "ro", &["repo:read"]);
+    let repo_write = slath_tests::http::create_token(&mut bob, "rw", &["repo:write"]);
+    assert_eq!(toggle(&read_only), 403);
+    assert_eq!(toggle(&repo_write), 403);
+    assert_eq!(toggle(&w.carol), 403);
+    assert_eq!(toggle(&w.alice), 403);
+    let m = api(&w.s, &w.bob, "GET", "/alice/demo/merge-requests/1", None).json();
+    assert_eq!(m["allow_maintainer_edits"], true, "{m}");
+    assert_eq!(toggle(&w.bob), 200);
+}

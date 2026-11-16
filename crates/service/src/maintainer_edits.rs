@@ -63,7 +63,8 @@ impl Services {
     }
 
     /// Turns edits by maintainers on or off for a fork merge request. Only
-    /// someone who can push to the source may change it; the timeline
+    /// someone who can push to the source may change it, and a token needs
+    /// `mrs:write` for it as for any edit of a merge request; the timeline
     /// records it.
     pub async fn set_maintainer_edits(
         &self,
@@ -84,6 +85,9 @@ impl Services {
                     "Only merge requests from forks have this setting.",
                 )
             })?;
+        if !subject.token_allows(slath_core::authz::Scope::MrsWrite) {
+            return Err(ServiceError::Forbidden);
+        }
         match self
             .repo_access_by_id(subject, source, Action::RepoPush)
             .await
