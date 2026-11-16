@@ -1,8 +1,12 @@
 {% extends "repo/layout.html" %}
 {% block title %}Webhooks · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+<div class="page">
+<div class="stack">
 {% include "repo/header.html" %}
 {% let section = "webhooks" %}
 {% include "repo/settings_nav.html" %}
+</div>
 {% include "webhooks/list.html" %}
+</div>
 {% endblock %}

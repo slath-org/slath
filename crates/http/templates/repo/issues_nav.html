@@ -1,6 +1,6 @@
-{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+{%- let issues_nav_base = "/" ~ header.namespace ~ "/" ~ header.name %}
 {%- call m::tabs("Issues") %}
-{%- call m::tab(base ~ "/issues", "Issues", section == "issues", "") %}{% endcall %}
-{%- call m::tab(base ~ "/labels", "Labels", section == "labels", "") %}{% endcall %}
-{%- call m::tab(base ~ "/milestones", "Milestones", section == "milestones", "") %}{% endcall %}
+{%- call m::tab(issues_nav_base ~ "/issues", "Issues", section == "issues", "") %}{% endcall %}
+{%- call m::tab(issues_nav_base ~ "/labels", "Labels", section == "labels", "") %}{% endcall %}
+{%- call m::tab(issues_nav_base ~ "/milestones", "Milestones", section == "milestones", "") %}{% endcall %}
 {%- endcall %}

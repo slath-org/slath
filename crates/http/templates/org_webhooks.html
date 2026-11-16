@@ -2,5 +2,7 @@
 {% block title %}Webhooks · {{ org }}{% endblock %}
 {% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "webhooks" %}{% let org_member = true %}{% let org_manage = true %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
+<div class="page">
 {% include "webhooks/list.html" %}
+</div>
 {% endblock %}

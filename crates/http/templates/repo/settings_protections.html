@@ -1,33 +1,40 @@
 {% extends "repo/layout.html" %}
 {% block title %}Branch protection · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/settings" %}
+<div class="page">
+<div class="stack">
 {% include "repo/header.html" %}
 {% let section = "protections" %}
 {% include "repo/settings_nav.html" %}
-<h1>Branch protection</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
-{%- endif %}
+</div>
+<header class="page-head">
+  <div class="page-head-row"><h1>Branch protection</h1></div>
+  <p class="page-head-intro">Rules protect branches by name; <code>*</code> matches any characters except <code>/</code>. When several rules match a branch, the strictest setting of each applies.</p>
+</header>
+{% include "settings/saved.html" %}
 {% include "settings/errors.html" %}
-<p>Rules protect branches by name; <code>*</code> matches any characters except <code>/</code>. When several rules match a branch, the strictest setting of each applies.</p>
+<section class="section" aria-labelledby="rules-heading">
+<h2 id="rules-heading">Rules</h2>
+<div class="stack-groups">
 {%- if rules.is_empty() %}
-<p class="text-secondary">No branches are protected.</p>
+{%- call msg::empty("No branches are protected.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="rules-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="rules-caption" class="visually-hidden">Protection rules</caption>
   <thead><tr><th scope="col">Branches</th><th scope="col">Direct pushes</th><th scope="col">Force pushes</th><th scope="col">Deletion</th><th scope="col">Merge requests</th><th scope="col">Required checks</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {%- for r in rules %}
     <tr>
-      <td><code>{{ r.pattern }}</code></td>
-      <td>{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
-      <td>{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
-      <td>{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
-      <td>{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !r.ready_waits_for_checks %}, bots' merge requests don't wait for checks{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
-      <td>{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
-      <td>
-        <form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections/{{ r.id }}/delete" class="inline-form">
+      <td data-label="Branches"><code>{{ r.pattern }}</code></td>
+      <td data-label="Direct pushes">{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
+      <td data-label="Force pushes">{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
+      <td data-label="Deletion">{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
+      <td data-label="Merge requests">{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !r.ready_waits_for_checks %}, bots' merge requests don't wait for checks{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
+      <td data-label="Required checks">{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
+      <td class="table-actions">
+        <form method="post" action="{{ base }}/protections/{{ r.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
           <button type="submit" class="button">Remove<span class="visually-hidden"> rule {{ r.pattern }}</span></button>
         </form>
@@ -38,103 +45,88 @@
 </table>
 </div>
 {%- endif %}
-<h2>Add or change a rule</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/protections" class="form" novalidate>
+<section class="subsection" aria-labelledby="add-rule-heading">
+<h3 id="add-rule-heading">Add or change a rule</h3>
+<form method="post" action="{{ base }}/protections" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <div class="field">
     <label for="pattern">Branch name or pattern</label>
-    <input id="pattern" name="pattern" type="text" value="{{ pattern }}" required autocapitalize="none" spellcheck="false" aria-describedby="pattern-hint{% if self.error("pattern").is_some() %} pattern-error{% endif %}"
-      {%- if self.error("pattern").is_some() %} aria-invalid="true"{% endif %}>
+    <input id="pattern" name="pattern" type="text" value="{{ pattern }}" required autocapitalize="none" spellcheck="false"{% call f::described("pattern", "x", self.error("pattern").unwrap_or_default()) %}{% endcall %}>
     <p id="pattern-hint" class="hint">For example <code>main</code> or <code>release/*</code>. A rule for an existing pattern is replaced.</p>
     {%- if let Some(e) = self.error("pattern") %}
     <p id="pattern-error" class="field-error">{{ e }}</p>
     {%- endif %}
   </div>
+  {%- call f::field("push_role", "Who may push directly") %}
+  <select id="push_role" name="push_role">
+    <option value="write">Write role and up</option>
+    <option value="maintain">Maintain role and up</option>
+    <option value="admin">Admins only</option>
+    <option value="nobody">Nobody: changes land through merge requests</option>
+  </select>
+  {%- endcall %}
+  {%- call f::option("checkbox", "block_force_push", "block_force_push", "1", "Block force pushes", true) %}{% endcall %}
+  {%- call f::option("checkbox", "block_deletion", "block_deletion", "1", "Block deletion", true) %}{% endcall %}
+  {%- call f::option("checkbox", "require_mr", "require_mr", "1", "Require merge requests", false, "Direct pushes are refused; admins may still push, and each such push is recorded in the audit log.") %}{% endcall %}
+  {%- call f::field_group("Merging merge requests") %}
+  {%- call f::field("required_approvals", "Approvals needed", "From people with write access, other than the author.", self.error("required_approvals").unwrap_or_default()) %}
+  <input id="required_approvals" name="required_approvals" type="number" min="0" max="20" value="1" inputmode="numeric"{% call f::described("required_approvals", "x", self.error("required_approvals").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::option("checkbox", "dismiss_stale_approvals", "dismiss_stale_approvals", "1", "Dismiss approvals when the changes change", true, "A rebase that keeps every patch the same keeps them.") %}{% endcall %}
+  {%- call f::option("checkbox", "dismiss_approvals_on_new_revision", "dismiss_approvals_on_new_revision", "1", "Dismiss approvals on every new revision", false, "Stricter: even a rebase that keeps every patch needs new approvals, since the code it builds on changed.") %}{% endcall %}
+  {%- call f::option("checkbox", "require_resolved_threads", "require_resolved_threads", "1", "Require resolved threads") %}{% endcall %}
+  {%- call f::option("checkbox", "require_up_to_date", "require_up_to_date", "1", "Require the branch to be up to date with the target") %}{% endcall %}
+  {%- call f::option("checkbox", "bots_count_as_approvers", "bots_count_as_approvers", "1", "Count approvals by bots") %}{% endcall %}
+  {%- call f::field("bot_merge_allowlist", "Bots that may merge and push", "Bot names, separated by commas. Other bots can't merge into or push to these branches, whatever their role.", self.error("bot_merge_allowlist").unwrap_or_default(), true) %}
+  <input id="bot_merge_allowlist" name="bot_merge_allowlist" type="text" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("bot_merge_allowlist", "x", self.error("bot_merge_allowlist").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
   <div class="field">
-    <label for="push_role">Who may push directly</label>
-    <select id="push_role" name="push_role">
-      <option value="write">Write role and up</option>
-      <option value="maintain">Maintain role and up</option>
-      <option value="admin">Admins only</option>
-      <option value="nobody">Nobody: changes land through merge requests</option>
-    </select>
+    <label for="required_checks">Required status checks <span class="text-secondary">(optional)</span></label>
+    <textarea id="required_checks" name="required_checks" rows="3" autocapitalize="none" spellcheck="false"{% call f::described("required_checks", "x", self.error("required_checks").unwrap_or_default()) %}{% endcall %}></textarea>
+    <p id="required_checks-hint" class="hint">One status context per line, for example <code>ci/build</code>. To count only some reporters' statuses: <code>ci/build by ci-bot, alice</code>. Statuses from the merge request's author and the author's bots never count.</p>
+    {%- if let Some(e) = self.error("required_checks") %}
+    <p id="required_checks-error" class="field-error">{{ e }}</p>
+    {%- endif %}
   </div>
-  <div class="checkbox"><input id="block_force_push" type="checkbox" name="block_force_push" value="1" checked><label for="block_force_push">Block force pushes</label></div>
-  <div class="checkbox"><input id="block_deletion" type="checkbox" name="block_deletion" value="1" checked><label for="block_deletion">Block deletion</label></div>
-  <div class="checkbox"><input id="require_mr" type="checkbox" name="require_mr" value="1" aria-describedby="require_mr-hint"><label for="require_mr">Require merge requests</label></div>
-  <p id="require_mr-hint" class="hint">Direct pushes are refused; admins may still push, and each such push is recorded in the audit log.</p>
-  <fieldset class="form-section">
-    <legend>Merging merge requests</legend>
-    <div class="field">
-      <label for="required_approvals">Approvals needed</label>
-      <input id="required_approvals" name="required_approvals" type="number" min="0" max="20" value="1" inputmode="numeric" aria-describedby="required_approvals-hint{% if self.error("required_approvals").is_some() %} required_approvals-error{% endif %}"
-        {%- if self.error("required_approvals").is_some() %} aria-invalid="true"{% endif %}>
-      <p id="required_approvals-hint" class="hint">From people with write access, other than the author.</p>
-      {%- if let Some(e) = self.error("required_approvals") %}
-      <p id="required_approvals-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="checkbox"><input id="dismiss_stale_approvals" type="checkbox" name="dismiss_stale_approvals" value="1" checked aria-describedby="dismiss_stale_approvals-hint"><label for="dismiss_stale_approvals">Dismiss approvals when the changes change</label></div>
-    <p id="dismiss_stale_approvals-hint" class="hint">A rebase that keeps every patch the same keeps them.</p>
-    <div class="checkbox"><input id="dismiss_approvals_on_new_revision" type="checkbox" name="dismiss_approvals_on_new_revision" value="1" aria-describedby="dismiss_approvals_on_new_revision-hint"><label for="dismiss_approvals_on_new_revision">Dismiss approvals on every new revision</label></div>
-    <p id="dismiss_approvals_on_new_revision-hint" class="hint">Stricter: even a rebase that keeps every patch needs new approvals, since the code it builds on changed.</p>
-    <div class="checkbox"><input id="require_resolved_threads" type="checkbox" name="require_resolved_threads" value="1"><label for="require_resolved_threads">Require resolved threads</label></div>
-    <div class="checkbox"><input id="require_up_to_date" type="checkbox" name="require_up_to_date" value="1"><label for="require_up_to_date">Require the branch to be up to date with the target</label></div>
-    <div class="checkbox"><input id="bots_count_as_approvers" type="checkbox" name="bots_count_as_approvers" value="1"><label for="bots_count_as_approvers">Count approvals by bots</label></div>
-    <div class="field">
-      <label for="bot_merge_allowlist">Bots that may merge and push</label>
-      <input id="bot_merge_allowlist" name="bot_merge_allowlist" type="text" autocapitalize="none" spellcheck="false" aria-describedby="bot_merge_allowlist-hint{% if self.error("bot_merge_allowlist").is_some() %} bot_merge_allowlist-error{% endif %}"
-        {%- if self.error("bot_merge_allowlist").is_some() %} aria-invalid="true"{% endif %}>
-      <p id="bot_merge_allowlist-hint" class="hint">Bot names, separated by commas. Other bots can't merge into or push to these branches, whatever their role.</p>
-      {%- if let Some(e) = self.error("bot_merge_allowlist") %}
-      <p id="bot_merge_allowlist-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="field">
-      <label for="required_checks">Required status checks</label>
-      <textarea id="required_checks" name="required_checks" rows="3" autocapitalize="none" spellcheck="false" aria-describedby="required_checks-hint{% if self.error("required_checks").is_some() %} required_checks-error{% endif %}"
-        {%- if self.error("required_checks").is_some() %} aria-invalid="true"{% endif %}></textarea>
-      <p id="required_checks-hint" class="hint">One status context per line, for example <code>ci/build</code>. To count only some reporters' statuses: <code>ci/build by ci-bot, alice</code>. Statuses from the merge request's author and the author's bots never count.</p>
-      {%- if let Some(e) = self.error("required_checks") %}
-      <p id="required_checks-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="checkbox"><input id="statuses_on_head_ok" type="checkbox" name="statuses_on_head_ok" value="1" checked aria-describedby="statuses_on_head_ok-hint"><label for="statuses_on_head_ok">Accept statuses on the merge request's head for rebase and merge commits</label></div>
-    <p id="statuses_on_head_ok-hint" class="hint">Otherwise only a fast-forward merge can use them; other merges need statuses on the new commit.</p>
-    <div class="checkbox"><input id="ready_waits_for_checks" type="checkbox" name="ready_waits_for_checks" value="1" checked aria-describedby="ready_waits_for_checks-hint"><label for="ready_waits_for_checks">Ask reviewers of a bot's merge request only once the required checks pass</label></div>
-    <p id="ready_waits_for_checks-hint" class="hint">A bot's merge request stays iterating until it's marked ready. With this, its reviewers are asked only when the required checks also pass on its latest revision.</p>
-  </fieldset>
-  <div><button type="submit" class="button button-primary">Save rule</button></div>
+  {%- call f::option("checkbox", "statuses_on_head_ok", "statuses_on_head_ok", "1", "Accept statuses on the merge request's head for rebase and merge commits", true, "Otherwise only a fast-forward merge can use them; other merges need statuses on the new commit.") %}{% endcall %}
+  {%- call f::option("checkbox", "ready_waits_for_checks", "ready_waits_for_checks", "1", "Ask reviewers of a bot's merge request only once the required checks pass", true, "A bot's merge request stays iterating until it's marked ready. With this, its reviewers are asked only when the required checks also pass on its latest revision.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save rule</button>{% endcall %}
 </form>
+</section>
+</div>
+</section>
+<section class="section" aria-labelledby="sensitive-paths">
 <h2 id="sensitive-paths">Sensitive paths</h2>
 <p>Bots can't change these files on any branch: pushes and suggestions that would are refused. On protected branches, a merge request that changes them needs an approval by a maintainer. Names match regardless of upper and lower case.</p>
-<details class="sensitive-defaults">
-  <summary>Built-in paths ({{ sensitive_defaults.len() }}){% if !sensitive_instance.is_empty() %} and paths of this instance ({{ sensitive_instance.len() }}){% endif %}</summary>
-  <ul aria-label="Built-in paths">
-  {%- for p in sensitive_defaults %}
-    <li><code>{{ p }}</code></li>
+{%- let paths_summary %}Built-in paths ({{ sensitive_defaults.len() }}){% if !sensitive_instance.is_empty() %} and paths of this instance ({{ sensitive_instance.len() }}){% endif %}{% endlet %}
+{%- call d::disclosure(ctx, paths_summary) %}
+  <ul class="plain-list" aria-label="Built-in paths">
+  {%- for sp in sensitive_defaults %}
+    <li><code>{{ sp }}</code></li>
   {%- endfor %}
   </ul>
   {%- if !sensitive_instance.is_empty() %}
-  <p class="sensitive-instance-note">Added for every repository by the administrators of this instance:</p>
-  <ul aria-label="Paths of this instance">
-  {%- for p in sensitive_instance %}
-    <li><code>{{ p }}</code></li>
+  <p>Added for every repository by the administrators of this instance:</p>
+  <ul class="plain-list" aria-label="Paths of this instance">
+  {%- for sp in sensitive_instance %}
+    <li><code>{{ sp }}</code></li>
   {%- endfor %}
   </ul>
   {%- endif %}
-</details>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/sensitive-paths" class="form" novalidate>
+{%- endcall %}
+<form method="post" action="{{ base }}/sensitive-paths" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <div class="field">
-    <label for="sensitive_paths">This repository's own paths</label>
-    <textarea id="sensitive_paths" name="paths" rows="4" autocapitalize="none" spellcheck="false" aria-describedby="sensitive_paths-hint{% if self.error("paths").is_some() %} sensitive_paths-error{% endif %}"
-      {%- if self.error("paths").is_some() %} aria-invalid="true"{% endif %}>{{ sensitive_paths }}</textarea>
+    <label for="sensitive_paths">This repository's own paths <span class="text-secondary">(optional)</span></label>
+    <textarea id="sensitive_paths" name="paths" rows="4" autocapitalize="none" spellcheck="false"{% call f::described("sensitive_paths", "x", self.error("paths").unwrap_or_default()) %}{% endcall %}>{{ sensitive_paths }}</textarea>
     <p id="sensitive_paths-hint" class="hint">One per line, from the repository root, for example <code>deploy/**</code> or <code>Makefile</code>: <code>**</code> matches any path, <code>*</code> anything within a folder name, <code>?</code> one character. They add to the built-in paths; at most 100.</p>
     {%- if let Some(e) = self.error("paths") %}
     <p id="sensitive_paths-error" class="field-error">{{ e }}</p>
     {%- endif %}
   </div>
-  <div><button type="submit" class="button button-primary">Save sensitive paths</button></div>
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save sensitive paths</button>{% endcall %}
 </form>
+</section>
+</div>
 {% endblock %}

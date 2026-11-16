@@ -33,13 +33,13 @@
   {%- endif %}
 </div>
 {%- if header.area() == "code" %}
-{%- let base = "/" ~ header.namespace ~ "/" ~ header.name %}
+{%- let code_tabs_base = "/" ~ header.namespace ~ "/" ~ header.name %}
 {%- call m::tabs("Code") %}
-{%- call m::tab(base, "Files", header.tab == "code", "") %}{% endcall %}
-{%- call m::tab(base ~ "/commits", "Commits", header.tab == "commits", "") %}{% endcall %}
-{%- call m::tab(base ~ "/branches", "Branches", header.tab == "branches", "") %}{% endcall %}
-{%- call m::tab(base ~ "/tags", "Tags", header.tab == "tags", "") %}{% endcall %}
-{%- call m::tab(base ~ "/forks", "Forks", header.tab == "forks", "") %}{% endcall %}
+{%- call m::tab(code_tabs_base, "Files", header.tab == "code", "") %}{% endcall %}
+{%- call m::tab(code_tabs_base ~ "/commits", "Commits", header.tab == "commits", "") %}{% endcall %}
+{%- call m::tab(code_tabs_base ~ "/branches", "Branches", header.tab == "branches", "") %}{% endcall %}
+{%- call m::tab(code_tabs_base ~ "/tags", "Tags", header.tab == "tags", "") %}{% endcall %}
+{%- call m::tab(code_tabs_base ~ "/forks", "Forks", header.tab == "forks", "") %}{% endcall %}
 {%- endcall %}
 {%- endif %}
 {%- if header.archived %}

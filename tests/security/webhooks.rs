@@ -662,7 +662,7 @@ fn webhook_pages_for_administrators_and_owners_only() {
         ],
     );
     assert_eq!(r.status, 200, "{}", r.body);
-    assert!(r.body.contains("it won't be shown again"), "{}", r.body);
+    assert!(r.body.contains("be shown again"), "{}", r.body);
     let secret = r
         .body
         .split("id=\"new-secret\"")

@@ -1,9 +1,9 @@
-{%- let base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/settings" %}
+{%- let settings_nav_base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/settings" %}
 {%- call m::tabs("Repository settings") %}
-{%- call m::tab(base ~ "/general", "General", section == "general", "") %}{% endcall %}
-{%- call m::tab(base ~ "/access", "Access", section == "access", "") %}{% endcall %}
-{%- call m::tab(base ~ "/keys", "Deploy keys", section == "keys", "") %}{% endcall %}
-{%- call m::tab(base ~ "/protections", "Branch protection", section == "protections", "") %}{% endcall %}
-{%- call m::tab(base ~ "/webhooks", "Webhooks", section == "webhooks", "") %}{% endcall %}
-{%- call m::tab(base ~ "/danger", "Danger zone", section == "danger", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/general", "General", section == "general", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/access", "Access", section == "access", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/keys", "Deploy keys", section == "keys", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/protections", "Branch protection", section == "protections", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/webhooks", "Webhooks", section == "webhooks", "") %}{% endcall %}
+{%- call m::tab(settings_nav_base ~ "/danger", "Danger zone", section == "danger", "") %}{% endcall %}
 {%- endcall %}

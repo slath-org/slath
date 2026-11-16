@@ -71,6 +71,12 @@ const MIGRATED = [
   "/-/settings/keys",
   "/-/settings/tokens",
   "/-/settings/bots",
+  "/alice/demo/settings/general",
+  "/alice/demo/settings/access",
+  "/alice/demo/settings/keys",
+  "/alice/demo/settings/protections",
+  "/alice/demo/settings/webhooks",
+  "/alice/demo/settings/danger",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(

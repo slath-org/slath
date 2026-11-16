@@ -233,6 +233,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - User settings pages put each part in its own section with its form; tables of keys, tokens, sessions, and passkeys stack on phones.
 - A new access token is shown in a field with a copy button; two-factor setup shows its setup key the same way.
 - Sign out everywhere is a danger section at the end of Sessions; appearance and notification choices explain each option.
+- Repository settings put each part in its own section; collaborators, teams, deploy keys, and protection rules are tables that stack on phones, each followed by its form.
+- Deleting a repository is a danger section; deploy keys show who added them with their avatar.
+- Webhook pages show deliveries and attempts as lists and tables, a new webhook's secret with a copy button, and deleting a webhook as a danger section.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

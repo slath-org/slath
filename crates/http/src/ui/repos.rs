@@ -935,7 +935,7 @@ struct DeployKeyView {
     key_type: String,
     fingerprint: String,
     can_push: bool,
-    added_by: String,
+    added_by: super::Who,
     created: super::Time,
     last_used: Option<super::Time>,
 }
@@ -997,7 +997,7 @@ async fn deploy_keys_page(
                 key_type: k.key_type,
                 fingerprint: k.fingerprint,
                 can_push: k.can_push,
-                added_by: k.added_by.unwrap_or_else(|| "A deleted user".to_owned()),
+                added_by: super::Who::account(k.added_by),
                 created: k.created_at.into(),
                 last_used: k.last_used_at.map(Into::into),
             })

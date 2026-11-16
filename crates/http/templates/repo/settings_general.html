@@ -1,78 +1,71 @@
 {% extends "repo/layout.html" %}
 {% block title %}Settings · {{ header.namespace }}/{{ header.name }}{% endblock %}
 {% block content %}
+{%- let base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/settings" %}
+<div class="page">
+<div class="stack">
 {% include "repo/header.html" %}
 {% let section = "general" %}
 {% include "repo/settings_nav.html" %}
-<h1>General</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
-{%- endif %}
+</div>
+<header class="page-head">
+  <div class="page-head-row"><h1>General</h1></div>
+</header>
+{% include "settings/saved.html" %}
 {% include "settings/errors.html" %}
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/general" class="form" novalidate>
+<section class="section" aria-labelledby="about-heading">
+<h2 id="about-heading">About</h2>
+<form method="post" action="{{ base }}/general" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="description">Description</label>
-    <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"{% if self.error("description").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div class="field">
-    <label for="default_branch">Default branch</label>
-    <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"{% if self.error("default_branch").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div><button type="submit" class="button button-primary">Save</button></div>
+  {%- call f::field("description", "Description", "Up to 500 characters; shown under the repository's name.", self.error("description").unwrap_or_default(), true) %}
+  <input id="description" name="description" type="text" value="{{ description }}" maxlength="500"{% call f::described("description", "x", self.error("description").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("default_branch", "Default branch", "", self.error("default_branch").unwrap_or_default()) %}
+  <input id="default_branch" name="default_branch" type="text" value="{{ default_branch }}" maxlength="255" autocapitalize="none" spellcheck="false"{% call f::described("default_branch", "", self.error("default_branch").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save</button>{% endcall %}
 </form>
-
-<h2>Visibility</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/visibility" class="form" novalidate>
+</section>
+<section class="section" aria-labelledby="visibility-heading">
+<h2 id="visibility-heading">Visibility</h2>
+<form method="post" action="{{ base }}/visibility" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
 {%- let max_visibility = self.max_visibility() %}
 {% include "repo/visibility_field.html" %}
-  <div><button type="submit" class="button">Change visibility</button></div>
+  {%- call f::buttons() %}<button type="submit" class="button">Change visibility</button>{% endcall %}
 </form>
-
-<h2>Push protection</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/push-protection" class="form" novalidate>
+</section>
+<section class="section" aria-labelledby="pp-heading">
+<h2 id="pp-heading">Push protection</h2>
+<form method="post" action="{{ base }}/push-protection" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <fieldset class="field" id="push_protection">
-    <legend>When a push contains a secret</legend>
-    <div class="checkbox">
-      <input id="pp-block" type="radio" name="mode" value="block"{% if push_protection == "block" %} checked{% endif %}>
-      <label for="pp-block"><strong>Block</strong>. The push is rejected and says how to remove the secret. (Recommended)</label>
-    </div>
-    <div class="checkbox">
-      <input id="pp-warn" type="radio" name="mode" value="warn"{% if push_protection == "warn" %} checked{% endif %}>
-      <label for="pp-warn"><strong>Warn</strong>. The push is accepted with a warning.</label>
-    </div>
-    <div class="checkbox">
-      <input id="pp-off" type="radio" name="mode" value="off"{% if push_protection == "off" %} checked{% endif %}>
-      <label for="pp-off"><strong>Off</strong>. Pushes aren't scanned.</label>
-    </div>
-    {%- if push_protection_minimum != "off" %}
-    <p class="hint">This server applies at least <strong>{{ push_protection_minimum }}</strong> to every repository.</p>
-    {%- endif %}
-  </fieldset>
-  <div class="checkbox">
-    <input id="pp-admins" type="checkbox" name="admins_allow" value="1"{% if admins_allow %} checked{% endif %}>
-    <label for="pp-admins">Only administrators may allow findings <span class="text-secondary">(otherwise any writer can, from the link in a rejected push)</span></label>
-  </div>
-  <div><button type="submit" class="button">Save push protection</button></div>
+  {%- let pp_hint %}{% if push_protection_minimum != "off" %}This server applies at least {{ push_protection_minimum }} to every repository.{% endif %}{% endlet %}
+  {%- call f::question("push_protection", "When a push contains a secret", pp_hint) %}
+  {%- call f::option("radio", "pp-block", "mode", "block", "Block (recommended)", push_protection == "block", "The push is rejected and says how to remove the secret.") %}{% endcall %}
+  {%- call f::option("radio", "pp-warn", "mode", "warn", "Warn", push_protection == "warn", "The push is accepted with a warning.") %}{% endcall %}
+  {%- call f::option("radio", "pp-off", "mode", "off", "Off", push_protection == "off", "Pushes aren't scanned.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::option("checkbox", "pp-admins", "admins_allow", "1", "Only administrators may allow findings", admins_allow, "Otherwise any writer can, from the link in a rejected push.") %}{% endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Save push protection</button>{% endcall %}
 </form>
-
-<h2>Rename</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/rename" class="form" novalidate>
+</section>
+<section class="section" aria-labelledby="rename-heading">
+<h2 id="rename-heading">Rename</h2>
+<form method="post" action="{{ base }}/rename" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="name">Repository name</label>
-    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" autocapitalize="none" spellcheck="false" aria-describedby="name-hint"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="name-hint" class="hint">Links, clones, and API calls with the old name are redirected for people who can see the repository.</p>
-  </div>
-  <div><button type="submit" class="button">Rename</button></div>
+  {%- call f::field("name", "Repository name", "Links, clones, and API calls with the old name are redirected for people who can see the repository.", self.error("name").unwrap_or_default()) %}
+  <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" autocapitalize="none" spellcheck="false"{% call f::described("name", "x", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Rename</button>{% endcall %}
 </form>
-
-<h2>Archive</h2>
-<form method="post" action="/{{ header.namespace }}/{{ header.name }}/settings/state/{% if archived %}unarchive{% else %}archive{% endif %}" class="form">
+</section>
+<section class="section" aria-labelledby="archive-heading">
+<h2 id="archive-heading">Archive</h2>
+<p>{% if archived %}Unarchiving makes the repository writable again.{% else %}Archiving makes the repository read-only. You can unarchive it later.{% endif %}</p>
+<form method="post" action="{{ base }}/state/{% if archived %}unarchive{% else %}archive{% endif %}" class="cluster">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <p>{% if archived %}Unarchiving makes the repository writable again.{% else %}Archiving makes the repository read-only. You can unarchive it later.{% endif %}</p>
-  <div><button type="submit" class="button">{% if archived %}Unarchive{% else %}Archive{% endif %} repository</button></div>
+  <button type="submit" class="button">{% if archived %}Unarchive{% else %}Archive{% endif %} repository</button>
 </form>
+</section>
+</div>
 {% endblock %}

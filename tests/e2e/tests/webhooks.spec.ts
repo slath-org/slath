@@ -22,7 +22,7 @@ test("conf_a11y_01_webhook_settings", async ({ page }, info) => {
   await page.getByLabel("Payload URL").fill(url);
   await page.getByRole("checkbox", { name: /^issue\b/ }).check();
   await tapOrClick(page, page.getByRole("button", { name: "Add webhook" }));
-  await expect(page.getByText("This is its secret.")).toBeVisible();
+  await expect(page.getByText("Copy its secret to the receiver now")).toBeVisible();
   await expect(page.getByLabel("Secret", { exact: true }).first()).toHaveValue(/.{16,}/);
   await expectAccessible(page);
 

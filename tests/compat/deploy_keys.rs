@@ -262,9 +262,12 @@ fn conf_rbac_01_deploy_keys_in_the_repository_settings() {
     assert_eq!(r.status, 303, "{}", r.body);
     let body = alice.get(&format!("{page}?status=key-added")).body;
     assert!(body.contains("Deploy key added."), "{body}");
-    assert!(body.contains("<td>ci@build</td>"), "{body}");
+    assert!(body.contains(">ci@build</td>"), "{body}");
     assert!(body.contains("Read and push"), "{body}");
-    assert!(body.contains("by alice"), "{body}");
+    assert!(
+        body.contains("by</span> <a class=\"account\" href=\"/alice\">"),
+        "{body}"
+    );
     let id = body
         .split("/alice/demo/settings/keys/")
         .nth(1)
