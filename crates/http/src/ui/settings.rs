@@ -47,7 +47,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
     })
 }
 
-fn field_errors(e: ServiceError) -> Result<Vec<FieldError>, AppError> {
+pub(crate) fn field_errors(e: ServiceError) -> Result<Vec<FieldError>, AppError> {
     match e {
         ServiceError::Invalid(errors) => Ok(errors),
         other => Err(other.into()),

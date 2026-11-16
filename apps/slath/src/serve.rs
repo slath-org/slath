@@ -392,6 +392,8 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
         .await
         .map_err(|e| format!("cannot listen on {listen}: {e}"))?;
     let addr = tcp.local_addr().map_err(|e| e.to_string())?;
+    // Every page, error pages too, shows the instance logo from here on.
+    state.services.instance_logos().await;
     tracing::info!(%addr, "listening");
     if let Some(why) = crate::tzdb::stale(Path::new("/usr/share/zoneinfo")) {
         tracing::warn!("{why}");

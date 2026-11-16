@@ -52,6 +52,7 @@ menu
 message-square
 monitor
 moon
+palette
 panel-left
 paperclip
 pencil

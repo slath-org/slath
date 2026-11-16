@@ -39,6 +39,8 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "resumed" => "Background migration resumed.",
         "retried" => "Background migration will run again.",
         "email-queued" => "Test message queued. Failures show up as dead jobs below.",
+        "logo-saved" => "Logo saved. Every page shows it now.",
+        "logo-reset" => "The Slath logo is back.",
         _ => return None,
     })
 }
@@ -542,6 +544,104 @@ async fn health(
     }))
 }
 
+#[derive(Template)]
+#[template(path = "admin/appearance.html")]
+struct AppearancePage {
+    ctx: PageCtx,
+    section: &'static str,
+    /// An administrator's logo is in use (for either theme).
+    custom: bool,
+    max_kib: u64,
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+}
+
+impl AppearancePage {
+    fn error(&self, field: &str) -> Option<&str> {
+        error_for(&self.errors, field)
+    }
+}
+
+async fn appearance_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    message: Option<&'static str>,
+    errors: Vec<FieldError>,
+) -> Result<Response, AppError> {
+    state.services.require_site_admin(subject)?;
+    let status = if errors.is_empty() {
+        StatusCode::OK
+    } else {
+        StatusCode::UNPROCESSABLE_ENTITY
+    };
+    let mut res = render(&AppearancePage {
+        custom: !state.services.instance_logos().await.is_empty(),
+        max_kib: state.config.limits.logo_max_bytes.0 / 1024,
+        ctx,
+        section: "appearance",
+        message,
+        errors,
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+/// `GET /-/admin/appearance`: the instance logo.
+async fn appearance(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    session: MaybeSession,
+    Query(q): Query<ListQuery>,
+) -> Result<Response, AppError> {
+    let message = status_message(q.status.as_deref());
+    appearance_page(&state, ctx, &session.subject(), message, Vec::new()).await
+}
+
+/// `POST /-/admin/appearance`: new logos (multipart fields `logo_light`
+/// and `logo_dark`; either may be left empty).
+async fn appearance_save(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(session): Sudo,
+    mut form: axum::extract::Multipart,
+) -> Result<Response, AppError> {
+    let subject = session.subject.clone();
+    state.services.require_site_admin(&subject)?;
+    let bad = || AppError::bad_request("The upload is not a valid multipart form.");
+    let mut uploads: Vec<(&str, Vec<u8>)> = Vec::new();
+    while let Some(field) = form.next_field().await.map_err(|_| bad())? {
+        let theme = match field.name() {
+            Some("logo_light") => "light",
+            Some("logo_dark") => "dark",
+            _ => continue,
+        };
+        let data = field.bytes().await.map_err(|_| bad())?;
+        if !data.is_empty() {
+            uploads.push((theme, data.to_vec()));
+        }
+    }
+    match state.services.set_instance_logos(&subject, &uploads).await {
+        Ok(()) => Ok(Redirect::to("/-/admin/appearance?status=logo-saved").into_response()),
+        Err(e) => {
+            let errors = super::settings::field_errors(e)?;
+            appearance_page(&state, ctx, &subject, None, errors).await
+        }
+    }
+}
+
+/// `POST /-/admin/appearance/reset`: the bundled logo again.
+async fn appearance_reset(
+    State(state): State<AppState>,
+    Sudo(session): Sudo,
+) -> Result<Response, AppError> {
+    state
+        .services
+        .reset_instance_logos(&session.subject)
+        .await?;
+    Ok(Redirect::to("/-/admin/appearance?status=logo-reset").into_response())
+}
+
 #[derive(Deserialize)]
 struct TestEmailForm {
     #[serde(default)]
@@ -726,6 +826,16 @@ pub fn router() -> Router<AppState> {
             post(test_email),
         )
         .route_as("/-/admin/upgrades", Access::SiteAdmin, get(upgrades))
+        .route_as(
+            "/-/admin/appearance",
+            Access::SiteAdmin,
+            get(appearance).post(appearance_save),
+        )
+        .route_as(
+            "/-/admin/appearance/reset",
+            Access::SiteAdmin,
+            post(appearance_reset),
+        )
         .route_as(
             "/-/admin/upgrades/background/{name}/{op}",
             Access::SiteAdmin,

@@ -107,6 +107,7 @@ const MIGRATED = [
   "/-/admin/audit",
   "/-/admin/upgrades",
   "/-/admin/health",
+  "/-/admin/appearance",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(

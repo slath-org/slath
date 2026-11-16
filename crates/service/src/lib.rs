@@ -34,6 +34,7 @@ pub mod iteration;
 pub mod jobs;
 pub mod keys;
 pub mod labels;
+pub mod logos;
 pub mod maintainer_edits;
 pub mod maintenance;
 pub mod merge;
@@ -108,6 +109,8 @@ pub struct Services {
     /// The names of all bots, cached.
     pub bot_names: Arc<bots::BotNames>,
     pub avatar_index: Arc<avatars::AvatarIndex>,
+    /// The uploaded instance logos, cached.
+    pub logo_cache: Arc<logos::LogoCache>,
 }
 
 impl Services {
@@ -147,6 +150,7 @@ impl Services {
             oidc_cache: Arc::default(),
             bot_names: Arc::default(),
             avatar_index: Arc::default(),
+            logo_cache: Arc::default(),
         }
     }
 

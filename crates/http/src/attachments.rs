@@ -253,6 +253,43 @@ pub async fn avatar_png(state: &AppState, sha: &str) -> Result<Response, AppErro
     Ok(res)
 }
 
+/// `GET /-/logos/{sha256}.{svg,png}`: an uploaded instance logo
+/// (content-addressed, so it never changes). Served in a sandbox, like
+/// avatars; an SVG was checked to hold only drawing.
+async fn logo(
+    State(state): State<AppState>,
+    Path(file): Path<String>,
+) -> Result<Response, AppError> {
+    let (sha, ext) = file.rsplit_once('.').ok_or(AppError::not_found())?;
+    let (f, content_type) = state.services.logo_file(sha).await?;
+    let expected = match content_type.as_str() {
+        "image/svg+xml" => "svg",
+        _ => "png",
+    };
+    if ext != expected {
+        return Err(AppError::not_found());
+    }
+    let mut res = Body::from_stream(tokio_util::io::ReaderStream::new(f)).into_response();
+    let h = res.headers_mut();
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(&content_type).map_err(|e| AppError::internal(&e))?,
+    );
+    h.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=31536000, immutable"),
+    );
+    h.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("sandbox; default-src 'none'; style-src 'unsafe-inline'"),
+    );
+    h.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    Ok(res)
+}
+
 /// The fields of an avatar form.
 pub struct AvatarForm {
     /// The uploaded image, if a file was chosen.
@@ -299,6 +336,7 @@ pub fn ui_router() -> Router<AppState> {
             Access::Resource,
             get(serve),
         )
+        .route_as("/-/logos/{file}", Access::Public, get(logo))
 }
 
 pub fn api_router() -> Router<AppState> {

@@ -1,0 +1,37 @@
+{% extends "admin/layout.html" %}
+{% block title %}Appearance · Administration{% endblock %}
+{% block admin %}
+<header class="page-head">
+  <div class="page-head-row"><h1>Appearance</h1></div>
+  <p class="page-head-intro">The logo in every page's header and the browser tab, for everyone on this instance.</p>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
+{%- endif %}
+<section class="section" aria-labelledby="logo-heading">
+<h2 id="logo-heading">Logo</h2>
+<dl class="facts">
+  <dt>Light theme</dt><dd><img src="{{ ctx.logo.light_url }}" alt="The logo for the light theme" width="48" height="48"></dd>
+  <dt>Dark theme</dt><dd><img src="{{ ctx.logo.dark_url }}" alt="The logo for the dark theme" width="48" height="48"></dd>
+  <dt>Source</dt><dd>{% if custom %}Uploaded by an administrator{% else %}The Slath logo{% endif %}</dd>
+</dl>
+<form method="post" action="/-/admin/appearance" enctype="multipart/form-data" class="form-layout" novalidate>
+{%- call msg::error_summary() %}{% endcall %}
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let logo_hint %}SVG, PNG, or WebP, at most {{ max_kib }} KiB; a square image fits best. An SVG may only draw: scripts, styles sheets, links, and references to other files are refused. PNG and WebP images are stored again as PNG, at most 512 pixels wide.{% endlet %}
+  {%- call f::field("logo_light", "Logo for the light theme", logo_hint, self.error("logo_light").unwrap_or_default(), true) %}
+  <input id="logo_light" name="logo_light" type="file" accept="image/svg+xml,image/png,image/webp"{% call f::described("logo_light", logo_hint, self.error("logo_light").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("logo_dark", "Logo for the dark theme", "Shown on dark backgrounds.", self.error("logo_dark").unwrap_or_default(), true) %}
+  <input id="logo_dark" name="logo_dark" type="file" accept="image/svg+xml,image/png,image/webp"{% call f::described("logo_dark", "Shown on dark backgrounds.", self.error("logo_dark").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save logo</button>{% endcall %}
+</form>
+{%- if custom %}
+<form method="post" action="/-/admin/appearance/reset" class="form-layout">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- call f::buttons() %}<button type="submit" class="button">Use the Slath logo again</button>{% endcall %}
+</form>
+{%- endif %}
+</section>
+{% endblock %}

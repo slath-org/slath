@@ -41,6 +41,13 @@ test("setup", async ({ page }) => {
   await page.getByLabel("Name", { exact: true }).fill("acme");
   await page.getByRole("button", { name: "Create organization" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("acme");
+  // An instance logo of the administrators' own, for every page below.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#0a7"/></svg>';
+  await page.goto("/-/admin/appearance");
+  await page.getByLabel("Logo for the light theme").setInputFiles({ name: "light.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg) });
+  await page.getByLabel("Logo for the dark theme").setInputFiles({ name: "dark.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg.replace("#0a7", "#7fd")) });
+  await page.getByRole("button", { name: "Save logo" }).click();
+  await expect(page.getByRole("status")).toContainText("Logo saved.");
 });
 
 test("pages", async ({ page }) => {
@@ -48,6 +55,7 @@ test("pages", async ({ page }) => {
   const anonymous = ["/", "/-/login", "/-/no-such-page", "/ada", "/acme", "/ada/offline"];
   for (const path of anonymous) {
     await page.goto(path, { waitUntil: "networkidle" });
+    await expect(page.locator(".site-name .logo-light")).toHaveAttribute("src", /^\/-\/logos\//);
   }
   await signIn(page);
   const pages = [
@@ -64,6 +72,7 @@ test("pages", async ({ page }) => {
     "/-/admin/repos",
     "/-/admin/audit",
     "/-/admin/health",
+    "/-/admin/appearance",
     "/acme",
     "/acme/-/members",
     "/acme/-/settings",

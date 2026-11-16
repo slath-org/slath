@@ -388,6 +388,8 @@ pub struct Limits {
     pub import_timeout: Dur,
     /// Uploaded avatar images (before re-encoding).
     pub avatar_max_bytes: Bytes,
+    /// Uploaded instance logos (SVG, or PNG or WebP before re-encoding).
+    pub logo_max_bytes: Bytes,
     /// How long an unused attachment or avatar file is kept before it is
     /// deleted (backups taken meanwhile still find it).
     pub blob_grace_period: Dur,
@@ -454,6 +456,7 @@ impl Default for Limits {
             http_max_body_bytes: Bytes(10 * MIB),
             attachment_max_bytes: Bytes(25 * MIB),
             avatar_max_bytes: Bytes(5 * MIB),
+            logo_max_bytes: Bytes(MIB),
             import_timeout: Dur::secs(3600),
             blob_grace_period: Dur::secs(86_400),
             text_max_bytes: Bytes(256 * 1024),

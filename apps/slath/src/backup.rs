@@ -10,7 +10,7 @@
 //! db/<table>.copy          one consistent database snapshot
 //! repos/<id>.git/…         refs, packed-refs, and objects of live repositories
 //! trash/<id>.git/…         the same for deleted repositories awaiting purge
-//! blobs/<aa>/<sha256>      attachments and avatars, named by their SHA-256
+//! blobs/<aa>/<sha256>      attachments, avatars, and logos, named by their SHA-256
 //! ```
 //!
 //! Backups run while the server is serving. Refs are copied before objects,

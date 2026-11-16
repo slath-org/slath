@@ -71,6 +71,9 @@ impl NavUser {
 pub struct Logo {
     pub light_url: String,
     pub dark_url: String,
+    /// The images' content types, for the favicon links.
+    pub light_type: &'static str,
+    pub dark_type: &'static str,
 }
 
 impl Logo {
@@ -79,7 +82,33 @@ impl Logo {
         Self {
             light_url: assets.url("logo-light.svg"),
             dark_url: assets.url("logo-dark.svg"),
+            light_type: "image/svg+xml",
+            dark_type: "image/svg+xml",
         }
+    }
+
+    /// The administrators' logos where they uploaded one, the bundled
+    /// logo otherwise.
+    #[must_use]
+    pub fn with_uploads(
+        assets: &crate::assets::Assets,
+        uploads: &[slath_db::blobs::InstanceLogo],
+    ) -> Self {
+        let mut logo = Self::bundled(assets);
+        for u in uploads {
+            let (ext, ty) = if u.content_type == "image/svg+xml" {
+                ("svg", "image/svg+xml")
+            } else {
+                ("png", "image/png")
+            };
+            let url = format!("/-/logos/{}.{ext}", u.blob_sha256);
+            match u.theme.as_str() {
+                "light" => (logo.light_url, logo.light_type) = (url, ty),
+                "dark" => (logo.dark_url, logo.dark_type) = (url, ty),
+                _ => {}
+            }
+        }
+        logo
     }
 }
 
@@ -209,7 +238,11 @@ impl PageCtx {
             style_url: state.assets.url("style.css"),
             font_url: state.assets.url("SourceSans3-Upright.woff2"),
             icons_url: state.assets.url("icons.svg"),
-            logo: Logo::bundled(&state.assets),
+            // What the last page read (error pages can't wait for it).
+            logo: state.services.cached_instance_logos().map_or_else(
+                || Logo::bundled(&state.assets),
+                |l| Logo::with_uploads(&state.assets, &l),
+            ),
             here: uri
                 .path_and_query()
                 .map_or_else(|| "/".to_owned(), |p| p.as_str().to_owned()),
@@ -270,6 +303,7 @@ impl FromRequestParts<AppState> for PageCtx {
         let mut ctx = Self::build(state, &parts.extensions, &parts.headers, &parts.uri);
         ctx.bots = state.services.bot_names().await;
         ctx.avatars = state.services.uploaded_avatars().await;
+        ctx.logo = Logo::with_uploads(&state.assets, &state.services.instance_logos().await);
         Ok(ctx)
     }
 }

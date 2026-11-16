@@ -158,6 +158,8 @@ pre {
 .site-name .logo {
   inline-size: 1.5rem;
   block-size: 1.5rem;
+  /* An administrator's logo of any shape fits the square undistorted. */
+  object-fit: contain;
 }
 /* One logo per theme: the explicit choice wins, otherwise the system's. */
 .logo-dark,

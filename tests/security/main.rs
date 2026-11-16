@@ -19,6 +19,7 @@ mod git;
 mod headers;
 mod issues;
 mod keys;
+mod logos;
 mod m2_surfaces;
 mod m3_surfaces;
 mod mfa;

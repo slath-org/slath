@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO instance_logos (theme, blob_sha256, content_type, updated_by)\n         VALUES ($1, $2, $3, $4)\n         ON CONFLICT (theme) DO UPDATE\n            SET blob_sha256 = EXCLUDED.blob_sha256, content_type = EXCLUDED.content_type,\n                updated_by = EXCLUDED.updated_by, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fee07b1aaf623acfc297d8f5c6392a5e9dabe5a0ecb6dcbcad02863dbeee60d4"
+}

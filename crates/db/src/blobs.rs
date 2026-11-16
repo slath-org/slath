@@ -223,3 +223,65 @@ pub async fn is_avatar(exec: impl PgExecutor<'_>, sha256: &str) -> Result<bool, 
     .fetch_one(exec)
     .await?)
 }
+
+/// An uploaded instance logo for one theme.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstanceLogo {
+    /// `light` or `dark`.
+    pub theme: String,
+    pub blob_sha256: String,
+    /// `image/svg+xml` or `image/png`.
+    pub content_type: String,
+}
+
+/// The uploaded instance logos (none: the bundled logo for every theme).
+pub async fn instance_logos(exec: impl PgExecutor<'_>) -> Result<Vec<InstanceLogo>, DbError> {
+    Ok(sqlx::query_as!(
+        InstanceLogo,
+        "SELECT theme, blob_sha256, content_type FROM instance_logos ORDER BY theme"
+    )
+    .fetch_all(exec)
+    .await?)
+}
+
+/// Sets the logo of `theme`.
+pub async fn set_instance_logo(
+    tx: &mut sqlx::PgConnection,
+    theme: &str,
+    sha256: &str,
+    content_type: &str,
+    by: UserId,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "INSERT INTO instance_logos (theme, blob_sha256, content_type, updated_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (theme) DO UPDATE
+            SET blob_sha256 = EXCLUDED.blob_sha256, content_type = EXCLUDED.content_type,
+                updated_by = EXCLUDED.updated_by, updated_at = now()",
+        theme,
+        sha256,
+        content_type,
+        by.as_uuid()
+    )
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
+/// Removes every uploaded logo: pages show the bundled one again.
+pub async fn reset_instance_logos(exec: impl PgExecutor<'_>) -> Result<u64, DbError> {
+    Ok(sqlx::query!("DELETE FROM instance_logos")
+        .execute(exec)
+        .await?
+        .rows_affected())
+}
+
+/// The content type of `sha256` if it's an instance logo.
+pub async fn logo_type(exec: impl PgExecutor<'_>, sha256: &str) -> Result<Option<String>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT content_type FROM instance_logos WHERE blob_sha256 = $1 LIMIT 1",
+        sha256
+    )
+    .fetch_optional(exec)
+    .await?)
+}
