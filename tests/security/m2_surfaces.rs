@@ -245,7 +245,7 @@ const UNESCAPED: &[&str] = &[
     "=49",
 ];
 
-fn assert_inert(body: &str, what: &str) {
+pub(crate) fn assert_inert(body: &str, what: &str) {
     for bad in UNESCAPED {
         assert!(!body.contains(bad), "{what}: found {bad:?}");
     }

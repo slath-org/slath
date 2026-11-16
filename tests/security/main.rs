@@ -20,6 +20,7 @@ mod headers;
 mod issues;
 mod keys;
 mod m2_surfaces;
+mod m3_surfaces;
 mod mfa;
 mod notifications;
 mod oidc;
