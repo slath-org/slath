@@ -1,39 +1,36 @@
 {% extends "settings/layout.html" %}
 {% block title %}Appearance settings{% endblock %}
 {% block settings %}
-<h1>Appearance</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>Appearance</h1></div>
+  <p class="page-head-intro">How Slath looks for you, on every device you sign in on.</p>
+</header>
+{% include "settings/saved.html" %}
+<form method="post" action="/-/settings/appearance" class="form-layout" novalidate>
 {% include "settings/errors.html" %}
-<form method="post" action="/-/settings/appearance" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <fieldset class="field">
-    <legend>Theme</legend>
-    <div class="checkbox"><input id="theme-system" type="radio" name="theme" value="system"{% if theme == "system" %} checked{% endif %}><label for="theme-system">System (follow your device)</label></div>
-    <div class="checkbox"><input id="theme-light" type="radio" name="theme" value="light"{% if theme == "light" %} checked{% endif %}><label for="theme-light">Light</label></div>
-    <div class="checkbox"><input id="theme-dark" type="radio" name="theme" value="dark"{% if theme == "dark" %} checked{% endif %}><label for="theme-dark">Dark</label></div>
-  </fieldset>
-  <fieldset class="field">
-    <legend>Density</legend>
-    <div class="checkbox"><input id="density-comfortable" type="radio" name="density" value="comfortable"{% if density == "comfortable" %} checked{% endif %}><label for="density-comfortable">Comfortable</label></div>
-    <div class="checkbox"><input id="density-compact" type="radio" name="density" value="compact"{% if density == "compact" %} checked{% endif %}><label for="density-compact">Compact (less padding; text and targets keep their size)</label></div>
-  </fieldset>
-  <div class="field">
-    <label for="code_font_size">Code font size</label>
-    <select id="code_font_size" name="code_font_size"{% if let Some(e) = self.error("code_font_size") %} aria-invalid="true" aria-describedby="code_font_size-error"{% endif %}>
-    {%- for n in sizes.clone() %}
-      <option value="{{ n }}"{% if n == code_font_size %} selected{% endif %}>{{ n }} px{% if n == 14 %} (default){% endif %}</option>
-    {%- endfor %}
-    </select>
-    {%- if let Some(e) = self.error("code_font_size") %}
-    <p id="code_font_size-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <fieldset class="field" aria-describedby="tool-hint">
-    <legend>Commands for</legend>
-    <p id="tool-hint" class="hint">Where pages show commands (checking out, resolving conflicts), they show them for this tool. Everything else looks the same either way.</p>
-    <div class="checkbox"><input id="tool-auto" type="radio" name="tool" value="auto"{% if tool == "auto" %} checked{% endif %}><label for="tool-auto">Automatic ({% if let Some(d) = detected %}{{ d }}, from your recent pushes{% else %}from your pushes; Git until then{% endif %})</label></div>
-    <div class="checkbox"><input id="tool-git" type="radio" name="tool" value="git"{% if tool == "git" %} checked{% endif %}><label for="tool-git">Git</label></div>
-    <div class="checkbox"><input id="tool-jj" type="radio" name="tool" value="jj"{% if tool == "jj" %} checked{% endif %}><label for="tool-jj">jj</label></div>
-  </fieldset>
-  <div><button type="submit" class="button button-primary">Save appearance</button></div>
+  {%- call f::question("theme", "Theme") %}
+  {%- call f::option("radio", "theme-system", "theme", "system", "System", theme == "system", "Follows your device.") %}{% endcall %}
+  {%- call f::option("radio", "theme-light", "theme", "light", "Light", theme == "light") %}{% endcall %}
+  {%- call f::option("radio", "theme-dark", "theme", "dark", "Dark", theme == "dark") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::question("density", "Density") %}
+  {%- call f::option("radio", "density-comfortable", "density", "comfortable", "Comfortable", density == "comfortable") %}{% endcall %}
+  {%- call f::option("radio", "density-compact", "density", "compact", "Compact", density == "compact", "Less padding; text and targets keep their size.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::field("code_font_size", "Code font size", "", self.error("code_font_size").unwrap_or_default()) %}
+  <select id="code_font_size" name="code_font_size"{% call f::described("code_font_size", "", self.error("code_font_size").unwrap_or_default()) %}{% endcall %}>
+  {%- for n in sizes.clone() %}
+    <option value="{{ n }}"{% if n == code_font_size %} selected{% endif %}>{{ n }} px{% if n == 14 %} (default){% endif %}</option>
+  {%- endfor %}
+  </select>
+  {%- endcall %}
+  {%- let auto_hint %}{% if let Some(dt) = detected %}{{ dt }}, from your recent pushes.{% else %}From your pushes; Git until then.{% endif %}{% endlet %}
+  {%- call f::question("tool", "Commands for", "Where pages show commands (checking out, resolving conflicts), they show them for this tool. Everything else looks the same either way.") %}
+  {%- call f::option("radio", "tool-auto", "tool", "auto", "Automatic", tool == "auto", auto_hint) %}{% endcall %}
+  {%- call f::option("radio", "tool-git", "tool", "git", "Git", tool == "git") %}{% endcall %}
+  {%- call f::option("radio", "tool-jj", "tool", "jj", "jj", tool == "jj") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save appearance</button>{% endcall %}
 </form>
 {% endblock %}

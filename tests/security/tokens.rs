@@ -41,7 +41,9 @@ fn conf_auth_05_token_is_shown_once_and_authenticates_the_api() {
     assert_eq!(r.json()["username"], "alice");
     // last_used_at was recorded.
     assert!(
-        a.get("/-/settings/tokens").body.contains("<td><time"),
+        a.get("/-/settings/tokens")
+            .body
+            .contains("data-label=\"Last used\"><time"),
         "last used shown"
     );
 }

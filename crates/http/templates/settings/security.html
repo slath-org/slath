@@ -1,12 +1,17 @@
 {% extends "settings/layout.html" %}
 {% block title %}Security{% endblock %}
 {% block settings %}
-<h1>Security</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>Security</h1></div>
+  <p class="page-head-intro">How you sign in: your password, a second factor, passkeys, and sign-in providers.</p>
+</header>
+{% include "settings/saved.html" %}
 {% include "settings/errors.html" %}
-<h2>Two-factor authentication</h2>
+<section class="section" aria-labelledby="mfa-heading">
+<h2 id="mfa-heading">Two-factor authentication</h2>
 {%- if mfa.totp %}
 <p>On: signing in needs a code from your authenticator app. {{ mfa.recovery_codes_left }} of 10 recovery codes left.</p>
-<div class="button-row">
+<div class="cluster">
   <form method="post" action="/-/settings/security/recovery-codes" class="inline-form">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <button type="submit" class="button">New recovery codes</button>
@@ -18,29 +23,31 @@
 </div>
 {%- else %}
 <p>Off. With two-factor authentication, signing in also needs a code from an authenticator app on your phone or computer.{% if admin_needs_mfa %} <strong>Administration requires it.</strong>{% endif %}</p>
-<form method="post" action="/-/settings/security/totp" class="inline-form">
+<form method="post" action="/-/settings/security/totp" class="cluster">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <button type="submit" class="button button-primary">{% if mfa.totp_pending %}Continue setup{% else %}Set up two-factor authentication{% endif %}</button>
 </form>
 {%- endif %}
+</section>
 {%- if passkeys_available %}
-<h2>Passkeys</h2>
+<section class="section" aria-labelledby="passkeys-heading">
+<h2 id="passkeys-heading">Passkeys</h2>
 <p>A passkey signs you in with your device's screen lock or a security key, without a password or code.</p>
 {%- if !passkeys.is_empty() %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="passkeys-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="passkeys-caption" class="visually-hidden">Your passkeys</caption>
   <thead><tr><th scope="col">Name</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
-  {%- for p in passkeys %}
+  {%- for pk in passkeys %}
     <tr>
-      <td>{{ p.name }}</td>
-      <td><time datetime="{{ p.created.iso }}">{{ p.created.text }}</time></td>
-      <td>{% if let Some(u) = p.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
-      <td>
-        <form method="post" action="/-/settings/security/passkeys/{{ p.id }}/delete" class="inline-form">
+      <td data-label="Name">{{ pk.name }}</td>
+      <td data-label="Added">{% call c::time(pk.created, true) %}{% endcall %}</td>
+      <td data-label="Last used">{% if let Some(u) = pk.last_used %}{% call c::time(u, true) %}{% endcall %}{% else %}Never{% endif %}</td>
+      <td class="table-actions">
+        <form method="post" action="/-/settings/security/passkeys/{{ pk.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button">Remove<span class="visually-hidden"> passkey {{ p.name }}</span></button>
+          <button type="submit" class="button">Remove<span class="visually-hidden"> passkey {{ pk.name }}</span></button>
         </form>
       </td>
     </tr>
@@ -50,27 +57,27 @@
 </div>
 {%- endif %}
 {%- if in_sudo %}
-<form method="post" action="/-/settings/security/passkeys" class="form" data-passkey="/-/settings/security/passkeys/options" data-passkey-mode="create" hidden>
+<form method="post" action="/-/settings/security/passkeys" class="form-layout" data-passkey="/-/settings/security/passkeys/options" data-passkey-mode="create" hidden>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="ceremony" value="">
   <input type="hidden" name="credential" value="">
-  <div class="field">
-    <label for="passkey-name">Name for the new passkey</label>
-    <input id="passkey-name" name="name" type="text" maxlength="100" required autocomplete="off" aria-describedby="passkey-name-hint">
-    <p id="passkey-name-hint" class="hint">For example "Laptop" or "Security key".</p>
-  </div>
-  <div><button type="submit" class="button">Add a passkey</button></div>
+  {%- call f::field("passkey-name", "Name for the new passkey", "For example \"Laptop\" or \"Security key\".") %}
+  <input id="passkey-name" name="name" type="text" maxlength="100" required autocomplete="off"{% call f::described("passkey-name", "x", "") %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Add a passkey</button>{% endcall %}
   <p data-passkey-status role="status" aria-live="polite"></p>
 </form>
 <noscript><p class="text-secondary">Adding a passkey needs JavaScript.</p></noscript>
 {%- else %}
-<p><a class="button" href="/-/sudo?next=/-/settings/security">Add a passkey</a></p>
+<div class="cluster"><a class="button" href="/-/sudo?next=/-/settings/security">Add a passkey</a></div>
 {%- endif %}
+</section>
 {%- endif %}
 {%- if !providers.is_empty() || !identities.is_empty() %}
-<h2>Sign-in providers</h2>
+<section class="section" aria-labelledby="providers-heading">
+<h2 id="providers-heading">Sign-in providers</h2>
 {%- if identities.is_empty() %}
-<p class="text-secondary">No sign-in provider is linked to your account.</p>
+{%- call msg::empty("No sign-in provider is linked to your account.") %}{% endcall %}
 {%- else %}
 <ul class="plain-list">
   {%- for i in identities %}
@@ -86,35 +93,31 @@
   {%- endfor %}
 </ul>
 {%- endif %}
+{%- if !providers.is_empty() %}
+<div class="cluster">
 {%- for (key, name) in providers %}
 <form method="post" action="/-/settings/oidc/{{ key }}/link" class="inline-form">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <button type="submit" class="button">Link {{ name }}</button>
 </form>
 {%- endfor %}
-<p class="hint">Linking and unlinking ask for your password first.</p>
+</div>
 {%- endif %}
-<h2>Password</h2>
+<p class="hint">Linking and unlinking ask for your password first.</p>
+</section>
+{%- endif %}
+<section class="section" aria-labelledby="password-heading">
+<h2 id="password-heading">Password</h2>
 <p>Changing your password signs out all your other sessions.</p>
-<form method="post" action="/-/settings/security/password" class="form" novalidate>
+<form method="post" action="/-/settings/security/password" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="new_password">New password</label>
-    <input id="new_password" name="new_password" type="password" autocomplete="new-password" required aria-describedby="new_password-hint{% if self.error("new_password").is_some() %} new_password-error{% endif %}"
-      {%- if self.error("new_password").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="new_password-hint" class="hint">At least 12 characters. A phrase of several words works well.</p>
-    {%- if let Some(e) = self.error("new_password") %}
-    <p id="new_password-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="confirm_password">Confirm new password</label>
-    <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required
-      {%- if let Some(e) = self.error("confirm_password") %} aria-invalid="true" aria-describedby="confirm_password-error"{% endif %}>
-    {%- if let Some(e) = self.error("confirm_password") %}
-    <p id="confirm_password-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div><button type="submit" class="button button-primary">Change password</button></div>
+  {%- call f::field("new_password", "New password", "At least 12 characters. A phrase of several words works well.", self.error("new_password").unwrap_or_default()) %}
+  <input id="new_password" name="new_password" type="password" autocomplete="new-password" required{% call f::described("new_password", "x", self.error("new_password").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("confirm_password", "Confirm new password", "", self.error("confirm_password").unwrap_or_default()) %}
+  <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required{% call f::described("confirm_password", "", self.error("confirm_password").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Change password</button>{% endcall %}
 </form>
+</section>
 {% endblock %}

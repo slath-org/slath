@@ -1,45 +1,42 @@
 {% extends "settings/layout.html" %}
 {% block title %}Profile settings{% endblock %}
 {% block settings %}
-<h1>Profile</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>Profile</h1></div>
+  <p class="page-head-intro">How you appear to others. Your email addresses, and which one is primary, are on <a href="/-/settings/emails">Email addresses</a>.</p>
+</header>
+{% include "settings/saved.html" %}
 {% include "settings/errors.html" %}
-<div class="profile-avatar">
-  <img src="{{ avatar_url }}" alt="" width="64" height="64">
-  <form method="post" action="/-/settings/avatar" enctype="multipart/form-data" class="form" novalidate>
+<section class="section" aria-labelledby="avatar-heading">
+  <h2 id="avatar-heading">Avatar</h2>
+  <div class="profile-avatar">
+    <img src="{{ avatar_url }}" alt="" width="64" height="64">
+    <form method="post" action="/-/settings/avatar" enctype="multipart/form-data" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- let avatar_hint %}PNG, JPEG, or WebP. It is cropped to a square and stored without its metadata (such as location).{% if !has_avatar %} Without one, an avatar is generated from your username.{% endif %}{% endlet %}
+      {%- call f::field("avatar", "Image", avatar_hint, self.error("avatar").unwrap_or_default()) %}
+      <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp"{% call f::described("avatar", "x", self.error("avatar").unwrap_or_default()) %}{% endcall %}>
+      {%- endcall %}
+      {%- call f::buttons() %}
+        <button type="submit" class="button">Upload avatar</button>
+        {%- if has_avatar %}
+        <button type="submit" name="remove" value="1" class="button">Remove avatar</button>
+        {%- endif %}
+      {%- endcall %}
+    </form>
+  </div>
+</section>
+<section class="section" aria-labelledby="names-heading">
+  <h2 id="names-heading">Names</h2>
+  <form method="post" action="/-/settings/profile" class="form-layout" novalidate>
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <div class="field">
-      <label for="avatar">Avatar</label>
-      <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="avatar-hint{% if self.error("avatar").is_some() %} avatar-error{% endif %}"
-        {%- if self.error("avatar").is_some() %} aria-invalid="true"{% endif %}>
-      <p id="avatar-hint" class="hint">PNG, JPEG, or WebP. It is cropped to a square and stored without its metadata (such as location). {% if !has_avatar %}Without one, an avatar is generated from your username.{% endif %}</p>
-      {%- if let Some(e) = self.error("avatar") %}
-      <p id="avatar-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="button-row">
-      <button type="submit" class="button">Upload avatar</button>
-      {%- if has_avatar %}
-      <button type="submit" name="remove" value="1" class="button">Remove avatar</button>
-      {%- endif %}
-    </div>
+    {%- call f::field("username", "Username", "Usernames can't be changed yet.") %}
+    <input id="username" type="text" value="{{ name }}" readonly{% call f::described("username", "x", "") %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::field("display_name", "Display name", "Up to 100 characters.", self.error("display_name").unwrap_or_default(), true) %}
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100" autocomplete="name"{% call f::described("display_name", "x", self.error("display_name").unwrap_or_default()) %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button button-primary">Save profile</button>{% endcall %}
   </form>
-</div>
-<form method="post" action="/-/settings/profile" class="form" novalidate>
-  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="username">Username</label>
-    <input id="username" type="text" value="{{ name }}" readonly aria-describedby="username-hint">
-    <p id="username-hint" class="hint">Usernames can't be changed yet.</p>
-  </div>
-  <div class="field">
-    <label for="display_name">Display name</label>
-    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100" autocomplete="name"
-      {%- if let Some(e) = self.error("display_name") %} aria-invalid="true" aria-describedby="display_name-error"{% endif %}>
-    {%- if let Some(e) = self.error("display_name") %}
-    <p id="display_name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div><button type="submit" class="button button-primary">Save profile</button></div>
-</form>
-<p>Your email addresses, and which one is primary, are on <a href="/-/settings/emails">Email addresses</a>.</p>
+</section>
 {% endblock %}

@@ -20,11 +20,8 @@ catalog-class merge-step-title                                          # markup
 catalog-class narrow                                                    # markup of a page that hasn't moved to the components yet
 catalog-class page-heading                                              # markup of a page that hasn't moved to the components yet
 catalog-class pager                                                     # markup of a page that hasn't moved to the components yet
-catalog-class profile-avatar                                            # markup of a page that hasn't moved to the components yet
 catalog-class profile-handle                                            # markup of a page that hasn't moved to the components yet
 catalog-class profile-head                                              # markup of a page that hasn't moved to the components yet
-catalog-class qr-code                                                   # markup of a page that hasn't moved to the components yet
-catalog-class recovery-codes                                            # markup of a page that hasn't moved to the components yet
 catalog-class repo-list                                                 # markup of a page that hasn't moved to the components yet
 catalog-class repo-name                                                 # markup of a page that hasn't moved to the components yet
 catalog-class role-form                                                 # markup of a page that hasn't moved to the components yet
@@ -32,12 +29,10 @@ catalog-class row-actions                                               # markup
 catalog-class secret-key                                                # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-defaults                                        # markup of a page that hasn't moved to the components yet
 catalog-class sensitive-instance-note                                   # markup of a page that hasn't moved to the components yet
-catalog-class steps                                                     # markup of a page that hasn't moved to the components yet
 catalog-class token-value                                               # markup of a page that hasn't moved to the components yet
 catalog-class webhook-section                                           # markup of a page that hasn't moved to the components yet
 catalog-class webhook-section-head                                      # markup of a page that hasn't moved to the components yet
 catalog-unused avatar-group                                             # no page uses it until the pages move to the components
-catalog-unused danger                                                   # no page uses it until the pages move to the components
 catalog-unused more                                                     # no page uses it until the pages move to the components
 catalog-unused popover                                                  # no page uses it until the pages move to the components
 catalog-unused subsection                                               # no page uses it until the pages move to the components

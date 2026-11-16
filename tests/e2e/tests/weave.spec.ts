@@ -63,6 +63,14 @@ const MIGRATED = [
   "/alice/demo/merge-requests/1?show=unresolved",
   "/alice/demo/merge-requests/1/commits",
   "/alice/demo/merge-requests/1/changes",
+  "/-/settings/profile",
+  "/-/settings/notifications",
+  "/-/settings/appearance",
+  "/-/settings/security",
+  "/-/settings/sessions",
+  "/-/settings/keys",
+  "/-/settings/tokens",
+  "/-/settings/bots",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(

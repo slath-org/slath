@@ -1,13 +1,17 @@
 {% extends "settings/layout.html" %}
 {% block title %}Recovery codes{% endblock %}
 {% block settings %}
-<h1>Recovery codes</h1>
-<div class="notice" role="status"><p>{% if first %}Two-factor authentication is on. {% endif %}Save these codes now: they're shown only once.</p></div>
-<p>If you lose your authenticator app, sign in with one of these codes instead of a 6-digit code. Each code works once. Keep them somewhere safe, such as your password manager.</p>
+<header class="page-head">
+  <div class="page-head-row"><h1>Recovery codes</h1></div>
+  <p class="page-head-intro">If you lose your authenticator app, sign in with one of these codes instead of a 6-digit code. Each code works once.</p>
+</header>
+{%- call msg::notice("warning") %}<p>{% if first %}Two-factor authentication is on. {% endif %}Save these codes now, somewhere safe such as your password manager: they're shown only once.</p>{% endcall %}
+<div class="stack">
 <ol class="recovery-codes">
-{%- for c in codes %}
-  <li><code>{{ c }}</code></li>
+{%- for cd in codes %}
+  <li><code>{{ cd }}</code></li>
 {%- endfor %}
 </ol>
-<p><a class="button" href="/-/settings/security">Done</a></p>
+<div class="cluster"><a class="button button-primary" href="/-/settings/security">Done</a></div>
+</div>
 {% endblock %}

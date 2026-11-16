@@ -1,21 +1,21 @@
 {#- The table of bots with what they're doing. Expects bots, bot_limit,
     and admin_view (bool: an owner column and stop buttons). -#}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="bots-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="bots-caption" class="visually-hidden">Bots</caption>
   <thead><tr><th scope="col">Bot</th>{% if admin_view %}<th scope="col">Owner</th>{% endif %}<th scope="col">State</th><th scope="col">Open merge requests</th><th scope="col">Last push</th><th scope="col">Token expires</th><th scope="col">API requests this hour</th>{% if admin_view %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
   <tbody>
   {%- for b in bots %}
     <tr>
-      <td>{% if admin_view %}<a href="/{{ b.name }}">{{ b.name }}</a>{% else %}<a href="/-/bots/{{ b.name }}">{{ b.name }}</a>{% endif %}{% if let Some(d) = b.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
-      {%- if admin_view %}<td><a href="/{{ b.owner }}">{{ b.owner }}</a></td>{% endif %}
-      <td>{{ b.state }}{% if b.frozen %} <span class="badge">Frozen</span>{% endif %}</td>
-      <td>{% if b.open_mrs == 0 %}<span class="text-secondary">None</span>{% else %}{{ b.open_mrs }}{% endif %}</td>
-      <td>{% if let Some(p) = b.last_push() %}<time datetime="{{ p.at.iso }}">{{ p.at.text }}</time> <span class="text-secondary">to {{ p.repo }}</span>{% else %}<span class="text-secondary">Never</span>{% endif %}</td>
-      <td>{% if let Some((_, t)) = b.next_expiry %}<time datetime="{{ t.iso }}">{{ t.text }}</time>{% else %}<span class="text-secondary">No active token</span>{% endif %}</td>
-      <td>{{ b.requests }}</td>
+      <td data-label="Bot">{% if admin_view %}{% call p::account(ctx, b.name) %}{% endcall %}{% else %}<a class="account" href="/-/bots/{{ b.name }}">{% call p::avatar(ctx, b.name) %}{% endcall %}<bdi>{{ b.name }}</bdi></a>{% endif %}{% if let Some(dn) = b.display_name %} <span class="text-secondary">{{ dn }}</span>{% endif %}</td>
+      {%- if admin_view %}<td data-label="Owner">{% call p::account(ctx, b.owner) %}{% endcall %}</td>{% endif %}
+      <td data-label="State">{{ b.state }}{% if b.frozen %} <span class="badge">Frozen</span>{% endif %}</td>
+      <td data-label="Open merge requests">{% if b.open_mrs == 0 %}<span class="text-secondary">None</span>{% else %}{{ b.open_mrs }}{% endif %}</td>
+      <td data-label="Last push">{% if let Some(lp) = b.last_push() %}{% call c::time(lp.at) %}{% endcall %} <span class="text-secondary">to {{ lp.repo }}</span>{% else %}<span class="text-secondary">Never</span>{% endif %}</td>
+      <td data-label="Token expires">{% if let Some((_, t)) = b.next_expiry %}{% call c::time(t) %}{% endcall %}{% else %}<span class="text-secondary">No active token</span>{% endif %}</td>
+      <td data-label="API requests this hour">{{ b.requests }}</td>
       {%- if admin_view %}
-      <td>
+      <td class="table-actions">
         <form method="post" action="/-/bots/{{ b.name }}/{% if b.stopped_at.is_some() %}start{% else %}stop{% endif %}" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
           <input type="hidden" name="back" value="/-/admin/bots">

@@ -137,6 +137,15 @@
   </div>
 </details>
 {%- endcall %}
+{%- call cat::example("Two-factor setup: the QR code, and the setup key for those who can't scan it.") %}
+<div class="stack">
+<img class="qr-code" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4'%3E%3Cpath d='M0 0h1v1H0zM2 0h2v1H2zM1 2h1v2H1zM3 3h1v1H3z'/%3E%3C/svg%3E" width="96" height="96" alt="QR code with the setup key shown below">
+{%- call f::copy_value(ctx, "demo-setup-key", "Setup key", "JBSWY3DPEHPK3PXP", "Copy the setup key") %}{% endcall %}
+</div>
+{%- endcall %}
+{%- call cat::example("Recovery codes, shown once: a numbered list of codes.") %}
+<ol class="recovery-codes"><li><code>4f9k-2m7q</code></li><li><code>8x3d-6p1w</code></li><li><code>t5n8-c2v9</code></li></ol>
+{%- endcall %}
 {%- call cat::example("A new token, shown once.") %}
 {%- call msg::saved("Token created. It won't be shown again.") %}{% endcall %}
 {%- call f::copy_value(ctx, "demo-token", "New token", "slath_pat_0123456789abcdefghijklmnop", "Copy the token") %}{% endcall %}

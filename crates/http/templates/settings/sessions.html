@@ -1,25 +1,28 @@
 {% extends "settings/layout.html" %}
 {% block title %}Sessions{% endblock %}
 {% block settings %}
-<h1>Sessions</h1>
-<p>These browsers are signed in to your account.</p>
+<header class="page-head">
+  <div class="page-head-row"><h1>Sessions</h1></div>
+  <p class="page-head-intro">These browsers are signed in to your account.</p>
+</header>
+{% include "settings/saved.html" %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="sessions-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="sessions-caption" class="visually-hidden">Signed-in sessions</caption>
   <thead>
     <tr><th scope="col">Browser</th><th scope="col">IP address</th><th scope="col">Signed in</th><th scope="col">Last active</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
   </thead>
   <tbody>
-  {%- for s in sessions %}
+  {%- for ss in sessions %}
     <tr>
-      <td>{{ s.agent }}{% if s.current %} <strong class="badge">This browser</strong>{% endif %}</td>
-      <td class="numeric">{{ s.ip }}</td>
-      <td><time datetime="{{ s.created.iso }}">{{ s.created.text }}</time></td>
-      <td><time datetime="{{ s.last_seen.iso }}">{{ s.last_seen.text }}</time></td>
-      <td>
-        <form method="post" action="/-/settings/sessions/{{ s.id }}/revoke" class="inline-form">
+      <td data-label="Browser">{{ ss.agent }}{% if ss.current %} <span class="badge">This browser</span>{% endif %}</td>
+      <td data-label="IP address" class="numeric">{{ ss.ip }}</td>
+      <td data-label="Signed in">{% call c::time(ss.created, true) %}{% endcall %}</td>
+      <td data-label="Last active">{% call c::time(ss.last_seen) %}{% endcall %}</td>
+      <td class="table-actions">
+        <form method="post" action="/-/settings/sessions/{{ ss.id }}/revoke" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button">Sign out<span class="visually-hidden"> {% if s.current %}this browser{% else %}session from {{ s.ip }}{% endif %}</span></button>
+          <button type="submit" class="button">Sign out<span class="visually-hidden"> {% if ss.current %}this browser{% else %}session from {{ ss.ip }}{% endif %}</span></button>
         </form>
       </td>
     </tr>
@@ -27,8 +30,10 @@
   </tbody>
 </table>
 </div>
-<form method="post" action="/-/settings/sessions/revoke-all" class="form-actions">
+{%- call f::danger("sign-out-heading", "Sign out everywhere", "Every browser above is signed out, this one included.") %}
+<form method="post" action="/-/settings/sessions/revoke-all" class="form-layout">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <button type="submit" class="button button-danger">Sign out everywhere</button>
+  {%- call f::buttons() %}<button type="submit" class="button button-danger">Sign out everywhere</button>{% endcall %}
 </form>
+{%- endcall %}
 {% endblock %}

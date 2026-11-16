@@ -1,31 +1,25 @@
-{#- A list of bots and the form for a new one. The page sets bots, action,
-    username, display_name, and error(). -#}
+{#- A list of bots and the form for a new one, as sections of the page.
+    The page sets bots, action, username, display_name, and error(). -#}
+<section class="section" aria-labelledby="bots-heading">
+<h2 id="bots-heading">Existing bots</h2>
 {%- if bots.is_empty() %}
-<p class="text-secondary empty-state">No bots yet.</p>
+{%- call msg::empty("No bots yet.") %}{% endcall %}
 {%- else %}
 {%- let admin_view = false %}
 {% include "bots_table.html" %}
 {%- endif %}
-
-<h2>New bot</h2>
-<form method="post" action="{{ action }}" class="form" novalidate>
+</section>
+<section class="section" aria-labelledby="new-bot-heading">
+<h2 id="new-bot-heading">New bot</h2>
+<form method="post" action="{{ action }}" class="form-layout" novalidate>
+{% include "settings/errors.html" %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" value="{{ username }}" maxlength="39" required autocapitalize="none" spellcheck="false" aria-describedby="username-hint{% if self.error("name").is_some() %} username-error{% endif %}"
-      {%- if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="username-hint" class="hint">Shares the namespace of users and organizations, for example <code>alice-ci</code>.</p>
-    {%- if let Some(e) = self.error("name") %}
-    <p id="username-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="display_name">Display name <span class="text-secondary">(optional)</span></label>
-    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
-      {%- if let Some(e) = self.error("display_name") %} aria-invalid="true" aria-describedby="display_name-error"{% endif %}>
-    {%- if let Some(e) = self.error("display_name") %}
-    <p id="display_name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div><button type="submit" class="button button-primary">Create bot</button></div>
+  {%- call f::field("username", "Username", "Shares the namespace of users and organizations, for example alice-ci.", self.error("name").unwrap_or_default()) %}
+  <input id="username" name="username" type="text" value="{{ username }}" maxlength="39" required autocapitalize="none" spellcheck="false"{% call f::described("username", "x", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("display_name", "Display name", "", self.error("display_name").unwrap_or_default(), true) %}
+  <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"{% call f::described("display_name", "", self.error("display_name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create bot</button>{% endcall %}
 </form>
+</section>

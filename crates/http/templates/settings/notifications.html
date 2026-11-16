@@ -1,15 +1,15 @@
 {% extends "settings/layout.html" %}
 {% block title %}Notification settings{% endblock %}
 {% block settings %}
-<h1>Notifications</h1>
-<p>You get notifications about issues and merge requests you opened, took part in, are assigned to, are asked to review, or are mentioned in, and about everything in repositories you watch. They appear in your <a href="/-/notifications">inbox</a>.</p>
-<form method="post" action="/-/settings/notifications" class="form" novalidate>
+<header class="page-head">
+  <div class="page-head-row"><h1>Notifications</h1></div>
+  <p class="page-head-intro">You get notifications about issues and merge requests you opened, took part in, are assigned to, are asked to review, or are mentioned in, and about everything in repositories you watch. They appear in your <a href="/-/notifications">inbox</a>.</p>
+</header>
+{% include "settings/saved.html" %}
+<form method="post" action="/-/settings/notifications" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="checkbox">
-    <input id="email" name="email" type="checkbox" value="on"{% if email_on %} checked{% endif %} aria-describedby="email-hint">
-    <label for="email">Also send notifications by email</label>
-  </div>
-  <p id="email-hint" class="hint">{% if email_enabled %}Only to a confirmed address. Every email has a link to stop notifications about its issue or merge request.{% else %}This instance doesn't send email, so notifications only appear in your inbox.{% endif %}</p>
-  <div><button type="submit" class="button button-primary">Save</button></div>
+  {%- let email_hint %}{% if email_enabled %}Only to a confirmed address. Every email has a link to stop notifications about its issue or merge request.{% else %}This instance doesn't send email, so notifications only appear in your inbox.{% endif %}{% endlet %}
+  {%- call f::option("checkbox", "email", "email", "on", "Also send notifications by email", email_on, email_hint) %}{% endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save</button>{% endcall %}
 </form>
 {% endblock %}

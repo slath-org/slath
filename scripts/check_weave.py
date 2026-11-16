@@ -53,7 +53,7 @@ ENTRY_MARKERS = {
     "reply-box": r"d::reply_box\(", "choice": r'class="choice"',
     "rows": r"item-list", "table": r"table-records", "facts": r'class="facts"', "pager": r"l::pager\(",
     "more": r"l::more\(",
-    "account": r"p::account\(", "git-identity": r"p::git_identity\(", "avatar-group": r"p::avatar_group\(",
+    "account": r"p::account\(", "avatar-upload": r'class="profile-avatar"', "git-identity": r"p::git_identity\(", "avatar-group": r"p::avatar_group\(",
     "links": r"c::external\(", "tooltip": r"data-tip=", "time": r"c::time\(", "hash": r"c::hash\(",
     "cut": r"c::cut\(", "popover": r"c::popover\(", "password": r'type="password"', "count": r"maxlength=",
     "names": r"data-names", "sort": r"m::view_menu\(ctx, \"Sort\"", "switches": r'type="checkbox"',

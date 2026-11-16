@@ -72,13 +72,6 @@
   align-items: center;
 }
 
-/* Two-factor setup and recovery codes */
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding-inline-start: var(--space-5);
-}
 .qr-code {
   display: block;
   border: var(--border-width) solid var(--border);

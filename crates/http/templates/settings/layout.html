@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{#- Every user settings page: the settings side menu, then the page. The
+    page starts with its heading and includes settings/saved.html under
+    it. -#}
 {% block sidebar %}
 {% include "settings/sidebar.html" %}
 {% endblock %}
 {% block content %}
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
-{%- endif %}
+<div class="page">
 {% block settings %}{% endblock %}
+</div>
 {% endblock %}

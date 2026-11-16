@@ -327,7 +327,6 @@ struct CodeForm {
 struct RecoveryCodesPage {
     ctx: PageCtx,
     tab: &'static str,
-    message: Option<&'static str>,
     codes: Vec<String>,
     /// Just turned on (as opposed to regenerated).
     first: bool,
@@ -344,7 +343,6 @@ async fn totp_confirm(
         Ok(codes) => Ok(no_store(render(&RecoveryCodesPage {
             ctx,
             tab: "security",
-            message: None,
             codes: codes.into_iter().map(Secret::into_inner).collect(),
             first: true,
         }))),
@@ -387,7 +385,6 @@ async fn recovery_codes(
     Ok(no_store(render(&RecoveryCodesPage {
         ctx,
         tab: "security",
-        message: None,
         codes: codes.into_iter().map(Secret::into_inner).collect(),
         first: false,
     })))

@@ -230,6 +230,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - In the conversation, every name shows the account's avatar, bots included: who pushed a revision, merged, reviewed, commented, or changed labels; Slath itself is named as such.
 - The merge box is one frame per step (update the branch, apply suggestions, merge when ready, merge), and the details column uses the same fields as issues.
 - The push protection pages list findings as rows and allowances as a table that stacks on phones, with who allowed each one.
+- User settings pages put each part in its own section with its form; tables of keys, tokens, sessions, and passkeys stack on phones.
+- A new access token is shown in a field with a copy button; two-factor setup shows its setup key the same way.
+- Sign out everywhere is a danger section at the end of Sessions; appearance and notification choices explain each option.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

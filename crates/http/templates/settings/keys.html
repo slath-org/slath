@@ -1,14 +1,18 @@
 {% extends "settings/layout.html" %}
 {% block title %}SSH keys{% endblock %}
 {% block settings %}
-<h1>SSH keys</h1>
-<p>SSH keys let you clone and push over SSH. Each key belongs to exactly one account.</p>
-{% include "settings/errors.html" %}
+<header class="page-head">
+  <div class="page-head-row"><h1>SSH keys</h1></div>
+  <p class="page-head-intro">SSH keys let you clone and push over SSH. Each key belongs to exactly one account.</p>
+</header>
+{% include "settings/saved.html" %}
+<section class="section" aria-labelledby="keys-heading">
+<h2 id="keys-heading">Your keys</h2>
 {%- if keys.is_empty() %}
-<p class="text-secondary empty-state">You have no SSH keys.</p>
+{%- call msg::empty("You have no SSH keys.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="keys-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="keys-caption" class="visually-hidden">Your SSH keys</caption>
   <thead>
     <tr><th scope="col">Title</th><th scope="col">Fingerprint</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
@@ -16,11 +20,11 @@
   <tbody>
   {%- for k in keys %}
     <tr>
-      <td>{{ k.title }}</td>
-      <td><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
-      <td><time datetime="{{ k.created.iso }}">{{ k.created.text }}</time></td>
-      <td>{% if let Some(u) = k.last_used %}<time datetime="{{ u.iso }}">{{ u.text }}</time>{% else %}Never{% endif %}</td>
-      <td>
+      <td data-label="Title">{{ k.title }}</td>
+      <td data-label="Fingerprint"><code>{{ k.fingerprint }}</code> <span class="text-secondary">({{ k.key_type }})</span></td>
+      <td data-label="Added">{% call c::time(k.created) %}{% endcall %}</td>
+      <td data-label="Last used">{% if let Some(u) = k.last_used %}{% call c::time(u) %}{% endcall %}{% else %}Never{% endif %}</td>
+      <td class="table-actions">
         <form method="post" action="/-/settings/keys/{{ k.id }}/delete" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
           <button type="submit" class="button">Remove<span class="visually-hidden"> {{ k.title }}</span></button>
@@ -32,25 +36,19 @@
 </table>
 </div>
 {%- endif %}
-
-<h2>Add a key</h2>
-<form method="post" action="/-/settings/keys" class="form" novalidate>
+</section>
+<section class="section" aria-labelledby="add-key-heading">
+<h2 id="add-key-heading">Add a key</h2>
+<form method="post" action="/-/settings/keys" class="form-layout-wide" novalidate>
+{% include "settings/errors.html" %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="key">Public key</label>
-    <textarea id="key" name="key" rows="4" required spellcheck="false" autocapitalize="none" aria-describedby="key-hint{% if self.error("key").is_some() %} key-error{% endif %}"
-      {%- if self.error("key").is_some() %} aria-invalid="true"{% endif %}>{{ key }}</textarea>
-    <p id="key-hint" class="hint">The contents of your <code>.pub</code> file, e.g. <code>~/.ssh/id_ed25519.pub</code>. Ed25519 and ECDSA keys and RSA keys of at least 3072 bits are accepted.</p>
-    {%- if let Some(e) = self.error("key") %}
-    <p id="key-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="title">Title</label>
-    <input id="title" name="title" type="text" value="{{ title }}" maxlength="100" aria-describedby="title-hint"
-      {%- if self.error("title").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="title-hint" class="hint">Optional. Defaults to the key's comment.</p>
-  </div>
-  <div><button type="submit" class="button button-primary">Add key</button></div>
+  {%- call f::field("key", "Public key", "The contents of your .pub file, for example ~/.ssh/id_ed25519.pub. Ed25519 and ECDSA keys and RSA keys of at least 3072 bits are accepted.", self.error("key").unwrap_or_default()) %}
+  <textarea id="key" name="key" rows="4" required spellcheck="false" autocapitalize="none"{% call f::described("key", "x", self.error("key").unwrap_or_default()) %}{% endcall %}>{{ key }}</textarea>
+  {%- endcall %}
+  {%- call f::field("title", "Title", "Defaults to the key's comment.", self.error("title").unwrap_or_default(), true) %}
+  <input id="title" name="title" type="text" value="{{ title }}" maxlength="100"{% call f::described("title", "x", self.error("title").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Add key</button>{% endcall %}
 </form>
+</section>
 {% endblock %}

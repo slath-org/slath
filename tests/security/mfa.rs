@@ -25,9 +25,9 @@ fn now() -> i64 {
 /// The setup key shown on the enrollment page.
 fn secret_from(page: &str) -> Vec<u8> {
     let key = page
-        .split("<code class=\"secret-key\">")
+        .split("id=\"setup-key\" type=\"text\" value=\"")
         .nth(1)
-        .and_then(|r| r.split("</code>").next())
+        .and_then(|r| r.split('"').next())
         .unwrap_or_else(|| panic!("no setup key on the page: {page}"));
     totp::base32_decode(key).unwrap()
 }

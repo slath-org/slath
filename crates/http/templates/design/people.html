@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "components/forms.html" as f %}
 {% import "components/people.html" as p %}
 {% import "design/catalog.html" as cat %}
 {% block title %}People · Design catalog{% endblock %}
@@ -30,6 +31,25 @@
 <div class="stack-inside">
 <p class="item-meta text-secondary">#14 opened 3 hours ago by {% call p::account(ctx, "alice") %}{% endcall %}</p>
 <p><a href="#account">Review requested by {% call p::account(ctx, "alice", false) %}{% endcall %}</a></p>
+</div>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("avatar-upload", "Avatar upload", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Changing the avatar of an account, an organization, or a bot: the avatar as it is now, beside the form that uploads a new one or removes it.</dd>
+  <dt>Markup</dt><dd><code>div.profile-avatar</code> &gt; the <code>img</code> (64 px, decorative) and the form.</dd>
+  <dt>Variants</dt><dd>Generated avatar (no Remove); uploaded avatar.</dd>
+  <dt>Accessibility</dt><dd>The image is decorative; the field says what files it takes.</dd>
+  <dt>Not for</dt><dd>Showing an avatar next to a name (the account name).</dd>
+</dl>
+{%- call cat::example("An uploaded avatar.") %}
+<div class="profile-avatar">
+  {% call p::avatar(ctx, "alice") %}{% endcall %}
+  <form class="form-layout" action="#avatar-upload">
+    {%- call f::field("demo-avatar", "Image", "PNG, JPEG, or WebP.") %}<input id="demo-avatar" type="file"{% call f::described("demo-avatar", "x", "") %}{% endcall %}>{% endcall %}
+    {%- call f::buttons() %}<button type="button" class="button">Upload avatar</button><button type="button" class="button">Remove avatar</button>{% endcall %}
+  </form>
 </div>
 {%- endcall %}
 {%- endcall %}

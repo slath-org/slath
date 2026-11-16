@@ -251,8 +251,5 @@ fn conf_jj_11_commands_follow_the_viewers_tool() {
         body.contains(r#"id="tool-git" type="radio" name="tool" value="git" checked"#),
         "{body}"
     );
-    assert!(
-        body.contains("Automatic (jj, from your recent pushes)"),
-        "{body}"
-    );
+    assert!(body.contains("jj, from your recent pushes."), "{body}");
 }

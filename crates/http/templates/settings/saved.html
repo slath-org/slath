@@ -1,0 +1,4 @@
+{#- What a submitted settings form did, under the page's heading. -#}
+{%- if let Some(m) = message %}
+{%- call msg::saved(m) %}{% endcall %}
+{%- endif %}

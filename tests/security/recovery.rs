@@ -207,10 +207,10 @@ fn conf_auth_03_reset_still_requires_the_second_factor() {
     );
     let key = r
         .body
-        .split("<code class=\"secret-key\">")
+        .split("id=\"setup-key\" type=\"text\" value=\"")
         .nth(1)
         .unwrap()
-        .split("</code>")
+        .split('"')
         .next()
         .unwrap();
     let secret = totp::base32_decode(key).unwrap();
