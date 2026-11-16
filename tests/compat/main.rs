@@ -18,6 +18,7 @@ mod import;
 mod inventory;
 mod iteration;
 mod jj;
+mod jj_prediction;
 mod ledger;
 mod merge;
 mod merge_requests;
