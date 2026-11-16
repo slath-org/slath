@@ -514,3 +514,63 @@ fn conf_review_09_suggestions_in_the_ui() {
     assert!(body.contains("Outdated: its lines changed since"), "{body}");
     assert!(!body.contains(&format!("value=\"{late}\"")), "{body}");
 }
+
+/// A suggestion on a symlink is refused (catalogue C4): applying it would
+/// rewrite where the link points. Nothing changes: not the branch, not the
+/// repository's files.
+#[test]
+fn conf_sec_08_suggestion_on_symlink_rejected() {
+    let s = TestServer::start();
+    let alice = token(&s, "alice");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let url = s.url(&DEMO);
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    write(&git, &w, "real.txt", "real\n", "init");
+    git.ok(&w, &["push", "-q", &url, "main"]);
+    git.ok(&w, &["switch", "-q", "-c", "links"]);
+    std::os::unix::fs::symlink("real.txt", w.join("link")).unwrap();
+    git.ok(&w, &["add", "-A"]);
+    git.ok(&w, &["commit", "-q", "-m", "Add a link"]);
+    git.ok(&w, &["push", "-q", &url, "links"]);
+    let (n, head) = open_mr(&s, &alice, "links");
+    let repo = s.repo_path(&DEMO);
+    let config = std::fs::metadata(repo.join("config"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        &format!("/alice/demo/merge-requests/{n}/threads"),
+        Some(
+            json!({"body": "```suggestion\n../../../../etc/passwd\n```", "path": "link",
+                    "side": "new", "line_start": 1, "line_end": 1}),
+        ),
+    );
+    if r.status < 300 {
+        let c = r.json()["comments"][0]["id"].as_str().unwrap().to_owned();
+        let r = apply(
+            &s,
+            &alice,
+            n,
+            json!({"comments": [c], "expected_head_oid": head}),
+        );
+        assert!(matches!(r.status, 409 | 422), "{}", r.body);
+        assert!(r.body.contains("isn't a file"), "{}", r.body);
+    } else {
+        assert_eq!(r.status, 422, "{}", r.body);
+    }
+    assert_eq!(mr(&s, &alice, n)["head_oid"], head.as_str());
+    assert_eq!(mr(&s, &alice, n)["revisions"], 1);
+    assert_eq!(
+        std::fs::metadata(repo.join("config"))
+            .unwrap()
+            .modified()
+            .unwrap(),
+        config
+    );
+}

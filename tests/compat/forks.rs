@@ -398,3 +398,94 @@ fn conf_git_10_fork_is_offered_only_to_another_namespace() {
         form.body
     );
 }
+
+/// A fork never follows a symlink in the parent's object store (catalogue
+/// C4): if `objects/` holds one (here a tampered `objects/ab` and an
+/// `objects/info/alternates` pointing outside), the fork fails with
+/// nothing copied, and the place the links point at stays untouched.
+#[test]
+fn conf_git_10_fork_does_not_follow_objects_symlinks() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let bob = token(&s, "bob");
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    std::fs::create_dir_all(&w).unwrap();
+    git.ok(&w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "demo\n").unwrap();
+    git.ok(&w, &["add", "-A"]);
+    git.ok(&w, &["commit", "-q", "-m", "init"]);
+    git.ok(&w, &["push", "-q", &s.url(&DEMO), "main"]);
+    let r = api(
+        &s,
+        &alice,
+        "PATCH",
+        "/alice/demo",
+        Some(json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let outside = d.path().join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("secret"), "not for forks\n").unwrap();
+    let objects = s.repo_path(&DEMO).join("objects");
+    for (i, (link, target)) in [
+        (objects.join("ab"), outside.clone()),
+        (objects.join("info/alternates"), outside.join("secret")),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let _ = std::fs::remove_dir_all(&link);
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let name = format!("fork-{i}");
+        let r = api(
+            &s,
+            &bob,
+            "POST",
+            "/alice/demo/forks",
+            Some(json!({"namespace": "bob", "name": name})),
+        );
+        if r.status == 202 {
+            let path = format!("/bob/{name}/fork");
+            let start = std::time::Instant::now();
+            loop {
+                let f = api(&s, &bob, "GET", &path, None).json();
+                assert_ne!(f["state"], "done", "{} forked: {f}", link.display());
+                if f["state"] == "failed" {
+                    break;
+                }
+                assert!(start.elapsed().as_secs() < 30, "{f}\n{}", s.log());
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        } else {
+            assert!(matches!(r.status, 409 | 422), "{}", r.body);
+        }
+        std::fs::remove_file(&link).unwrap();
+        // The fork's directory, if any, holds no link and no copy.
+        let fork = s.repo_path(&TestRepo {
+            namespace: "bob",
+            name: Box::leak(name.into_boxed_str()),
+        });
+        fn walk(d: &std::path::Path) {
+            for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
+                let t = e.file_type().unwrap();
+                assert!(!t.is_symlink(), "{}", e.path().display());
+                if t.is_dir() {
+                    walk(&e.path());
+                } else {
+                    let text = std::fs::read(e.path()).unwrap_or_default();
+                    assert!(!String::from_utf8_lossy(&text).contains("not for forks"));
+                }
+            }
+        }
+        walk(&fork);
+    }
+    assert_eq!(
+        std::fs::read_to_string(outside.join("secret")).unwrap(),
+        "not for forks\n"
+    );
+    assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 1);
+}

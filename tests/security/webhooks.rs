@@ -742,3 +742,176 @@ fn webhook_pages_for_administrators_and_owners_only() {
     assert_eq!(r.status, 303, "{}", r.body);
     assert!(alice.get(base).body.contains("No webhooks yet."));
 }
+
+/// Webhook secrets and tokens never come back (catalogue C24): not from
+/// the API's hook, list, and delivery answers, not from the settings
+/// pages, not in error answers, and no response carries internal
+/// `X-Slath-*` headers. Deliveries carry the signature, never the secret.
+#[test]
+fn conf_sec_04_no_secrets_in_responses() {
+    let s = TestServer::start_full(&[DEMO], LOCAL);
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "hooks", &["repo:write"]);
+    let (port, got) = receiver(vec![200]);
+    let secret = "a webhook secret nobody may read back";
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(
+            json!({"url": format!("http://127.0.0.1:{port}/hook"), "events": ["push"], "secret": secret}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        &format!("/api/v1/repos/alice/demo/webhooks/{id}/ping"),
+        None,
+    );
+    assert!(r.status < 300, "{}", r.body);
+    wait_for("no ping", &s, || !got.lock().unwrap().is_empty());
+    wait_for("ping not logged", &s, || {
+        !deliveries(&s, &token, &id).is_empty()
+    });
+    let did = deliveries(&s, &token, &id)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let hook = format!("/api/v1/repos/alice/demo/webhooks/{id}");
+    let mut answers = Vec::new();
+    for path in [
+        hook.clone(),
+        "/api/v1/repos/alice/demo/webhooks".to_owned(),
+        format!("{hook}/deliveries"),
+        format!("{hook}/deliveries/{did}"),
+    ] {
+        let r = api(&s, &token, "GET", &path, None);
+        assert_eq!(r.status, 200, "{path}");
+        answers.push((path, r));
+    }
+    for path in [
+        "/alice/demo/settings/webhooks".to_owned(),
+        format!("/alice/demo/settings/webhooks/{id}"),
+        format!("/alice/demo/settings/webhooks/{id}/deliveries/{did}"),
+    ] {
+        let r = alice.get(&path);
+        assert_eq!(r.status, 200, "{path}");
+        answers.push((path, r));
+    }
+    // Error answers.
+    for (method, body) in [
+        (
+            "POST",
+            json!({"url": "ftp://x", "events": ["push"], "secret": secret}),
+        ),
+        ("PATCH", json!({"url": "not a url", "secret": secret})),
+    ] {
+        let path = if method == "POST" {
+            "/api/v1/repos/alice/demo/webhooks".to_owned()
+        } else {
+            hook.clone()
+        };
+        let r = api(&s, &token, method, &path, Some(body));
+        assert_eq!(r.status, 422, "{method} {path}: {}", r.body);
+        answers.push((format!("{method} {path}"), r));
+    }
+    for (what, r) in &answers {
+        assert!(!r.body.contains(secret), "{what} shows the secret");
+        assert!(!r.body.contains(&token), "{what} shows the token");
+        assert!(
+            !r.headers
+                .iter()
+                .any(|(k, _)| k.to_ascii_lowercase().starts_with("x-slath")),
+            "{what}: internal header in {:?}",
+            r.headers
+        );
+    }
+    let g = got.lock().unwrap()[0].clone();
+    assert!(!String::from_utf8_lossy(&g.body).contains(secret));
+    assert!(!g.headers.iter().any(|(_, v)| v.contains(secret)));
+}
+
+/// A webhook target that redirects isn't followed (catalogue C16): a 302
+/// to another address gets no request there, and the delivery fails.
+#[test]
+fn conf_sec_04_ssrf_webhook_redirects_not_followed() {
+    let s = TestServer::start_full(&[DEMO], LOCAL);
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "hooks", &["repo:write"]);
+    // The internal service a redirect points at: counts connections.
+    let inner = TcpListener::bind("127.0.0.1:0").unwrap();
+    let inner_port = inner.local_addr().unwrap().port();
+    let hits = Arc::new(Mutex::new(0));
+    let h = Arc::clone(&hits);
+    std::thread::spawn(move || {
+        for conn in inner.incoming() {
+            if conn.is_ok() {
+                *h.lock().unwrap() += 1;
+            }
+        }
+    });
+    let outer = TcpListener::bind("127.0.0.1:0").unwrap();
+    let outer_port = outer.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for conn in outer.incoming() {
+            let Ok(mut c) = conn else { continue };
+            let mut r = BufReader::new(c.try_clone().unwrap());
+            let mut line = String::new();
+            while r.read_line(&mut line).is_ok_and(|n| n > 0) && line != "\r\n" {
+                line.clear();
+            }
+            let _ = write!(
+                c,
+                "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{inner_port}/internal\r\n\
+                 Content-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+        }
+    });
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(json!({"url": format!("http://127.0.0.1:{outer_port}/hook"), "events": ["push"]})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        &format!("/api/v1/repos/alice/demo/webhooks/{id}/ping"),
+        None,
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let attempts = || {
+        let Some(d) = deliveries(&s, &token, &id).first().cloned() else {
+            return (Value::Null, Vec::new());
+        };
+        let detail = api(
+            &s,
+            &token,
+            "GET",
+            &format!(
+                "/api/v1/repos/alice/demo/webhooks/{id}/deliveries/{}",
+                d["id"].as_str().unwrap()
+            ),
+            None,
+        )
+        .json();
+        (
+            d,
+            detail["attempts"].as_array().cloned().unwrap_or_default(),
+        )
+    };
+    wait_for("no attempt", &s, || !attempts().1.is_empty());
+    let (d, tries) = attempts();
+    assert_ne!(d["state"], "delivered", "{d}");
+    assert_eq!(tries[0]["status"], 302, "{tries:?}");
+    std::thread::sleep(Duration::from_secs(1));
+    assert_eq!(*hits.lock().unwrap(), 0, "the redirect was followed");
+}
