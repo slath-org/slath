@@ -404,9 +404,6 @@ body:not(:has(#app-sidebar)) .sidebar-toggle {
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
 }
-.form-actions {
-  margin: var(--space-4) 0;
-}
 .profile-avatar {
   display: flex;
   flex-wrap: wrap;
@@ -532,11 +529,6 @@ fieldset.field {
 }
 .repo-name {
   font-weight: var(--weight-semibold);
-}
-.role-form {
-  display: inline-flex;
-  gap: var(--space-2);
-  align-items: center;
 }
 
 /* Repository context: the header, the code area's tabs, and notices
@@ -1543,33 +1535,6 @@ h1 > bdi code,
 .tone-blocking > details > summary > svg,
 .readiness.tone-blocking .readiness-icon svg {
   color: var(--error);
-}
-.merge-step {
-  max-width: none;
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.merge-step > p {
-  margin: 0;
-}
-.merge-step .field,
-.merge-step .error-summary {
-  max-width: 32rem;
-}
-/* Stopping or re-enabling a bot ends its page, apart from the forms
-   above it. */
-.bot-control {
-  margin-block-start: var(--space-7);
-}
-.merge-step > .merge-step-title {
-  margin: 0;
-  font-size: var(--text-lg);
-}
-.merge-step.notice {
-  margin: 0;
-  border-inline-start-width: var(--space-1);
 }
 .notice-line {
   display: flex;

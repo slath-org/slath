@@ -2,26 +2,21 @@
 {% block title %}New organization{% endblock %}
 {% block sidebar %}{% let area = "" %}{% include "global_sidebar.html" %}{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>New organization</h1>
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>New organization</h1></div>
+  <p class="page-head-intro">An organization owns repositories together with its members, teams, and bots.</p>
+</header>
+<form method="post" action="/-/orgs" class="form-layout" novalidate>
 {% include "settings/errors.html" %}
-<form method="post" action="/-/orgs" class="form" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
-      aria-describedby="name-hint{% if self.error("name").is_some() %} name-error{% endif %}"{% if self.error("name").is_some() %} aria-invalid="true"{% endif %}>
-    <p id="name-hint" class="hint">Letters, digits, ".", "_" and "-"; up to 39 characters. Users and organizations share names.</p>
-    {%- if let Some(e) = self.error("name") %}
-    <p id="name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="display_name">Display name</label>
-    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
-      {%- if self.error("display_name").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div><button type="submit" class="button button-primary">Create organization</button></div>
+  {%- call f::field("name", "Name", "Letters, digits, \".\", \"_\" and \"-\"; up to 39 characters. Users and organizations share names.", self.error("name").unwrap_or_default()) %}
+  <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"{% call f::described("name", "x", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("display_name", "Display name", "", self.error("display_name").unwrap_or_default(), true) %}
+  <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"{% call f::described("display_name", "", self.error("display_name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create organization</button>{% endcall %}
 </form>
 </div>
 {% endblock %}

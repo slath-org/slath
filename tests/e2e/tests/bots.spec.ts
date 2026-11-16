@@ -44,7 +44,7 @@ test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   await expectAccessible(page);
   await page.getByLabel("Repositories", { exact: true }).fill(`${USERS.alice.name}/demo`);
   await tapOrClick(page, page.getByRole("button", { name: "Create token" }));
-  await expect(page.getByLabel("New token")).toHaveValue(/^slath_bot_/);
+  await expect(page.getByRole("textbox", { name: "New token" })).toHaveValue(/^slath_bot_/);
   await expect(page.getByRole("table", { name: `Tokens of ${bot}` })).toContainText("release job");
   await expectAccessible(page);
 });

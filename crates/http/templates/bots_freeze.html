@@ -1,22 +1,23 @@
 {#- Freezing every bot of a scope. Expects freeze (FreezeView) and
-    freeze_action. -#}
-{%- if let Some(f) = freeze.since %}
-<div class="notice" role="status">
-  <p class="notice-line">{% call m::icon(ctx, "bot") %}{% endcall %}<span><strong>{{ freeze.scope }} are frozen</strong> since <time datetime="{{ f.iso }}">{{ f.text }}</time>{% if let Some(by) = freeze.by %} by {{ by }}{% endif %}. Their tokens and SSH keys are refused and their pushes rejected; nothing is revoked.</span></p>
-  <form method="post" action="{{ freeze_action }}" class="form-actions">
+    freeze_action. When frozen, a notice with Unfreeze; the page includes
+    it under its heading. Otherwise a danger section; the page includes
+    it at its end. -#}
+{%- if let Some(fs) = freeze.since %}
+{%- call msg::notice_action() %}
+  <p>{{ freeze.scope }} are frozen since {% call c::time(fs) %}{% endcall %}{% if let Some(by) = freeze.by %} by {% call p::account(ctx, by) %}{% endcall %}{% endif %}. Their tokens and SSH keys are refused and their pushes rejected; nothing is revoked.</p>
+  <form method="post" action="{{ freeze_action }}" class="inline-form">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <input type="hidden" name="frozen" value="false">
     <button type="submit" class="button">Unfreeze bots</button>
   </form>
-</div>
+{%- endcall %}
 {%- else %}
-<section class="merge-step" aria-labelledby="freeze-title">
-  <h2 id="freeze-title" class="merge-step-title">Freeze {{ freeze.scope|lower }}</h2>
-  <p>Pauses them at once, for example during an incident: their tokens and SSH keys are refused and their pushes rejected until you unfreeze them. Nothing is revoked.</p>
-  <form method="post" action="{{ freeze_action }}" class="form-actions">
-    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <input type="hidden" name="frozen" value="true">
-    <button type="submit" class="button button-danger">Freeze bots</button>
-  </form>
-</section>
+{%- let freeze_title %}Freeze {{ freeze.scope|lower }}{% endlet %}
+{%- call f::danger("freeze-title", freeze_title, "Pauses them at once, for example during an incident: their tokens and SSH keys are refused and their pushes rejected until you unfreeze them. Nothing is revoked.") %}
+<form method="post" action="{{ freeze_action }}" class="form-layout">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="frozen" value="true">
+  {%- call f::buttons() %}<button type="submit" class="button button-danger">Freeze bots</button>{% endcall %}
+</form>
+{%- endcall %}
 {%- endif %}

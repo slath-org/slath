@@ -2,55 +2,53 @@
 {% block title %}Settings · {{ org }}{% endblock %}
 {% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "settings" %}{% let org_member = true %}{% let org_manage = true %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
-<div class="narrow">
-<h1>Organization settings</h1>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Organization settings</h1></div>
+</header>
 {% include "settings/errors.html" %}
-<div class="profile-avatar">
-  <img src="{{ avatar_url }}" alt="" width="64" height="64">
-  <form method="post" action="/{{ org }}/-/settings/avatar" enctype="multipart/form-data" class="form" novalidate>
+<section class="section" aria-labelledby="avatar-heading">
+  <h2 id="avatar-heading">Avatar</h2>
+  <div class="profile-avatar">
+    <img src="{{ avatar_url }}" alt="" width="64" height="64">
+    <form method="post" action="/{{ org }}/-/settings/avatar" enctype="multipart/form-data" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::field("avatar", "Image", "PNG, JPEG, or WebP. It is cropped to a square and stored without its metadata.", self.error("avatar").unwrap_or_default()) %}
+      <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp"{% call f::described("avatar", "x", self.error("avatar").unwrap_or_default()) %}{% endcall %}>
+      {%- endcall %}
+      {%- call f::buttons() %}
+        <button type="submit" class="button">Upload avatar</button>
+        {%- if has_avatar %}
+        <button type="submit" name="remove" value="1" class="button">Remove avatar</button>
+        {%- endif %}
+      {%- endcall %}
+    </form>
+  </div>
+</section>
+<section class="section" aria-labelledby="profile-heading">
+  <h2 id="profile-heading">Profile</h2>
+  <form method="post" action="/{{ org }}/-/settings" class="form-layout" novalidate>
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-    <div class="field">
-      <label for="avatar">Avatar</label>
-      <input id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="avatar-hint{% if self.error("avatar").is_some() %} avatar-error{% endif %}"
-        {%- if self.error("avatar").is_some() %} aria-invalid="true"{% endif %}>
-      <p id="avatar-hint" class="hint">PNG, JPEG, or WebP. It is cropped to a square and stored without its metadata.</p>
-      {%- if let Some(e) = self.error("avatar") %}
-      <p id="avatar-error" class="field-error">{{ e }}</p>
-      {%- endif %}
-    </div>
-    <div class="button-row">
-      <button type="submit" class="button">Upload avatar</button>
-      {%- if has_avatar %}
-      <button type="submit" name="remove" value="1" class="button">Remove avatar</button>
-      {%- endif %}
-    </div>
+    {%- call f::field("display_name", "Display name", "", self.error("display_name").unwrap_or_default(), true) %}
+    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"{% call f::described("display_name", "", self.error("display_name").unwrap_or_default()) %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::field("description", "Description", "Up to 500 characters; shown on the organization's page.", self.error("description").unwrap_or_default(), true) %}
+    <textarea id="description" name="description" rows="3" maxlength="500"{% call f::described("description", "x", self.error("description").unwrap_or_default()) %}{% endcall %}>{{ description }}</textarea>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button button-primary">Save profile</button>{% endcall %}
   </form>
-</div>
-<form method="post" action="/{{ org }}/-/settings" class="form" novalidate>
-  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="display_name">Display name</label>
-    <input id="display_name" name="display_name" type="text" value="{{ display_name }}" maxlength="100"
-      {%- if self.error("display_name").is_some() %} aria-invalid="true"{% endif %}>
-  </div>
-  <div class="field">
-    <label for="description">Description</label>
-    <textarea id="description" name="description" rows="3" maxlength="500"
-      {%- if self.error("description").is_some() %} aria-invalid="true"{% endif %}>{{ description }}</textarea>
-  </div>
-  <div><button type="submit" class="button button-primary">Save</button></div>
-</form>
-<h2>Member policies</h2>
-<form method="post" action="/{{ org }}/-/settings/policies" class="form" novalidate>
-  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <fieldset>
-    <legend>Access for every member</legend>
-    <div class="radio"><input id="dmr-none" type="radio" name="default_member_role" value="none"{% if default_member_role == "none" %} checked{% endif %}><label for="dmr-none">None: only repositories they or their teams are given</label></div>
-    <div class="radio"><input id="dmr-read" type="radio" name="default_member_role" value="read"{% if default_member_role == "read" %} checked{% endif %}><label for="dmr-read">Read every repository of the organization</label></div>
-  </fieldset>
-  <div class="checkbox"><input id="require_mfa" type="checkbox" name="require_mfa" value="1"{% if require_mfa %} checked{% endif %} aria-describedby="require_mfa-hint"><label for="require_mfa">Require two-factor authentication</label></div>
-  <p id="require_mfa-hint" class="hint">Members and collaborators without it lose access to the organization's repositories until they set it up.</p>
-  <div><button type="submit" class="button">Save policies</button></div>
-</form>
+</section>
+<section class="section" aria-labelledby="policies-heading">
+  <h2 id="policies-heading">Member policies</h2>
+  <form method="post" action="/{{ org }}/-/settings/policies" class="form-layout" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    {%- call f::question("default_member_role", "Access for every member") %}
+    {%- call f::option("radio", "dmr-none", "default_member_role", "none", "None", default_member_role == "none", "Only the repositories they or their teams are given.") %}{% endcall %}
+    {%- call f::option("radio", "dmr-read", "default_member_role", "read", "Read", default_member_role == "read", "Every repository of the organization.") %}{% endcall %}
+    {%- endcall %}
+    {%- call f::option("checkbox", "require_mfa", "require_mfa", "1", "Require two-factor authentication", require_mfa, "Members and collaborators without it lose access to the organization's repositories until they set it up.") %}{% endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">Save policies</button>{% endcall %}
+  </form>
+</section>
 </div>
 {% endblock %}

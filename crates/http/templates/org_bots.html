@@ -2,12 +2,20 @@
 {% block title %}Bots · {{ org }}{% endblock %}
 {% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "bots" %}{% let org_member = true %}{% let org_manage = true %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Bots</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Bots</h1></div>
+  <p class="page-head-intro">Bots are accounts for automation and AI agents. They never sign in and act only through the tokens and SSH keys the organization's owners give them. Give them roles on repositories like members, as collaborators or through teams.</p>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
-<p>Bots are accounts for automation and AI agents. They never sign in and act only through the tokens and SSH keys the organization's owners give them. Give them roles on repositories like members, as collaborators or through teams.</p>
-{% include "settings/errors.html" %}
+{%- if freeze.since.is_some() %}
 {% include "bots_freeze.html" %}
+{%- endif %}
 {% include "bots_list.html" %}
+{%- if freeze.since.is_none() %}
+{% include "bots_freeze.html" %}
+{%- endif %}
+</div>
 {% endblock %}

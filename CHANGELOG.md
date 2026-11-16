@@ -236,6 +236,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Repository settings put each part in its own section; collaborators, teams, deploy keys, and protection rules are tables that stack on phones, each followed by its form.
 - Deleting a repository is a danger section; deploy keys show who added them with their avatar.
 - Webhook pages show deliveries and attempts as lists and tables, a new webhook's secret with a copy button, and deleting a webhook as a danger section.
+- Organization settings, members, teams, and bots pages are built like the other settings pages; members and team members show with their avatars.
+- A bot's page groups activity, commits, profile, tokens, and SSH keys in sections; a new token comes with a copy button, and stopping the bot is a danger section.
+- Freezing bots is a danger section at the end of the bots page; while they're frozen, a notice at the top says since when and by whom, with Unfreeze.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

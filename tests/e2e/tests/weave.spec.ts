@@ -77,6 +77,15 @@ const MIGRATED = [
   "/alice/demo/settings/protections",
   "/alice/demo/settings/webhooks",
   "/alice/demo/settings/danger",
+  "/-/orgs/new",
+  // Pages of an organization the test creates: "org:" and the path in it.
+  "org:/-/settings",
+  "org:/-/members",
+  "org:/-/teams",
+  "org:/-/teams/core",
+  "org:/-/bots",
+  "org:/-/webhooks",
+  "org:bot",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(
@@ -211,6 +220,28 @@ for (const path of MIGRATED) {
       await page.getByLabel("Title").fill(`Weave ${test.info().project.name}`);
       await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
       await expect(page).toHaveURL(/\/issues\/[0-9]+$/);
+    } else if (path.startsWith("org:")) {
+      const rest = path.slice(4);
+      const tag = `${test.info().project.name}-${rest}`;
+      let h = 0;
+      for (const ch of tag) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      const org = `w${h.toString(36)}`;
+      await page.goto("/-/orgs/new");
+      await page.getByLabel("Name", { exact: true }).fill(org);
+      await tapOrClick(page, page.getByRole("button", { name: "Create organization" }));
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(org);
+      if (rest === "/-/teams/core") {
+        await page.goto(`/${org}/-/teams`);
+        await page.getByLabel("Name", { exact: true }).fill("core");
+        await tapOrClick(page, page.getByRole("button", { name: "Create team" }));
+        await expect(page.getByRole("status").filter({ hasText: "Team created." })).toBeVisible();
+      }
+      if (rest === "bot") {
+        await page.goto(`/${org}/-/bots`);
+        await page.getByLabel("Username").fill(`${org}-ci`);
+        await tapOrClick(page, page.getByRole("button", { name: "Create bot" }));
+        await expect(page.getByRole("status").filter({ hasText: "Bot created." })).toBeVisible();
+      } else await page.goto(`/${org}${rest}`);
     } else await page.goto(path);
     expect(await structure(page)).toEqual([]);
     expect(await spacing(page)).toEqual([]);

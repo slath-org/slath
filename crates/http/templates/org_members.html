@@ -2,22 +2,28 @@
 {% block title %}Members · {{ org }}{% endblock %}
 {% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "members" %}{% let org_member = true %}{% let org_manage = can_manage %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Members</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Members</h1></div>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
 {% include "settings/errors.html" %}
+<section class="section" aria-labelledby="members-heading">
+<h2 id="members-heading" class="visually-hidden">Members of {{ org }}</h2>
+<div class="stack-groups">
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="members-caption" id="members">
-<table class="table">
+<table class="table table-records">
   <caption id="members-caption" class="visually-hidden">Members of {{ org }}</caption>
   <thead><tr><th scope="col">Member</th><th scope="col">Role</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {%- for mem in members %}
     <tr>
-      <td><a href="/{{ mem.name }}">{{ mem.name }}</a>{% call m::bot_badge(ctx, mem.name) %}{% endcall %}{% if let Some(d) = mem.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
-      <td>
+      <td data-label="Member">{% call p::account(ctx, mem.name) %}{% endcall %}{% if let Some(d) = mem.display_name %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td data-label="Role">
       {%- if can_manage %}
-        <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/role" class="inline-form role-form">
+        <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/role" class="cluster">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
           <label for="role-{{ loop.index }}" class="visually-hidden">Role of {{ mem.name }}</label>
           <select id="role-{{ loop.index }}" name="role">
@@ -30,7 +36,7 @@
         {%- if mem.role == "owner" %}Owner{% else %}Member{% endif %}
       {%- endif %}
       </td>
-      <td>
+      <td class="table-actions">
       {%- if can_manage || viewer.as_deref() == Some(mem.name.as_str()) %}
         <form method="post" action="/{{ org }}/-/members/{{ mem.name }}/remove" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -44,25 +50,22 @@
 </table>
 </div>
 {%- if can_manage %}
-<h2>Add a member</h2>
-<form method="post" action="/{{ org }}/-/members" class="form" novalidate>
+<section class="subsection" aria-labelledby="add-member-heading">
+<h3 id="add-member-heading">Add a member</h3>
+<form method="post" action="/{{ org }}/-/members" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" value="{{ username }}" required autocapitalize="none" spellcheck="false"
-      {%- if self.error("username").is_some() %} aria-invalid="true" aria-describedby="username-error"{% endif %}>
-    {%- if let Some(e) = self.error("username") %}
-    <p id="username-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="new-role">Role</label>
-    <select id="new-role" name="role">
-      <option value="member" selected>Member</option>
-      <option value="owner">Owner</option>
-    </select>
-  </div>
-  <div><button type="submit" class="button button-primary">Add member</button></div>
+  {%- call f::field("username", "Username", "", self.error("username").unwrap_or_default()) %}
+  <input id="username" name="username" type="text" value="{{ username }}" required autocapitalize="none" spellcheck="false" autocomplete="off"{% call f::described("username", "", self.error("username").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::question("new-role", "Role") %}
+  {%- call f::option("radio", "new-role-member", "role", "member", "Member", true, "Access as the member policies and teams give.") %}{% endcall %}
+  {%- call f::option("radio", "new-role-owner", "role", "owner", "Owner", false, "Everything, including settings, members, and bots.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Add member</button>{% endcall %}
 </form>
+</section>
 {%- endif %}
+</div>
+</section>
+</div>
 {% endblock %}

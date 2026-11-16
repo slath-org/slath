@@ -2,24 +2,31 @@
 {% block title %}Teams · {{ org }}{% endblock %}
 {% block sidebar %}{% let org_name = org.as_str() %}{% let org_area = "teams" %}{% let org_member = true %}{% let org_manage = can_manage %}{% include "org_sidebar.html" %}{% endblock %}
 {% block content %}
-<h1>Teams</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<div class="page">
+<header class="page-head">
+  <div class="page-head-row"><h1>Teams</h1></div>
+  <p class="page-head-intro">Teams give groups of members access to repositories.</p>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
 {% include "settings/errors.html" %}
+<section class="section" aria-labelledby="teams-heading">
+<h2 id="teams-heading" class="visually-hidden">Teams of {{ org }}</h2>
+<div class="stack-groups">
 {%- if teams.is_empty() %}
-<p class="text-secondary empty-state">No teams yet.{% if can_manage %} Teams give groups of members access to repositories.{% endif %}</p>
+{%- call msg::empty("No teams yet.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="teams-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="teams-caption" class="visually-hidden">Teams of {{ org }}</caption>
   <thead><tr><th scope="col">Team</th><th scope="col" class="numeric">Members</th><th scope="col" class="numeric">Repositories</th></tr></thead>
   <tbody>
   {%- for t in teams %}
     <tr>
-      <td><a href="/{{ org }}/-/teams/{{ t.name }}">{{ t.name }}</a>{% if let Some(d) = t.description %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
-      <td class="numeric">{{ t.members }}</td>
-      <td class="numeric">{{ t.repos }}</td>
+      <td data-label="Team"><a href="/{{ org }}/-/teams/{{ t.name }}">{{ t.name }}</a>{% if let Some(d) = t.description %} <span class="text-secondary">{{ d }}</span>{% endif %}</td>
+      <td data-label="Members" class="numeric">{{ t.members }}</td>
+      <td data-label="Repositories" class="numeric">{{ t.repos }}</td>
     </tr>
   {%- endfor %}
   </tbody>
@@ -27,26 +34,21 @@
 </div>
 {%- endif %}
 {%- if can_manage %}
-<h2>New team</h2>
-<form method="post" action="/{{ org }}/-/teams" class="form" novalidate>
+<section class="subsection" aria-labelledby="new-team-heading">
+<h3 id="new-team-heading">New team</h3>
+<form method="post" action="/{{ org }}/-/teams" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"
-      {%- if let Some(e) = self.error("name") %} aria-invalid="true" aria-describedby="name-error"{% endif %}>
-    {%- if let Some(e) = self.error("name") %}
-    <p id="name-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div class="field">
-    <label for="description">Description <span class="text-secondary">(optional)</span></label>
-    <input id="description" name="description" type="text" maxlength="300"
-      {%- if let Some(e) = self.error("description") %} aria-invalid="true" aria-describedby="description-error"{% endif %}>
-    {%- if let Some(e) = self.error("description") %}
-    <p id="description-error" class="field-error">{{ e }}</p>
-    {%- endif %}
-  </div>
-  <div><button type="submit" class="button button-primary">Create team</button></div>
+  {%- call f::field("name", "Name", "", self.error("name").unwrap_or_default()) %}
+  <input id="name" name="name" type="text" value="{{ name }}" maxlength="39" required autocapitalize="none" spellcheck="false"{% call f::described("name", "", self.error("name").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("description", "Description", "", self.error("description").unwrap_or_default(), true) %}
+  <input id="description" name="description" type="text" maxlength="300"{% call f::described("description", "", self.error("description").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create team</button>{% endcall %}
 </form>
+</section>
 {%- endif %}
+</div>
+</section>
+</div>
 {% endblock %}
