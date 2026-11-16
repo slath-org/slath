@@ -123,6 +123,8 @@ struct MrRow {
     target: String,
     /// The head's checks; `None` without statuses or when not open.
     checks: Option<Checks>,
+    /// Who is asked to review it, or reviewed it.
+    reviewers: Vec<String>,
 }
 
 /// A head's checks in one tone (`done`, `waiting`, `blocking`) and words.
@@ -227,7 +229,7 @@ async fn list(
     let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
     let mut rows = Vec::new();
     for m in items.into_iter().take(PER_PAGE as usize) {
-        let (_, _, labels, _) = state.services.mr_details(&m).await?;
+        let (_, reviewers, labels, _) = state.services.mr_details(&m).await?;
         let (icon, s, text) = state_view(&m);
         let checks = if m.state == "open" {
             checks_summary(&state.services.mr_statuses(&m).await?)
@@ -237,6 +239,7 @@ async fn list(
         rows.push(MrRow {
             checks,
             labels,
+            reviewers: reviewers.into_iter().map(|(n, _)| n).collect(),
             number: m.number,
             icon,
             state: s,
@@ -1196,14 +1199,35 @@ struct Card {
     mergeable: bool,
     /// The source contains the target's head.
     up_to_date: bool,
-    /// Files no counting approver had viewed when approving (the first
-    /// [`UNVIEWED_SHOWN`]), and how many more there are.
+    /// Files no counting approver had viewed when approving (at most
+    /// [`UNVIEWED_MAX`]).
     unviewed: Vec<String>,
-    unviewed_more: usize,
+    /// Show all of them, not the first [`UNVIEWED_SHOWN`].
+    all_unviewed: bool,
+    /// The conversation's merge box with all of them.
+    unviewed_href: String,
 }
 
-/// How many files not viewed by an approver the card names.
-const UNVIEWED_SHOWN: usize = 50;
+impl Card {
+    /// The files not viewed by an approver that the card names.
+    fn unviewed_shown(&self) -> &[String] {
+        if self.all_unviewed {
+            &self.unviewed
+        } else {
+            &self.unviewed[..self.unviewed.len().min(UNVIEWED_SHOWN)]
+        }
+    }
+
+    /// How many of them the card leaves out.
+    fn unviewed_more(&self) -> usize {
+        self.unviewed.len() - self.unviewed_shown().len()
+    }
+}
+
+/// How many files not viewed by an approver the card names before "and N
+/// more", and how many the full list holds.
+const UNVIEWED_SHOWN: usize = 5;
+const UNVIEWED_MAX: usize = 500;
 
 /// Who the viewer is to this merge request, for choosing the next step.
 struct Viewer {
@@ -1233,8 +1257,8 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         .as_ref()
         .map(|c| c.unviewed.clone())
         .unwrap_or_default();
-    let unviewed_more = unviewed.len().saturating_sub(UNVIEWED_SHOWN);
-    unviewed.truncate(UNVIEWED_SHOWN);
+    unviewed.truncate(UNVIEWED_MAX);
+    let unviewed_href = format!("{base}?files=unviewed#merge-box");
     let done = |headline: String, reason: String, action| Card {
         headline,
         reason,
@@ -1245,7 +1269,8 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         mergeable: false,
         up_to_date,
         unviewed: unviewed.clone(),
-        unviewed_more,
+        all_unviewed: false,
+        unviewed_href: unviewed_href.clone(),
     };
     match m.state.as_str() {
         "merged" => {
@@ -1338,7 +1363,8 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         mergeable: false,
         up_to_date,
         unviewed,
-        unviewed_more,
+        all_unviewed: false,
+        unviewed_href,
     }
 }
 
@@ -1769,10 +1795,11 @@ async fn mr_page(
     message: Option<&'static str>,
     errors: Vec<FieldError>,
 ) -> Result<Response, AppError> {
-    mr_page_showing(state, ctx, subject, mr, message, errors, "all").await
+    mr_page_showing(state, ctx, subject, mr, message, errors, ("all", false)).await
 }
 
-/// The conversation, narrowed by `show` (`all`, `unresolved`, `mine`).
+/// The conversation, narrowed by `show` (`all`, `unresolved`, `mine`); with
+/// `all_unviewed`, its merge box names every file not viewed by an approver.
 async fn mr_page_showing(
     state: &AppState,
     ctx: PageCtx,
@@ -1780,7 +1807,7 @@ async fn mr_page_showing(
     (ns, repo, number): (&str, &str, i32),
     message: Option<&'static str>,
     errors: Vec<FieldError>,
-    show: &'static str,
+    (show, all_unviewed): (&'static str, bool),
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(subject, ns, repo, number).await?;
     let rc = RefContext {
@@ -1953,7 +1980,8 @@ async fn mr_page_showing(
             }
         }
     }
-    let h = heading(state, subject, &a, m.clone()).await?;
+    let mut h = heading(state, subject, &a, m.clone()).await?;
+    h.card.all_unviewed = all_unviewed;
     let me = match subject {
         Subject::User { id, .. } => Some(*id),
         _ => None,
@@ -2073,6 +2101,8 @@ struct StatusQuery {
     status: Option<String>,
     /// `unresolved` or `mine` narrow the conversation.
     show: Option<String>,
+    /// `unviewed`: the merge box names every file not viewed by an approver.
+    files: Option<String>,
 }
 
 async fn view(
@@ -2113,7 +2143,7 @@ async fn view(
         (&ns, &repo, number(&n)?),
         message,
         Vec::new(),
-        show,
+        (show, q.files.as_deref() == Some("unviewed")),
     )
     .await
 }
@@ -3702,4 +3732,39 @@ pub fn router() -> Router<AppState> {
             Access::Resource,
             post(comment_op),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Card, UNVIEWED_SHOWN};
+
+    fn card(files: usize, all: bool) -> Card {
+        Card {
+            headline: String::new(),
+            reason: String::new(),
+            tone: "waiting",
+            action: None,
+            rows: Vec::new(),
+            since: None,
+            mergeable: false,
+            up_to_date: true,
+            unviewed: (0..files).map(|i| format!("f{i}")).collect(),
+            all_unviewed: all,
+            unviewed_href: String::new(),
+        }
+    }
+
+    #[test]
+    fn the_card_names_five_unviewed_files_then_how_many_more() {
+        let c = card(UNVIEWED_SHOWN + 7, false);
+        assert_eq!(c.unviewed_shown().len(), UNVIEWED_SHOWN);
+        assert_eq!(c.unviewed_more(), 7);
+        let c = card(3, false);
+        assert_eq!((c.unviewed_shown().len(), c.unviewed_more()), (3, 0));
+        let c = card(UNVIEWED_SHOWN + 7, true);
+        assert_eq!(
+            (c.unviewed_shown().len(), c.unviewed_more()),
+            (UNVIEWED_SHOWN + 7, 0)
+        );
+    }
 }

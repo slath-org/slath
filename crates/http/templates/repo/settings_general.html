@@ -36,7 +36,13 @@
 </form>
 </section>
 <section class="section" aria-labelledby="pp-heading">
-<h2 id="pp-heading">Push protection</h2>
+<div class="section-head">
+  <h2 id="pp-heading">Push protection</h2>
+  {%- call c::popover(ctx, "About push protection") %}
+  <p>Unless it's off, Slath checks each push for secrets, such as access tokens and private keys, before it accepts the push.</p>
+  <p>A finding that isn't a secret can be allowed from the link the push prints; who may allow it is set below.</p>
+  {%- endcall %}
+</div>
 <form method="post" action="{{ base }}/push-protection" class="form-layout" novalidate>
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   {%- let pp_hint %}{% if push_protection_minimum != "off" %}This server applies at least {{ push_protection_minimum }} to every repository.{% endif %}{% endlet %}

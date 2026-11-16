@@ -3,6 +3,3 @@
 # The pages move to the components one group at a time; each move removes
 # its lines here. The list only shrinks: the check fails on a line that no
 # longer matches a violation, and on any violation not listed.
-catalog-unused avatar-group                                             # no page uses it until the pages move to the components
-catalog-unused more                                                     # no page uses it until the pages move to the components
-catalog-unused popover                                                  # no page uses it until the pages move to the components

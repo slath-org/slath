@@ -33,7 +33,11 @@
   <dt>Token that expires next</dt>
   <dd>{% if let Some((n, t)) = bot.next_expiry %}{{ n }}, {% call c::time(t) %}{% endcall %}{% else %}No active token{% endif %}</dd>
   <dt>API requests this hour</dt>
-  <dd>{{ bot.requests }} of {{ bot_limit }}, counted by the server that showed this page. Administrators set the limit as <code>[limits] bot_requests_per_hour</code>.</dd>
+  <dd><div class="cluster">{{ bot.requests }} of {{ bot_limit }}
+    {%- call c::popover(ctx, "About the API requests") %}
+    <p>Each bot may make {{ bot_limit }} API requests per hour; Git doesn't count. The administrators set the limit as <code>[limits] bot_requests_per_hour</code>.</p>
+    <p>The number is counted by the server that showed this page.</p>
+    {%- endcall %}</div></dd>
 </dl>
 {%- if !bot.mrs.is_empty() %}
 <section class="subsection" aria-labelledby="bot-mrs-heading">

@@ -895,7 +895,7 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
     assert!(
         page.contains("Approved by bob (r2, 3 of 4 files viewed).")
             && page.contains("Not viewed by an approver when approving")
-            && page.contains("<li>c.txt</li>"),
+            && page.contains("<li><code>c.txt</code></li>"),
         "{page}"
     );
     let changes = carol_ui

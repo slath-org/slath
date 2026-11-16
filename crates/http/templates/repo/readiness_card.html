@@ -33,18 +33,18 @@
       {%- if r.tone == "done" && !coverage %}
       {% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}</span>
       {%- else %}
-      <details>
+      <details{% if coverage && h.card.all_unviewed && !card_top %} open{% endif %}>
         <summary>{% call m::tone_icon(ctx, r.tone) %}{% endcall %}<span>{{ r.reason }}<span class="disclosure">{% call m::icon(ctx, "chevron-down") %}{% endcall %}</span></span></summary>
         {%- if let Some(f) = r.fix %}<p class="requirement-fix">{{ f }}.</p>{% endif %}
         {%- if coverage %}
         <div class="requirement-fix requirement-files">
           <p>Not viewed by an approver when approving {% call m::evidence("Observed") %}{% endcall %}</p>
           <ul class="plain-list">
-          {%- for f in h.card.unviewed %}
-            <li>{{ f }}</li>
+          {%- for f in h.card.unviewed_shown() %}
+            <li><code>{{ f }}</code></li>
           {%- endfor %}
-          {%- if h.card.unviewed_more > 0 %}
-            <li>and {{ h.card.unviewed_more }} more</li>
+          {%- if h.card.unviewed_more() > 0 %}
+            <li>{% call l::more(h.card.unviewed_href, h.card.unviewed_more()) %}{% endcall %}</li>
           {%- endif %}
           </ul>
         </div>
