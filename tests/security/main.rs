@@ -43,6 +43,7 @@ mod settings;
 mod ssh;
 mod surfaces;
 mod teams;
+mod timezones;
 mod tokens;
 mod updates;
 mod vuln_git;

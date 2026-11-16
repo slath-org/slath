@@ -12,6 +12,7 @@ const strings = {
   passkeyCancelled: "No passkey was used. Try again, or use another way.",
   copied: "Copied to the clipboard.",
   copyFailed: "Copying failed. Select the text and copy it yourself.",
+  zoneProposed: "Proposed from this device: {0}. Save to use it.",
 } as const;
 
 export type Key = keyof typeof strings;

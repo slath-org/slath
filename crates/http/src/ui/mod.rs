@@ -408,11 +408,24 @@ impl From<slath_db::statuses::Status> for StatusRow {
     }
 }
 
-/// A timestamp for templates: `<time datetime="{iso}">{text}</time>` (UTC).
-/// `text` is the exact date and time; `short` is what lists, timelines,
-/// and headers show: relative within seven days ("3 hours ago", "in 2
-/// days", "yesterday"), a date ("14 Nov 2026") otherwise. The time
-/// component shows `short` with `text` in a tooltip.
+tokio::task_local! {
+    /// The zone of the viewer of the page being rendered.
+    static VIEWER_ZONE: slath_core::tz::Zone;
+}
+
+/// Runs `fut` with times shown in `zone` (the session middleware sets the
+/// signed-in viewer's; otherwise they're in UTC).
+pub async fn with_zone<F: std::future::Future>(zone: slath_core::tz::Zone, fut: F) -> F::Output {
+    VIEWER_ZONE.scope(zone, fut).await
+}
+
+/// A timestamp for templates: `<time datetime="{iso}">{text}</time>`, with
+/// `iso` in UTC. `text` is the exact date and time in the viewer's zone
+/// with the zone's abbreviation or offset ("2026-11-14 10:05 CET");
+/// `short` is what lists, timelines, and headers show: relative within
+/// seven days ("3 hours ago", "in 2 days", "yesterday"), the viewer's
+/// calendar date ("14 Nov 2026") otherwise. The time component shows
+/// `short` with `text` in a tooltip.
 #[derive(Debug, Clone)]
 pub struct Time {
     pub iso: String,
@@ -427,25 +440,30 @@ impl From<time::OffsetDateTime> for Time {
 }
 
 impl Time {
-    /// The view of `t` as seen at `now`.
+    /// The view of `t` as seen at `now`, in the viewer's zone.
     #[must_use]
     pub fn at(t: time::OffsetDateTime, now: time::OffsetDateTime) -> Self {
+        VIEWER_ZONE
+            .try_with(|z| Self::at_in(t, now, z))
+            .unwrap_or_else(|_| Self::at_in(t, now, &slath_core::tz::Zone::utc()))
+    }
+
+    /// The view of `t` as seen at `now` in `zone`.
+    #[must_use]
+    pub fn at_in(
+        t: time::OffsetDateTime,
+        now: time::OffsetDateTime,
+        zone: &slath_core::tz::Zone,
+    ) -> Self {
         let t = t.to_offset(time::UtcOffset::UTC);
         let iso = t
             .format(&time::format_description::well_known::Rfc3339)
             .unwrap_or_default();
-        let text = format!(
-            "{:04}-{:02}-{:02} {:02}:{:02} UTC",
-            t.year(),
-            u8::from(t.month()),
-            t.day(),
-            t.hour(),
-            t.minute()
-        );
+        let local = zone.local(t.unix_timestamp());
         Self {
             iso,
-            text,
-            short: relative(t, now),
+            text: local.exact(),
+            short: relative(t, now, &local),
         }
     }
 }
@@ -456,9 +474,14 @@ pub fn short_hash(oid: &str) -> &str {
     oid.get(..12).unwrap_or(oid)
 }
 
-/// "3 hours ago", "in 2 days", "yesterday" within seven days of `now`; a
-/// date ("14 Nov 2026") otherwise.
-fn relative(t: time::OffsetDateTime, now: time::OffsetDateTime) -> String {
+/// "3 hours ago", "in 2 days", "yesterday" within seven days of `now`; the
+/// calendar date of `local` (the moment in the viewer's zone, "14 Nov
+/// 2026") otherwise.
+fn relative(
+    t: time::OffsetDateTime,
+    now: time::OffsetDateTime,
+    local: &slath_core::tz::Local,
+) -> String {
     let secs = (now - t).whole_seconds();
     let (past, n) = (secs >= 0, secs.unsigned_abs());
     let unit = |n: u64, one: &str, many: &str| {
@@ -482,9 +505,9 @@ fn relative(t: time::OffsetDateTime, now: time::OffsetDateTime) -> String {
             ];
             format!(
                 "{} {} {}",
-                t.day(),
-                MONTHS[usize::from(u8::from(t.month())) - 1],
-                t.year()
+                local.day,
+                MONTHS[usize::from(local.month.clamp(1, 12)) - 1],
+                local.year
             )
         }
     }
@@ -510,6 +533,28 @@ mod time_tests {
         assert_eq!(
             Time::at(datetime!(2026-11-14 09:05 UTC), now).text,
             "2026-11-14 09:05 UTC"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_viewers_zone_sets_text_and_dates() {
+        use slath_core::tz::Zone;
+        let now = datetime!(2026-11-14 12:00 UTC);
+        let t = datetime!(2026-11-01 23:30 UTC);
+        let berlin = super::with_zone(Zone::named("Europe/Berlin").unwrap(), async {
+            Time::at(t, now)
+        })
+        .await;
+        assert_eq!(berlin.text, "2026-11-02 00:30 CET");
+        assert_eq!(berlin.short, "2 Nov 2026", "the viewer's calendar date");
+        assert_eq!(
+            berlin.iso, "2026-11-01T23:30:00Z",
+            "machine-readable stays UTC"
+        );
+        let utc = Time::at(t, now);
+        assert_eq!(
+            (utc.text.as_str(), utc.short.as_str()),
+            ("2026-11-01 23:30 UTC", "1 Nov 2026")
         );
     }
 }

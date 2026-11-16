@@ -25,6 +25,25 @@
   {%- endfor %}
   </select>
   {%- endcall %}
+  {%- let zone_hint = "Pages and emails show times in this zone. The API always uses UTC." %}
+  {%- call f::field("timezone", "Time zone", zone_hint, self.error("timezone").unwrap_or_default()) %}
+  <select id="timezone" name="timezone" data-propose-zone{% if timezone.is_empty() %} data-unset{% endif %}{% call f::described("timezone", zone_hint, self.error("timezone").unwrap_or_default()) %}{% endcall %}>
+  {%- for g in zones %}
+  {%- if g.region.is_empty() %}
+  {%- for (name, place) in g.zones %}
+    <option value="{{ name }}"{% if name == timezone || (timezone.is_empty() && name == "UTC") %} selected{% endif %}>{{ place }}</option>
+  {%- endfor %}
+  {%- else %}
+    <optgroup label="{{ g.region }}">
+    {%- for (name, place) in g.zones %}
+      <option value="{{ name }}"{% if name == timezone %} selected{% endif %}>{{ place }}</option>
+    {%- endfor %}
+    </optgroup>
+  {%- endif %}
+  {%- endfor %}
+  </select>
+  <p class="hint" data-zone-hint aria-live="polite" hidden></p>
+  {%- endcall %}
   {%- let auto_hint %}{% if let Some(dt) = detected %}{{ dt }}, from your recent pushes.{% else %}From your pushes; Git until then.{% endif %}{% endlet %}
   {%- call f::question("tool", "Commands for", "Where pages show commands (checking out, resolving conflicts), they show them for this tool. Everything else looks the same either way.") %}
   {%- call f::option("radio", "tool-auto", "tool", "auto", "Automatic", tool == "auto", auto_hint) %}{% endcall %}

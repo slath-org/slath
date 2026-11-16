@@ -59,3 +59,19 @@ test("conf_a11y_04_add_and_remove_an_email_address", async ({ page }) => {
   await expect(page.locator(".success-summary")).toContainText("Address removed.");
   await expect(page.getByRole("row").filter({ hasText: address })).toHaveCount(0);
 });
+
+test.describe("time zone", () => {
+  test.use({ timezoneId: "America/New_York" });
+
+  test("conf_a11y_01_the_settings_propose_this_devices_zone", async ({ page }) => {
+    await signIn(page, USERS.alice);
+    await page.goto("/-/settings/appearance");
+    const zone = page.getByLabel("Time zone");
+    // Nothing saved yet: the device's zone is proposed, not saved.
+    await expect(zone).toHaveValue("America/New_York");
+    await expect(page.getByText("Proposed from this device: America/New_York. Save to use it.")).toBeVisible();
+    await expectAccessible(page);
+    await page.reload();
+    await expect(zone).toHaveValue("America/New_York");
+  });
+});

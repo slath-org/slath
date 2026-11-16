@@ -24,6 +24,7 @@ import { installReplies } from "./replies";
 import { installCloseButtons } from "./disclosure";
 import { installTooltips } from "./tooltip";
 import { installHunkNavigation } from "./hunknav";
+import { installZoneProposal } from "./timezone";
 
 installCsrf();
 installA11ySwaps();
@@ -36,6 +37,7 @@ installReplies();
 installCloseButtons();
 installTooltips();
 installHunkNavigation();
+installZoneProposal();
 installPasskeys();
 installEditors();
 installNamesFields();

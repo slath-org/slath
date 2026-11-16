@@ -129,6 +129,35 @@ impl Services {
         Ok(())
     }
 
+    /// Saves the zone the user reads times in: an IANA name from the
+    /// bundled database, or empty for UTC.
+    pub async fn set_timezone(&self, session: &Session, zone: &str) -> Result<()> {
+        let zone = zone.trim();
+        let zone = match zone {
+            "" | "UTC" => None,
+            z if slath_core::tz::Zone::named(z).is_some() => Some(z),
+            _ => {
+                return Err(ServiceError::invalid(
+                    "timezone",
+                    "unknown",
+                    "Choose a time zone from the list.",
+                ));
+            }
+        };
+        slath_db::users::set_timezone(&self.pool, session.user_id(), zone).await?;
+        Ok(())
+    }
+
+    /// The zone `user` reads times in (UTC if unset or unknown).
+    pub(crate) async fn zone_of(&self, user: slath_core::ids::UserId) -> slath_core::tz::Zone {
+        slath_db::users::timezone(&self.pool, user)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|z| slath_core::tz::Zone::named(&z))
+            .unwrap_or_default()
+    }
+
     pub async fn update_profile(&self, session: &Session, display_name: &str) -> Result<()> {
         let d = display_name.trim();
         if d.chars().count() > MAX_DISPLAY_NAME {

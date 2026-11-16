@@ -296,6 +296,32 @@ pub async fn bot_owner_user(
     Ok(owner.map(UserId::from_uuid))
 }
 
+/// The IANA zone the user reads times in; `None` is UTC.
+pub async fn timezone(exec: impl PgExecutor<'_>, id: UserId) -> Result<Option<String>, DbError> {
+    Ok(
+        sqlx::query_scalar!("SELECT timezone FROM users WHERE id = $1", id.as_uuid())
+            .fetch_optional(exec)
+            .await?
+            .flatten(),
+    )
+}
+
+/// Saves the zone the user reads times in (`None`: UTC).
+pub async fn set_timezone(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    zone: Option<&str>,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET timezone = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        zone
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 /// Saves how the user likes diffs shown.
 pub async fn set_diff_preferences(
     exec: impl PgExecutor<'_>,

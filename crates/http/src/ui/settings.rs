@@ -956,8 +956,46 @@ struct AppearancePage<'a> {
     /// `auto`, `git`, or `jj`, and what the pushes came from.
     tool: &'static str,
     detected: Option<&'static str>,
+    /// The saved zone (empty: none, so UTC), and the choices by region.
+    timezone: &'a str,
+    zones: &'static [ZoneGroup],
     message: Option<&'a str>,
     errors: Vec<FieldError>,
+}
+
+/// Zones of one region (`Europe`), each as (`Europe/Berlin`, `Berlin`).
+/// The first group has no region: UTC.
+struct ZoneGroup {
+    region: String,
+    zones: Vec<(String, String)>,
+}
+
+/// Every zone of the bundled database, grouped by region.
+fn zone_groups() -> &'static [ZoneGroup] {
+    static GROUPS: std::sync::OnceLock<Vec<ZoneGroup>> = std::sync::OnceLock::new();
+    GROUPS.get_or_init(|| {
+        let mut groups: Vec<ZoneGroup> = Vec::new();
+        for name in slath_core::tz::names() {
+            let (region, place) = name.split_once('/').unwrap_or(("", name.as_str()));
+            // `Etc/GMT+12` is UTC−12 (POSIX signs): show the real offset.
+            let place = match place.strip_prefix("GMT") {
+                Some(n) if region == "Etc" && n.len() > 1 => {
+                    let (sign, h) = n.split_at(1);
+                    format!("UTC{}{h}", if sign == "+" { "−" } else { "+" })
+                }
+                _ => place.replace('_', " "),
+            };
+            let region = region.to_owned();
+            match groups.last_mut() {
+                Some(g) if g.region == region => g.zones.push((name.clone(), place)),
+                _ => groups.push(ZoneGroup {
+                    region,
+                    zones: vec![(name.clone(), place)],
+                }),
+            }
+        }
+        groups
+    })
 }
 
 /// The viewer's tool setting for the form: (`auto`/`git`/`jj`, detected).
@@ -996,6 +1034,8 @@ async fn appearance(
         sizes: 12..=20,
         tool,
         detected,
+        timezone: session.row.timezone.as_deref().unwrap_or(""),
+        zones: zone_groups(),
         message: status_message(q.status.as_deref()),
         errors: Vec::new(),
     }))
@@ -1011,6 +1051,8 @@ struct AppearanceForm {
     code_font_size: Option<String>,
     #[serde(default)]
     tool: String,
+    /// Absent from older forms: the zone stays as it is.
+    timezone: Option<String>,
 }
 
 async fn appearance_save(
@@ -1032,6 +1074,10 @@ async fn appearance_save(
         Ok(()) => state.services.set_vcs_tool(&session.subject, &f.tool).await,
         e => e,
     };
+    let saved = match (saved, &f.timezone) {
+        (Ok(()), Some(z)) => state.services.set_timezone(&session, z).await,
+        (r, _) => r,
+    };
     match saved {
         Ok(()) => Ok(appearance_cookies(
             &state,
@@ -1051,6 +1097,8 @@ async fn appearance_save(
                 sizes: 12..=20,
                 tool,
                 detected,
+                timezone: f.timezone.as_deref().unwrap_or(""),
+                zones: zone_groups(),
                 message: None,
                 errors,
             });

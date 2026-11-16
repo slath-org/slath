@@ -250,10 +250,15 @@ pub async fn resolve(State(state): State<AppState>, mut req: Request, next: Next
             },
         },
     };
+    let zone = session
+        .as_ref()
+        .and_then(|s| s.row.timezone.as_deref())
+        .and_then(slath_core::tz::Zone::named)
+        .unwrap_or_default();
     let maybe = MaybeSession(session);
     req.extensions_mut().insert(maybe.clone());
     req.extensions_mut().insert(seed.clone());
-    let mut res = next.run(req).await;
+    let mut res = crate::ui::with_zone(zone, next.run(req)).await;
     // Error pages are rendered outside this middleware; let them know who's signed in.
     res.extensions_mut().insert(maybe);
     if stale

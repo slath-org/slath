@@ -472,15 +472,18 @@ impl Services {
             return;
         };
         let Some(to) = u.email else { return };
+        // In the recipient's zone.
+        let at = self
+            .zone_of(user)
+            .await
+            .local(OffsetDateTime::now_utc().unix_timestamp())
+            .exact();
         let email = crate::email::Email {
             to: to.to_string(),
             subject: "Security change on your Slath account".to_owned(),
             text: format!(
-                "Hello {},\n\n{what}\n\nTime: {} UTC\nInstance: {}\n",
+                "Hello {},\n\n{what}\n\nTime: {at}\nInstance: {}\n",
                 u.name,
-                OffsetDateTime::now_utc()
-                    .replace_nanosecond(0)
-                    .unwrap_or_else(|_| OffsetDateTime::now_utc()),
                 self.config.server.public_url.origin()
             ),
             ..crate::email::Email::default()
