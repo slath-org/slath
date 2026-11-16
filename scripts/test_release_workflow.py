@@ -90,7 +90,7 @@ class ReleaseWorkflow(unittest.TestCase):
 
     def test_red_nightlies_block_the_release(self):
         pre = scripts(load()["preconditions"])
-        for wf in ["upgrade-matrix.yml", "oidc-providers.yml"]:
+        for wf in ["upgrade-matrix.yml", "oidc-providers.yml", "compat-matrix.yml"]:
             self.assertIn(wf, pre)
         self.assertIn("--event schedule", pre)
 

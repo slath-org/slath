@@ -10,7 +10,7 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
 
 1. **Preconditions:** `upgrade-notes/X.Y.Z.toml` exists and matches
    `REQUIRED_SCHEMA`, and the newest scheduled runs of the nightly
-   workflows (upgrade matrix, OIDC providers) are green. A red nightly
+   workflows (upgrade matrix, OIDC providers, Git/jj matrix) are green. A red nightly
    blocks the release until it's fixed.
 2. **Build:** one image per architecture (x86-64 and aarch64, on native
    runners), pushed to `ghcr.io/slath-org/slath` by digest only, and the

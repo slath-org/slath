@@ -34,6 +34,27 @@ The compatibility tests also need Docker (or Podman, via
 `SLATH_CONTAINER_ENGINE=podman`) for the SSH server fixture. Set
 `SLATH_SKIP_SSH_TESTS=1` or `SLATH_SKIP_JJ_TESTS=1` to skip those suites.
 
+### Git and jj clients
+
+`tests/compat/versions.toml` pins the client versions with their SHA-256:
+the newest stable Git, and the current jj release plus the previous two.
+The compatibility tests use `$SLATH_TEST_GIT` (default `/usr/bin/git`) and
+every jj in `$SLATH_TEST_JJ` (colon-separated paths; default: the ones
+`just tools` installed). `scripts/install-git.sh <version>` builds a pinned
+Git; `scripts/install-jj-latest.sh` installs the latest jj release, checked
+against the digest GitHub publishes for it.
+
+The nightly workflow `.github/workflows/compat-matrix.yml` runs the whole
+client suite with the pinned Git, every pinned jj, and the latest jj
+release. It compares Slath's predicted jj IDs with each real jj binary,
+and runs a jj without `change-id` headers, mixed Git and jj teams, every
+merge request flow for Git-made, jj-made, and mixed stacks, forks, and
+tag pushes. Its report (`scripts/compat_report.py`) names each client and
+marks a jj release that isn't pinned yet. A red scheduled run opens or
+comments on the issue labeled `compat-matrix` and blocks the next release;
+the next green run closes it. When a new jj release passes, pin it in
+`versions.toml` and drop the oldest.
+
 ## Configuration
 
 `.env` (copied from `.env.example`, ignored by Git) sets `DATABASE_URL` for

@@ -54,7 +54,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for wf in upgrade-matrix.yml oidc-providers.yml; do
+          for wf in upgrade-matrix.yml oidc-providers.yml compat-matrix.yml; do
             result=$(gh run list --workflow "$wf" --event schedule --limit 1 --json conclusion --jq '.[0].conclusion')
             echo "$wf: ${result:-no scheduled run}"
             [ "$result" = success ] || { echo "::error::nightly $wf is not green; diagnose it before releasing"; exit 1; }
