@@ -17,7 +17,7 @@ use crate::jj::{Jj, jj_binaries};
 /// A page with everything that legitimately differs between the two merge
 /// requests replaced: IDs, numbers, branch names, times, and the command
 /// blocks.
-fn normalized(html: &str, branch: &str, n: i64) -> String {
+pub(crate) fn normalized(html: &str, branch: &str, n: i64) -> String {
     let mut s = html.replace(branch, "BRANCH");
     for (re, by) in [
         // The checkout menu's commands differ by design.
@@ -25,11 +25,16 @@ fn normalized(html: &str, branch: &str, n: i64) -> String {
             r#"(?s)<details class="menu checkout-menu.*?</details>"#,
             "CHECKOUT",
         ),
+        (
+            r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+            "UUID",
+        ),
         (r"\b[0-9a-f]{7,40}\b", "OID"),
         (r"\b[k-z]{8,32}\b", "CHANGE"),
         (r#"datetime="[^"]*""#, "datetime"),
         (r"\d{4}-\d\d-\d\d \d\d:\d\d UTC", "TIME"),
         (r#"name="_csrf" value="[^"]*""#, "csrf"),
+        (r#"name="csrf-token" content="[^"]*""#, "csrf-token"),
         (r#"nonce="[^"]*""#, "nonce"),
     ] {
         s = Regex::new(re).unwrap().replace_all(&s, by).into_owned();
