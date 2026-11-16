@@ -17,5 +17,6 @@ pub mod origin;
 pub mod secret;
 pub mod secret_scan;
 pub mod sensitive_paths;
+pub mod tz;
 
 pub use secret::Secret;

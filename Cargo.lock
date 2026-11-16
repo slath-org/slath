@@ -1993,6 +1993,7 @@ dependencies = [
  "defmt",
  "jiff-core",
  "jiff-static",
+ "jiff-tzdb",
  "jiff-tzdb-platform",
  "log",
  "portable-atomic",
@@ -3590,6 +3591,8 @@ version = "0.2.0"
 name = "slath-core"
 version = "0.2.0"
 dependencies = [
+ "jiff",
+ "jiff-tzdb",
  "proptest",
  "regex",
  "serde",
