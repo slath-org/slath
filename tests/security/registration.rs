@@ -135,10 +135,10 @@ fn invitations_are_single_use_and_bound_to_their_address() {
     assert_eq!(r.status, 200, "{}", r.body);
     let link = r
         .body
-        .split("<code class=\"secret-key\">")
+        .split("id=\"invite-link\" type=\"text\" value=\"")
         .nth(1)
         .unwrap()
-        .split("</code>")
+        .split('"')
         .next()
         .unwrap();
     let path = &link[link.find("/-/register").unwrap()..];
@@ -180,10 +180,10 @@ fn invitations_are_single_use_and_bound_to_their_address() {
     let r = submit(&mut boss, "/-/admin/invites", "/-/admin/invites", &[]);
     let link = r
         .body
-        .split("<code class=\"secret-key\">")
+        .split("id=\"invite-link\" type=\"text\" value=\"")
         .nth(1)
         .unwrap()
-        .split("</code>")
+        .split('"')
         .next()
         .unwrap();
     let path = link[link.find("/-/register").unwrap()..].to_owned();

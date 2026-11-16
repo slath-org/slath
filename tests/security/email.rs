@@ -90,7 +90,7 @@ fn without_smtp_email_features_are_hidden() {
     s.create_user("boss", PW, true);
     let mut boss = s.login("boss", PW);
     let page = boss.get("/-/admin/health");
-    assert!(page.body.contains("not configured"));
+    assert!(page.body.contains("Not configured"));
     assert!(!page.body.contains("Send a test message"));
     let r = submit(
         &mut boss,

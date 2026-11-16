@@ -1,49 +1,39 @@
 {% extends "admin/layout.html" %}
 {% block title %}Invitations · Administration{% endblock %}
 {% block admin %}
-<h1>Invitations</h1>
+<header class="page-head">
+  <div class="page-head-row"><h1>Invitations</h1></div>
+</header>
 {%- if let Some(link) = link %}
-<div class="success-summary" role="status">
-  <p>Invitation created. Send this link to the person you're inviting; it's shown only once and works for {{ days }} days:</p>
-  <p><code class="secret-key">{{ link }}</code></p>
+<div class="stack">
+{%- let invite_saved %}Invitation created. Send this link to the person you're inviting; it's shown only once and works for {{ days }} days.{% endlet %}
+{%- call msg::saved(invite_saved) %}{% endcall %}
+{%- call f::copy_value(ctx, "invite-link", "Invitation link", link, "Copy the invitation link") %}{% endcall %}
 </div>
 {%- endif %}
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
 {%- if !invite_mode %}
-<div class="notice" role="note"><p>Registration is set to <code>{{ mode }}</code>. Invitations work when <code>[auth] registration</code> is <code>invite</code> or <code>open</code>.</p></div>
+{%- call msg::notice("warning") %}<p>Registration is set to <code>{{ mode }}</code>. Invitations work when <code>[auth] registration</code> is <code>invite</code> or <code>open</code>.</p>{% endcall %}
 {%- endif %}
-{% include "settings/errors.html" %}
-<h2>New invitation</h2>
-<form method="post" action="/-/admin/invites" class="form" novalidate>
-  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="email">Email address <span class="text-secondary">(optional)</span></label>
-    <input id="email" name="email" type="email" autocomplete="off" aria-describedby="email-hint">
-    <p id="email-hint" class="hint">If set, the account must use this address{% if email_enabled %}, and the link is emailed to it{% endif %}.</p>
-  </div>
-  <div class="field">
-    <label for="note">Note <span class="text-secondary">(optional)</span></label>
-    <input id="note" name="note" type="text" maxlength="200" autocomplete="off">
-  </div>
-  <div><button type="submit" class="button button-primary">Create invitation</button></div>
-</form>
-<h2>Invitations</h2>
+<section class="section" aria-labelledby="invites-heading">
+<h2 id="invites-heading">Invitations</h2>
+<div class="stack-groups">
 {%- if invites.is_empty() %}
-<p class="text-secondary empty-state">No invitations yet.</p>
+{%- call msg::empty("No invitations yet.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="invites-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="invites-caption" class="visually-hidden">Invitations</caption>
   <thead><tr><th scope="col">Created</th><th scope="col">For</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
   {%- for i in invites %}
     <tr>
-      <td><time datetime="{{ i.created.iso }}">{{ i.created.text }}</time>{% if let Some(by) = i.by %} by {{ by }}{% endif %}</td>
-      <td>{{ i.target }}</td>
-      <td>{{ i.state }}</td>
-      <td>
+      <td data-label="Created">{% call c::time(i.created) %}{% endcall %}{% if let Some(by) = i.by %} <span class="text-secondary">by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}</td>
+      <td data-label="For">{{ i.target }}</td>
+      <td data-label="State">{{ i.state }}</td>
+      <td class="table-actions">
       {%- if i.revocable %}
         <form method="post" action="/-/admin/invites/{{ i.id }}/revoke" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
@@ -57,4 +47,21 @@
 </table>
 </div>
 {%- endif %}
+<section class="subsection" aria-labelledby="new-invite-heading">
+<h3 id="new-invite-heading">New invitation</h3>
+<form method="post" action="/-/admin/invites" class="form-layout" novalidate>
+{% include "settings/errors.html" %}
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let email_hint %}If set, the account must use this address{% if email_enabled %}, and the link is emailed to it{% endif %}.{% endlet %}
+  {%- call f::field("email", "Email address", email_hint, self.error("email").unwrap_or_default(), true) %}
+  <input id="email" name="email" type="email" autocomplete="off"{% call f::described("email", "x", self.error("email").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::field("note", "Note", "", self.error("note").unwrap_or_default(), true) %}
+  <input id="note" name="note" type="text" maxlength="200" autocomplete="off"{% call f::described("note", "", self.error("note").unwrap_or_default()) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Create invitation</button>{% endcall %}
+</form>
+</section>
+</div>
+</section>
 {% endblock %}

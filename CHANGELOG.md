@@ -239,6 +239,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Organization settings, members, teams, and bots pages are built like the other settings pages; members and team members show with their avatars.
 - A bot's page groups activity, commits, profile, tokens, and SSH keys in sections; a new token comes with a copy button, and stopping the bot is a danger section.
 - Freezing bots is a danger section at the end of the bots page; while they're frozen, a notice at the top says since when and by whom, with Unfreeze.
+- Administration pages use tables that stack on phones; a new user's password and an invitation link come with a copy button.
+- The audit log's filters fold away, and its actors show with their avatars; health problems are marked with an icon.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.
 - Search says how many results it found for the query, and an empty result suggests how to widen the search.

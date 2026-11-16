@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{#- Every administration page: the administration side menu, then the
+    page. The page starts with its heading. -#}
 {% block sidebar %}
 {%- call m::side_menu(ctx, "Administration", "Administration", "Slath", "/-/admin") %}
 {%- call m::side_item(ctx, "/-/admin/users", "user", "Users", section == "users") %}{% endcall %}
@@ -12,5 +14,7 @@
 {%- endcall %}
 {% endblock %}
 {% block content %}
+<div class="page">
 {% block admin %}{% endblock %}
+</div>
 {% endblock %}

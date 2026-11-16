@@ -1,43 +1,48 @@
 {% extends "admin/layout.html" %}
 {% block title %}Health · Administration{% endblock %}
 {% block admin %}
-<h1>Health</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<header class="page-head">
+  <div class="page-head-row"><h1>Health</h1></div>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
 {%- include "admin/update_notice.html" %}
 <dl class="facts">
   <dt>Slath</dt><dd>{{ version }}</dd>
-  <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<strong>Problem:</strong> {{ git }}{% endif %}</dd>
-  <dt>Email</dt><dd>{% if let Some(relay) = smtp %}sent through {{ relay }}{% else %}not configured: email features are hidden (set <code>[smtp] host</code>){% endif %}</dd>
-  <dt>Backups</dt><dd>{% if backup_failed %}<strong>Problem:</strong> {% endif %}{{ backup }}</dd>
-  <dt>Database schema</dt><dd>{{ schema }}{% if schema != required_schema %} <strong>(this binary needs {{ required_schema }})</strong>{% else %} (current){% endif %}</dd>
+  <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Problem: {{ git }}</span></span>{% endif %}</dd>
+  <dt>Email</dt><dd>{% if let Some(relay) = smtp %}Sent through {{ relay }}{% else %}Not configured: email features are hidden (set <code>[smtp] host</code>){% endif %}</dd>
+  <dt>Backups</dt><dd>{% if backup_failed %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Problem: {{ backup }}</span></span>{% else %}{{ backup }}{% endif %}</dd>
+  <dt>Database schema</dt><dd>{% if schema != required_schema %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>{{ schema }}; this binary needs {{ required_schema }}</span></span>{% else %}{{ schema }} (current){% endif %}</dd>
 </dl>
 {%- if smtp.is_some() %}
-<h2>Test email</h2>
-<form method="post" action="/-/admin/health/test-email" class="form">
+<section class="section" aria-labelledby="test-email-heading">
+<h2 id="test-email-heading">Test email</h2>
+<form method="post" action="/-/admin/health/test-email" class="form-layout">
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-  <div class="field">
-    <label for="test-email-to">Send a test message to</label>
-    <input id="test-email-to" name="to" type="email" autocomplete="email" required>
-  </div>
-  <div><button type="submit" class="button">Send test message</button></div>
+  {%- call f::field("test-email-to", "Send a test message to") %}
+  <input id="test-email-to" name="to" type="email" autocomplete="email" required>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Send test message</button>{% endcall %}
 </form>
+</section>
 {%- endif %}
-<h2>Job queue</h2>
+<section class="section" aria-labelledby="jobs-heading">
+<h2 id="jobs-heading">Job queue</h2>
 {%- if jobs.is_empty() %}
-<p class="text-secondary">No jobs.</p>
+{%- call msg::empty("No jobs.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="jobs-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="jobs-caption" class="visually-hidden">Jobs by queue and state</caption>
   <thead><tr><th scope="col">Queue</th><th scope="col">State</th><th scope="col" class="numeric">Jobs</th></tr></thead>
   <tbody>
   {%- for (queue, st, n) in jobs %}
-    <tr><td>{{ queue }}</td><td>{{ st }}</td><td class="numeric">{{ n }}</td></tr>
+    <tr><td data-label="Queue">{{ queue }}</td><td data-label="State">{{ st }}</td><td data-label="Jobs" class="numeric">{{ n }}</td></tr>
   {%- endfor %}
   </tbody>
 </table>
 </div>
 {%- endif %}
+</section>
 {% endblock %}

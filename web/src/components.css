@@ -77,7 +77,6 @@
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-sm);
 }
-.secret-key,
 .recovery-codes code {
   font-family: var(--font-mono);
   font-variant-ligatures: none;
@@ -475,11 +474,6 @@ fieldset.field {
   align-items: center;
   gap: var(--space-2);
   min-height: var(--target-min);
-}
-.token-value {
-  width: 100%;
-  font-family: var(--font-mono);
-  font-size: var(--code-size);
 }
 
 /* Profiles and lists */
@@ -1090,16 +1084,6 @@ main > .repo-context {
   font-family: var(--font-ui);
   font-size: var(--text-base);
 }
-.pager {
-  display: flex;
-  gap: var(--space-4);
-  align-items: center;
-}
-.pager a {
-  display: inline-flex;
-  min-height: var(--target-min);
-  align-items: center;
-}
 .file-actions a {
   display: inline-flex;
   min-height: var(--target-min);
@@ -1125,16 +1109,6 @@ main > .repo-context {
   }
 }
 
-.row-actions {
-  white-space: nowrap;
-}
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-end;
-  margin: 0 0 var(--space-4);
-}
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;

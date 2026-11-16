@@ -1,16 +1,23 @@
 {% extends "admin/layout.html" %}
 {% block title %}Bots · Administration{% endblock %}
 {% block admin %}
-<h1>Bots</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<header class="page-head">
+  <div class="page-head-row"><h1>Bots</h1></div>
+  <p class="page-head-intro">Every bot of the instance. Merge requests and pushes count in every repository. Their owners manage their tokens and keys on the bot's page.</p>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
-<p>Every bot of the instance. Merge requests and pushes count in every repository. Their owners manage their tokens and keys on the bot's page.</p>
+{%- if freeze.since.is_some() %}
 {% include "bots_freeze.html" %}
+{%- endif %}
 {%- if bots.is_empty() %}
-<p class="text-secondary empty-state">No bots.</p>
+{%- call msg::empty("No bots.") %}{% endcall %}
 {%- else %}
 {%- let admin_view = true %}
 {% include "bots_table.html" %}
+{%- endif %}
+{%- if freeze.since.is_none() %}
+{% include "bots_freeze.html" %}
 {%- endif %}
 {% endblock %}

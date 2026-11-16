@@ -336,7 +336,8 @@ async fn restore(
 
 struct EventRow {
     time: Time,
-    actor: String,
+    /// None for Slath itself or a deleted account.
+    actor: Option<String>,
     ip: String,
     action: String,
     target: String,
@@ -390,7 +391,7 @@ async fn audit_page(
             .into_iter()
             .map(|e| EventRow {
                 time: e.created_at.into(),
-                actor: e.actor.unwrap_or_else(|| "—".to_owned()),
+                actor: e.actor,
                 ip: e.actor_ip.unwrap_or_default(),
                 action: e.action,
                 target: format!(

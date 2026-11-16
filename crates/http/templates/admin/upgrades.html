@@ -1,38 +1,41 @@
 {% extends "admin/layout.html" %}
 {% block title %}Upgrades · Administration{% endblock %}
 {% block admin %}
-<h1>Upgrades</h1>
-{%- if let Some(m) = message %}
-<div class="success-summary" role="status"><p>{{ m }}</p></div>
+<header class="page-head">
+  <div class="page-head-row"><h1>Upgrades</h1></div>
+  <p class="page-head-intro">This is Slath {{ version }}. To update, install the new version and restart it; it backs up and migrates when it starts. See the upgrading guide.</p>
+</header>
+{%- if let Some(sm) = message %}
+{%- call msg::saved(sm) %}{% endcall %}
 {%- endif %}
-<p>This is Slath {{ version }}. To update, install the new version and restart it; it backs up and migrates when it starts. See the upgrading guide.</p>
 {%- include "admin/update_notice.html" %}
-<h2>Background migrations</h2>
-<p class="text-secondary">Long data migrations run in batches while Slath is up. Features that need one show a notice until it has finished.</p>
+<section class="section" aria-labelledby="bg-heading">
+<h2 id="bg-heading">Background migrations</h2>
+<p>Long data migrations run in batches while Slath is up. Features that need one show a notice until it has finished.</p>
 {%- if migrations.is_empty() %}
-<p class="text-secondary">No background migrations.</p>
+{%- call msg::empty("No background migrations.") %}{% endcall %}
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="bg-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="bg-caption" class="visually-hidden">Background migrations</caption>
   <thead><tr><th scope="col">Name</th><th scope="col">Since</th><th scope="col">State</th><th scope="col">Progress</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
   <tbody>
-  {%- for m in migrations %}
+  {%- for mg in migrations %}
     <tr>
-      <td><code>{{ m.name }}</code></td>
-      <td>{{ m.introduced_in }}</td>
-      <td>{{ m.state }}{% if let Some(e) = m.error %}<br><span class="field-error">{{ e }}</span>{% endif %}</td>
-      <td>
-        {%- if let Some(p) = m.percent %}
-        <progress max="100" value="{{ p }}" aria-label="{{ m.name }} progress">{{ p }}%</progress> {{ p }}%
+      <td data-label="Name"><code>{{ mg.name }}</code></td>
+      <td data-label="Since">{{ mg.introduced_in }}</td>
+      <td data-label="State">{{ mg.state }}{% if let Some(e) = mg.error %}<br><span class="field-error">{{ e }}</span>{% endif %}</td>
+      <td data-label="Progress">
+        {%- if let Some(pc) = mg.percent %}
+        <progress max="100" value="{{ pc }}" aria-label="{{ mg.name }} progress">{{ pc }}%</progress> {{ pc }}%
         {%- endif %}
-        <span class="text-secondary">{{ m.processed }}{% if let Some(t) = m.total %} of about {{ t }}{% endif %} items{% if let Some(eta) = m.eta %}, about {{ eta }} left{% endif %}</span>
+        <span class="text-secondary">{{ mg.processed }}{% if let Some(t) = mg.total %} of about {{ t }}{% endif %} items{% if let Some(eta) = mg.eta %}, about {{ eta }} left{% endif %}</span>
       </td>
-      <td>
-      {%- if let Some((op, label)) = m.action %}
-        <form method="post" action="/-/admin/upgrades/background/{{ m.name }}/{{ op }}" class="inline-form">
+      <td class="table-actions">
+      {%- if let Some((op, label)) = mg.action %}
+        <form method="post" action="/-/admin/upgrades/background/{{ mg.name }}/{{ op }}" class="inline-form">
           <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
-          <button type="submit" class="button">{{ label }}<span class="visually-hidden"> {{ m.name }}</span></button>
+          <button type="submit" class="button">{{ label }}<span class="visually-hidden"> {{ mg.name }}</span></button>
         </form>
       {%- endif %}
       </td>
@@ -42,26 +45,29 @@
 </table>
 </div>
 {%- endif %}
-<h2>Upgrade history</h2>
+</section>
+<section class="section" aria-labelledby="history-heading">
+<h2 id="history-heading">Upgrade history</h2>
 {%- if history.is_empty() %}
-<p class="text-secondary">No upgrades recorded yet. Upgrade with <code>slath upgrade</code>; see the upgrading guide.</p>
+<p class="empty-state">No upgrades recorded yet. Upgrade with <code>slath upgrade</code>; see the upgrading guide.</p>
 {%- else %}
 <div class="table-wrap" tabindex="0" role="region" aria-labelledby="history-caption">
-<table class="table">
+<table class="table table-records">
   <caption id="history-caption" class="visually-hidden">Upgrade history</caption>
   <thead><tr><th scope="col">Started</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Outcome</th><th scope="col">Backup</th></tr></thead>
   <tbody>
   {%- for u in history %}
     <tr>
-      <td><time datetime="{{ u.started.iso }}">{{ u.started.text }}</time></td>
-      <td>{{ u.from }}</td>
-      <td>{{ u.to }}</td>
-      <td>{{ u.outcome }}{% if let Some(e) = u.error %}<br><span class="field-error">{{ e }}</span>{% endif %}</td>
-      <td>{% if let Some(b) = u.backup %}<code>{{ b }}</code>{% else %}<span class="text-secondary">none</span>{% endif %}</td>
+      <td data-label="Started">{% call c::time(u.started, true) %}{% endcall %}</td>
+      <td data-label="From">{{ u.from }}</td>
+      <td data-label="To">{{ u.to }}</td>
+      <td data-label="Outcome">{{ u.outcome }}{% if let Some(e) = u.error %}<br><span class="field-error">{{ e }}</span>{% endif %}</td>
+      <td data-label="Backup">{% if let Some(b) = u.backup %}<code>{{ b }}</code>{% else %}<span class="text-secondary">none</span>{% endif %}</td>
     </tr>
   {%- endfor %}
   </tbody>
 </table>
 </div>
 {%- endif %}
+</section>
 {% endblock %}

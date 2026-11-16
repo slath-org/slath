@@ -86,6 +86,15 @@ const MIGRATED = [
   "org:/-/bots",
   "org:/-/webhooks",
   "org:bot",
+  // Administration, as the site administrator.
+  "/-/admin/users",
+  "/-/admin/invites",
+  "/-/admin/orgs",
+  "/-/admin/bots",
+  "/-/admin/repos",
+  "/-/admin/audit",
+  "/-/admin/upgrades",
+  "/-/admin/health",
 ];
 
 const baseline: Record<string, string[]> = JSON.parse(
@@ -210,7 +219,7 @@ for (const { path, who } of GROUPS) {
 
 for (const path of MIGRATED) {
   test(`conf_design_03_migrated_pages_follow_the_rules ${path}`, async ({ page }) => {
-    await signIn(page, USERS.alice);
+    await signIn(page, path.startsWith("/-/admin/") ? USERS.admin : USERS.alice);
     if (path.endsWith("/commit/")) {
       await page.goto("/alice/demo/commits");
       await page.locator(".item-title").first().click();

@@ -176,6 +176,12 @@ struct InvitesPage {
     errors: Vec<FieldError>,
 }
 
+impl InvitesPage {
+    fn error(&self, field: &str) -> Option<&str> {
+        super::settings::error_for(&self.errors, field)
+    }
+}
+
 async fn invites_page(
     state: &AppState,
     ctx: PageCtx,

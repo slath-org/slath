@@ -1,13 +1,19 @@
 {#- The result of the opt-in update check; shown only when it is on. #}
 {%- if let Some(u) = update %}
-<div class="notice" role="status">
-  {%- if let Some((v, url)) = u.available %}
-  <p><strong>Slath {{ v }} is available.</strong> You run {{ version }}.{% if !url.is_empty() %} <a href="{{ url }}" rel="noreferrer">Release notes</a>.{% endif %} Install it and restart Slath to update.</p>
-  {%- else if let Some(e) = u.error %}
+{%- if let Some((v, url)) = u.available %}
+{%- call msg::notice("warning") %}
+  <p>Slath {{ v }} is available. You run {{ version }}.{% if !url.is_empty() %} <a href="{{ url }}" rel="noreferrer">Release notes</a>.{% endif %} Install it and restart Slath to update.</p>
+  <p class="text-secondary">Last checked {% call c::time(u.checked) %}{% endcall %}.</p>
+{%- endcall %}
+{%- else if let Some(e) = u.error %}
+{%- call msg::notice("warning") %}
   <p>The update check failed: {{ e }}</p>
-  {%- else %}
+  <p class="text-secondary">Last checked {% call c::time(u.checked) %}{% endcall %}.</p>
+{%- endcall %}
+{%- else %}
+{%- call msg::notice() %}
   <p>Slath {{ version }} is the newest release.</p>
-  {%- endif %}
-  <p class="text-secondary">Last checked <time datetime="{{ u.checked.iso }}">{{ u.checked.text }}</time>.</p>
-</div>
+  <p class="text-secondary">Last checked {% call c::time(u.checked) %}{% endcall %}.</p>
+{%- endcall %}
+{%- endif %}
 {%- endif %}
