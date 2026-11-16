@@ -604,11 +604,13 @@ async fn appearance_save(
     State(state): State<AppState>,
     ctx: PageCtx,
     Sudo(session): Sudo,
-    mut form: axum::extract::Multipart,
+    form: Result<axum::extract::Multipart, axum::extract::multipart::MultipartRejection>,
 ) -> Result<Response, AppError> {
     let subject = session.subject.clone();
+    // Nobody else learns anything, not even that the form was malformed.
     state.services.require_site_admin(&subject)?;
     let bad = || AppError::bad_request("The upload is not a valid multipart form.");
+    let mut form = form.map_err(|_| bad())?;
     let mut uploads: Vec<(&str, Vec<u8>)> = Vec::new();
     while let Some(field) = form.next_field().await.map_err(|_| bad())? {
         let theme = match field.name() {
