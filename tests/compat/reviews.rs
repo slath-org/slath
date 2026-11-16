@@ -916,3 +916,201 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
         "{changes}"
     );
 }
+
+/// A working copy of alice/demo on `branch`.
+fn work_on(u: &Users, dir: &std::path::Path, branch: &str) -> GitClient {
+    let git = GitClient::new();
+    git.ok(
+        dir.parent().unwrap(),
+        &[
+            "clone",
+            "-q",
+            "-b",
+            branch,
+            &u.s.url(&DEMO),
+            dir.to_str().unwrap(),
+        ],
+    );
+    git
+}
+
+fn mergeable(u: &Users, n: i64) -> Value {
+    api(
+        u,
+        &u.alice,
+        "GET",
+        &format!("/merge-requests/{n}/mergeability"),
+        None,
+    )
+    .json()["mergeable"]
+        .clone()
+}
+
+/// A "skipped" or "neutral" report isn't a state Slath knows, so a required
+/// check stays pending (Gitea and GitLab advisories where a skipped job
+/// satisfied a required check).
+#[test]
+fn conf_review_04_skipped_status_does_not_satisfy() {
+    let (u, n, head, _) = status_setup(
+        json!({"pattern": "main", "required_approvals": 0, "required_status_contexts": ["ci/build"]}),
+    );
+    for state in ["skipped", "neutral", "cancelled", "SUCCESS", "success "] {
+        assert_eq!(report(&u, &u.bob, &head, state).status, 422, "{state}");
+    }
+    assert_eq!(requirement(&u, n, "statuses").0, "pending");
+    assert_eq!(mergeable(&u, n), false);
+}
+
+/// An approval doesn't carry over to a revision with other code: the
+/// author (here even without write access to the target) can't get
+/// unreviewed code merged on an old approval (GerriScary).
+#[test]
+fn conf_review_01_approval_not_carried_to_new_revision() {
+    let (u, n, _, _) = status_setup(
+        json!({"pattern": "main", "required_approvals": 1, "block_force_push": false}),
+    );
+    let r = api(
+        &u,
+        &u.bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "approve"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(requirement(&u, n, "approvals").0, "met");
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let git = work_on(&u, &w, "topic");
+    std::fs::write(w.join("t.txt"), "something else\n").unwrap();
+    git.ok(&w, &["commit", "-q", "-a", "--amend", "--no-edit"]);
+    git.ok(&w, &["push", "-q", "--force", &u.s.url(&DEMO), "topic"]);
+    wait_revisions(&u, n, 2);
+    assert_eq!(requirement(&u, n, "approvals").0, "unmet");
+    assert_eq!(mergeable(&u, n), false);
+    let head = git.ok(&w, &["rev-parse", "HEAD"]).trim().to_owned();
+    let r = api(
+        &u,
+        &u.alice,
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"expected_head_oid": head})),
+    );
+    assert!(matches!(r.status, 409 | 422), "{}", r.body);
+}
+
+/// A merge request's target can't be changed, so approvals given for one
+/// target never count for another (Gitea retarget advisory): an edit
+/// naming another target leaves it as it is.
+#[test]
+fn conf_review_01_retarget_resets_approvals() {
+    let (u, n, _, main) = status_setup(
+        json!({"pattern": "main", "required_approvals": 1, "block_force_push": false}),
+    );
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let git = work_on(&u, &w, "main");
+    git.ok(
+        &w,
+        &[
+            "push",
+            "-q",
+            &u.s.url(&DEMO),
+            &format!("{main}:refs/heads/dev"),
+        ],
+    );
+    let r = api(
+        &u,
+        &u.bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "approve"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = api(
+        &u,
+        &u.alice,
+        "PATCH",
+        &format!("/merge-requests/{n}"),
+        Some(json!({"target_branch": "dev"})),
+    );
+    assert!(matches!(r.status, 200 | 422), "{}", r.body);
+    let m = api(&u, &u.alice, "GET", &format!("/merge-requests/{n}"), None).json();
+    assert_eq!(m["target_branch"], "main", "{m}");
+}
+
+/// Merging races pushes to the source: a merge never lands a commit other
+/// than the head it was asked for (`expected_head_oid`); otherwise 409.
+#[test]
+fn conf_review_05_concurrent_merge_and_push() {
+    let (u, _, _, _) = status_setup(json!({"pattern": "nothing", "required_approvals": 0}));
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let git = work_on(&u, &w, "main");
+    let url = u.s.url(&DEMO);
+    let (mut merged, mut refused) = (0, 0);
+    for i in 0..20 {
+        let branch = format!("race-{i}");
+        git.ok(&w, &["fetch", "-q", &url, "+main:refs/remotes/s/main"]);
+        git.ok(&w, &["switch", "-q", "-C", &branch, "s/main"]);
+        std::fs::write(w.join(format!("{branch}.txt")), "approved\n").unwrap();
+        git.ok(&w, &["add", "-A"]);
+        git.ok(&w, &["commit", "-q", "-m", "Approved"]);
+        git.ok(&w, &["push", "-q", &url, &branch]);
+        let head = git.ok(&w, &["rev-parse", "HEAD"]).trim().to_owned();
+        std::fs::write(w.join(format!("{branch}.txt")), "sneaked in\n").unwrap();
+        git.ok(&w, &["commit", "-q", "-a", "-m", "Sneaked in"]);
+        let sneaked = git.ok(&w, &["rev-parse", "HEAD"]).trim().to_owned();
+        let r = api(
+            &u,
+            &u.alice,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_branch": branch, "title": "Race"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        wait_revisions(&u, n, 1);
+        let status = std::thread::scope(|scope| {
+            let push = scope.spawn(|| {
+                git.cmd(&w)
+                    .args(["push", "-q", &url, &branch])
+                    .output()
+                    .unwrap()
+            });
+            let r = api(
+                &u,
+                &u.alice,
+                "POST",
+                &format!("/merge-requests/{n}/merge"),
+                Some(json!({"strategy": "merge-commit", "expected_head_oid": head})),
+            );
+            push.join().unwrap();
+            r.status
+        });
+        let repo = u.s.repo_path(&DEMO);
+        let landed = git
+            .cmd(&repo)
+            .args(["merge-base", "--is-ancestor", &sneaked, "main"])
+            .output()
+            .unwrap()
+            .status
+            .success();
+        assert!(!landed, "round {i}: the unreviewed commit reached main");
+        match status {
+            200 => {
+                merged += 1;
+                let ok = git
+                    .cmd(&repo)
+                    .args(["merge-base", "--is-ancestor", &head, "main"])
+                    .output()
+                    .unwrap()
+                    .status
+                    .success();
+                assert!(ok, "round {i}: merged, but not the expected head");
+            }
+            409 | 422 => refused += 1,
+            other => panic!("round {i}: merge answered {other}"),
+        }
+    }
+    eprintln!("merged {merged}, refused {refused}");
+}

@@ -282,3 +282,77 @@ fn conf_rbac_01_deploy_keys_in_the_repository_settings() {
         "{body}"
     );
 }
+
+/// A deploy key acts as itself, not as the repository's owner (Gitea
+/// deploy-key principal advisories): a read-only key can't push, and a
+/// write key can't push to a branch whose protection needs the maintain
+/// role, though the owner could.
+#[test]
+fn conf_rbac_02_deploy_key_principal() {
+    if sshd::skipped() {
+        eprintln!("SLATH_SKIP_SSH_TESTS=1: skipping");
+        return;
+    }
+    let keys = tempfile::tempdir().unwrap();
+    let s = TestServer::start_with(&[DEMO]);
+    let sshd = Sshd::start(&s);
+    let env = Env {
+        sshd,
+        s,
+        keys,
+        git: GitClient::new(),
+    };
+    let (read_key, read_pub) = sshd::keygen(env.keys.path(), "reader");
+    let (write_key, write_pub) = sshd::keygen(env.keys.path(), "writer");
+    let mut alice = env.s.login("alice", PASSWORD);
+    let t = slath_tests::http::create_token(&mut alice, "a", &["repo:write"]);
+    let w = env.keys.path().join("w");
+    std::fs::create_dir_all(&w).unwrap();
+    env.git.ok(&w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "demo\n").unwrap();
+    env.git.ok(&w, &["add", "."]);
+    env.git.ok(&w, &["commit", "-q", "-m", "init"]);
+    env.git.ok(&w, &["push", "-q", &env.s.url(&DEMO), "main"]);
+    for body in [
+        json!({"key": read_pub}),
+        json!({"key": write_pub, "can_push": true}),
+    ] {
+        let r = env.api(&t, "POST", "/alice/demo/keys", Some(body));
+        assert_eq!(r.status, 201, "{}", r.body);
+    }
+    let r = env.api(
+        &t,
+        "POST",
+        "/alice/demo/protections",
+        Some(json!({"pattern": "main", "push_role": "maintain"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    std::fs::write(w.join("x"), "x\n").unwrap();
+    env.git.ok(&w, &["add", "."]);
+    env.git.ok(&w, &["commit", "-q", "-m", "x"]);
+    let url = env.sshd.url("alice", "demo");
+    let before = env.git.ok(&env.s.repo_path(&DEMO), &["rev-parse", "main"]);
+    let out = env.git_with(&read_key, &w, &["push", "-q", &url, "HEAD:refs/heads/side"]);
+    assert!(!out.status.success(), "a read-only key pushed");
+    let out = env.git_with(
+        &write_key,
+        &w,
+        &["push", "-q", &url, "HEAD:refs/heads/main"],
+    );
+    denied(
+        &out,
+        "a write key pushing to a maintain-only main",
+        "needs a higher role",
+    );
+    assert_eq!(
+        env.git.ok(&env.s.repo_path(&DEMO), &["rev-parse", "main"]),
+        before
+    );
+    // The write key still pushes where writers may.
+    let out = env.git_with(
+        &write_key,
+        &w,
+        &["push", "-q", &url, "HEAD:refs/heads/side"],
+    );
+    ok(&out, &env, "write key push to an unprotected branch");
+}
