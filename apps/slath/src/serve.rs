@@ -393,6 +393,9 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
         .map_err(|e| format!("cannot listen on {listen}: {e}"))?;
     let addr = tcp.local_addr().map_err(|e| e.to_string())?;
     tracing::info!(%addr, "listening");
+    if let Some(why) = crate::tzdb::stale(Path::new("/usr/share/zoneinfo")) {
+        tracing::warn!("{why}");
+    }
     // Machine-readable line for scripts and the test launcher.
     println!("slath: listening on http://{addr}");
     let app =

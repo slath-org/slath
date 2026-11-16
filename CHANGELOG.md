@@ -11,6 +11,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 ### Added
 
 - Choose your time zone under Settings → Appearance: pages and emails show times in it, and the page proposes your device's zone.
+- `slath doctor` and `slath serve` warn when the time zone database built into Slath is older than the host's.
 - Accounts can have several email addresses, each confirmed by a link, and choose which one is primary under Settings → Email addresses.
 - Commits with any of an account's confirmed addresses show as that account; `slath admin add-email` confirms an address when email is off.
 - Commits a bot pushed show the bot as committer, and as author unless a person's address is written there.

@@ -381,6 +381,16 @@ fn run_checks(path: &Path) -> Vec<Finding> {
     let scheduled = cfg.backup.schedule.is_some();
     let max_age = Duration::from_secs(if scheduled { 2 } else { 7 } * 86_400);
     out.push(backup_finding(newest_backup(&backups), max_age, scheduled));
+    out.push(match crate::tzdb::stale(Path::new("/usr/share/zoneinfo")) {
+        Some(why) => Finding::warn("tzdb.stale", why, "update Slath to the newest release"),
+        None => Finding::ok(
+            "tzdb.stale",
+            format!(
+                "the built-in time zone database is {}",
+                slath_core::tz::database_version().unwrap_or("of unknown version")
+            ),
+        ),
+    });
     out.extend(schema_and_update(&cfg));
     out.push(check_tls(&cfg.server.public_url.join("/")));
     out

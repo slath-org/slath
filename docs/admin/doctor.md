@@ -32,6 +32,7 @@ list of checks with `code`, `status` (`ok`, `warn`, `fail`), `detail`, and
 | `keys.unreadable` | The master key (and old keys) load |
 | `disk.low` | Free space on the data directory's file system (warning below 15%, failure below 5% or 1 GiB) |
 | `backup.none`, `backup.stale` | A backup exists in the backup directory and is at most a week old |
+| `tzdb.stale` | The time zone database built into Slath isn't older than the host's (a warning: a newer host database means some zone's rules changed; Slath never uses the host's, so update Slath). `slath serve` logs the same warning at start |
 | `schema.state` | The database schema matches this version (behind: a restart updates it) |
 | `postgres.superuser` | Slath's database role isn't a superuser (warning): it should only own Slath's database |
 | `update.*` | The update preflight, as in `slath upgrade --check`: PostgreSQL (a supported major version, and a warning if it lacks the latest security release Slath knows of) and extensions, Git, source version, required manual steps, configuration, data directory, upgrade lock |

@@ -14,6 +14,7 @@ mod output;
 mod serve;
 mod setup;
 mod ssh;
+mod tzdb;
 mod upgrade;
 mod upgrade_notes;
 
