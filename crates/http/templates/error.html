@@ -1,15 +1,23 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<h1>{{ title }}</h1>
-{% if status == 404 -%}
-<p>The page you were looking for doesn't exist, or you don't have access to it.</p>
-{%- else if let Some(d) = detail -%}
-<p>{{ d }}</p>
-{%- endif %}
-{% if signed_out -%}
-<p><a href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a> to continue.</p>
-{%- endif %}
-<p><a href="/">Go to the start page</a></p>
+{#- What went wrong, what to do, the ways on, then the reference an
+    administrator needs. -#}
+<div class="page page-form">
+<header class="page-head">
+  <div class="page-head-row"><h1>{{ title }}</h1></div>
+  {%- if let Some(d) = detail %}
+  <p class="page-head-intro">{{ d }}</p>
+  {%- endif %}
+</header>
+<div class="stack-groups">
+<div class="cluster">
+  {%- if offer_sign_in %}
+  <a class="button button-primary" href="/-/login?next={{ ctx.here|urlencode }}">Sign in</a>
+  {%- endif %}
+  <a class="button" href="/">Go to the start page</a>
+</div>
 <p class="text-secondary">Error {{ status }}{% if !request_id.is_empty() %} · Request ID <code>{{ request_id }}</code>{% endif %}</p>
+</div>
+</div>
 {% endblock %}

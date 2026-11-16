@@ -540,22 +540,57 @@ pub fn render_hx(hx: HxRequest, full: &impl Template, fragment: &impl Template) 
 struct ErrorPage<'a> {
     ctx: &'a PageCtx,
     status: u16,
+    /// What went wrong, in the person's words.
     title: &'a str,
+    /// What to do about it.
     detail: Option<&'a str>,
     request_id: &'a str,
-    signed_out: bool,
+    /// Signing in may help: the page needs an account, or a signed-out
+    /// person can't see it.
+    offer_sign_in: bool,
+}
+
+/// The error page's heading and what to do, for a status; the API's
+/// problem title and detail where the page has nothing better.
+fn error_words(info: &ErrorInfo) -> (&str, Option<&str>) {
+    match info.status {
+        StatusCode::NOT_FOUND => (
+            "Page not found",
+            Some("The page you were looking for doesn't exist, or you don't have access to it."),
+        ),
+        StatusCode::UNAUTHORIZED => (
+            "Sign in to continue",
+            Some("This page is for signed-in accounts."),
+        ),
+        StatusCode::FORBIDDEN => ("Not allowed", info.detail.as_deref()),
+        StatusCode::TOO_MANY_REQUESTS => {
+            ("Too many requests", Some("Wait a moment, then try again."))
+        }
+        StatusCode::INTERNAL_SERVER_ERROR => (
+            "Something went wrong",
+            Some(
+                "Slath couldn't finish this request. Try again; if it keeps failing, give an administrator the request ID below.",
+            ),
+        ),
+        _ => (info.title, info.detail.as_deref()),
+    }
 }
 
 /// The HTML error page for `info`.
 #[must_use]
 pub fn error_page(ctx: &PageCtx, info: &ErrorInfo, request_id: &str) -> Response {
+    let (title, detail) = error_words(info);
     let page = ErrorPage {
         ctx,
         status: info.status.as_u16(),
-        title: info.title,
-        detail: info.detail.as_deref(),
+        title,
+        detail,
         request_id,
-        signed_out: info.status == StatusCode::UNAUTHORIZED,
+        offer_sign_in: ctx.user.is_none()
+            && matches!(
+                info.status,
+                StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND
+            ),
     };
     let mut res = render(&page);
     *res.status_mut() = info.status;

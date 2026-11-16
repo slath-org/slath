@@ -94,6 +94,10 @@ const MIGRATED = [
   "/-/notifications?all=true",
   "/-/sudo?next=/-/settings/security",
   "anon:/-/login",
+  // Errors: not found signed in and out, sign-in required.
+  "/-/no-such-page",
+  "anon:/-/no-such-page",
+  "anon:/-/settings/profile",
   // Administration, as the site administrator.
   "/-/admin/users",
   "/-/admin/invites",

@@ -5,8 +5,8 @@ import { expect, expectAccessible, test } from "../fixtures";
 test("conf_a11y_01_error_page_accessible", async ({ page }) => {
   const res = await page.goto("/-/no-such-page");
   expect(res?.status()).toBe(404);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Not found");
-  await expect(page).toHaveTitle("Not found · Slath");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Page not found");
+  await expect(page).toHaveTitle("Page not found · Slath");
   await expectAccessible(page);
 });
 

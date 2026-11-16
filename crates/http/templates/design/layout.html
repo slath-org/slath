@@ -51,7 +51,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>The page: its heading, then its sections, 32 px apart (24 px in compact). The heading holds the one <code>h1</code>, an optional state line under it, the page's actions on the title's row, and an optional one-sentence introduction.</dd>
   <dt>Markup</dt><dd><code>div.page</code> &gt; <code>header.page-head</code> (<code>div.page-head-row</code> with the <code>h1</code> and <code>div.page-head-actions</code>; optional <code>p.page-head-meta</code> and <code>p.page-head-intro</code>), then the sections.</dd>
-  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header. A form with long text or the Markdown editor (new issue, editing a comment) is <code>page-form-wide</code> (48 rem). A profile (a user, a bot, an organization) is <code>header.page-head.page-head-profile</code>: its 64 px avatar <code>img.page-head-avatar</code>, then <code>div.page-head-text</code> with the row, the state line, and the introduction; the title is the display name, the state line starts with the account name.</dd>
+  <dt>Variants</dt><dd>With or without actions, state line, introduction. On narrow screens the actions wrap below the title. A page that is one form is <code>div.page.page-form</code>, the narrow column (36 rem): its heading with one sentence on what the form does, then the form; with a context it sits in the page after the context header. A form with long text or the Markdown editor (new issue, editing a comment) is <code>page-form-wide</code> (48 rem). A profile (a user, a bot, an organization) is <code>header.page-head.page-head-profile</code>: its 64 px avatar <code>img.page-head-avatar</code>, then <code>div.page-head-text</code> with the row, the state line, and the introduction; the title is the display name, the state line starts with the account name. An error page (not found, sign-in required, something went wrong) is a form page without a form: the <code>h1</code> says what went wrong in the person's words, the introduction what to do, then the ways on as buttons (Sign in first when that may help) and the reference an administrator needs, the status and the request ID, in secondary text. Not found and not allowed look the same.</dd>
   <dt>Accessibility</dt><dd>Exactly one <code>h1</code>. The actions follow the title in reading order. At most one primary action.</dd>
   <dt>Not for</dt><dd>The code pages, whose <code>h1</code> is for screen readers and whose place shows in the breadcrumb.</dd>
 </dl>
@@ -88,6 +88,18 @@
     <p class="page-head-intro">Works on the parser and the Git server.</p>
   </div>
 </header>
+{%- endcall %}
+{%- call cat::example("An error page, signed out.") %}
+<div class="page page-form">
+  <header class="page-head">
+    <div class="page-head-row"><p class="type-title">Page not found</p></div>
+    <p class="page-head-intro">The page you were looking for doesn't exist, or you don't have access to it.</p>
+  </header>
+  <div class="stack-groups">
+    <div class="cluster"><a class="button button-primary" href="#page">Sign in</a><a class="button" href="#page">Go to the start page</a></div>
+    <p class="text-secondary">Error 404 · Request ID <code>01a1d73c35bb</code></p>
+  </div>
+</div>
 {%- endcall %}
 {%- call cat::example("A settings page's heading: title and introduction.") %}
 <header class="page-head">

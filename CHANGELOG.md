@@ -246,6 +246,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Profiles show the avatar next to the display name, with the account name under it; a bot's profile links its owner with their avatar.
 - Explore puts New repository, Import, and New organization on the heading's row; repository lists use the same rows as other lists.
 - Notifications put their mark buttons at the end of each row with a tooltip, and say "Unread" in the row's details.
+- Error pages say in plain words what went wrong and what to do, with Sign in first when signing in may help and the request ID for administrators.
 - Empty details of issues and merge requests are full sentences, such as "No one is assigned." and "No labels.", in the same style as other empty states.
 - Assignees and label filters take several names as chips; the details column beside an issue uses the same fields and full-width buttons.
 - Labels and milestones put their forms in a section under the list; a milestone's state is chosen with two options.

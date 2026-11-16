@@ -88,7 +88,7 @@ fn conf_sec_04_html_responses_carry_security_headers() {
     let missing = c.get("/-/no-such-route");
     assert_eq!(missing.status, 404);
     assert_html_headers(&missing);
-    assert!(missing.body.contains("<h1>Not found</h1>"));
+    assert!(missing.body.contains("<h1>Page not found</h1>"));
 }
 
 #[test]
