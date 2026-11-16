@@ -399,6 +399,13 @@ fn conf_agent_01_the_overview_shows_only_what_the_viewer_may_see() {
     assert!(o["next_token_expiry"]["expires_at"].is_string(), "{o}");
     // Its two API requests (the merge requests); Git doesn't count.
     assert_eq!(o["rate_limit"], json!({"limit": 10, "used": 2}), "{o}");
+    // The bot's page says the same, once.
+    let page = a.get("/-/bots/acme-ci").body;
+    assert!(
+        page.contains("<dd><div class=\"cluster\">2 of 10"),
+        "{page}"
+    );
+    assert_eq!(page.matches(" of 10").count(), 1, "{page}");
     // A site administrator sees both; bob, who doesn't manage it, nothing.
     let mut c = s.login("sysop", PW);
     let admin = create_token(&mut c, "t", &["admin", "user:read"]);
