@@ -69,6 +69,20 @@ impl Services {
         Ok(edit.then_some((src_access, true)))
     }
 
+    /// Whether the subject may write the merge request's source branch on
+    /// the server (update it, apply suggestions to it): never in an
+    /// archived repository. Checked before anything else about the merge
+    /// request is revealed.
+    pub(crate) async fn may_write_source(
+        &self,
+        subject: &Subject,
+        a: &crate::repos::RepoAccess,
+        m: &MergeRequest,
+    ) -> Result<bool> {
+        Ok(a.repo.state != RepoState::Archived
+            && self.branch_update_right(subject, a, m).await?.is_some())
+    }
+
     /// Whether the subject may update the branch (the merge box offers it).
     pub async fn may_update_branch(
         &self,
@@ -96,6 +110,13 @@ impl Services {
         let Subject::User { id: user, .. } = subject else {
             return Err(ServiceError::Unauthenticated);
         };
+        // Who may update it comes first: nobody else learns anything about
+        // the merge request's state or head from the answer.
+        if !subject.token_allows(Action::MrUpdateBranch.scope())
+            || !self.may_write_source(subject, &a, &m).await?
+        {
+            return Err(ServiceError::Forbidden);
+        }
         if !matches!(method, "rebase" | "merge") {
             return Err(ServiceError::invalid(
                 "method",

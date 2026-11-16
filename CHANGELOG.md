@@ -271,6 +271,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The administration Upgrades page has a proper browser tab title.
 - Re-running `slath upgrade` right after an interrupted upgrade no longer fails because the new backup would reuse the earlier backup's directory.
 - Tooltips, such as the exact time behind "3 days ago", work again after going back to a page, and no longer clash with a heading of the same name.
+- Updating a merge request's branch or applying suggestions answers "forbidden" to anyone who can't write the source branch, before saying whether it's open or current.
+- Updating a merge request's branch with a token needs the `mrs:write` scope, as the API reference says.
 
 ## [0.2.0] - 2026-11-02
 

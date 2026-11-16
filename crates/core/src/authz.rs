@@ -197,6 +197,22 @@ pub enum Subject {
     },
 }
 
+impl Subject {
+    /// Whether the credential covers `scope`: always for sessions, SSH
+    /// keys, deploy keys, and Slath itself; for a token, if one of its
+    /// scopes implies it. Says nothing about roles.
+    #[must_use]
+    pub fn token_allows(&self, scope: Scope) -> bool {
+        match self {
+            Self::User {
+                credential: Credential::Token { scopes, .. },
+                ..
+            } => scopes.iter().any(|s| s.implies(scope)),
+            _ => true,
+        }
+    }
+}
+
 /// Every action that `check` decides on. The string form (`repo.read`) is used
 /// in the matrix test, audit events, and error details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -695,6 +711,30 @@ mod tests {
         assert!(!Scope::RepoRead.implies(Scope::RepoWrite));
         assert!(Scope::UserWrite.implies(Scope::UserRead));
         assert_eq!("repo".parse::<Scope>(), Err(UnknownScope));
+    }
+
+    #[test]
+    fn only_tokens_are_limited_by_scopes() {
+        let user = |credential| Subject::User {
+            id: UserId::new(),
+            kind: UserKind::Human,
+            state: UserState::Active,
+            is_site_admin: false,
+            credential,
+        };
+        let token = |scopes: Vec<Scope>| {
+            user(Credential::Token {
+                id: TokenId::new(),
+                scopes,
+                repo_ids: None,
+            })
+        };
+        assert!(user(Credential::Session).token_allows(Scope::MrsWrite));
+        assert!(Subject::Anonymous.token_allows(Scope::MrsWrite));
+        assert!(token(vec![Scope::MrsWrite]).token_allows(Scope::MrsWrite));
+        assert!(token(vec![Scope::RepoWrite]).token_allows(Scope::RepoRead));
+        assert!(!token(vec![Scope::RepoWrite]).token_allows(Scope::MrsWrite));
+        assert!(!token(vec![]).token_allows(Scope::RepoRead));
     }
 
     #[test]

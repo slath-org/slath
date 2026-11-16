@@ -129,6 +129,11 @@ impl Services {
         if !a.can(subject, Action::MrApplySuggestion) && m.author_id != Some(*user) {
             return Err(ServiceError::Forbidden);
         }
+        // Applying writes the source branch: that right comes before
+        // anything about the merge request's state or head.
+        if !self.may_write_source(subject, &a, &m).await? {
+            return Err(ServiceError::Forbidden);
+        }
         if m.state != "open" {
             return Err(ServiceError::Conflict(
                 "The merge request isn't open.".into(),
