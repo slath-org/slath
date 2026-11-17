@@ -20,7 +20,7 @@ mod title;
 
 use std::collections::HashSet;
 
-pub use highlight::{Highlighted, highlight};
+pub use highlight::{Highlighted, emphasize, highlight, plain};
 pub use title::title_html;
 
 /// Bumped whenever rendering output changes, so cached renders are discarded.

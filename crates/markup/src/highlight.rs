@@ -155,6 +155,76 @@ fn balance(lines: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+/// Marks character ranges of a highlighted line: `ranges` are
+/// `(start, end)` positions in the line's text (characters, before
+/// escaping), sorted and apart. Each range is wrapped in `open` …
+/// `close`; where a range crosses a highlighting span, it's closed before
+/// the span's tag and opened again after it with `reopen`, so the HTML
+/// stays well-formed. A revealed bidi control counts as one character.
+#[must_use]
+pub fn emphasize(
+    html: &str,
+    ranges: &[(usize, usize)],
+    open: &str,
+    reopen: &str,
+    close: &str,
+) -> String {
+    const BIDI: &str = "<span class=\"bidi-control\"";
+    let mut out = String::with_capacity(html.len() + ranges.len() * 32);
+    let mut pos = 0usize;
+    let mut next = 0usize;
+    let mut inside = false;
+    let mut started = false;
+    let mut rest = html;
+    while !rest.is_empty() {
+        // One unit: a tag, a revealed bidi control, an entity, or a char.
+        let (unit, is_text) = if rest.starts_with(BIDI) {
+            let end = rest
+                .find("</span>")
+                .map_or(rest.len(), |e| e + "</span>".len());
+            (&rest[..end], true)
+        } else if rest.starts_with('<') {
+            let end = rest.find('>').map_or(rest.len(), |e| e + 1);
+            (&rest[..end], false)
+        } else if rest.starts_with('&') {
+            let end = rest.find(';').map_or(1, |e| e + 1);
+            (&rest[..end], true)
+        } else {
+            let len = rest.chars().next().map_or(1, char::len_utf8);
+            (&rest[..len], true)
+        };
+        rest = &rest[unit.len()..];
+        if !is_text {
+            if inside {
+                out.push_str(close);
+                inside = false;
+            }
+            out.push_str(unit);
+            continue;
+        }
+        while next < ranges.len() && ranges[next].1 <= pos {
+            next += 1;
+            started = false;
+        }
+        let in_range = next < ranges.len() && ranges[next].0 <= pos && pos < ranges[next].1;
+        if in_range && !inside {
+            out.push_str(if started { reopen } else { open });
+            inside = true;
+            started = true;
+        }
+        out.push_str(unit);
+        pos += 1;
+        if inside && next < ranges.len() && pos >= ranges[next].1 {
+            out.push_str(close);
+            inside = false;
+        }
+    }
+    if inside {
+        out.push_str(close);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +259,54 @@ mod tests {
         assert!(h.lines[0].contains("[U+202E]"), "{:?}", h.lines);
         let p = highlight("a.txt", "a\u{2066}b\n");
         assert!(p.lines[0].contains("[U+2066]"), "{:?}", p.lines);
+    }
+
+    #[test]
+    fn emphasis_wraps_text_and_splits_at_spans() {
+        use super::emphasize;
+        let m = |h: &str, r: &[(usize, usize)]| emphasize(h, r, "<ins>", "<ins>", "</ins>");
+        assert_eq!(m("abcdef", &[(1, 3)]), "a<ins>bc</ins>def");
+        assert_eq!(
+            m("abcdef", &[(0, 1), (5, 6)]),
+            "<ins>a</ins>bcde<ins>f</ins>"
+        );
+        // Across a span boundary: closed before the tag, reopened after.
+        assert_eq!(
+            m(r#"ab<span class="syn-x">cd</span>ef"#, &[(1, 5)]),
+            r#"a<ins>b</ins><span class="syn-x"><ins>cd</ins></span><ins>e</ins>f"#
+        );
+        // Entities count as one character.
+        assert_eq!(m("a&lt;b", &[(1, 2)]), "a<ins>&lt;</ins>b");
+        // The first piece may differ (a screen-reader prefix).
+        assert_eq!(
+            emphasize("a<b>c</b>", &[(0, 2)], "<ins>P:", "<ins>", "</ins>"),
+            "<ins>P:a</ins><b><ins>c</ins></b>"
+        );
+        // A revealed bidi control is one character.
+        let h = super::highlight("x.txt", "a\u{202E}b").lines[0].clone();
+        let e = m(&h, &[(2, 3)]);
+        assert!(e.ends_with("<ins>b</ins>"), "{e}");
+        assert_eq!(m("", &[(0, 1)]), "");
+    }
+
+    #[test]
+    fn emphasis_keeps_highlighted_text() {
+        let h = super::highlight("x.rs", "let x = \"a<b\";").lines[0].clone();
+        let e = super::emphasize(&h, &[(8, 13)], "<ins>", "<ins>", "</ins>");
+        let strip = |s: &str| {
+            let mut out = String::new();
+            let mut tag = false;
+            for c in s.chars() {
+                match c {
+                    '<' => tag = true,
+                    '>' => tag = false,
+                    c if !tag => out.push(c),
+                    _ => {}
+                }
+            }
+            out
+        };
+        assert_eq!(strip(&e), strip(&h));
+        assert_eq!(e.matches("<ins>").count(), e.matches("</ins>").count());
     }
 }
