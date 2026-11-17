@@ -6,7 +6,7 @@
 {%- if !last %}<a href="#{{ anchor }}-h{{ i + 1 }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% else if more_files %}<a href="#diff-{{ next_file }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% endif -%}
 </span>{% endif %}
 {%- endmacro -%}
-<section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title">
+<section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title"{% if diff.review.is_some() && !f.viewed && !f.folded %} data-unviewed{% endif %}>
   <header class="diff-file-head">
   <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }} · <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></h3>
   {%- if let Some(r) = diff.review %}

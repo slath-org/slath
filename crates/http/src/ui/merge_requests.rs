@@ -2764,6 +2764,7 @@ async fn attach_review(
             }
         }
     }
+    diff.mark_review(&threads);
     let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
     diff.review = Some(super::diff::ReviewCtx {
         thread_post: format!("{base}/threads"),

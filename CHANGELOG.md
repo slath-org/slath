@@ -17,6 +17,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Files too large to highlight in a diff are shown plain with a note; `[limits] diff_highlight_max_file_bytes` and `diff_highlight_max_bytes` set the sizes.
 - Every installation serves its own version's documentation at `/-/docs/`, without internet access; Help in the footer and the guides linked from pages lead there.
 - `slath docs build --out DIR` writes that documentation as static HTML.
+- A merge request's file list marks the files you viewed and counts their threads; Next unviewed file and Next unresolved thread (keys v and t) jump there.
 - Accounts can have several email addresses, each confirmed by a link, and choose which one is primary under Settings → Email addresses.
 - Commits with any of an account's confirmed addresses show as that account; `slath admin add-email` confirms an address when email is off.
 - Commits a bot pushed show the bot as committer, and as author unless a person's address is written there.

@@ -41,10 +41,16 @@
   </fieldset>
   <p class="diff-hidden text-secondary">{{ diff.folded_files }} folded file{% if diff.folded_files != 1 %}s{% endif %} hidden.</p>
   {%- endif %}
+{%- if diff.review.is_some() && (diff.next_unviewed.is_some() || diff.next_unresolved.is_some()) %}
+<p class="cluster">
+  {%- if let Some(a) = diff.next_unviewed %}<a class="button button-quiet" href="#{{ a }}" data-review-next="unviewed" aria-keyshortcuts="v" title="Next unviewed file (v)">Next unviewed file</a>{% endif %}
+  {%- if let Some(a) = diff.next_unresolved %}<a class="button button-quiet" href="#{{ a }}" data-review-next="unresolved" aria-keyshortcuts="t" title="Next unresolved thread (t)">Next unresolved thread</a>{% endif %}
+</p>
+{%- endif %}
 <nav class="diff-tree" aria-label="Changed files">
   <ul>
   {%- for e in diff.tree %}
-    <li class="depth-{{ e.depth.min(6) }}{% if e.folded %} diff-tree-folded{% endif %}">{% if let Some(a) = e.anchor %}<a href="#{{ a }}">{{ e.name }}</a><span class="diff-tree-status text-secondary">{{ e.status }}{% if !e.reason.is_empty() %} · {{ e.reason }}{% endif %}</span>{% else %}<span class="diff-tree-dir">{% call m::icon(ctx, "folder") %}{% endcall %}{{ e.name }}/</span>{% endif %}</li>
+    <li class="depth-{{ e.depth.min(6) }}{% if e.folded %} diff-tree-folded{% endif %}">{% if let Some(a) = e.anchor %}<a href="#{{ a }}">{{ e.name }}</a><span class="diff-tree-status text-secondary">{{ e.status }}{% if !e.reason.is_empty() %} · {{ e.reason }}{% endif %}{% if e.viewed %} · viewed{% endif %}{% if e.threads > 0 %} · {{ e.threads }} thread{% if e.threads != 1 %}s{% endif %}{% if e.unresolved > 0 %}, {{ e.unresolved }} unresolved{% endif %}{% endif %}</span>{% else %}<span class="diff-tree-dir">{% call m::icon(ctx, "folder") %}{% endcall %}{{ e.name }}/</span>{% endif %}</li>
   {%- endfor %}
   </ul>
 </nav>

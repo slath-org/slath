@@ -310,7 +310,11 @@ that line; set the last line to comment on a range. It works without
 JavaScript and with touch. Threads show under the lines they're about,
 with a link to answer in the conversation. **Mark viewed** collapses a
 file you've reviewed; it opens again by itself when the file changes in a
-new revision.
+new revision. The file list marks the files you viewed and counts each
+file's threads and how many are unresolved. **Next unviewed file** and
+**Next unresolved thread** above the files take you to the next one
+below where you are (with the keyboard, **v** and **t** while the diff
+has focus, next to **n** and **p** for the next and previous change).
 
 In the conversation, each thread shows the code it's about, its replies,
 and whether it's outdated or resolved. **Reply…** opens the reply form in

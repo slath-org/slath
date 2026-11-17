@@ -111,6 +111,11 @@ pub struct TreeEntry {
     pub folded: bool,
     /// Why a folded file is folded.
     pub reason: String,
+    /// Merge request diffs: the viewer marked the file viewed.
+    pub viewed: bool,
+    /// Merge request diffs: the file's threads, and the unresolved ones.
+    pub threads: usize,
+    pub unresolved: usize,
 }
 
 /// A thread shown under its line.
@@ -167,6 +172,11 @@ pub struct DiffView {
     /// Files not listed, past the file limit, and that limit.
     pub left_out: usize,
     pub max_files: usize,
+    /// Merge request diffs: the first file not marked viewed, and the
+    /// first unresolved thread (anchors), for "Next unviewed file" and
+    /// "Next unresolved thread".
+    pub next_unviewed: Option<String>,
+    pub next_unresolved: Option<String>,
 }
 
 /// The side and number a line is anchored by: removed lines by their old
@@ -180,6 +190,44 @@ fn side_of<'a>(kind: &str, old_no: &'a str, new_no: &'a str) -> (&'static str, &
 }
 
 impl DiffView {
+    /// Fills the file tree's viewed marks and thread counts and the
+    /// review navigation from the files' viewed state and `threads`.
+    pub fn mark_review(&mut self, threads: &HashMap<(String, String, String), Vec<InlineThread>>) {
+        let mut counts: HashMap<&str, (usize, usize)> = HashMap::new();
+        for ((path, _, _), list) in threads {
+            let c = counts.entry(path.as_str()).or_default();
+            c.0 += list.len();
+            c.1 += list.iter().filter(|t| !t.resolved).count();
+        }
+        for e in &mut self.tree {
+            let Some(anchor) = &e.anchor else { continue };
+            let Some(f) = self.files.iter().find(|f| &f.anchor == anchor) else {
+                continue;
+            };
+            e.viewed = f.viewed;
+            (e.threads, e.unresolved) = counts.get(f.path.as_str()).copied().unwrap_or_default();
+        }
+        self.next_unviewed = self
+            .files
+            .iter()
+            .find(|f| !f.viewed && !f.folded)
+            .map(|f| f.anchor.clone());
+        // In file order, then line order within a file.
+        self.next_unresolved = self.files.iter().find_map(|f| {
+            let mut open: Vec<(u64, &str)> = threads
+                .iter()
+                .filter(|((p, _, _), _)| *p == f.path)
+                .flat_map(|((_, _, line), list)| {
+                    list.iter()
+                        .filter(|t| !t.resolved)
+                        .map(move |t| (line.parse().unwrap_or(0), t.id.as_str()))
+                })
+                .collect();
+            open.sort_unstable();
+            open.first().map(|(_, id)| format!("thread-{id}"))
+        });
+    }
+
     /// `old` for removed lines, `new` otherwise.
     #[must_use]
     pub fn side_for(&self, kind: &str) -> &'static str {
@@ -666,6 +714,9 @@ fn tree(files: &[FileView]) -> Vec<TreeEntry> {
                 status: "",
                 folded: true,
                 reason: String::new(),
+                viewed: false,
+                threads: 0,
+                unresolved: 0,
             });
         }
         if !f.folded {
@@ -684,6 +735,9 @@ fn tree(files: &[FileView]) -> Vec<TreeEntry> {
             } else {
                 String::new()
             },
+            viewed: f.viewed,
+            threads: 0,
+            unresolved: 0,
         });
     }
     out
@@ -833,6 +887,8 @@ pub fn view(
         folded_files,
         left_out: inventory.left_out,
         max_files: limits.diff_max_files,
+        next_unviewed: None,
+        next_unresolved: None,
     }
 }
 

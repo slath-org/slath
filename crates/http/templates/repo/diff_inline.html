@@ -2,7 +2,7 @@
     Expects: diff, f (the file), inline (threads), compose (bool),
     side, line, cols. -#}
 {%- for t in inline %}
-<tr class="diff-thread-row" id="thread-{{ t.id }}"><td colspan="{{ cols }}">
+<tr class="diff-thread-row" id="thread-{{ t.id }}"{% if !t.resolved %} data-unresolved{% endif %}><td colspan="{{ cols }}">
   <div class="inline-thread{% if t.resolved %} thread-resolved{% endif %}">
     {%- if t.resolved %}<p class="text-secondary">Resolved</p>{% endif %}
     {%- if let Some(by) = t.addressed_by %}<p class="text-secondary">Marked as addressed by {% call p::account(ctx, by) %}{% endcall %}</p>{% endif %}
