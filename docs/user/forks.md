@@ -148,7 +148,7 @@ recorded in the original's audit log.
 The right only goes from the original to forks of it: a merge request
 from the original into your fork gives you no access to the original.
 
-### The branch mr/<n> in the original
+### The branch `mr/<n>` in the original
 
 While a merge request from a fork is open, the original shows it as the
 branch `mr/<n>` (`mr/12` for merge request 12) at its latest revision.

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{title}} · Slath {{version}} documentation</title>
+<link rel="stylesheet" href="{{root}}_theme/tokens.css">
+<link rel="stylesheet" href="{{root}}_theme/docs.css">
+<link rel="icon" type="image/svg+xml" href="{{root}}_theme/logo-light.svg" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/svg+xml" href="{{root}}_theme/logo-dark.svg" media="(prefers-color-scheme: dark)">
+{{scripts}}
+</head>
+<body>
+<a class="docs-skip" href="#content">Skip to the content</a>
+<header class="docs-header">
+  <a class="docs-home" href="{{root}}index.html"><img class="docs-logo docs-logo-light" src="{{root}}_theme/logo-light.svg" alt="" width="24" height="24"><img class="docs-logo docs-logo-dark" src="{{root}}_theme/logo-dark.svg" alt="" width="24" height="24">Slath documentation</a>
+  <a class="docs-contents-link" href="#docs-nav">Contents</a>
+  {{switcher}}
+</header>
+<div class="docs-layout">
+<main id="content" class="docs-content">
+{{content}}
+{{pager}}
+</main>
+{{nav}}
+</div>
+</body>
+</html>

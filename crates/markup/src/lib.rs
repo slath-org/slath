@@ -11,6 +11,7 @@
 //! and text can't look different from what they are.
 #![forbid(unsafe_code)]
 
+pub mod docs;
 mod highlight;
 pub mod intraline;
 pub mod refs;
@@ -91,7 +92,7 @@ fn is_external(url: &str) -> bool {
     u.starts_with("//") || u.contains(':')
 }
 
-fn sanitizer() -> ammonia::Builder<'static> {
+fn allowlist() -> ammonia::Builder<'static> {
     let tags: HashSet<&str> = [
         "a",
         "abbr",
@@ -168,8 +169,13 @@ fn sanitizer() -> ammonia::Builder<'static> {
         .add_tag_attributes("h5", ["id"].iter())
         .add_tag_attributes("h6", ["id"].iter())
         .url_schemes(["http", "https", "mailto"].into_iter().collect())
-        .link_rel(Some("nofollow noopener noreferrer"))
-        .strip_comments(true)
+        .strip_comments(true);
+    b
+}
+
+fn sanitizer() -> ammonia::Builder<'static> {
+    let mut b = allowlist();
+    b.link_rel(Some("nofollow noopener noreferrer"))
         .attribute_filter(|element, attribute, value| match (element, attribute) {
             // Only "language-…" classes on code and footnote classes survive.
             ("code", "class") => valid_class(value, "language-").then(|| value.into()),
@@ -183,6 +189,12 @@ fn sanitizer() -> ammonia::Builder<'static> {
             _ => Some(value.into()),
         });
     b
+}
+
+/// The Markdown allowlist, for the documentation site (which sets its own
+/// attribute filter: its headings keep their plain anchors).
+pub(crate) fn sanitizer_for_docs() -> ammonia::Builder<'static> {
+    allowlist()
 }
 
 fn valid_class(value: &str, prefix: &str) -> bool {

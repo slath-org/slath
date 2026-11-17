@@ -1,0 +1,222 @@
+/* SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de> */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* The documentation theme, on the Weave tokens (tokens.css): the same
+   look in every installation's /-/docs/ and on slath.org/docs/. */
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("./SourceSans3-Upright.woff2") format("woff2");
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--text-long);
+  line-height: var(--leading-long);
+}
+a {
+  color: var(--link);
+}
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.docs-skip {
+  position: absolute;
+  inset-inline-start: var(--space-2);
+  inset-block-start: -10rem;
+}
+.docs-skip:focus {
+  inset-block-start: var(--space-2);
+  background: var(--surface);
+  padding: var(--space-2);
+}
+.docs-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-block-end: 1px solid var(--border);
+  background: var(--surface);
+}
+.docs-home {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--target-min);
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.docs-logo-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .docs-logo-light {
+    display: none;
+  }
+  .docs-logo-dark {
+    display: inline;
+  }
+}
+.docs-version {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+.docs-version select {
+  min-block-size: var(--target-min);
+  font: inherit;
+}
+/* The content comes first in the page; wide screens show the navigation
+   on the start side, narrow ones after the content ("Contents" in the
+   header leads there). */
+.docs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "content" "nav";
+  max-inline-size: 80rem;
+  margin-inline: auto;
+}
+.docs-content {
+  grid-area: content;
+}
+.docs-nav {
+  grid-area: nav;
+}
+.docs-contents-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}
+@media (min-width: 60rem) {
+  .docs-layout {
+    grid-template-columns: 16rem minmax(0, 1fr);
+    grid-template-areas: "nav content";
+  }
+  .docs-contents-link {
+    display: none;
+  }
+}
+.docs-nav {
+  padding: var(--space-4);
+  border-block-start: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+@media (min-width: 60rem) {
+  .docs-nav {
+    border-block-start: 0;
+    border-inline-end: 1px solid var(--border);
+  }
+}
+.docs-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.docs-nav ul ul {
+  margin-block: var(--space-1) var(--space-4);
+}
+.docs-nav-section {
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+}
+.docs-nav a {
+  display: block;
+  min-block-size: var(--target-min);
+  padding-block: var(--space-1);
+  text-decoration: none;
+}
+.docs-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.docs-content {
+  min-inline-size: 0;
+  /* Long paths and URLs in text and headings wrap on narrow screens. */
+  overflow-wrap: anywhere;
+  max-inline-size: 48rem;
+  padding: var(--space-4) var(--space-6, 1.5rem);
+}
+.docs-content h1 {
+  font-size: var(--text-title);
+  line-height: var(--leading-heading);
+}
+.docs-content h2,
+.docs-content h3 {
+  line-height: var(--leading-heading);
+  margin-block-start: 2em;
+}
+.docs-content .anchor {
+  margin-inline-start: var(--space-1);
+  text-decoration: none;
+}
+.docs-content .anchor::after {
+  content: "#";
+  color: var(--text-secondary);
+}
+.docs-content code {
+  font-family: var(--font-mono);
+  font-size: var(--code-in-text);
+}
+.docs-content pre {
+  overflow-x: auto;
+  padding: var(--space-3, 0.75rem);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.docs-content pre {
+  overflow-wrap: normal;
+}
+.docs-content pre code {
+  font-size: var(--code-size);
+  line-height: var(--leading-code);
+}
+.docs-table {
+  overflow-x: auto;
+}
+.docs-content table {
+  border-collapse: collapse;
+}
+.docs-content th,
+.docs-content td {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+.api-op {
+  border-block-start: 1px solid var(--border);
+}
+.api-responses dt {
+  float: inline-start;
+  margin-inline-end: var(--space-2);
+}
+.docs-pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-start: var(--space-8, 2rem);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border);
+}
+.docs-pager a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}
+.docs-pager a[rel="next"] {
+  margin-inline-start: auto;
+}
