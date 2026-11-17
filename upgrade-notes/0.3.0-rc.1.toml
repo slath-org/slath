@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrade notes for 0.3.0-rc.1, the release candidate of the upgrade
+# baseline 0.3.0. It installs fresh only: the 0.1/0.2 previews can't be
+# upgraded, and their databases are refused with guidance
+# (docs/admin/upgrading.md).
+
+version = "0.3.0-rc.1"
+schema_version = 139
+min_upgrade_from = "0.3.0-rc.1"

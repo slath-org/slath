@@ -286,7 +286,12 @@ mod tests {
         let notes = all().unwrap();
         assert!(notes.iter().any(|n| n.version == v("0.3.0")));
         // The 0.1/0.2 previews have no notes: nothing upgrades from them.
-        assert!(notes.iter().all(|n| n.version >= v("0.3.0")));
+        // Release candidates of 0.3.0 (0.3.0-rc.N) belong to the baseline.
+        assert!(
+            notes
+                .iter()
+                .all(|n| (n.version.major, n.version.minor) >= (0, 3))
+        );
         assert!(
             notes
                 .iter()
