@@ -54,6 +54,10 @@ pub struct FileDiff {
     /// The mode on the `index` line (unchanged modes, e.g. `120000` for a
     /// symbolic link or `160000` for a submodule).
     pub index_mode: Option<String>,
+    /// The blobs on the `index` line (`None` for an all-zero side: the
+    /// file doesn't exist there), as Git wrote them.
+    pub old_blob: Option<String>,
+    pub new_blob: Option<String>,
 }
 
 impl FileDiff {
@@ -188,6 +192,8 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
                 deletions: 0,
                 cut: false,
                 index_mode: None,
+                old_blob: None,
+                new_blob: None,
             });
             continue;
         }
@@ -248,6 +254,18 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
                     .split(|&b| b == b' ')
                     .nth(1)
                     .map(|m| String::from_utf8_lossy(m).into_owned());
+                let blob = |b: &[u8]| {
+                    (!b.is_empty()
+                        && b.iter().all(u8::is_ascii_hexdigit)
+                        && b.iter().any(|&c| c != b'0'))
+                    .then(|| String::from_utf8_lossy(b).into_owned())
+                };
+                if let Some(range) = rest.split(|&b| b == b' ').next()
+                    && let Some(dots) = range.windows(2).position(|w| w == b"..")
+                {
+                    f.old_blob = blob(&range[..dots]);
+                    f.new_blob = blob(&range[dots + 2..]);
+                }
             } else if raw.starts_with(b"Binary files ") || raw == b"GIT binary patch" {
                 f.binary = true;
             }
@@ -341,6 +359,20 @@ Binary files \"a/\\303\\244.bin\" and \"b/\\303\\244.bin\" differ
         assert_eq!(d.files.len(), 4);
         let a = &d.files[0];
         assert_eq!(a.new_path, b"src/a.rs");
+        assert_eq!(
+            a.old_blob.as_deref(),
+            Some("1111111111111111111111111111111111111111")
+        );
+        assert_eq!(
+            a.new_blob.as_deref(),
+            Some("2222222222222222222222222222222222222222")
+        );
+        assert_eq!(d.files[1].old_blob, None, "a new file has no old side");
+        assert_eq!(
+            d.files[1].new_blob.as_deref(),
+            Some("3333333333333333333333333333333333333333")
+        );
+        assert_eq!(d.files[2].new_blob, None, "a pure rename has no index line");
         assert_eq!((a.additions, a.deletions), (2, 1));
         let h = &a.hunks[0];
         assert_eq!(h.section, b"fn main() {");
