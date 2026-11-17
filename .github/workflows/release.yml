@@ -392,6 +392,8 @@ jobs:
     needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      index: ${{ steps.index.outputs.digest }}
     permissions:
       contents: write # create the GitHub release
       packages: write # push the image index and its tags to ghcr.io
@@ -487,3 +489,43 @@ jobs:
           flags=()
           [[ "$v" == *-* ]] && flags+=(--prerelease)
           gh release create "$TAG" --verify-tag --title "Slath $v" --notes-file notes.md "${flags[@]}" dist/*
+
+  # The documentation of the release, built by the released image, goes
+  # to slath.org/docs/<version>/ (latest/ and versions.json follow). Needs
+  # the website repository's deploy key as the SLATH_ORG_DEPLOY_KEY secret.
+  docs:
+    name: publish the documentation to slath.org
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+      INDEX: ${{ needs.publish.outputs.index }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the documentation with the released image
+        run: |
+          mkdir site
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/site:/site" \
+            --entrypoint slath "$IMAGE@$INDEX" docs build --published --out /site
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: slath-org/slath.org
+          path: website
+          ssh-key: ${{ secrets.SLATH_ORG_DEPLOY_KEY }}
+          persist-credentials: true # zizmor: ignore[artipacked] the push below needs it; nothing is uploaded
+      - name: Publish
+        run: |
+          v="${TAG#v}"
+          python3 scripts/publish_docs.py --docs website/docs --site site --version "$v"
+          cd website
+          git config user.name "Slath release"
+          git config user.email "release@slath.org"
+          git add docs
+          git commit -q -m "Publish the documentation of Slath $v"
+          git push -q
+

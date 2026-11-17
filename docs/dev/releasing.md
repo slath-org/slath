@@ -32,6 +32,13 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    `X.Y.Z`, `X.Y`, and `latest` and the GitHub release is created with
    the files, the signature bundle, and the report. Users verify as in
    `docs/admin/verify.md`.
+6. **Documentation:** the released image builds its documentation with
+   `slath docs build --published`, and `scripts/publish_docs.py` adds it
+   to the website repository as `docs/<version>/`, with `docs/latest/`
+   (the newest release that isn't a pre-release), `docs/versions.json`,
+   and `docs/versions.html`, then pushes. The job needs the website
+   repository's deploy key (write access) as the `SLATH_ORG_DEPLOY_KEY`
+   secret.
 
 Before the tag:
 

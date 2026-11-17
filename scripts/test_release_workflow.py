@@ -35,8 +35,10 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertEqual(set(needs(gate)), {"preconditions", "build", *QUALIFY})
         # Skipped and cancelled count as failures, not only "failure".
         self.assertIn('all(.[]; .result == "success")', scripts(gate))
-        # Every job except the final two is required by the gate.
-        self.assertEqual(set(jobs) - {"gate", "publish"}, set(needs(gate)))
+        # Every job except the gate and what follows it is required by the gate.
+        self.assertEqual(set(jobs) - {"gate", "publish", "docs"}, set(needs(gate)))
+        # The documentation is published only after the release is.
+        self.assertEqual(needs(jobs["docs"]), ["publish"])
 
     def test_conf_ops_09_qualification_runs_on_the_built_artifacts_only(self):
         jobs = load()
