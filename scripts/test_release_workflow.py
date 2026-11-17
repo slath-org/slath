@@ -119,3 +119,10 @@ class Documentation(unittest.TestCase):
         self.assertNotIn("SLATH_ORG_DEPLOY_KEY", text)
         self.assertNotIn("slath-org/slath.org", text)
 
+
+class ImageTags(unittest.TestCase):
+    def test_pre_releases_get_only_their_own_tag(self):
+        run = scripts(load()["publish"])
+        self.assertIn('tags=(-t "$IMAGE:$v")', run)
+        self.assertIn('[[ "$v" == *-* ]] || tags+=(-t "$IMAGE:${v%.*}" -t "$IMAGE:latest")', run)
+

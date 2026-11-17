@@ -488,8 +488,9 @@ jobs:
           INDEX: ${{ steps.index.outputs.digest }}
         run: |
           v="${TAG#v}"
-          tags=(-t "$IMAGE:$v" -t "$IMAGE:${v%.*}")
-          [[ "$v" == *-* ]] || tags+=(-t "$IMAGE:latest")
+          tags=(-t "$IMAGE:$v")
+          # X.Y and latest name releases only; a pre-release is just X.Y.Z-rc.N.
+          [[ "$v" == *-* ]] || tags+=(-t "$IMAGE:${v%.*}" -t "$IMAGE:latest")
           docker buildx imagetools create "${tags[@]}" "$IMAGE@$INDEX"
       - name: Create the GitHub release
         env:

@@ -29,9 +29,10 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    binaries, `SHA256SUMS`, the Compose bundle, and the image index, made
    with the workflow's own GitHub identity. They're verified online and
    offline (and a modified file must fail) before the image gets its tags
-   `X.Y.Z`, `X.Y`, and `latest` and the GitHub release is created with
-   the files, the signature bundle, and the report. Users verify as in
-   `docs/admin/verify.md`.
+   `X.Y.Z`, `X.Y`, and `latest` (a pre-release such as `X.Y.Z-rc.1` gets
+   only its own tag and is marked as a pre-release) and the GitHub
+   release is created with the files, the signature bundle, and the
+   report. Users verify as in `docs/admin/verify.md`.
 6. **Documentation:** the publish job builds the release's documentation
    with the built image (`slath docs build --published`) and attaches it
    as `slath-docs-X.Y.Z.tar.gz`, listed in `SHA256SUMS` and signed like
@@ -46,6 +47,13 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    secret connects the two repositories.
 
 Before the tag:
+
+- A release candidate (`vX.Y.Z-rc.N`) goes through the same workflow and
+  needs the same preparation: the workspace version `X.Y.Z-rc.N` and its
+  own `upgrade-notes/X.Y.Z-rc.N.toml`. It stays a pre-release: no `X.Y`
+  or `latest` image tag, and the website's `docs/latest/` keeps the last
+  release. Never reuse a tag after a failed run; delete that pre-release
+  and tag the next candidate.
 
 - Finish `upgrade-notes/X.Y.Z.toml` and the CHANGELOG section, bump the
   workspace version and `SLATH_VERSION`'s default in
