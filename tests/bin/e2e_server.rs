@@ -8,7 +8,8 @@
 
 use std::io::{Read, Write};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use slath_tests::server::{DEMO, GitClient, Instance, PASSWORD, TestServer};
 
@@ -237,6 +238,177 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// The jj binary to seed jj-made stacks with: the first of
+/// `$SLATH_TEST_JJ`, else the newest `scripts/install-jj.sh` installed.
+fn jj_binary() -> PathBuf {
+    if let Some(list) = std::env::var_os("SLATH_TEST_JJ")
+        && let Some(first) = std::env::split_paths(&list).next()
+    {
+        return first;
+    }
+    let dir = std::env::var_os("SLATH_TOOLS_DIR").map_or_else(
+        || PathBuf::from(std::env::var_os("HOME").unwrap()).join(".cache/slath/tools"),
+        PathBuf::from,
+    );
+    let mut found: Vec<(Vec<u32>, PathBuf)> = std::fs::read_dir(&dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let v = name.strip_prefix("jj-")?;
+            let key = v.split('.').map(|n| n.parse().unwrap_or(0)).collect();
+            let bin = e.path().join("bin/jj");
+            bin.is_file().then_some((key, bin))
+        })
+        .collect();
+    found.sort();
+    found
+        .pop()
+        .map(|(_, b)| b)
+        .expect("no jj for the browser tests' jj-made stacks: run `just tools`")
+}
+
+/// A jj "machine" with its own configuration.
+struct Jj {
+    bin: PathBuf,
+    home: tempfile::TempDir,
+}
+
+impl Jj {
+    fn new() -> Self {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join("jj.toml"),
+            // The Git client's identity, so the stacks differ only by tool.
+            "[user]\nname = \"Test\"\nemail = \"test@example.org\"\n[ui]\npaginate = \"never\"\n",
+        )
+        .unwrap();
+        Self {
+            bin: jj_binary(),
+            home,
+        }
+    }
+
+    fn ok(&self, cwd: &Path, args: &[&str]) {
+        let out = Command::new(&self.bin)
+            .current_dir(cwd)
+            .env_clear()
+            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env("HOME", self.home.path())
+            .env("JJ_CONFIG", self.home.path().join("jj.toml"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "jj {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+/// For each project, a stack of two changes made with Git
+/// (`ux/<project>/git`), with jj (`…/jj`), and mixed (`…/mixed`: a Git
+/// commit under a jj change), with no merge request yet; and
+/// `ux/<project>/conflict`, which conflicts with `main`.
+fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
+    let jj = Jj::new();
+    let j = jj.home.path().join("repo");
+    jj.ok(jj.home.path(), &["git", "clone", url, j.to_str().unwrap()]);
+    let files =
+        |p: &str, kind: &str| (format!("ux-{p}-{kind}-a.md"), format!("ux-{p}-{kind}-b.md"));
+    for p in PROJECTS {
+        // With Git.
+        let (a, b) = files(p, "git");
+        git.ok(w, &["switch", "-q", "-c", &format!("ux/{p}/git"), "main"]);
+        std::fs::write(w.join(&a), "Alpha\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", "Add alpha"]);
+        std::fs::write(w.join(&b), "Beta\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", "Add beta"]);
+        git.ok(w, &["push", "-q", url, &format!("ux/{p}/git")]);
+        // With jj.
+        let (a, b) = files(p, "jj");
+        let branch = format!("ux/{p}/jj");
+        jj.ok(&j, &["new", "main@origin", "-m", "Add alpha"]);
+        std::fs::write(j.join(&a), "Alpha\n").unwrap();
+        jj.ok(&j, &["new", "-m", "Add beta"]);
+        std::fs::write(j.join(&b), "Beta\n").unwrap();
+        jj.ok(&j, &["bookmark", "create", &branch, "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        // Mixed: alpha with Git, beta with jj on top.
+        let (a, b) = files(p, "mixed");
+        let branch = format!("ux/{p}/mixed");
+        git.ok(w, &["switch", "-q", "-c", &branch, "main"]);
+        std::fs::write(w.join(&a), "Alpha\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", "Add alpha"]);
+        git.ok(w, &["push", "-q", url, &branch]);
+        jj.ok(&j, &["git", "fetch"]);
+        jj.ok(&j, &["bookmark", "track", &format!("{branch}@origin")]);
+        jj.ok(&j, &["new", &branch, "-m", "Add beta"]);
+        std::fs::write(j.join(&b), "Beta\n").unwrap();
+        jj.ok(&j, &["bookmark", "set", &branch, "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        // A branch whose file main changes too.
+        let shared = format!("ux-{p}-shared.md");
+        git.ok(w, &["switch", "-q", "main"]);
+        std::fs::write(w.join(&shared), "Base\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", &format!("Add {shared}")]);
+        git.ok(w, &["push", "-q", url, "main"]);
+        git.ok(w, &["switch", "-q", "-c", &format!("ux/{p}/conflict")]);
+        std::fs::write(w.join(&shared), "From the branch\n").unwrap();
+        git.ok(w, &["commit", "-qam", "Change it on the branch"]);
+        git.ok(w, &["push", "-q", url, &format!("ux/{p}/conflict")]);
+        git.ok(w, &["switch", "-q", "main"]);
+        std::fs::write(w.join(&shared), "From main\n").unwrap();
+        git.ok(w, &["commit", "-qam", "Change it on main"]);
+        git.ok(w, &["push", "-q", url, "main"]);
+    }
+}
+
+/// "Performance fixture": a merge request with 50 changed files and 200
+/// comments, for the conversation tab's time budget.
+fn seed_performance(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "perf", "main"]);
+    for i in 0..50 {
+        std::fs::write(
+            w.join(format!("perf-{i:02}.txt")),
+            format!("line {i}\n").repeat(20),
+        )
+        .unwrap();
+    }
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Change fifty files"]);
+    git.ok(w, &["push", "-q", url, "perf"]);
+    git.ok(w, &["switch", "-q", "main"]);
+    let mut alice = server.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "perf", &["repo:write", "mrs:write"]);
+    let mut api = server.client();
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&token),
+        Some(&serde_json::json!({"source_branch": "perf", "title": "Performance fixture"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    for i in 0..200 {
+        let r = api.api(
+            "POST",
+            &format!("/api/v1/repos/alice/demo/merge-requests/{n}/comments"),
+            Some(&token),
+            Some(&serde_json::json!({"body": format!("Comment {i}: looks fine, with `code` and a [link](#x).")})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+    }
+}
+
 fn main() {
     // alice/demo (private) with content; accounts as in tests/e2e/fixtures.ts.
     // A host name, not an IP address: passkeys (WebAuthn) need one.
@@ -271,6 +443,9 @@ fn main() {
     git.ok(w, &["commit", "-qam", "Greet the world"]);
     let url = server.url(&DEMO);
     git.ok(w, &["push", "-q", &url, "main"]);
+    // The stacks first: the "Recently pushed" banner shows the last push.
+    seed_stacks(&git, w, &url);
+    seed_performance(&server, &git, w, &url);
     seed_merge_requests(&server, &git, w, &url);
     seed_diffs(&git, w, &url);
     // The browser tests sign in as alice with this password.

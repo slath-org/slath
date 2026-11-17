@@ -209,6 +209,11 @@ jobs:
           # No dependency cache in a release: a poisoned cache entry would
           # end up in the published artifacts.
           package-manager-cache: false
+      - name: Install pinned jj versions (the seeded jj-made stacks)
+        run: |
+          for v in $(python3 -c 'import tomllib; print(" ".join(e["version"] for e in tomllib.load(open("tests/compat/versions.toml", "rb"))["jj"]))'); do
+            scripts/install-jj.sh "$v"
+          done
       - name: Run the browser matrix against the built binary
         run: |
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
