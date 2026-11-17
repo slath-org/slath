@@ -1391,6 +1391,8 @@ main > .repo-context {
   margin-inline-start: var(--space-1);
   color: var(--text-secondary);
   vertical-align: middle;
+  /* Never wider than its container: wide content scrolls inside. */
+  max-inline-size: 100%;
 }
 .disclosure svg {
   display: block;
@@ -1481,6 +1483,13 @@ h1 > bdi code,
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  min-inline-size: 0;
+}
+/* Wide content (a command block) scrolls inside its panel instead of
+   widening the page. */
+.choice-panel,
+.choice-panel > * {
+  min-inline-size: 0;
 }
 .choice-options {
   display: flex;

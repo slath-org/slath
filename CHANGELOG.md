@@ -282,6 +282,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Updating a merge request's branch or applying suggestions answers "forbidden" to anyone who can't write the source branch, before saying whether it's open or current.
 - Updating a merge request's branch with a token needs the `mrs:write` scope, as the API reference says.
 - Turning edits by maintainers on or off with a token needs the `mrs:write` scope, like every other change to a merge request.
+- On phones, the commands to resolve a merge request's conflicts scroll inside their box instead of widening the page.
 
 ## [0.2.0] - 2026-11-02
 
