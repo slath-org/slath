@@ -91,10 +91,10 @@
   --diff-del-bg: #F8E6E2;
   --diff-add-emph: #C9E2C2;
   --diff-del-emph: #F0CBC2;
-  --syn-comment: #5F6862;
+  --syn-comment: #545C56;
   --syn-keyword: #7A3F6A;
   --syn-string: #3D6537;
-  --syn-number: #83561A;
+  --syn-number: #7B5118;
   --syn-function: #3A5679;
   --syn-type: #62508A;
   --syn-constant: #8A4527;
@@ -208,7 +208,7 @@
     --diff-del-bg: #3A2320;
     --diff-add-emph: #2B4A32;
     --diff-del-emph: #55302A;
-    --syn-comment: #929D95;
+    --syn-comment: #ABB4AD;
     --syn-keyword: #D5A6C8;
     --syn-string: #A9CF9E;
     --syn-number: #DFB873;
@@ -264,7 +264,7 @@
   --diff-del-bg: #3A2320;
   --diff-add-emph: #2B4A32;
   --diff-del-emph: #55302A;
-  --syn-comment: #929D95;
+  --syn-comment: #ABB4AD;
   --syn-keyword: #D5A6C8;
   --syn-string: #A9CF9E;
   --syn-number: #DFB873;

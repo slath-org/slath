@@ -10,8 +10,8 @@
 {%- endmacro -%}
 {#- A diff line's text, with the changed characters of paired lines in
     <del>/<ins> (not only colored: underlined, and announced). -#}
-{%- macro line_text(kind, text, segments) -%}
-<code>{%- if segments.is_empty() %}{{ text }}{% else %}{% for sg in segments.iter() %}{% if sg.changed %}{% if kind == "del" %}<del><span class="visually-hidden">changed: </span>{{ sg.text }}</del>{% else %}<ins><span class="visually-hidden">changed: </span>{{ sg.text }}</ins>{% endif %}{% else %}{{ sg.text }}{% endif %}{% endfor %}{% endif -%}</code>
+{%- macro line_text(kind, text, segments, html) -%}
+<code>{%- if let Some(h) = html %}{{ h }}{% else if segments.is_empty() %}{{ text }}{% else %}{% for sg in segments.iter() %}{% if sg.changed %}{% if kind == "del" %}<del><span class="visually-hidden">changed: </span>{{ sg.text }}</del>{% else %}<ins><span class="visually-hidden">changed: </span>{{ sg.text }}</ins>{% endif %}{% else %}{{ sg.text }}{% endif %}{% endfor %}{% endif -%}</code>
 {%- endmacro -%}
 {#- A tone as an icon plus words for screen readers (Weave: StatusLine). -#}
 {%- macro tone_icon(ctx, tone) -%}

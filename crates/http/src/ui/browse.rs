@@ -1067,10 +1067,12 @@ async fn commit(
     .await
     .map_err(|e| git_err(&e))?;
     let generated = super::diff::generated(&state.runner, &git_dir, &oid, &out, limits).await;
+    let highlights = super::diff::highlights(&state.runner, &git_dir, &out, limits, &q, &ctx).await;
     let diff = super::diff::view(
         &out,
         limits,
         &generated,
+        &highlights,
         &q,
         &ctx,
         format!(

@@ -530,10 +530,16 @@ status's context and the severity:
 
 Diffs look the same on commits, the compare page, and merge requests:
 
-- In a changed line, the characters that changed are highlighted and
-  underlined. Lines are paired with the most similar line of the hunk;
-  lines that changed almost entirely, and very long lines, are shown
-  without highlighting.
+- Code is syntax-highlighted as in the file view, in both themes and
+  both views. Each side is highlighted as a whole file, so a line inside
+  a comment or string that starts above the hunk reads correctly. Files
+  larger than `[limits] diff_highlight_max_file_bytes` (512 KiB), and
+  files past `diff_highlight_max_bytes` (4 MiB) on one page, are shown
+  plain with a note saying so.
+- In a changed line, the characters that changed are marked with a
+  background and an underline, on top of the syntax colors. Lines are
+  paired with the most similar line of the hunk; lines that changed
+  almost entirely, and very long lines, get no marks.
 - A file tree above the files links to each of them. It lists the files
   with changed content; **All files** adds the folded ones (see below),
   each with the reason it's folded.

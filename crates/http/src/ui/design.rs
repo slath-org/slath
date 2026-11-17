@@ -206,6 +206,7 @@ async fn family(
                 REVIEW_DIFF.as_bytes(),
                 &state.config.limits,
                 &std::collections::HashSet::new(),
+                &super::diff::sample_highlights(REVIEW_DIFF.as_bytes(), &state.config.limits),
                 &dq,
                 &ctx,
                 "/-/design/code".to_owned(),

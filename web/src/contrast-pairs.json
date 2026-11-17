@@ -19,7 +19,7 @@
     {"fg": "danger-fg", "bg": ["danger", "danger-hover"], "min": 4.5},
     {"fg": ["text", "text-secondary"], "bg": ["diff-add-bg", "diff-del-bg"], "min": 4.5},
     {"fg": "text", "bg": ["diff-add-emph", "diff-del-emph"], "min": 4.5},
-    {"fg": ["syn-comment", "syn-keyword", "syn-string", "syn-number", "syn-function", "syn-type", "syn-constant", "syn-tag", "syn-attribute", "syn-punctuation"], "bg": ["surface", "diff-add-bg", "diff-del-bg"], "min": 4.5}
+    {"fg": ["syn-comment", "syn-keyword", "syn-string", "syn-number", "syn-function", "syn-type", "syn-constant", "syn-tag", "syn-attribute", "syn-punctuation"], "bg": ["surface", "diff-add-bg", "diff-del-bg", "diff-add-emph", "diff-del-emph"], "min": 4.5}
   ],
   "distinct": [
     {"a": ["success", "warning", "error", "info"], "b": "accent", "min_delta_e": 10},

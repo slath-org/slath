@@ -8,6 +8,7 @@ mod auto_merge;
 mod change_identity;
 mod cross_references;
 mod deploy_keys;
+mod diff_highlighting;
 mod findings;
 mod flow_parity;
 mod fork_merge_requests;

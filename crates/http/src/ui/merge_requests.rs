@@ -496,6 +496,8 @@ async fn compare_page(
                 let generated =
                     super::diff::generated(&runner, &git_dir, &c.source_head, &c.diff, limits)
                         .await;
+                let highlights =
+                    super::diff::highlights(&runner, &git_dir, &c.diff, limits, dq, &ctx).await;
                 let repo_param = if source_repo.is_empty() {
                     String::new()
                 } else {
@@ -506,7 +508,8 @@ async fn compare_page(
                     enc(&source),
                     enc(&target)
                 );
-                let diff = super::diff::view(&c.diff, limits, &generated, dq, &ctx, href);
+                let diff =
+                    super::diff::view(&c.diff, limits, &generated, &highlights, dq, &ctx, href);
                 if form.is_none() {
                     let (title, description) = prefill(&c);
                     form = Some(CreateForm {
@@ -2358,7 +2361,7 @@ async fn changes(
     let subject = session.subject();
     let (a, m) = state.services.mr(&subject, &ns, &repo, number(&n)?).await?;
     let limits = &state.config.limits;
-    let (raw, too_big, generated) = match state
+    let (raw, too_big, generated, highlights) = match state
         .services
         .mr_diff(&m, q.since, dq.git_options(&ctx))
         .await?
@@ -2366,16 +2369,22 @@ async fn changes(
         Some((raw, cut, head)) => {
             let dir = state.services.repo_path(m.repo_id);
             let g = super::diff::generated(&state.runner, &dir, &head, &raw, limits).await;
-            (raw, cut, g)
+            let h = super::diff::highlights(&state.runner, &dir, &raw, limits, &dq, &ctx).await;
+            (raw, cut, g, h)
         }
         None if q.since.is_some() => return Err(AppError::not_found()),
-        None => (Vec::new(), false, std::collections::HashSet::new()),
+        None => (
+            Vec::new(),
+            false,
+            std::collections::HashSet::new(),
+            super::diff::Highlights::new(),
+        ),
     };
     let href = match q.since {
         Some(k) => mr_url(&ns, &repo, m.number, &format!("/changes?since={k}")),
         None => mr_url(&ns, &repo, m.number, "/changes"),
     };
-    let mut diff = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+    let mut diff = super::diff::view(&raw, limits, &generated, &highlights, &dq, &ctx, href);
     if q.since.is_none() && m.state == "open" {
         attach_review(&state, &subject, &a, &m, &mut diff, &dq, None).await?;
     }
@@ -2535,7 +2544,9 @@ async fn change(
             let head = slath_git::ObjectId::parse(&shown.commit_oid)
                 .map_err(|e| AppError::internal(&e))?;
             let generated = super::diff::generated(&state.runner, &dir, &head, &raw, limits).await;
-            let mut d = super::diff::view(&raw, limits, &generated, &dq, &ctx, href);
+            let highlights =
+                super::diff::highlights(&state.runner, &dir, &raw, limits, &dq, &ctx).await;
+            let mut d = super::diff::view(&raw, limits, &generated, &highlights, &dq, &ctx, href);
             if from.is_none() && m.state == "open" && shown.revision == m.revisions {
                 attach_review(
                     &state,

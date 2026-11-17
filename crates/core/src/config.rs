@@ -378,6 +378,11 @@ pub struct Limits {
     pub diff_intraline_max_line_bytes: usize,
     /// Files with more paired lines get no character-level emphasis.
     pub diff_intraline_max_pairs: usize,
+    /// Diffs highlight a file's sides only up to this size each; larger
+    /// files show plain, with a note.
+    pub diff_highlight_max_file_bytes: Bytes,
+    /// And only up to this much source per diff page in all.
+    pub diff_highlight_max_bytes: Bytes,
     pub review_max_commits: usize,
     /// Recording merge request revisions during a push, for its feedback.
     pub push_feedback_timeout: Dur,
@@ -451,6 +456,8 @@ impl Default for Limits {
             diff_max_lines: 20_000,
             diff_intraline_max_line_bytes: 1000,
             diff_intraline_max_pairs: 2000,
+            diff_highlight_max_file_bytes: Bytes(512 * 1024),
+            diff_highlight_max_bytes: Bytes(4 * MIB),
             review_max_commits: 250,
             push_feedback_timeout: Dur::secs(3),
             http_max_body_bytes: Bytes(10 * MIB),

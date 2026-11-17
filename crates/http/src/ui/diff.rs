@@ -36,6 +36,8 @@ pub struct LineView {
     pub text: String,
     /// The line in runs, changed ones marked; empty without emphasis.
     pub segments: Vec<Segment>,
+    /// The line highlighted, with the emphasis on top; `None`: plain.
+    pub html: Option<super::MarkupHtml>,
 }
 
 /// One side of a split row; `kind` is `empty` for a blank side.
@@ -44,7 +46,20 @@ pub struct Cell {
     pub no: String,
     pub text: String,
     pub segments: Vec<Segment>,
+    pub html: Option<super::MarkupHtml>,
 }
+
+/// Highlighted lines of a file's two sides (each the whole file, so
+/// constructs spanning lines outside the hunks come out right), or why
+/// the file is shown plain.
+#[derive(Debug, Clone)]
+pub enum Sides {
+    Lines { old: Vec<String>, new: Vec<String> },
+    Plain(String),
+}
+
+/// Sides by the file's shown path.
+pub type Highlights = HashMap<Vec<u8>, Sides>;
 
 pub struct SplitRow {
     pub left: Cell,
@@ -80,6 +95,8 @@ pub struct FileView {
     /// `now`, `scroll` (loads when it comes into view), or `click`.
     pub load: &'static str,
     pub hunks: Vec<HunkView>,
+    /// Why the lines aren't highlighted, if they aren't.
+    pub plain_note: Option<String>,
 }
 
 /// An entry of the file tree: a directory or a file, indented by depth.
@@ -339,12 +356,14 @@ fn split_rows(lines: &[LineView]) -> Vec<SplitRow> {
         },
         text: l.text.clone(),
         segments: l.segments.clone(),
+        html: l.html.clone(),
     };
     let empty = || Cell {
         kind: "empty",
         no: String::new(),
         text: String::new(),
         segments: Vec::new(),
+        html: None,
     };
     let mut rows = Vec::new();
     let mut i = 0;
@@ -419,6 +438,209 @@ fn refine(hunks: &mut [HunkView], bounds: &Bounds) {
     }
 }
 
+/// Puts each line's highlighted HTML (from its side of the file) in
+/// place, with the character emphasis on top. A file whose sides don't
+/// match its lines stays plain.
+fn apply_highlights(hunks: &mut [HunkView], sides: &Sides) -> Option<String> {
+    let (old, new) = match sides {
+        Sides::Lines { old, new } => (old, new),
+        Sides::Plain(why) => return Some(why.clone()),
+    };
+    let pick = |l: &LineView| -> Option<&String> {
+        let (side, no) = if l.kind == "del" {
+            (old, &l.old_no)
+        } else {
+            (new, &l.new_no)
+        };
+        side.get(no.parse::<usize>().ok()?.checked_sub(1)?)
+    };
+    let fits = hunks
+        .iter()
+        .flat_map(|h| &h.lines)
+        .filter(|l| l.kind != "meta")
+        .all(|l| pick(l).is_some());
+    if !fits {
+        return Some("Shown without highlighting: the file's lines didn't match.".to_owned());
+    }
+    for l in hunks.iter_mut().flat_map(|h| h.lines.iter_mut()) {
+        if l.kind == "meta" {
+            continue;
+        }
+        let Some(base) = pick(l).cloned() else {
+            continue;
+        };
+        let html = if l.segments.is_empty() {
+            base
+        } else {
+            let mut ranges = Vec::new();
+            let mut at = 0;
+            for sg in &l.segments {
+                let n = sg.text.chars().count();
+                if sg.changed {
+                    ranges.push((at, at + n));
+                }
+                at += n;
+            }
+            let tag = if l.kind == "del" { "del" } else { "ins" };
+            slath_markup::emphasize(
+                &base,
+                &ranges,
+                &format!("<{tag}><span class=\"visually-hidden\">changed: </span>"),
+                &format!("<{tag}>"),
+                &format!("</{tag}>"),
+            )
+        };
+        l.html = Some(super::MarkupHtml::from_markup(html));
+    }
+    None
+}
+
+/// The shown path's highlighted sides for the files of `raw` that load
+/// with the page (all of them, or only `q.file`), within the limits:
+/// each side up to `diff_highlight_max_file_bytes`, all of them up to
+/// `diff_highlight_max_bytes`, and two seconds of highlighting. Errors
+/// only cost the highlighting.
+pub async fn highlights(
+    runner: &slath_git::Runner,
+    git_dir: &std::path::Path,
+    raw: &[u8],
+    limits: &Limits,
+    q: &DiffQuery,
+    ctx: &PageCtx,
+) -> Highlights {
+    let mut out = Highlights::new();
+    let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
+    let (_, ignore_whitespace) = q.options(ctx);
+    let Ok(mut reader) = slath_git::ObjectReader::open(runner, git_dir).await else {
+        return out;
+    };
+    let per_file = limits.diff_highlight_max_file_bytes.as_usize();
+    let mut budget = limits.diff_highlight_max_bytes.as_usize();
+    // (path, old path, old text, new path, new text)
+    let mut sources: Vec<(Vec<u8>, String, String, String, String)> = Vec::new();
+    let shown = diff.files.iter().filter(|f| {
+        !(ignore_whitespace && f.status == Status::Modified && !f.binary && f.hunks.is_empty())
+    });
+    for (i, f) in shown.enumerate() {
+        let lines: usize = f.hunks.iter().map(|h| h.lines.len()).sum();
+        let wanted = match q.file {
+            Some(only) => only == i,
+            None => lines <= CLICK_LINES && i < EAGER_FILES,
+        };
+        if !wanted || f.binary || f.hunks.is_empty() {
+            continue;
+        }
+        let mut texts = [String::new(), String::new()];
+        let mut why = None;
+        for (slot, blob) in [&f.old_blob, &f.new_blob].into_iter().enumerate() {
+            let Some(oid) = blob
+                .as_deref()
+                .and_then(|b| slath_git::ObjectId::parse(b).ok())
+            else {
+                continue;
+            };
+            match reader.read_blob(&oid, per_file).await {
+                Ok(slath_git::object::Blob::Data(d)) if d.len() <= budget => {
+                    budget -= d.len();
+                    texts[slot] = String::from_utf8_lossy(&d).into_owned();
+                }
+                Ok(slath_git::object::Blob::Data(_)) => {
+                    why = Some(
+                        "Shown without highlighting: this diff is too large to highlight."
+                            .to_owned(),
+                    );
+                }
+                Ok(slath_git::object::Blob::TooLarge { .. }) => {
+                    why = Some(format!(
+                        "Shown without highlighting: the file is larger than {} KiB.",
+                        per_file / 1024
+                    ));
+                }
+                Err(_) => why = Some("Shown without highlighting.".to_owned()),
+            }
+        }
+        let [old, new] = texts;
+        match why {
+            Some(w) => {
+                out.insert(f.path().to_vec(), Sides::Plain(w));
+            }
+            None => sources.push((
+                f.path().to_vec(),
+                lossy(&f.old_path),
+                old,
+                lossy(&f.new_path),
+                new,
+            )),
+        }
+    }
+    if sources.is_empty() {
+        return out;
+    }
+    let paths: Vec<Vec<u8>> = sources.iter().map(|s| s.0.clone()).collect();
+    let work = tokio::task::spawn_blocking(move || {
+        sources
+            .into_iter()
+            .map(|(path, old_path, old, new_path, new)| {
+                let side = |p: &str, t: &str| {
+                    if t.is_empty() {
+                        Vec::new()
+                    } else {
+                        slath_markup::highlight(p, t).lines
+                    }
+                };
+                (path, side(&old_path, &old), side(&new_path, &new))
+            })
+            .collect::<Vec<_>>()
+    });
+    match tokio::time::timeout(std::time::Duration::from_secs(2), work).await {
+        Ok(Ok(done)) => {
+            for (path, old, new) in done {
+                out.insert(path, Sides::Lines { old, new });
+            }
+        }
+        _ => {
+            for p in paths {
+                out.insert(
+                    p,
+                    Sides::Plain("Shown without highlighting: it took too long.".to_owned()),
+                );
+            }
+        }
+    }
+    out
+}
+
+/// Highlights from a diff's own lines, for a sample diff without a
+/// repository (the design catalog): each side holds the hunks' lines at
+/// their numbers, so constructs outside the hunks aren't seen.
+#[must_use]
+pub fn sample_highlights(raw: &[u8], limits: &Limits) -> Highlights {
+    let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
+    let mut out = Highlights::new();
+    for f in &diff.files {
+        let mut sides = [Vec::<String>::new(), Vec::<String>::new()];
+        for l in f.hunks.iter().flat_map(|h| &h.lines) {
+            for (slot, no, on_side) in [
+                (0, l.old_no, l.kind != LineKind::Added),
+                (1, l.new_no, l.kind != LineKind::Removed),
+            ] {
+                if let (true, Some(n)) = (on_side && l.kind != LineKind::NoNewline, no) {
+                    let side = &mut sides[slot];
+                    let n = n as usize;
+                    if side.len() < n {
+                        side.resize(n, String::new());
+                    }
+                    side[n - 1] = lossy(&l.text);
+                }
+            }
+        }
+        let path = lossy(f.path());
+        let [old, new] = sides.map(|lines| slath_markup::highlight(&path, &lines.join("\n")).lines);
+        out.insert(f.path().to_vec(), Sides::Lines { old, new });
+    }
+    out
+}
+
 /// The file tree: directories once, files below them.
 fn tree(files: &[FileView]) -> Vec<TreeEntry> {
     let mut sorted: Vec<&FileView> = files.iter().collect();
@@ -474,6 +696,7 @@ pub fn view(
     raw: &[u8],
     limits: &Limits,
     generated: &HashSet<Vec<u8>>,
+    highlights: &Highlights,
     q: &DiffQuery,
     ctx: &PageCtx,
     href: String,
@@ -540,6 +763,7 @@ pub fn view(
                                 new_no: l.new_no.map(|n| n.to_string()).unwrap_or_default(),
                                 text: lossy(&l.text),
                                 segments: Vec::new(),
+                                html: None,
                             })
                             .collect();
                         HunkView {
@@ -559,6 +783,9 @@ pub fn view(
             };
             let mut hunks = hunks;
             refine(&mut hunks, &bounds);
+            let plain_note = highlights
+                .get(f.path())
+                .and_then(|sides| apply_highlights(&mut hunks, sides));
             if split {
                 for h in &mut hunks {
                     h.rows = split_rows(&h.lines);
@@ -582,6 +809,7 @@ pub fn view(
                 viewed: false,
                 load,
                 hunks,
+                plain_note,
             }
         })
         .collect();
@@ -703,6 +931,7 @@ mod tests {
             new_no: String::new(),
             text: text.to_owned(),
             segments: Vec::new(),
+            html: None,
         }
     }
 
@@ -712,6 +941,88 @@ mod tests {
             lines,
             rows: Vec::new(),
         }
+    }
+
+    fn numbered(kind: &'static str, old: &str, new: &str, text: &str) -> LineView {
+        LineView {
+            old_no: old.to_owned(),
+            new_no: new.to_owned(),
+            ..line(kind, text)
+        }
+    }
+
+    /// The text of HTML, without tags and with entities decoded.
+    fn text_of(html: &str) -> String {
+        let mut out = String::new();
+        let mut tag = false;
+        for c in html.chars() {
+            match c {
+                '<' => tag = true,
+                '>' => tag = false,
+                c if !tag => out.push(c),
+                _ => {}
+            }
+        }
+        out.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&")
+    }
+
+    #[test]
+    fn highlighted_lines_keep_their_text_and_emphasis() {
+        let old = "/* a comment\n   spanning lines */\nlet x = 1;\n";
+        let new = "/* a comment\n   spanning lines */\nlet x = 2;\n";
+        let lines = || {
+            vec![
+                numbered("ctx", "2", "2", "   spanning lines */"),
+                numbered("del", "3", "", "let x = 1;"),
+                numbered("add", "", "3", "let x = 2;"),
+            ]
+        };
+        let bounds = Bounds {
+            max_line_bytes: 1000,
+            max_pairs: 10,
+            ignore_whitespace: false,
+        };
+        let mut plain = vec![hunk(lines())];
+        refine(&mut plain, &bounds);
+        let mut lit = vec![hunk(lines())];
+        refine(&mut lit, &bounds);
+        let sides = Sides::Lines {
+            old: slath_markup::highlight("x.rs", old).lines,
+            new: slath_markup::highlight("x.rs", new).lines,
+        };
+        assert_eq!(apply_highlights(&mut lit, &sides), None);
+        for (p, l) in plain[0].lines.iter().zip(&lit[0].lines) {
+            let html = l.html.as_ref().unwrap().to_string();
+            // The same text and the same rows.
+            let shown = text_of(&html).replace("changed: ", "");
+            assert_eq!(shown, p.text, "{html}");
+            // The same emphasis.
+            let marks = p.segments.iter().filter(|s| s.changed).count();
+            let tag = if l.kind == "del" { "<del>" } else { "<ins>" };
+            assert_eq!(html.matches(tag).count(), marks, "{html}");
+        }
+        // The comment's second line is a comment, though its start is
+        // outside the hunk.
+        let ctx = lit[0].lines[0].html.as_ref().unwrap().to_string();
+        assert!(ctx.contains("syn-comment"), "{ctx}");
+        // Sides that don't fit the line numbers leave the file plain.
+        let short = Sides::Lines {
+            old: Vec::new(),
+            new: Vec::new(),
+        };
+        let mut again = vec![hunk(lines())];
+        assert!(apply_highlights(&mut again, &short).is_some());
+        assert!(again[0].lines.iter().all(|l| l.html.is_none()));
+        let mut noted = vec![hunk(lines())];
+        let why = Sides::Plain("too large".to_owned());
+        assert_eq!(
+            apply_highlights(&mut noted, &why).as_deref(),
+            Some("too large")
+        );
     }
 
     #[test]
@@ -789,6 +1100,7 @@ mod tests {
             viewed: false,
             load: "now",
             hunks: Vec::new(),
+            plain_note: None,
             class: "content",
             reason: String::new(),
             folded: false,
