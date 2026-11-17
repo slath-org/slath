@@ -47,7 +47,7 @@ test("setup", async ({ page }) => {
   await page.getByLabel("Logo for the light theme").setInputFiles({ name: "light.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg) });
   await page.getByLabel("Logo for the dark theme").setInputFiles({ name: "dark.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg.replace("#0a7", "#7fd")) });
   await page.getByRole("button", { name: "Save logo" }).click();
-  await expect(page.getByRole("status")).toContainText("Logo saved.");
+  await expect(page.locator("main").getByRole("status")).toContainText("Logo saved.");
 });
 
 test("pages", async ({ page }) => {
