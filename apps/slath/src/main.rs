@@ -42,6 +42,18 @@ enum SetupHelper {
 }
 
 #[derive(Subcommand)]
+enum DocsCommand {
+    /// Build the site into a directory (it must not exist or be empty).
+    Build {
+        #[arg(long)]
+        out: PathBuf,
+        /// For slath.org/docs/<version>/: with the version switcher.
+        #[arg(long)]
+        published: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Run the HTTP server, the IPC endpoint, and workers. A pending update
     /// is applied first (preflight, backup, migrations); if it can't be,
@@ -53,6 +65,12 @@ enum Command {
     },
     /// Upgrade the database and data directory to this version: preflight,
     /// automatic backup, migrations, verification. `--check` only reports.
+    /// Write this version's documentation as static HTML, as `/-/docs/`
+    /// serves it. `--published` adds the version switcher (slath.org).
+    Docs {
+        #[command(subcommand)]
+        command: DocsCommand,
+    },
     /// Diagnose this installation: configuration, the SSH boundary, database
     /// and schema, Git, disk, backups, TLS, and the update preflight. Each
     /// problem has a stable code and a fix. Changes nothing.
@@ -467,6 +485,9 @@ fn main() -> ExitCode {
     match cli.command {
         Command::Serve { config } => serve::run(&config::resolve_path(config)),
         Command::Doctor { config, output } => doctor::run(&config::resolve_path(config), output),
+        Command::Docs {
+            command: DocsCommand::Build { out, published },
+        } => docs_build(&out, published),
         Command::Setup {
             helper: Some(SetupHelper::DbHelper),
             ..
@@ -651,4 +672,38 @@ fn main() -> ExitCode {
         } => ssh::keys(&socket, &fingerprint),
         Command::SshServe { socket, key_id } => ssh::serve(&socket, &key_id),
     }
+}
+
+/// `slath docs build --out DIR [--published]`.
+fn docs_build(out: &std::path::Path, published: bool) -> ExitCode {
+    if std::fs::read_dir(out).is_ok_and(|mut d| d.next().is_some()) {
+        eprintln!("slath: {} is not empty", out.display());
+        return ExitCode::FAILURE;
+    }
+    let site = match slath_http::docs::build(env!("CARGO_PKG_VERSION"), published) {
+        Ok(s) => s,
+        Err(errors) => {
+            for e in errors {
+                eprintln!("slath: {e}");
+            }
+            return ExitCode::FAILURE;
+        }
+    };
+    for (path, bytes) in &site.files {
+        let target = out.join(path);
+        let written = target
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&target, bytes));
+        if let Err(e) = written {
+            eprintln!("slath: writing {}: {e}", target.display());
+            return ExitCode::FAILURE;
+        }
+    }
+    println!(
+        "slath: wrote {} files to {}",
+        site.files.len(),
+        out.display()
+    );
+    ExitCode::SUCCESS
 }

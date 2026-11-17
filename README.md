@@ -50,7 +50,9 @@ Not yet: merge requests, forks, CI, and webhooks. See the
 Follow [docs/admin/install.md](docs/admin/install.md) for Docker Compose or
 systemd, [docs/admin/backup.md](docs/admin/backup.md) for backups, and
 [docs/admin/upgrading.md](docs/admin/upgrading.md) to upgrade from 0.1. See
-[CHANGELOG.md](CHANGELOG.md) for everything in this release.
+[CHANGELOG.md](CHANGELOG.md) for everything in this release. Every
+installation serves its own version's documentation at `/-/docs/`
+(**Help** in the footer), also without internet access.
 
 ## Development
 

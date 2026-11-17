@@ -3,7 +3,7 @@
 {% block admin %}
 <header class="page-head">
   <div class="page-head-row"><h1>Upgrades</h1></div>
-  <p class="page-head-intro">This is Slath {{ version }}. To update, install the new version and restart it; it backs up and migrates when it starts. See the upgrading guide.</p>
+  <p class="page-head-intro">This is Slath {{ version }}. To update, install the new version and restart it; it backs up and migrates when it starts. See the <a hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/docs/admin/upgrading.html">upgrading guide</a>.</p>
 </header>
 {%- if let Some(sm) = message %}
 {%- call msg::saved(sm) %}{% endcall %}

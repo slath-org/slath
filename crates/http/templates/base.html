@@ -100,7 +100,7 @@
 {% block content %}{% endblock %}
 </main>
 <footer class="site-footer">
-  <a href="https://slath.org/docs/">Help</a>
+  <a hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/docs/">Help</a>
 </footer>
 </div>
 </div>

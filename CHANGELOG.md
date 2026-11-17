@@ -15,6 +15,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Site administrators can replace the Slath logo in the header and browser tab with their own, for light and dark themes, under Administration → Appearance.
 - Diffs on commits, compare pages, and merge requests are syntax-highlighted like file views, with the changed characters marked on top.
 - Files too large to highlight in a diff are shown plain with a note; `[limits] diff_highlight_max_file_bytes` and `diff_highlight_max_bytes` set the sizes.
+- Every installation serves its own version's documentation at `/-/docs/`, without internet access; Help in the footer and the guides linked from pages lead there.
+- `slath docs build --out DIR` writes that documentation as static HTML.
 - Accounts can have several email addresses, each confirmed by a link, and choose which one is primary under Settings → Email addresses.
 - Commits with any of an account's confirmed addresses show as that account; `slath admin add-email` confirms an address when email is off.
 - Commits a bot pushed show the bot as committer, and as author unless a person's address is written there.

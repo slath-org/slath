@@ -8,6 +8,7 @@ pub mod api;
 pub mod assets;
 pub mod attachments;
 pub mod auth;
+pub mod docs;
 pub mod error;
 pub mod githttp;
 pub mod health;
@@ -117,6 +118,7 @@ pub fn router(state: AppState) -> axum::Router {
     axum::Router::new()
         .merge(githttp::router())
         .merge(probes())
+        .merge(docs::router())
         .merge(api)
         .merge(pages)
         .layer(from_fn_with_state(

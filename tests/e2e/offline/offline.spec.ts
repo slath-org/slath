@@ -52,9 +52,10 @@ test("setup", async ({ page }) => {
 
 test("pages", async ({ page }) => {
   const problems = watch(page);
-  const anonymous = ["/", "/-/login", "/-/no-such-page", "/ada", "/acme", "/ada/offline"];
+  const anonymous = ["/", "/-/login", "/-/no-such-page", "/ada", "/acme", "/ada/offline", "/-/docs/", "/-/docs/user/merge-requests.html", "/-/docs/api/index.html"];
   for (const path of anonymous) {
     await page.goto(path, { waitUntil: "networkidle" });
+    if (path.startsWith("/-/docs/")) continue;
     await expect(page.locator(".site-name .logo-light")).toHaveAttribute("src", /^\/-\/logos\//);
   }
   await signIn(page);

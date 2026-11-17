@@ -55,6 +55,20 @@ comments on the issue labeled `compat-matrix` and blocks the next release;
 the next green run closes it. When a new jj release passes, pin it in
 `versions.toml` and drop the oldest.
 
+## Documentation
+
+`docs/user`, `docs/admin`, `docs/cli`, `docs/dev`, and the OpenAPI
+document are the documentation every binary serves at `/-/docs/`, built
+with the theme in `docs/theme/`. Planning documents (`docs/spec`,
+`docs/plan`, and the others) are never part of it. Links between
+documents use relative `.md` paths (`../user/webhooks.md#events`); a link
+to a missing document or heading fails `just check`. To look at the
+output as static files:
+
+```sh
+cargo run -p slath -- docs build --out target/docs
+```
+
 ## Configuration
 
 `.env` (copied from `.env.example`, ignored by Git) sets `DATABASE_URL` for
