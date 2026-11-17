@@ -48,12 +48,16 @@ test("conf_design_03_tooltips_still_work_after_going_back", async ({ page }) => 
   await tapOrClick(page, page.locator("main .item-title").first());
   await expect(page).toHaveURL(/\/commit\/[0-9a-f]{40}$/);
   const commit = page.url();
+  const parentHash = await page.locator("main .facts .hash").first().getAttribute("data-tip");
   // Follow the parent, then come back to the restored page.
   await tapOrClick(page, page.locator("main .facts .hash").first());
   await expect(page).not.toHaveURL(commit);
   await page.goBack();
   await expect(page).toHaveURL(commit);
+  // The URL changes before the restored page is swapped in: wait for it
+  // (the parent's own page lists another parent).
   const parent = page.locator("main .facts .hash").first();
+  await expect(parent).toHaveAttribute("data-tip", parentHash!);
   await parent.focus();
   await expect(page.getByRole("tooltip")).toHaveText(/^[0-9a-f]{40}$/);
 });
