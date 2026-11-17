@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Adds one version's documentation to the website's docs directory.
 
-The site for the version (`slath docs build --published --out SITE`)
-goes to DOCS/<version>/; DOCS/versions.json lists every published
+Run by the website repository's workflow on the unpacked
+slath-docs-<version>.tar.gz of a release (`slath docs build
+--published`). The site goes to DOCS/<version>/; DOCS/versions.json lists every published
 version, newest first; DOCS/versions.html links them (the version
 switcher's fallback without JavaScript); DOCS/latest/ is a copy of the
 newest release that isn't a pre-release, and DOCS/index.html leads there.

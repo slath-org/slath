@@ -35,10 +35,8 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertEqual(set(needs(gate)), {"preconditions", "build", *QUALIFY})
         # Skipped and cancelled count as failures, not only "failure".
         self.assertIn('all(.[]; .result == "success")', scripts(gate))
-        # Every job except the gate and what follows it is required by the gate.
-        self.assertEqual(set(jobs) - {"gate", "publish", "docs"}, set(needs(gate)))
-        # The documentation is published only after the release is.
-        self.assertEqual(needs(jobs["docs"]), ["publish"])
+        # Every job except the final two is required by the gate.
+        self.assertEqual(set(jobs) - {"gate", "publish"}, set(needs(gate)))
 
     def test_conf_ops_09_qualification_runs_on_the_built_artifacts_only(self):
         jobs = load()
@@ -105,3 +103,19 @@ class ReleaseWorkflow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Documentation(unittest.TestCase):
+    def test_the_documentation_is_a_signed_release_file_and_no_key_is_needed(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        publish = load()["publish"]
+        run = scripts(publish)
+        # Built by the built image, packed with the files that get signed.
+        self.assertIn("docs build --published", run)
+        self.assertIn('dist/slath-docs-$v.tar.gz', run)
+        names = [s.get("name", "") for s in publish["steps"]]
+        self.assertLess(names.index("Collect the files to publish"), names.index("Sign the files (Sigstore, build provenance)"))
+        # The website fetches it; this repository holds no key to it.
+        self.assertNotIn("SLATH_ORG_DEPLOY_KEY", text)
+        self.assertNotIn("slath-org/slath.org", text)
+

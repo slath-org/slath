@@ -32,13 +32,18 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    `X.Y.Z`, `X.Y`, and `latest` and the GitHub release is created with
    the files, the signature bundle, and the report. Users verify as in
    `docs/admin/verify.md`.
-6. **Documentation:** the released image builds its documentation with
-   `slath docs build --published`, and `scripts/publish_docs.py` adds it
-   to the website repository as `docs/<version>/`, with `docs/latest/`
-   (the newest release that isn't a pre-release), `docs/versions.json`,
-   and `docs/versions.html`, then pushes. The job needs the website
-   repository's deploy key (write access) as the `SLATH_ORG_DEPLOY_KEY`
-   secret.
+6. **Documentation:** the publish job builds the release's documentation
+   with the built image (`slath docs build --published`) and attaches it
+   as `slath-docs-X.Y.Z.tar.gz`, listed in `SHA256SUMS` and signed like
+   the other files. The website repository's own workflow
+   (`.github/workflows/docs.yml` in slath-org/slath.org) picks it up
+   within the hour, or at once when started by hand: it checks the
+   checksum and that the provenance names this release workflow and tag,
+   adds it as `docs/X.Y.Z/` with this release's
+   `scripts/publish_docs.py` (`docs/latest/` for the newest release that
+   isn't a pre-release, `docs/versions.json`, `docs/versions.html`),
+   commits with its own token, and requests a Pages build. No key or
+   secret connects the two repositories.
 
 Before the tag:
 
