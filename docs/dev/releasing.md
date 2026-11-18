@@ -24,8 +24,9 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    `scripts/test-setup.sh` with the image by digest, which these jobs pull
    with their own token (`packages: read`), since the package is private
    until someone makes it public; and the upgrade
-   matrix from every earlier release's published binary
-   (`SLATH_MATRIX_FROM=releases`).
+   matrix from the published binary of every earlier release since 0.3.0
+   and of the coming release's candidates (`SLATH_MATRIX_FROM=releases`,
+   sources chosen by `scripts/upgrade_sources.py`).
 4. **Gate:** fails unless every job above succeeded; a skipped or
    cancelled job counts as a failure. It writes `report.md`
    (`scripts/release_report.py`): every artifact with its SHA-256, the

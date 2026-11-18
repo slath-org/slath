@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The upgrade matrix: builds the `slath` binary of every release tag since
-# the upgrade baseline v0.3.0 (cached in target/upgrade-matrix/<tag>/), then
+# the upgrade baseline v0.3.0, and of the release candidates of the coming
+# release (cached in target/upgrade-matrix/<tag>/), then
 # runs tests/ops/upgrade_matrix.rs, which upgrades an instance populated by
 # each release to this checkout. A new release tag extends the matrix by
 # itself. The 0.1/0.2 previews aren't upgrade sources. Until a release since
@@ -14,7 +15,8 @@
 # release's SHA256SUMS instead of being built from its tag. SLATH_BIN names
 # the binary to upgrade to (default: this checkout's build).
 #
-# Usage: scripts/upgrade-matrix.sh [TAG...]   (default: every vX.Y.Z tag ≥ v0.3.0)
+# Usage: scripts/upgrade-matrix.sh [TAG...]   (default: scripts/upgrade_sources.py
+# over the tags: every release ≥ v0.3.0, and the candidates of the coming one)
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,8 +27,7 @@ mkdir -p "$OUT"
 if [[ $# -gt 0 ]]; then
     TAGS=("$@")
 else
-    mapfile -t TAGS < <(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V |
-        awk -F'[v.]' '$2 > 0 || $3 >= 3')
+    mapfile -t TAGS < <(git tag --list 'v*' | python3 scripts/upgrade_sources.py)
 fi
 if [[ ${#TAGS[@]} -eq 0 ]]; then
     mkdir -p target/upgrade-matrix-report

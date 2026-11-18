@@ -10,6 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Installations of a release candidate, such as 0.3.0-rc.1, update to later candidates and to the release itself.
 - Choose your time zone under Settings → Appearance: pages and emails show times in it, and the page proposes your device's zone.
 - `slath doctor` and `slath serve` warn when the time zone database built into Slath is older than the host's.
 - Site administrators can replace the Slath logo in the header and browser tab with their own, for light and dark themes, under Administration → Appearance.

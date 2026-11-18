@@ -370,9 +370,10 @@ jobs:
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
           chmod 0755 artifacts/slath-*-x86_64-linux
           export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
-          # Every earlier release since the baseline; not the one being built.
-          mapfile -t tags < <(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V |
-            awk -F'[v.]' '$2 > 0 || $3 >= 3' | grep -vx "$TAG")
+          # Every published release since the baseline and the published
+          # candidates of the coming one; not the one being built.
+          mapfile -t tags < <(gh release list --limit 200 --exclude-drafts --json tagName --jq '.[].tagName' |
+            python3 scripts/upgrade_sources.py --exclude "$TAG")
           scripts/upgrade-matrix.sh "${tags[@]}"
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

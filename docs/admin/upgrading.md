@@ -33,7 +33,9 @@ before serving:
 
 If the start is interrupted, starting again finishes the update.
 
-Releases 0.1.x and 0.2.0 were previews and can't be upgraded; see
+A release candidate, such as 0.3.0-rc.1, updates to later candidates and
+to its release like any other version. Releases 0.1.x and 0.2.0 were
+previews and can't be upgraded; see
 [Coming from a preview](#coming-from-a-preview).
 
 ### Hearing about new releases

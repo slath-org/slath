@@ -69,8 +69,34 @@ impl Ord for Version {
                 (None, None) => Ordering::Equal,
                 (None, Some(_)) => Ordering::Greater,
                 (Some(_), None) => Ordering::Less,
-                (Some(a), Some(b)) => a.cmp(b),
+                (Some(a), Some(b)) => cmp_pre(a, b),
             })
+    }
+}
+
+/// Orders pre-release labels as Semantic Versioning does: dot-separated
+/// parts from the left, numeric parts as numbers and before text ones, and
+/// a label with more parts after one it starts with (rc.2 < rc.10).
+fn cmp_pre(a: &str, b: &str) -> Ordering {
+    let mut a = a.split('.');
+    let mut b = b.split('.');
+    loop {
+        match (a.next(), b.next()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) => {
+                let o = match (x.parse::<u64>(), y.parse::<u64>()) {
+                    (Ok(m), Ok(n)) => m.cmp(&n),
+                    (Ok(_), Err(_)) => Ordering::Less,
+                    (Err(_), Ok(_)) => Ordering::Greater,
+                    (Err(_), Err(_)) => x.cmp(y),
+                };
+                if o != Ordering::Equal {
+                    return o;
+                }
+            }
+        }
     }
 }
 
@@ -274,6 +300,9 @@ mod tests {
         assert!(v("0.1.0") < v("0.1.1"));
         assert!(v("0.1.1") < v("0.2.0-rc.1"));
         assert!(v("0.2.0-rc.1") < v("0.2.0"));
+        assert!(v("0.3.0-rc.2") < v("0.3.0-rc.10"));
+        assert!(v("0.3.0-rc.1") < v("0.3.0-rc.1.1"));
+        assert!(v("0.3.0-1") < v("0.3.0-rc.1"));
         assert!(v("0.10.0") > v("0.9.9"));
         assert_eq!(v("v1.2.3"), v("1.2.3"));
         for bad in ["", "1", "1.2", "1.2.3.4", "a.b.c", "1.2.3-"] {
@@ -285,6 +314,9 @@ mod tests {
     fn embedded_notes_are_valid() {
         let notes = all().unwrap();
         assert!(notes.iter().any(|n| n.version == v("0.3.0")));
+        // People who tried a release candidate update to the release.
+        let release = notes.iter().find(|n| n.version == v("0.3.0")).unwrap();
+        assert!(release.min_upgrade_from <= v("0.3.0-rc.1"));
         // The 0.1/0.2 previews have no notes: nothing upgrades from them.
         // Release candidates of 0.3.0 (0.3.0-rc.N) belong to the baseline.
         assert!(
