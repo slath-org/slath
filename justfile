@@ -33,7 +33,8 @@ web:
 bundle-size:
     python3 scripts/check_bundle_size.py
 
-# Browser tests (Playwright, all browsers and matrix cells). Playwright runs in
+# Browser tests (Playwright, three browsers in the matrix cells that
+# tests/e2e/playwright.config.ts gives each test). Playwright runs in
 # its container unless E2E_LOCAL=1. Pass Playwright args, e.g. `-g name`.
 test-e2e *ARGS: web
     cargo build --locked -p slath -p slath-tests --bins

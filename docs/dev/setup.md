@@ -151,3 +151,15 @@ headings have more space above than below, and every disclosure shows a
 chevron that turns. One page per page group is checked for indicators and
 heading levels against `tests/e2e/weave-baseline.json`, which lists what
 pages not yet built from the components still break; it only shrinks too.
+
+The browser tests run in Chromium, Firefox, and WebKit, each in light and
+dark, on a desktop and on a phone, but each test only where what it checks
+can differ (`tests/e2e/playwright.config.ts`). Behavior tests run in every
+engine on the desktop and in Chromium and WebKit on the phone, in the
+light theme. The layout specs (`weave`, `appearance`, `design*`) run in
+every engine and size. What the color theme changes runs in all twelve
+cells: `contrast.spec.ts` checks every page in `tests/e2e/tests/pages.ts`
+with axe, and `design-people.spec.ts` the generated avatars. A new page
+goes into `pages.ts`; a test about appearance goes into one of those
+specs, so it runs where it matters. Tests find elements by role and name
+and check what happens, not the wording of a page.
