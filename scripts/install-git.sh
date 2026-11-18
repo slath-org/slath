@@ -21,11 +21,25 @@ fi
 
 want="$(python3 "$here/pinned_sha256.py" git "$version")"
 tarball="git-$version.tar.xz"
-url="https://mirrors.edge.kernel.org/pub/software/scm/git/$tarball"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-curl --proto '=https' --tlsv1.2 -sSfL -o "$tmp/$tarball" "$url"
+# Several kernel.org hosts, each tried with retries, so one unreachable
+# host doesn't fail a build. The checksum pins the file whichever serves it.
+fetched=""
+for host in mirrors.edge.kernel.org cdn.kernel.org www.kernel.org; do
+    url="https://$host/pub/software/scm/git/$tarball"
+    if curl --proto '=https' --tlsv1.2 -sSfL --connect-timeout 20 --retry 3 --retry-all-errors \
+        -o "$tmp/$tarball" "$url"; then
+        fetched=1
+        break
+    fi
+    echo "install-git: $url failed; trying the next host" >&2
+done
+if [[ -z "$fetched" ]]; then
+    echo "install-git: no host served $tarball" >&2
+    exit 1
+fi
 got="$(sha256sum "$tmp/$tarball" | cut -d' ' -f1)"
 if [[ "$got" != "$want" ]]; then
     echo "install-git: checksum mismatch for $tarball: got $got, want $want" >&2
