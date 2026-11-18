@@ -24,10 +24,17 @@ cd "$ROOT"
 OUT="$ROOT/target/upgrade-matrix"
 mkdir -p "$OUT"
 
+# The sources: the tags given, or those scripts/upgrade_sources.py picks
+# from the published releases (SLATH_MATRIX_FROM=releases) or the tags,
+# leaving out SLATH_MATRIX_EXCLUDE (the tag being built).
 if [[ $# -gt 0 ]]; then
     TAGS=("$@")
+elif [[ "${SLATH_MATRIX_FROM:-source}" == releases ]]; then
+    mapfile -t TAGS < <(gh release list --limit 200 --exclude-drafts --json tagName --jq '.[].tagName' |
+        python3 scripts/upgrade_sources.py --exclude "${SLATH_MATRIX_EXCLUDE:-}")
 else
-    mapfile -t TAGS < <(git tag --list 'v*' | python3 scripts/upgrade_sources.py)
+    mapfile -t TAGS < <(git tag --list 'v*' |
+        python3 scripts/upgrade_sources.py --exclude "${SLATH_MATRIX_EXCLUDE:-}")
 fi
 if [[ ${#TAGS[@]} -eq 0 ]]; then
     mkdir -p target/upgrade-matrix-report
