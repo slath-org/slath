@@ -57,6 +57,10 @@ class ParseTest(unittest.TestCase):
         self.assertIsNone(cr.case_id_for("not_conformance"))
         self.assertIsNone(cr.case_id_for("conf_git_1_bad_number"))
         self.assertIsNone(cr.case_id_for("myconf_foo_01_x"))
+        # A test per parameter (Playwright's titles with a page path).
+        self.assertEqual(cr.case_id_for("conf_foo_01_pages_follow_the_rules /-/admin"), "FOO-01")
+        self.assertIsNone(cr.case_id_for("conf_foo_01 /-/admin"))
+        self.assertIsNone(cr.case_id_for("conf_foo_01_x/y"))
 
     def test_gating(self) -> None:
         cases = cr.parse_cases(CASES)

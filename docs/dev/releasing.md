@@ -19,7 +19,8 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    `slath` binary copied out of it with its SHA-256. The binary is built
    on Debian trixie and needs glibc 2.41 or newer.
 3. **Qualify** on those artifacts: the test suite (with the pinned jj
-   versions) and the browser tests in three shards, with `SLATH_BIN` set
+   versions, plus the helper scripts' tests, among them the checks of
+   this workflow, as `junit-scripts`) and the browser tests in three shards, with `SLATH_BIN` set
    to the downloaded binary; `scripts/test-compose.sh` and
    `scripts/test-setup.sh` with the image by digest, which these jobs pull
    with their own token (`packages: read`), since the package is private
@@ -69,9 +70,11 @@ Before the tag:
 
 After the workflow:
 
-- Download the JUnit artifacts and check the milestone's conformance gate
-  with `just conformance-report` (the cases file isn't in the repository,
-  so CI can't).
+- Download the run's JUnit artifacts (`gh run download <run>`) and check
+  the milestone's conformance gate with `python3
+  scripts/conformance_report.py --cases docs/CONFORMANCE.md --junit … --gate
+  M<n>`, one `--junit` per `junit-*/junit.xml` (the cases file isn't in
+  the repository, so CI can't).
 - Someone other than the release author installs from the published
   artifacts on both profiles, restores a backup, updates from a previous
   build, and checks the SSH boundary; the results go into the release

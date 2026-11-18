@@ -109,6 +109,14 @@ class ReleaseWorkflow(unittest.TestCase):
         for n in shards:
             self.assertIn(f"e2e-{n}", scripts(jobs["gate"]))
 
+    def test_the_scripts_tests_report_for_the_conformance_gate(self):
+        # This file's conf_ops_09/conf_supply_03 tests count only as JUnit.
+        jobs = load()
+        self.assertIn("scripts/unittest_junit.py target/scripts/junit.xml", scripts(jobs["tests"]))
+        uploads = [s["with"] for s in jobs["tests"]["steps"] if "upload-artifact" in s.get("uses", "")]
+        self.assertIn({"name": "junit-scripts", "path": "target/scripts/junit.xml"}, uploads)
+        self.assertRegex(scripts(jobs["gate"]), r"for j in [^;]*\bscripts\b")
+
     def test_red_nightlies_block_the_release(self):
         pre = scripts(load()["preconditions"])
         for wf in ["upgrade-matrix.yml", "oidc-providers.yml", "compat-matrix.yml"]:

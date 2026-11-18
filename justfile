@@ -123,13 +123,15 @@ upgrade-notes:
 py-test:
     python3 -m unittest -q scripts/test_*.py
 
-# Run all tests with JUnit output and map them to the cases in CASES (a
-# Markdown file with case tables). Pass `--gate M<n>` to fail unless that gate is met.
+# Run all tests (the helper scripts' too) with JUnit output and map them to
+# the cases in CASES (a Markdown file with case tables). Pass `--gate M<n>` to fail unless that gate is met.
 # Browser and compose results are included when `just test-e2e` and
 # `just test-compose` have written them.
 conformance-report CASES *ARGS:
     cargo nextest run --workspace --locked --profile ci --no-tests=pass || true
+    python3 scripts/unittest_junit.py target/scripts/junit.xml >/dev/null 2>&1 || true
     python3 scripts/conformance_report.py --cases {{CASES}} --junit target/nextest/ci/junit.xml \
+        --junit target/scripts/junit.xml \
         $(for f in target/e2e/junit.xml target/compose/junit.xml target/upgrade-matrix-report/junit.xml; do [ -f "$f" ] && printf -- '--junit %s ' "$f"; done) {{ARGS}}
 
 # Audit the GitHub workflows with zizmor (pedantic: every finding fails).

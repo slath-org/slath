@@ -36,7 +36,9 @@ CASE_ROW = re.compile(
     r"^\|\s*\*\*(?P<id>[A-Z0-9]+-\d{2})\*\*\s*\|\s*(?P<gate>M\d+|—|-)\s*\|"
     r"\s*(?P<crit>[A-Z]+(?:-v1)?)\s*\|\s*(?P<text>.*?)\s*\|\s*$"
 )
-TEST_NAME = re.compile(r"(?:^|::)conf_(?P<area>[a-z0-9]+)_(?P<nn>\d{2})_[A-Za-z0-9_]+$")
+# A test per parameter, such as Playwright's `conf_x_01_name /some/page`,
+# carries the parameter after a space.
+TEST_NAME = re.compile(r"(?:^|::)conf_(?P<area>[a-z0-9]+)_(?P<nn>\d{2})_[A-Za-z0-9_]+(?: .*)?$")
 
 
 @dataclass

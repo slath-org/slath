@@ -170,11 +170,21 @@ jobs:
           export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
           just web
           cargo nextest run --workspace --locked --profile ci
+      # The helper scripts' tests, among them the checks of this workflow
+      # and its signing, with JUnit for the conformance report.
+      - name: Run the helper scripts' tests
+        if: always()
+        run: python3 scripts/unittest_junit.py target/scripts/junit.xml
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: junit-tests
           path: target/nextest/ci/junit.xml
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-scripts
+          path: target/scripts/junit.xml
 
   # Three shards (Playwright --shard), as in CI, so each stays within its time.
   e2e:
@@ -408,7 +418,7 @@ jobs:
           args=()
           for f in artifacts/build-*/slath-*-linux; do args+=(--artifact "$f"); done
           for a in x86_64 aarch64; do args+=(--image "$IMAGE@$(cat artifacts/build-$a/image-$a.digest) ($a)"); done
-          for j in tests e2e-1 e2e-2 e2e-3 compose setup upgrade-matrix; do
+          for j in tests scripts e2e-1 e2e-2 e2e-3 compose setup upgrade-matrix; do
             args+=(--junit "$j=artifacts/junit-$j/junit.xml")
           done
           python3 scripts/release_report.py --version "$v" --commit "$SHA" --out report "${args[@]}"
