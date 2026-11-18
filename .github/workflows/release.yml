@@ -54,9 +54,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The newest finished run on main counts, whether the schedule
+          # started it or someone did by hand (a new workflow's first
+          # scheduled run may come late). Pull request runs don't count.
           for wf in upgrade-matrix.yml oidc-providers.yml compat-matrix.yml; do
-            result=$(gh run list --workflow "$wf" --event schedule --limit 1 --json conclusion --jq '.[0].conclusion')
-            echo "$wf: ${result:-no scheduled run}"
+            result=$(gh run list --workflow "$wf" --branch main --status completed --limit 20 \
+              --json conclusion,event \
+              --jq '[.[] | select(.event == "schedule" or .event == "workflow_dispatch")][0].conclusion // empty')
+            echo "$wf: ${result:-no nightly or manual run on main}"
             [ "$result" = success ] || { echo "::error::nightly $wf is not green; diagnose it before releasing"; exit 1; }
           done
 

@@ -50,7 +50,7 @@ release. It compares Slath's predicted jj IDs with each real jj binary,
 and runs a jj without `change-id` headers, mixed Git and jj teams, every
 merge request flow for Git-made, jj-made, and mixed stacks, forks, and
 tag pushes. Its report (`scripts/compat_report.py`) names each client and
-marks a jj release that isn't pinned yet. A red scheduled run opens or
+marks a jj release that isn't pinned yet. A red nightly or manual run opens or
 comments on the issue labeled `compat-matrix` and blocks the next release;
 the next green run closes it. When a new jj release passes, pin it in
 `versions.toml` and drop the oldest.

@@ -92,7 +92,9 @@ class ReleaseWorkflow(unittest.TestCase):
         pre = scripts(load()["preconditions"])
         for wf in ["upgrade-matrix.yml", "oidc-providers.yml", "compat-matrix.yml"]:
             self.assertIn(wf, pre)
-        self.assertIn("--event schedule", pre)
+        self.assertIn("--branch main", pre)
+        self.assertIn('"schedule"', pre)
+        self.assertIn('"workflow_dispatch"', pre)
 
     def test_actions_are_pinned_to_commits(self):
         for name, job in load().items():
