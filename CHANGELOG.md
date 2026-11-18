@@ -286,6 +286,11 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Turning edits by maintainers on or off with a token needs the `mrs:write` scope, like every other change to a merge request.
 - On phones, the commands to resolve a merge request's conflicts scroll inside their box instead of widening the page.
 
+### Security
+
+- Email goes out through a fixed version of the mail library: a man-in-the-middle can no longer forge SMTP replies after STARTTLS, and bare line breaks can't inject SMTP commands.
+- A malicious SMTP server can no longer crash Slath or exhaust its memory, and addresses with a quoted local part reach the right mailbox.
+
 ## [0.2.0] - 2026-11-02
 
 Team alpha: issues, notifications, single sign-on, and one-command upgrades. Administrators need two-factor authentication; see `docs/admin/upgrading.md` before upgrading.
