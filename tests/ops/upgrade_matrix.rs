@@ -207,14 +207,25 @@ fn conf_ops_03_upgrade_from_every_release() {
             continue;
         };
 
-        // The old binary refuses the upgraded database and says how to go back.
-        let refused = s.start_again(&old_bin);
-        let log = refused.expect_err("the old binary must not serve the newer schema");
-        assert!(log.contains("newer than this binary"), "{tag}: {log}");
-        assert!(
-            log.contains("restore") || log.contains("Restore"),
-            "{tag}: {log}"
-        );
+        let new_schema = s.db.query_one("SELECT version::text FROM schema_info");
+        if new_schema == old_schema {
+            // Same schema, as from a release candidate to its release: the
+            // old binary still serves the database.
+            s.start_again(&old_bin)
+                .unwrap_or_else(|log| panic!("{tag}: old binary on the same schema: {log}"));
+            let mut a = s.login("alice", PASSWORD);
+            assert_eq!(a.get("/alice/demo").status, 200, "{tag}: old binary");
+        } else {
+            // The old binary refuses the upgraded database and says how to
+            // go back.
+            let refused = s.start_again(&old_bin);
+            let log = refused.expect_err("the old binary must not serve the newer schema");
+            assert!(log.contains("newer than this binary"), "{tag}: {log}");
+            assert!(
+                log.contains("restore") || log.contains("Restore"),
+                "{tag}: {log}"
+            );
+        }
 
         // The pre-upgrade backup restores with the old binary.
         let fresh = old_instance();
