@@ -416,18 +416,66 @@ impl Invocation {
         // On error paths `child` is dropped here, which kills the group.
     }
 
-    /// Like [`Invocation::output`], but a non-zero exit is an error.
+    /// Like [`Invocation::output`], but a non-zero exit is an error. Git's
+    /// message is logged with the subcommand (never the whole command line,
+    /// which can hold paths and URLs), credentials in URLs masked; the
+    /// error itself doesn't carry it to clients.
     pub async fn run(self) -> Result<Output, GitError> {
+        let command = subcommand(&self.args);
         let out = self.output().await?;
         if out.status.success() {
             Ok(out)
         } else {
+            tracing::warn!(
+                command,
+                status = %out.status,
+                stderr = %log_text(&out.stderr),
+                "git failed"
+            );
             Err(GitError::Failed {
                 status: out.status,
                 stderr: out.stderr,
             })
         }
     }
+}
+
+/// The Git subcommand of `args` (the first argument that isn't an option
+/// or the value of `-c`), for logs.
+fn subcommand(args: &[OsString]) -> String {
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == "-c" {
+            it.next();
+        } else if !a.to_string_lossy().starts_with('-') {
+            return a.to_string_lossy().into_owned();
+        }
+    }
+    String::new()
+}
+
+/// Git's stderr for a log line: trimmed, at most 2,000 characters, with
+/// the user information of URLs (`https://user:token@host`) masked.
+fn log_text(stderr: &[u8]) -> String {
+    const MAX: usize = 2000;
+    let text = String::from_utf8_lossy(stderr);
+    let text = text.trim();
+    let mut out = String::with_capacity(text.len().min(MAX));
+    let mut rest = text;
+    while let Some(i) = rest.find("://") {
+        out.push_str(&rest[..i + 3]);
+        rest = &rest[i + 3..];
+        let authority = rest.find(['/', ' ', '\n', '\'', '"']).unwrap_or(rest.len());
+        if let Some(at) = rest[..authority].rfind('@') {
+            out.push_str("***");
+            rest = &rest[at..];
+        }
+    }
+    out.push_str(rest);
+    if out.chars().count() > MAX {
+        out = out.chars().take(MAX).collect::<String>() + "…";
+    }
+    out
 }
 
 fn is_valid_git_protocol(value: &str) -> bool {
@@ -541,6 +589,43 @@ impl GitChild {
     /// Kills the process group immediately.
     pub fn kill(&mut self) {
         self.group.kill();
+    }
+}
+
+#[cfg(test)]
+mod log_tests {
+    use super::{log_text, subcommand};
+    use std::ffi::OsString;
+
+    #[test]
+    fn logs_name_the_subcommand_only() {
+        let args: Vec<OsString> = [
+            "-c",
+            "protocol.version=2",
+            "fetch",
+            "--quiet",
+            "/srv/repo.git",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect();
+        assert_eq!(subcommand(&args), "fetch");
+    }
+
+    #[test]
+    fn logs_mask_credentials_in_urls() {
+        let got =
+            log_text(b"fatal: unable to access 'https://bob:s3cret@git.example.org/x.git/': 403\n");
+        assert_eq!(
+            got,
+            "fatal: unable to access 'https://***@git.example.org/x.git/': 403"
+        );
+        assert!(!log_text(b"see https://user:tok@h and ssh://git@h/x").contains("tok"));
+        assert_eq!(
+            log_text(b"  error: cannot lock ref  \n"),
+            "error: cannot lock ref"
+        );
+        assert_eq!(log_text(&[b'x'; 3000]).chars().count(), 2001);
     }
 }
 

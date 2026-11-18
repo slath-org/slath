@@ -189,6 +189,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Changed
 
+- When a Git command fails, the server log names it and shows Git's message, with credentials in URLs masked.
 - Text areas grow with what you type, up to most of the screen, in browsers that support it.
 - Headings wrap into lines of similar length, and paragraphs in comments and descriptions avoid a lone last word.
 - Full-height layouts and the side menu follow the visible screen on phones as the browser's address bar shows and hides.
