@@ -18,9 +18,12 @@ tag `vX.Y.Z` runs `.github/workflows/release.yml`:
    runners), pushed to `ghcr.io/slath-org/slath` by digest only, and the
    `slath` binary copied out of it with its SHA-256. The binary is built
    on Debian trixie and needs glibc 2.41 or newer.
-3. **Qualify** on those artifacts: the test suite and the browser tests
-   with `SLATH_BIN` set to the downloaded binary, `scripts/test-compose.sh`
-   and `scripts/test-setup.sh` with the image by digest, and the upgrade
+3. **Qualify** on those artifacts: the test suite (with the pinned jj
+   versions) and the browser tests in three shards, with `SLATH_BIN` set
+   to the downloaded binary; `scripts/test-compose.sh` and
+   `scripts/test-setup.sh` with the image by digest, which these jobs pull
+   with their own token (`packages: read`), since the package is private
+   until someone makes it public; and the upgrade
    matrix from every earlier release's published binary
    (`SLATH_MATRIX_FROM=releases`).
 4. **Gate:** fails unless every job above succeeded; a skipped or

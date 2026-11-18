@@ -88,6 +88,27 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertIn("--custom-trusted-root", run)
         self.assertIn("tampered", run)
 
+    def test_jobs_that_pull_the_built_image_sign_in_to_read_it(self):
+        # The image is pushed by digest before anything is published, and
+        # the package may be private: pulling it needs the job's token.
+        for name, job in load().items():
+            run = scripts(job)
+            if "docker pull" not in run or name == "build":
+                continue
+            self.assertEqual(job.get("permissions", {}).get("packages"), "read", name)
+            self.assertLess(run.index("docker login ghcr.io"), run.index("docker pull"), name)
+
+    def test_the_test_suite_has_the_pinned_jj_versions(self):
+        self.assertIn("just tools", scripts(load()["tests"]))
+
+    def test_browser_tests_run_in_shards_that_each_report(self):
+        jobs = load()
+        e2e = jobs["e2e"]
+        shards = e2e["strategy"]["matrix"]["shard"]
+        self.assertIn('--shard="$SHARD/', scripts(e2e))
+        for n in shards:
+            self.assertIn(f"e2e-{n}", scripts(jobs["gate"]))
+
     def test_red_nightlies_block_the_release(self):
         pre = scripts(load()["preconditions"])
         for wf in ["upgrade-matrix.yml", "oidc-providers.yml", "compat-matrix.yml"]:

@@ -161,6 +161,8 @@ jobs:
           # No dependency cache in a release: a poisoned cache entry would
           # end up in the published artifacts.
           package-manager-cache: false
+      - name: Install pinned jj versions
+        run: just tools
       - name: Run every test against the built binary
         run: |
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
@@ -174,11 +176,16 @@ jobs:
           name: junit-tests
           path: target/nextest/ci/junit.xml
 
+  # Three shards (Playwright --shard), as in CI, so each stays within its time.
   e2e:
-    name: browser tests on the built binary
+    name: browser tests on the built binary (${{ matrix.shard }}/3)
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
@@ -220,16 +227,18 @@ jobs:
             scripts/install-jj.sh "$v"
           done
       - name: Run the browser matrix against the built binary
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           (cd artifacts && sha256sum -c slath-x86_64.sha256)
           chmod 0755 artifacts/slath-*-x86_64-linux
           export SLATH_BIN="$PWD/$(ls artifacts/slath-*-x86_64-linux)"
           cargo build --locked -p slath-tests --bins
-          scripts/e2e.sh --workers 4
+          scripts/e2e.sh --workers 4 --shard="$SHARD/3"
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: junit-e2e
+          name: junit-e2e-${{ matrix.shard }}
           path: target/e2e/junit.xml
 
   compose:
@@ -237,6 +246,9 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read # pull the built image by digest before it's published
     env:
       SQLX_OFFLINE: "true"
     steps:
@@ -261,7 +273,9 @@ jobs:
       - name: Run scripts/test-compose.sh with the built image
         env:
           GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
         run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           export SLATH_IMAGE="$IMAGE@$(cat artifacts/image-x86_64.digest)"
           docker pull "$SLATH_IMAGE"
           scripts/test-compose.sh
@@ -276,6 +290,9 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read # pull the built image by digest before it's published
     env:
       SQLX_OFFLINE: "true"
     steps:
@@ -292,7 +309,11 @@ jobs:
         with:
           tool: cargo-nextest
       - name: Run scripts/test-setup.sh with the built image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
         run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
           export SLATH_IMAGE="$IMAGE@$(cat artifacts/image-x86_64.digest)"
           docker pull "$SLATH_IMAGE"
           scripts/test-setup.sh
@@ -388,7 +409,7 @@ jobs:
           args=()
           for f in artifacts/build-*/slath-*-linux; do args+=(--artifact "$f"); done
           for a in x86_64 aarch64; do args+=(--image "$IMAGE@$(cat artifacts/build-$a/image-$a.digest) ($a)"); done
-          for j in tests e2e compose setup upgrade-matrix; do
+          for j in tests e2e-1 e2e-2 e2e-3 compose setup upgrade-matrix; do
             args+=(--junit "$j=artifacts/junit-$j/junit.xml")
           done
           python3 scripts/release_report.py --version "$v" --commit "$SHA" --out report "${args[@]}"
