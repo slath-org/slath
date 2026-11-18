@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
+Merge requests and forks for Git and jj alike, webhooks, bots, push protection, and signed prebuilt releases. Later releases update from it; install it fresh (see `docs/admin/upgrading.md`).
+
 ### Added
 
 - Installations of a release candidate, such as 0.3.0-rc.1, update to later candidates and to the release itself.
@@ -468,7 +472,8 @@ First release: self-hosted Git and Jujutsu hosting for small teams.
 - API tokens without `user:read` could list the user's organizations and their members.
 - API tokens without `repo:read` could list the user's private repositories.
 
-[Unreleased]: https://github.com/slath-org/slath/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/slath-org/slath/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/slath-org/slath/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/slath-org/slath/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/slath-org/slath/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/slath-org/slath/releases/tag/v0.1.0
