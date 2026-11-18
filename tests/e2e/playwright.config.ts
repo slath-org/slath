@@ -41,6 +41,14 @@ function testMatch(browser: string, cell: string): RegExp[] | undefined {
   return cell.startsWith("light") ? LAYOUT : THEMED;
 }
 
+/**
+ * Release builds don't serve the design catalog (scripts/e2e.sh finds out
+ * and sets SLATH_E2E_CATALOG=0). Then its specs and the tests tagged
+ * @catalog are left out; CI's debug builds run them.
+ */
+const CATALOG = process.env.SLATH_E2E_CATALOG !== "0";
+const CATALOG_SPECS = [spec("design(-[a-z]+)?"), spec("htmx")];
+
 const projects: Project[] = browsers.flatMap((b) =>
   cells.map((c) => ({
     name: `${b.name}-${c.name}`,
@@ -66,6 +74,7 @@ export default defineConfig({
     ["junit", { outputFile: "../../target/e2e/junit.xml" }],
   ],
   outputDir: "../../target/e2e/results",
+  ...(CATALOG ? {} : { testIgnore: CATALOG_SPECS, grepInvert: /@catalog/ }),
   use: {
     trace: "retain-on-failure",
     serviceWorkers: "block",

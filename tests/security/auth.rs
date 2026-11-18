@@ -53,10 +53,11 @@ fn conf_sec_04_session_id_rotates_on_login() {
     let first = session_cookie(&c).unwrap();
     assert_ne!(first, planted);
     assert!(signed_in_as(&mut c, "alice"));
-    // Signing in again issues a new ID.
+    // Signing in again issues a new ID (the form token comes from any
+    // page with a form, here the profile settings).
     let r = submit(
         &mut c,
-        "/-/design",
+        "/-/settings/profile",
         "/-/login",
         &[("username", "alice"), ("password", PW)],
     );

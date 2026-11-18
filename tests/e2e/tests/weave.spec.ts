@@ -97,7 +97,7 @@ async function spacing(page: Page): Promise<string[]> {
 }
 
 for (const path of CATALOG) {
-  test(`conf_design_03_catalog_follows_the_rules ${path}`, async ({ page }) => {
+  test(`conf_design_03_catalog_follows_the_rules ${path}`, { tag: "@catalog" }, async ({ page }) => {
     await page.goto(path);
     expect(await structure(page)).toEqual([]);
     expect(await spacing(page)).toEqual([]);
@@ -110,7 +110,7 @@ for (const path of CATALOG) {
   });
 }
 
-test("conf_design_03_disclosure_indicators_turn_when_open", async ({ page }) => {
+test("conf_design_03_disclosure_indicators_turn_when_open", { tag: "@catalog" }, async ({ page }) => {
   for (const path of ["/-/design/disclosure", "/-/design/review"]) {
     await page.goto(path);
     const summaries = page.locator("main details:not(.reply-box) > summary");
@@ -149,7 +149,7 @@ for (const path of MIGRATED) {
   });
 }
 
-test("conf_design_03_checks_catch_violations", async ({ page }) => {
+test("conf_design_03_checks_catch_violations", { tag: "@catalog" }, async ({ page }) => {
   await page.goto("/-/design/layout");
   await page.evaluate(() => {
     const main = document.querySelector("main")!;

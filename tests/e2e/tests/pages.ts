@@ -9,7 +9,8 @@ import { USERS, expect, signIn, tapOrClick, test } from "../fixtures";
 
 export type Account = "anon" | "alice" | "admin";
 
-export const CATALOG = ["", "/foundations", "/frame", "/layout", "/messages", "/forms", "/disclosure", "/lists", "/people", "/controls", "/review", "/code"].map(
+/** The design catalog, which only debug builds serve (see playwright.config.ts). */
+export const CATALOG = process.env.SLATH_E2E_CATALOG === "0" ? [] : ["", "/foundations", "/frame", "/layout", "/messages", "/forms", "/disclosure", "/lists", "/people", "/controls", "/review", "/code"].map(
   (p) => `/-/design${p}`,
 );
 

@@ -153,7 +153,7 @@ for (const path of CATALOG) {
   });
 }
 
-test("conf_a11y_04_components_operable_by_tap_click_and_keyboard", async ({ page }) => {
+test("conf_a11y_04_components_operable_by_tap_click_and_keyboard", { tag: "@catalog" }, async ({ page }) => {
   await page.goto("/-/design/disclosure");
   // Menu: pointer opens it, Escape closes it and returns focus.
   const menu = page.locator("section[aria-labelledby=menu] details.menu").first();

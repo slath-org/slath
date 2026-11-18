@@ -41,13 +41,20 @@ for _ in $(seq 1 600); do
 done
 [[ -n "${url:-}" ]] || { echo "e2e: server did not start" >&2; exit 1; }
 echo "e2e: server at $url"
+# Release builds don't serve the design catalog (/-/design); the tests that
+# need it are left out then (tests/e2e/playwright.config.ts).
+catalog=1
+if [[ "$(curl -s -o /dev/null -w '%{http_code}' "$url/-/design")" == 404 ]]; then
+    catalog=0
+    echo "e2e: no design catalog in this build; its tests are left out"
+fi
 
 if [[ "${E2E_LOCAL:-0}" == 1 ]]; then
-    (cd tests/e2e && SLATH_E2E_URL="$url" npx playwright test "$@")
+    (cd tests/e2e && SLATH_E2E_URL="$url" SLATH_E2E_CATALOG="$catalog" npx playwright test "$@")
 else
     "$ENGINE" run --rm --network host --ipc host --init \
         "${as_user[@]}" -e HOME=/tmp -e CI="${CI:-}" \
-        -e SLATH_E2E_URL="$url" \
+        -e SLATH_E2E_URL="$url" -e SLATH_E2E_CATALOG="$catalog" \
         -v "$ROOT:/work:z" -w /work/tests/e2e \
         "mcr.microsoft.com/playwright:v${PW_VERSION}-noble" \
         npx playwright test "$@"
