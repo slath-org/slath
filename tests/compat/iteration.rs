@@ -419,9 +419,12 @@ fn conf_agent_03_iteration_equals_the_individual_endpoints() {
     wait(&s, &alice, mrs[0].1, 2);
 
     // Mixed: the first revision from Git, the second from jj; and jj alone.
+    // Its own message: the same parent, tree, and message as git-topic's
+    // first commit within the same second would be that very commit, which
+    // jj keeps immutable as part of the untracked git-topic@origin.
     git.ok(&w, &["switch", "-q", "-c", "mixed-topic", "main"]);
     write(&w, "f.txt", "one\n2\nthree\n");
-    git.ok(&w, &["commit", "-qam", "Change two"]);
+    git.ok(&w, &["commit", "-qam", "Change two, mixed"]);
     git.ok(&w, &["push", "-q", &url, "mixed-topic"]);
     if let Some((version, bin)) = jj_binaries().into_iter().last() {
         let jj = Jj::new(&version, &bin);
