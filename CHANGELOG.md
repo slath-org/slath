@@ -270,6 +270,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Updating a fork merge request's branch no longer fails with an internal error when the merge request is synced at the same moment.
 - Line numbers in diffs, which open a comment on their line, are targets of at least 24 pixels, so neighboring lines are easier to hit.
 - Folded lines in a merge request's history (for example "3 changes to labels and assignees") are tall enough to tap.
 - In the secret-scan allowlist, `**/name` matches only whole folder and file names: `**/testdata/*` no longer matches `mytestdata/`.

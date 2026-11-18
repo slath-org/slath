@@ -1298,10 +1298,30 @@ impl Services {
         if !self.admit_fetch(m, &src_dir, &head).await? {
             return Ok(current);
         }
-        slath_git::forks::fetch_commit(&self.runner, &dir, &src_dir, &head, &incoming)
-            .await
-            .map_err(ServiceError::internal)?;
-        Ok(Some(head))
+        // Two syncs of one merge request can run at once (a push's job and
+        // the action that pushed). Git moves the ref only from the value it
+        // read, so the slower fetch fails; if the ref holds this head now,
+        // the other one did the work, otherwise fetch again.
+        let mut attempts = 0;
+        loop {
+            match slath_git::forks::fetch_commit(&self.runner, &dir, &src_dir, &head, &incoming)
+                .await
+            {
+                Ok(()) => return Ok(Some(head)),
+                Err(e) => {
+                    let now = slath_git::refs::read(&self.runner, &dir, &incoming)
+                        .await
+                        .map_err(ServiceError::internal)?;
+                    if now.as_ref() == Some(&head) {
+                        return Ok(Some(head));
+                    }
+                    attempts += 1;
+                    if attempts == 3 {
+                        return Err(ServiceError::internal(e));
+                    }
+                }
+            }
+        }
     }
 
     /// Follow-up of a push (`ref.updated`): a moved source creates a
