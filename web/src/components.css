@@ -810,10 +810,29 @@ main > .repo-context {
   scroll-margin-top: var(--space-4);
 }
 /* Line numbers link to a comment form: plain numbers that underline on
-   hover and focus, so 2,000 rows don't read as 4,000 links. */
+   hover and focus, so 2,000 rows don't read as 4,000 links. Like the
+   file view's, each is a target of at least 24 px (44 px on touch
+   screens), so the rows are as tall. */
 .diff-table .line-no a {
+  display: inline-block;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  line-height: var(--target-min);
   color: inherit;
   text-decoration: none;
+}
+.diff-table td {
+  line-height: var(--target-min);
+}
+@media (pointer: coarse) {
+  .diff-table .line-no a {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    line-height: 2.75rem;
+  }
+  .diff-table td {
+    line-height: 2.75rem;
+  }
 }
 .diff-table .line-no a:hover,
 .diff-table .line-no a:focus-visible {
