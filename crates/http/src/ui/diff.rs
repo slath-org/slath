@@ -928,18 +928,24 @@ pub struct FileFragment<'a> {
     pub diff: &'a DiffView,
 }
 
-/// The full page, or for an htmx request that loads one file, just it.
+/// The full page, or for an htmx request that loads one file, just it,
+/// with `Vary: HX-Request` so caches keep the two apart.
 pub fn respond(
     hx: super::HxRequest,
     ctx: &PageCtx,
     diff: &DiffView,
     full: &impl Template,
 ) -> Response {
-    if hx.partial && diff.only.is_some() {
+    let mut res = if hx.partial && diff.only.is_some() {
         super::render(&FileFragment { ctx, diff })
     } else {
         super::render(full)
-    }
+    };
+    res.headers_mut().insert(
+        axum::http::header::VARY,
+        axum::http::HeaderValue::from_static("HX-Request"),
+    );
+    res
 }
 
 #[derive(Deserialize)]

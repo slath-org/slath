@@ -3,7 +3,7 @@
 //! Security headers per route class, the CSP, nonces, and probes.
 
 use slath_tests::http::Resp;
-use slath_tests::server::TestServer;
+use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
 
 fn csp(r: &Resp) -> Vec<(String, Vec<String>)> {
     r.header("content-security-policy")
@@ -196,20 +196,39 @@ fn readyz_fails_when_the_database_is_down() {
 
 #[test]
 fn htmx_requests_get_fragments_with_vary() {
-    let s = TestServer::start_with(&[]);
-    let mut c = s.client();
-    let full = c.get("/-/design?count=3");
+    // A diff's "Load diff" asks htmx for one file of the page: the same URL
+    // without htmx is the whole page, so both carry Vary: HX-Request.
+    let s = TestServer::start();
+    let git = GitClient::new();
+    let work = tempfile::tempdir().unwrap();
+    let src = work.path().join("src");
+    std::fs::create_dir(&src).unwrap();
+    git.ok(&src, &["init", "-q", "-b", "main"]);
+    std::fs::write(src.join("a.txt"), "one\n").unwrap();
+    git.ok(&src, &["add", "."]);
+    git.ok(&src, &["commit", "-q", "-m", "Add a"]);
+    std::fs::write(src.join("a.txt"), "two\n").unwrap();
+    git.ok(&src, &["commit", "-q", "-am", "Change a"]);
+    git.ok(&src, &["push", "-q", &s.url(&DEMO), "main"]);
+    let head = git.ok(&src, &["rev-parse", "HEAD"]).trim().to_owned();
+
+    let mut c = s.login("alice", PASSWORD);
+    let path = format!("/alice/demo/commit/{head}?file=0");
+    let full = c.get(&path);
+    assert_eq!(full.status, 200, "{}", full.body);
     assert!(full.body.contains("<html"));
     assert_eq!(full.header("vary"), Some("HX-Request"));
     let frag = c.get_with(
-        "/-/design?count=3",
+        &path,
         &[("hx-request", "true"), ("hx-request-type", "partial")],
     );
+    assert_eq!(frag.status, 200, "{}", frag.body);
     assert!(!frag.body.contains("<html"));
-    assert!(frag.body.contains("id=\"demo-region\""));
-    assert!(frag.body.contains("href=\"/-/design?count=4\""));
+    assert!(frag.body.contains("class=\"diff-file"), "{}", frag.body);
     assert_eq!(frag.header("vary"), Some("HX-Request"));
-    // The fragment is stamped with its own response's nonce.
+    // Anything htmx runs in the fragment carries its own response's nonce.
     let n = nonce_of(&frag);
-    assert!(frag.body.contains(&format!("hx-nonce=\"{n}\"")));
+    for (i, _) in frag.body.match_indices("hx-nonce=\"") {
+        assert!(frag.body[i..].starts_with(&format!("hx-nonce=\"{n}\"")));
+    }
 }
