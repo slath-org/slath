@@ -158,12 +158,13 @@ test("conf_editor_01_toolbar_source_mode_preview_and_drafts", async ({ page }) =
   // The draft survives a reload until the form is sent.
   await page.waitForTimeout(600);
   await page.reload();
-  await expect(page.getByText("Restored text you didn't send yet.")).toBeVisible();
+  const discard = page.getByRole("button", { name: "Discard it" });
+  await expect(discard).toBeVisible();
   await expect(editor(page, "Description")).toContainText("Draft text");
   // The restored text has Markdown the rich editor would restyle, so it
   // stays in source mode; discarding it brings back the empty field.
-  await tapOrClick(page, page.getByRole("button", { name: "Discard it" }));
-  await expect(page.getByText("Restored text you didn't send yet.")).toBeHidden();
+  await tapOrClick(page, discard);
+  await expect(discard).toBeHidden();
   await richText(page);
 });
 

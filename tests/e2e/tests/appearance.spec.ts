@@ -3,7 +3,7 @@
 //
 // Themes, density, and input parity for the Weave components.
 import type { Page } from "@playwright/test";
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, signIn, tapOrClick, test, toast, USERS } from "../fixtures";
 
 /** Every page of the design catalog. */
 const CATALOG = ["", "/foundations", "/frame", "/layout", "/messages", "/forms", "/disclosure", "/lists", "/people", "/controls", "/review", "/code"].map(
@@ -122,7 +122,7 @@ test("conf_a11y_03_user_setting_follows_the_account", async ({ page, browser }) 
   await form.getByLabel(/^Compact/).check();
   await p2.getByLabel("Code font size").selectOption("18");
   await p2.getByRole("button", { name: "Save appearance" }).click();
-  await expect(p2.locator("main").getByRole("status")).toContainText("Appearance saved.");
+  await expectConfirmed(p2);
   await ctx.close();
   // Another browser, signed in as the same user: the settings follow.
   const ctx3 = await browser.newContext({ baseURL: process.env.SLATH_E2E_URL });
@@ -172,10 +172,10 @@ test("conf_a11y_04_components_operable_by_tap_click_and_keyboard", async ({ page
   // Toast: shown in the live region, dismissible by pointer.
   await page.goto("/-/design/messages");
   await tapOrClick(page, page.getByRole("button", { name: "Show a toast" }));
-  const toast = page.locator("#toasts .toast");
-  await expect(toast).toContainText("Copied to the clipboard.");
-  await tapOrClick(page, toast.getByRole("button", { name: "Dismiss" }));
-  await expect(toast).toHaveCount(0);
+  const shown = toast(page);
+  await expect(shown).toBeVisible();
+  await tapOrClick(page, shown.getByRole("button", { name: "Dismiss" }));
+  await expect(shown).toHaveCount(0);
 
   // The appearance menu works from the keyboard alone.
   const appearance = page.locator("#appearance-menu");

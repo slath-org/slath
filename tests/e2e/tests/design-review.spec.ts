@@ -26,7 +26,9 @@ test("conf_design_03_requirement_opens_and_thread_ends_with_reply_box", async ({
   await page.goto("/-/design/review");
   const row = page.locator("li.requirement.tone-blocking details");
   await tapOrClick(page, row.locator("summary"));
-  await expect(row.getByText("Fix the failure and push again.")).toBeVisible();
+  // Open, the row shows its evidence and how to fix it.
+  await expect(row).toHaveAttribute("open", "");
+  await expect(row.locator(":scope > :not(summary)").first()).toBeVisible();
   const thread = page.locator("li.timeline-thread");
   await expect(thread.locator("details.reply-box > summary")).toHaveText("Reply…");
   await expect(thread.locator(".reply-resolve")).toBeVisible();

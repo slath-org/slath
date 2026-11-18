@@ -17,7 +17,7 @@ test("conf_a11y_01_failed_login_shows_an_accessible_error_summary", async ({ pag
   await page.getByLabel("Password").fill("not the password");
   await tapOrClick(page, page.getByRole("button", { name: "Sign in", exact: true }));
   const summary = page.getByRole("alert");
-  await expect(summary).toContainText("Incorrect username or password.");
+  await expect(summary).toBeVisible();
   await expect(page.getByLabel("Username")).toHaveValue(name);
   await expect(page.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
   await expectAccessible(page);

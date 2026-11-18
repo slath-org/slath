@@ -4,7 +4,7 @@
 // Webhook settings: adding one shows its generated secret once, a ping
 // shows in the delivery log, a delivery has its own page, and errors are
 // announced. Each project uses its own URL and deletes its webhook.
-import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, signIn, tapOrClick, test, USERS } from "../fixtures";
 
 test("conf_a11y_01_webhook_settings", async ({ page }, info) => {
   await signIn(page, USERS.alice);
@@ -39,6 +39,6 @@ test("conf_a11y_01_webhook_settings", async ({ page }, info) => {
   // Deleting it leaves the list as it was.
   await tapOrClick(page, page.getByRole("link", { name: /^Webhook to/ }));
   await tapOrClick(page, page.getByRole("button", { name: "Delete webhook" }));
-  await expect(page.getByText("Webhook deleted.")).toBeVisible();
+  await expectConfirmed(page);
   await expect(page.getByRole("link", { name: url })).toHaveCount(0);
 });

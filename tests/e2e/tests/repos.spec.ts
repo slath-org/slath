@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, sideMenu, signIn, tapOrClick, test, USERS } from "../fixtures";
 
 test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) => {
   await signIn(page, USERS.alice);
@@ -26,7 +26,7 @@ test("conf_a11y_04_create_a_repository_and_open_its_settings", async ({ page }) 
   await expect(page.getByText("**/AGENTS.md", { exact: true })).toBeVisible();
   await page.getByLabel("This repository's own paths").fill("deploy/**");
   await tapOrClick(page, page.getByRole("button", { name: "Save sensitive paths" }));
-  await expect(page.getByText("Sensitive paths saved.")).toBeVisible();
+  await expectConfirmed(page);
   await expect(page.getByLabel("This repository's own paths")).toHaveValue("deploy/**");
   await expectAccessible(page);
 });

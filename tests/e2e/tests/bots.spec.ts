@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, sideMenu, signIn, tapOrClick, test, USERS } from "../fixtures";
 
 test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   await signIn(page, USERS.alice);
@@ -33,7 +33,7 @@ test("conf_a11y_01_create_a_bot_and_give_it_a_token", async ({ page }) => {
   // Its profile can be changed on its page.
   await page.getByLabel("Display name").fill("Release automation");
   await tapOrClick(page, page.getByRole("button", { name: "Save profile" }));
-  await expect(page.getByRole("status").filter({ hasText: "Profile saved." })).toBeVisible();
+  await expectConfirmed(page);
   await expect(page.getByLabel("Display name")).toHaveValue("Release automation");
   await expectAccessible(page);
 
@@ -64,7 +64,7 @@ test("conf_agent_01_stop_and_re_enable_a_bot", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Stopped");
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("button", { name: "Re-enable bot" }));
-  await expect(page.getByRole("status").filter({ hasText: "Bot re-enabled." })).toBeVisible();
+  await expectConfirmed(page);
   await expect(page.getByRole("button", { name: "Stop bot" })).toBeVisible();
 
   // The list shows each bot's state and activity.
@@ -90,7 +90,7 @@ test("conf_agent_10_freeze_an_organizations_bots", async ({ page }) => {
   await expect(page.getByText(`The bots of ${org} are frozen`)).toBeVisible();
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("button", { name: "Unfreeze bots" }));
-  await expect(page.getByRole("status").filter({ hasText: "Bots unfrozen." })).toBeVisible();
+  await expectConfirmed(page);
 });
 
 test("conf_agent_01_administrators_see_every_bot", async ({ page }) => {

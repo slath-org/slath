@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, sideMenu, signIn, tapOrClick, test, USERS } from "../fixtures";
 
 test("conf_a11y_04_create_an_organization_and_manage_members", async ({ page }) => {
   await signIn(page, USERS.alice);
@@ -10,7 +10,7 @@ test("conf_a11y_04_create_an_organization_and_manage_members", async ({ page }) 
   await page.getByLabel("Name", { exact: true }).fill(org);
   await tapOrClick(page, page.getByRole("button", { name: "Create organization" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(org);
-  await expect(page.getByRole("status").filter({ hasText: "Organization created." })).toBeVisible();
+  await expectConfirmed(page);
   await expectAccessible(page);
   await tapOrClick(page, (await sideMenu(page, "Organization")).getByRole("link", { name: "Members" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Members");

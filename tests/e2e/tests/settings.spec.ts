@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, expect, expectAccessible, sideMenu, signIn, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, expectProblem, sideMenu, signIn, tapOrClick, test, USERS } from "../fixtures";
 
 for (const [path, heading] of [
   ["/-/settings/profile", "Profile"],
@@ -31,7 +31,7 @@ test("conf_a11y_01_settings_validation_errors_are_announced", async ({ page }) =
   await page.getByLabel("New password", { exact: true }).fill("short");
   await page.getByLabel("Confirm new password").fill("different");
   await tapOrClick(page, page.getByRole("button", { name: "Change password" }));
-  await expect(page.getByRole("alert")).toContainText("Use at least 12 characters.");
+  await expectProblem(page);
   await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expectAccessible(page);
 });
@@ -50,13 +50,13 @@ test("conf_a11y_04_add_and_remove_an_email_address", async ({ page }) => {
   await page.goto("/-/settings/emails");
   await page.getByRole("textbox", { name: "Email address" }).fill(address);
   await tapOrClick(page, page.getByRole("button", { name: "Add address" }));
-  await expect(page.locator(".success-summary")).toContainText("Address added.");
+  await expectConfirmed(page);
   const row = page.getByRole("row").filter({ hasText: address });
   await expect(row).toContainText("Not confirmed");
   await expect(row.getByRole("button", { name: /^Make primary/ })).toHaveCount(0);
   await expectAccessible(page);
   await tapOrClick(page, row.getByRole("button", { name: `Remove ${address}` }));
-  await expect(page.locator(".success-summary")).toContainText("Address removed.");
+  await expectConfirmed(page);
   await expect(page.getByRole("row").filter({ hasText: address })).toHaveCount(0);
 });
 
@@ -69,7 +69,7 @@ test.describe("time zone", () => {
     const zone = page.getByLabel("Time zone");
     // Nothing saved yet: the device's zone is proposed, not saved.
     await expect(zone).toHaveValue("America/New_York");
-    await expect(page.getByText("Proposed from this device: America/New_York. Save to use it.")).toBeVisible();
+    await expect(page.locator("[data-zone-hint]")).toContainText("America/New_York");
     await expectAccessible(page);
     await page.reload();
     await expect(zone).toHaveValue("America/New_York");

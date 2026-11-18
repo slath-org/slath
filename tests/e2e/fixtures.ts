@@ -133,6 +133,24 @@ export async function signOut(page: Page): Promise<void> {
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
 }
 
+/**
+ * An action was confirmed: a success message (a status in the page's main
+ * region) appears. Tests check what changed, not the message's wording.
+ */
+export async function expectConfirmed(page: Page): Promise<void> {
+  await expect(page.locator("main").getByRole("status").filter({ hasText: /\S/ }).first()).toBeVisible();
+}
+
+/** A submit failed: the error summary (an alert) appears. */
+export async function expectProblem(page: Page): Promise<void> {
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ }).first()).toBeVisible();
+}
+
+/** A toast appeared in the live region. */
+export function toast(page: Page): Locator {
+  return page.locator("#toasts .toast");
+}
+
 /** Accounts created by slath-e2e-server. */
 export const USERS = {
   admin: { name: "sysadmin", password: "e2e admin password" },

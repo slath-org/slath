@@ -4,7 +4,7 @@
 // Passkeys with Chromium's virtual authenticator (CDP): adding one, signing
 // in with it alone (passwordless), and as the second step after the
 // password. Firefox and WebKit have no virtual authenticator in Playwright.
-import { USERS, expect, expectAccessible, signIn, signOut, tapOrClick, test } from "../fixtures";
+import { expect, expectAccessible, expectConfirmed, signIn, signOut, tapOrClick, test, USERS } from "../fixtures";
 import type { Page } from "@playwright/test";
 
 async function virtualAuthenticator(page: Page): Promise<void> {
@@ -44,7 +44,7 @@ test("conf_auth_02_passkey_passwordless_and_second_factor", async ({ page, brows
   await expectAccessible(page);
   await page.getByLabel("Name for the new passkey").fill("Virtual");
   await tapOrClick(page, page.getByRole("button", { name: "Add a passkey" }));
-  await expect(page.getByRole("status").filter({ hasText: "Passkey added." })).toBeVisible();
+  await expectConfirmed(page);
   await expect(page.getByRole("cell", { name: "Virtual", exact: true })).toBeVisible();
   await expectAccessible(page);
 

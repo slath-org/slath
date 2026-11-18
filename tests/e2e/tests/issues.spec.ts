@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { USERS, editor, expect, expectAccessible, sideMenu, signIn, tapOrClick, test, write, navLink } from "../fixtures";
+import { editor, expect, expectAccessible, expectProblem, navLink, sideMenu, signIn, tapOrClick, test, USERS, write } from "../fixtures";
 
 test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   test.slow();
@@ -16,7 +16,8 @@ test("conf_a11y_01_issue_pages_accessible", async ({ page }, testInfo) => {
   await expectAccessible(page);
   // Submitting without a title shows the error summary.
   await tapOrClick(page, page.getByRole("button", { name: "Open issue" }));
-  await expect(page.getByRole("alert")).toContainText("Enter a title.");
+  await expectProblem(page);
+  await expect(page.getByLabel("Title")).toHaveAttribute("aria-invalid", "true");
   await expectAccessible(page);
   const title = `Broken on ${testInfo.project.name}`;
   await page.getByLabel("Title").fill(title);

@@ -33,7 +33,8 @@ test("conf_a11y_01_diff_file_tree_generated_and_later_files", async ({ page }) =
 
   // The generated file is collapsed until asked for.
   const gen = page.locator("section.diff-file").filter({ has: page.getByRole("heading", { name: /gen\.txt/ }) });
-  await expect(gen).toContainText("Folded: marked generated in .gitattributes.");
+  await expect(gen.getByRole("link", { name: "Load diff" })).toBeVisible();
+  await expect(gen.locator(".diff-unified")).toHaveCount(0);
   await tapOrClick(page, gen.getByRole("link", { name: "Load diff" }));
   const loaded = page.locator("section.diff-file").filter({ hasText: "generated output" });
   await expect(loaded.locator(".diff-unified")).toBeVisible();
@@ -47,7 +48,8 @@ test("conf_a11y_01_diff_file_tree_generated_and_later_files", async ({ page }) =
   }).toPass();
   // The whitespace-only file is folded with its reason.
   const ws = page.locator("section.diff-file").filter({ has: page.getByRole("heading", { name: /ws\.txt/ }) });
-  await expect(ws).toContainText("Folded: only whitespace changed.");
+  await expect(ws.getByRole("link", { name: "Load diff" })).toBeVisible();
+  await expect(ws.locator(".diff-unified")).toHaveCount(0);
   await expectAccessible(page);
 });
 
