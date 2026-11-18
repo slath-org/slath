@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Optional pre-commit hook for working on Slath (`just hooks` installs it).
+# When a commit changes anything under .github/, it audits the workflows
+# with zizmor, as CI does, and stops the commit on a finding. It checks the
+# working tree, so stage everything you want audited. With GH_TOKEN set,
+# zizmor also runs its online audits. Skip once with `git commit --no-verify`.
+set -euo pipefail
+
+if ! git diff --cached --name-only | grep -q '^\.github/'; then
+    exit 0
+fi
+if ! command -v zizmor >/dev/null; then
+    echo "pre-commit: .github/ changed, but zizmor isn't installed (just setup installs it)" >&2
+    exit 1
+fi
+args=(--persona pedantic)
+[[ -n "${GH_TOKEN:-}" ]] || args+=(--offline)
+zizmor "${args[@]}" .github

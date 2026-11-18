@@ -141,6 +141,11 @@ guards:
     scripts/guards.sh
     scripts/guards_test.sh
 
+# Use the optional Git hooks in scripts/hooks (pre-commit: zizmor on
+# workflow changes). `git config --unset core.hooksPath` turns them off.
+hooks:
+    git config core.hooksPath scripts/hooks
+
 # Install the cargo tools the recipes use (needs rustup or cargo).
 setup:
     cargo install --locked just cargo-nextest cargo-deny zizmor
