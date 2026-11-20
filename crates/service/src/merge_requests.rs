@@ -1436,6 +1436,9 @@ impl Services {
         else {
             return Ok(());
         };
+        self.land_after_push(repo, pusher, &updates)
+            .await
+            .map_err(|e| JobError::Retry(e.to_string()))?;
         self.mrs_after_push(repo, pusher, &updates)
             .await
             .map_err(|e| JobError::Retry(e.to_string()))?;

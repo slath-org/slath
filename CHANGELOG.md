@@ -8,6 +8,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- Merge requests merge when their commits reach the target by a push: merge or fast-forward locally, then `git push` or `jj git push` the target branch.
+
 ## [0.3.0] - 2026-11-18
 
 Merge requests and forks for Git and jj alike, webhooks, bots, push protection, and signed prebuilt releases. Later releases update from it; install it fresh (see `docs/admin/upgrading.md`).

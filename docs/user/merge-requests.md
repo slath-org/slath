@@ -416,6 +416,23 @@ conflicting files and the commands that resolve them with Git or jj.
 The API merges with `POST …/merge-requests/{n}/merge` and
 `{"strategy": "rebase", "expected_head_oid": "<head you reviewed>"}`.
 
+### Merging by pushing the target
+
+You don't have to merge in Slath. Merge or fast-forward on your machine
+and push the target branch, as you would without a merge request:
+
+```text
+git switch main && git merge topic && git push origin main
+jj bookmark set main -r topic && jj git push --bookmark main
+```
+
+Once the target contains the merge request's head, the merge request is
+merged by whoever pushed, and its timeline says "merged this by pushing
+to main". If the same push also updates or deletes the source branch,
+the merge request records that last revision first, so pushing the
+target and deleting the branch at once counts as a merge, not a close.
+Merge requests whose commits didn't reach the target stay open.
+
 ## Merge when ready
 
 While a requirement is still missing (an approval, a check, a resolved

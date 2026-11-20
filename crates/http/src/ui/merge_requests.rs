@@ -938,6 +938,10 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
     let (icon, text) = match e.kind.as_str() {
         "closed" => ("git-pull-request-closed", "closed this".to_owned()),
         "reopened" => ("git-pull-request", "reopened this".to_owned()),
+        "merged" if str_of("strategy") == "external" => (
+            "git-merge",
+            format!("merged this by pushing to {}", str_of("target")),
+        ),
         "merged" => ("git-merge", "merged this".to_owned()),
         "draft" => (
             "git-pull-request-draft",

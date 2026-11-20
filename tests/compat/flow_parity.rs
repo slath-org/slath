@@ -3,11 +3,10 @@
 //! Every merge request flow for a Git-made, a jj-made, and a mixed stack
 //! (JJ-11, D-44): open from the push link, update, review, apply a
 //! suggestion as a commit and folded, update the branch, and merge with
-//! each strategy. Each step's push output, API responses, and pages must
-//! be the same for the three stacks once names, numbers, and IDs are
+//! each strategy or by pushing the target (with jj for the jj-made stack,
+//! with Git otherwise). Each step's push output, API responses, and pages
+//! must be the same for the three stacks once names, numbers, and IDs are
 //! replaced. No step installs a hook or sets client configuration.
-//!
-//! Landing by push joins with its detection in a later milestone.
 
 use std::path::{Path, PathBuf};
 
@@ -240,6 +239,34 @@ impl World {
         });
     }
 
+    /// Moves the server's `main` to `branch` by a push: with jj for a
+    /// jj-made stack, with Git otherwise.
+    fn land_by_push(&self, made: Made, branch: &str) {
+        if made == Made::Jj {
+            self.jj.ok(&self.j, &["git", "fetch"]);
+            self.jj.ok(
+                &self.j,
+                &["bookmark", "set", "main", "-r", &format!("{branch}@origin")],
+            );
+            self.jj_push("main");
+        } else {
+            let remote = format!("refs/remotes/s/{branch}");
+            self.git.ok(
+                &self.w,
+                &["fetch", "-q", &self.url, &format!("+{branch}:{remote}")],
+            );
+            self.git.ok(
+                &self.w,
+                &[
+                    "push",
+                    "-q",
+                    &self.url,
+                    &format!("{remote}:refs/heads/main"),
+                ],
+            );
+        }
+    }
+
     fn head(&self, n: i64) -> String {
         self.get(n, "")["head_oid"].as_str().unwrap().to_owned()
     }
@@ -405,15 +432,22 @@ fn run(world: &World, made: Made, strategy: &str) -> Record {
         n,
     );
 
-    // Merge.
-    let head = world.head(n);
-    let merged = world.post(
-        &world.alice,
-        n,
-        "/merge",
-        json!({"strategy": strategy, "expected_head_oid": head}),
-    );
-    rec.add("merge", &strip(merged).to_string(), &branch, n);
+    // Merge, in Slath or by pushing the target.
+    if strategy == "push" {
+        world.land_by_push(made, &branch);
+        eventually(&world.s, &format!("!{n}: not merged by the push"), || {
+            world.get(n, "")["state"] == "merged"
+        });
+    } else {
+        let head = world.head(n);
+        let merged = world.post(
+            &world.alice,
+            n,
+            "/merge",
+            json!({"strategy": strategy, "expected_head_oid": head}),
+        );
+        rec.add("merge", &strip(merged).to_string(), &branch, n);
+    }
     rec.add("merged", &strip(world.get(n, "")).to_string(), &branch, n);
     rec.add("page", &world.page(n), &branch, n);
     rec
@@ -437,7 +471,7 @@ fn conf_jj_11_every_flow_for_git_jj_and_mixed_stacks() {
         return;
     };
     let world = World::start(&version, &bin);
-    for strategy in ["fast-forward", "rebase", "merge-commit", "squash"] {
+    for strategy in ["fast-forward", "rebase", "merge-commit", "squash", "push"] {
         let records: Vec<(Made, Record)> = Made::ALL
             .iter()
             .map(|&made| (made, run(&world, made, strategy)))

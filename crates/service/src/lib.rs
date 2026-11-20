@@ -34,6 +34,7 @@ pub mod iteration;
 pub mod jobs;
 pub mod keys;
 pub mod labels;
+pub mod landed;
 pub mod logos;
 pub mod maintainer_edits;
 pub mod maintenance;
