@@ -128,10 +128,16 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(page.locator(".diff-file")).toContainText("Second draft.");
   await expectAccessible(page);
 
-  await tapOrClick(
-    page,
-    page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Commits" }),
-  );
+  // The tabs count the current revision's commits and changed files.
+  const tabs = page.getByRole("navigation", { name: "Merge request" });
+  await expect(tabs.getByRole("link", { name: "Commits" }).locator(".count")).toHaveText("2");
+  await tapOrClick(page, tabs.getByRole("link", { name: "Changes" }));
+  await expect(page).toHaveURL(/\/changes$/);
+  const files = tabs.getByRole("link", { name: "Changes" }).locator(".count");
+  await expect(files).toHaveText(/^[1-9]\d*$/);
+  await expect(page.locator(".diff-file")).toHaveCount(Number(await files.textContent()));
+  await tapOrClick(page, tabs.getByRole("link", { name: "Commits" }));
+  await expect(page).toHaveURL(/\/commits$/);
   await expect(page.getByRole("heading", { name: "2 commits" })).toBeVisible();
   const rows = page.locator("section[aria-labelledby=commits-heading] .item-list > li");
   await expect(rows.first()).toBeVisible();

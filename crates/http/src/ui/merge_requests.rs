@@ -1197,6 +1197,10 @@ struct MrHeading {
     checkout_form: Option<String>,
     /// Whose commands to show first.
     tool: ToolChoice,
+    /// The current revision's commits and changed files, for the tabs
+    /// (empty before the first revision).
+    commits: String,
+    files: String,
 }
 
 /// The viewer's tool for command blocks: preselected when known (setting
@@ -1565,7 +1569,17 @@ async fn heading(
             r = sh(&format!("{branch}@origin"))
         ),
     };
+    // The tabs count what the current revision has.
+    let (commits, files) = match state.services.mr_revisions(&m).await?.last() {
+        Some(r) => (
+            r.commit_count.to_string(),
+            state.services.mr_changed_paths(&m).await?.len().to_string(),
+        ),
+        None => (String::new(), String::new()),
+    };
     Ok(MrHeading {
+        commits,
+        files,
         checkout_form,
         tool: tool_choice(state, subject).await?,
         git_checkout,

@@ -17,6 +17,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Required approvals hold for every change: approving one change no longer leaves the others unreviewed, and the readiness card names the changes missing an approval.
 - A request for changes on one change blocks merging; sensitive paths need a maintainer who approved every change.
 - The ledger records for each approval of one change whether it carried or went stale, and the timeline names the changes whose approvals went stale.
+- A merge request's Commits and Changes tabs show how many commits and changed files the current revision has, as Conversation shows its comments.
 
 ## [0.3.0] - 2026-11-18
 

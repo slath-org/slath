@@ -1,6 +1,6 @@
 {%- let base = "/" ~ header.namespace ~ "/" ~ header.name ~ "/merge-requests/" ~ h.mr.number %}
 {%- call m::tabs("Merge request") %}
 {%- call m::tab(base, "Conversation", mr_tab == "conversation", h.mr.comments.to_string()) %}{% endcall %}
-{%- call m::tab(base ~ "/commits", "Commits", mr_tab == "commits", "") %}{% endcall %}
-{%- call m::tab(base ~ "/changes", "Changes", mr_tab == "changes", "") %}{% endcall %}
+{%- call m::tab(base ~ "/commits", "Commits", mr_tab == "commits", h.commits.clone()) %}{% endcall %}
+{%- call m::tab(base ~ "/changes", "Changes", mr_tab == "changes", h.files.clone()) %}{% endcall %}
 {%- endcall %}

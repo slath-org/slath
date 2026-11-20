@@ -795,8 +795,9 @@ impl Services {
             .is_ok())
     }
 
-    /// The sensitive paths the current revision's whole diff changes.
-    pub async fn mr_sensitive_changes(&self, m: &MergeRequest) -> Result<Vec<String>> {
+    /// The paths the current revision's whole diff changes (none before
+    /// the first revision).
+    pub async fn mr_changed_paths(&self, m: &MergeRequest) -> Result<Vec<Vec<u8>>> {
         let Some(rev) = slath_db::merge_requests::revisions(&self.pool, m.id)
             .await?
             .pop()
@@ -806,16 +807,22 @@ impl Services {
         let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
         let base = rev.merge_base_oid.as_deref().map(parse).transpose()?;
         let head = parse(&rev.head_oid)?;
-        let sensitive = self.sensitive_paths(m.repo_id).await?;
-        let paths = slath_git::browse::changed_paths(
+        slath_git::browse::changed_paths(
             &self.runner,
             &self.repo_path(m.repo_id),
             base.as_ref(),
             &head,
         )
         .await
-        .map_err(ServiceError::internal)?;
-        Ok(paths
+        .map_err(ServiceError::internal)
+    }
+
+    /// The sensitive paths the current revision's whole diff changes.
+    pub async fn mr_sensitive_changes(&self, m: &MergeRequest) -> Result<Vec<String>> {
+        let sensitive = self.sensitive_paths(m.repo_id).await?;
+        Ok(self
+            .mr_changed_paths(m)
+            .await?
             .into_iter()
             .filter(|p| sensitive.matches(p))
             .map(|p| String::from_utf8_lossy(&p).into_owned())
