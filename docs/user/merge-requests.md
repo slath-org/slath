@@ -225,6 +225,14 @@ current revision: a comment, an approval, or a request for changes. The
 author can only comment. Each reviewer's latest approval or request for
 changes is the one that counts.
 
+A review can also target **one change** of the current revision, through
+the API: `POST …/merge-requests/{n}/reviews` with
+`{"verdict": "approve", "change": "<change ID>"}` (the full ID or its
+first 8 characters, as the stack shows it). A verdict on one change
+covers only that change, and stays current while the change keeps its
+patch, whatever happens to the others. Revisions reviewed as a whole
+(with merge commits, for example) have no changes to review this way.
+
 The author and people who can triage ask for reviews under **Ask for
 reviews**, by username or as `organization/team`. Requested reviewers find
 the merge request under **Review requests** (the icon next to

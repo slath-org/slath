@@ -6731,7 +6731,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Reviews the current revision. The author may only comment; a comment\nneeds a body.",
+        "summary": "Reviews the current revision, or one change of it. The author may only comment; a comment\nneeds a body.",
         "operationId": "create_review",
         "parameters": [
           {
@@ -12382,6 +12382,13 @@
           "body": {
             "type": "string"
           },
+          "change_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change it reviews (its version in `revision`); null for a\nreview of the whole revision."
+          },
           "counts": {
             "type": "boolean",
             "description": "The reviewer's current verdict (on this revision, or carried over a\nrebase that kept every patch)."
@@ -12748,6 +12755,13 @@
         "properties": {
           "body": {
             "type": "string"
+          },
+          "change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Review one change: its ID (at least the first 8 characters). Its\nversion in the current revision is reviewed, and an approval counts\nfor that change only, while it keeps its patch. Omitted: the whole\nrevision."
           },
           "verdict": {
             "type": "string",

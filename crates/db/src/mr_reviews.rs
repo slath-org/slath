@@ -22,12 +22,18 @@ pub struct Review {
     /// Who wrote the body (origin labels).
     pub origin: Origin,
     pub created_at: time::OffsetDateTime,
+    /// The change it reviews (its version in `revision_seq`); `None` for a
+    /// review of the whole revision.
+    pub change_id: Option<uuid::Uuid>,
+    /// That change's display ID.
+    pub change: Option<String>,
 }
 
 pub async fn insert(
     exec: impl PgExecutor<'_>,
     mr: MergeRequestId,
-    revision_seq: i32,
+    // The revision, and the change of it reviewed (`None`: all of it).
+    (revision_seq, change): (i32, Option<uuid::Uuid>),
     reviewer: UserId,
     verdict: &str,
     body: &str,
@@ -35,15 +41,16 @@ pub async fn insert(
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
-        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body, origin)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body, origin, change_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         id,
         mr.as_uuid(),
         revision_seq,
         reviewer.as_uuid(),
         verdict,
         body,
-        origin.as_str()
+        origin.as_str(),
+        change
     )
     .execute(exec)
     .await?;
@@ -119,10 +126,11 @@ pub async fn coverage(
 pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<Review>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,
-                  r.origin, r.created_at
+                  r.origin, r.created_at, r.change_id, c.display_id AS "change?"
            FROM mr_reviews r
            LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
+           LEFT JOIN mr_changes c ON c.id = r.change_id
            WHERE r.mr_id = $1 ORDER BY r.created_at, r.id"#,
         mr.as_uuid()
     )
@@ -139,6 +147,8 @@ pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<R
             body: r.body,
             origin: crate::origin(&r.origin),
             created_at: r.created_at,
+            change_id: r.change_id,
+            change: r.change,
         })
         .collect())
 }

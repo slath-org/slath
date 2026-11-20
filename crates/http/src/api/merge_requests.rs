@@ -633,6 +633,9 @@ pub struct MrReview {
     pub counts: bool,
     /// An approval or request for changes made stale by later changes.
     pub stale: bool,
+    /// The change it reviews (its version in `revision`); null for a
+    /// review of the whole revision.
+    pub change_id: Option<String>,
 }
 
 impl From<slath_service::mr_reviews::ReviewView> for MrReview {
@@ -648,6 +651,7 @@ impl From<slath_service::mr_reviews::ReviewView> for MrReview {
             created_at: ts(v.review.created_at),
             counts: v.counts,
             stale: v.stale,
+            change_id: v.review.change,
         }
     }
 }
@@ -672,13 +676,19 @@ pub struct NewReview {
     pub verdict: String,
     #[serde(default)]
     pub body: String,
+    /// Review one change: its ID (at least the first 8 characters). Its
+    /// version in the current revision is reviewed, and an approval counts
+    /// for that change only, while it keeps its patch. Omitted: the whole
+    /// revision.
+    #[serde(default)]
+    pub change: Option<String>,
 }
 
 fn comment() -> String {
     "comment".to_owned()
 }
 
-/// Reviews the current revision. The author may only comment; a comment
+/// Reviews the current revision, or one change of it. The author may only comment; a comment
 /// needs a body.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = NewReview,
     responses((status = 201, body = MrReview), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
@@ -690,7 +700,13 @@ pub async fn create_review(
 ) -> Result<(StatusCode, Json<MrReview>), AppError> {
     let r = state
         .services
-        .submit_review(&s, (&ns, &repo, number), &b.verdict, &b.body)
+        .submit_review(
+            &s,
+            (&ns, &repo, number),
+            &b.verdict,
+            &b.body,
+            b.change.as_deref(),
+        )
         .await?;
     let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;
     let v = state

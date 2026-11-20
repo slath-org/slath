@@ -3170,7 +3170,7 @@ async fn review(
     let n = number(&n)?;
     match state
         .services
-        .submit_review(&s.subject, (&ns, &repo, n), &f.verdict, &f.body)
+        .submit_review(&s.subject, (&ns, &repo, n), &f.verdict, &f.body, None)
         .await
     {
         Ok(r) => {

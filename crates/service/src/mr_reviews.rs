@@ -169,54 +169,143 @@ pub fn item_time(
     }
 }
 
-/// Which reviews count on revision `current`: each reviewer's latest
-/// approval or request for changes, if it was made on `current`, or every
-/// revision since kept the same patches, or stale approvals aren't
-/// dismissed.
-#[must_use]
-pub fn counting(
-    reviews: &[Review],
-    current: i32,
-    same_patches: &HashMap<i32, bool>,
-    dismiss_stale: bool,
-) -> Vec<ReviewView> {
-    counting_with(reviews, current, same_patches, dismiss_stale, false)
+/// What decides whether a verdict still counts on the current revision.
+#[derive(Debug, Clone, Default)]
+pub struct History {
+    pub current: i32,
+    /// Per revision: whether it kept every change's patch of the one
+    /// before (pure rebase).
+    pub same_patches: HashMap<i32, bool>,
+    /// Per revision reviewed per change: its changes with their patch IDs.
+    pub patches: HashMap<i32, HashMap<uuid::Uuid, Option<String>>>,
+    /// Stale approvals are dismissed (otherwise verdicts stay).
+    pub dismiss_stale: bool,
+    /// Any new revision makes verdicts stale.
+    pub strict: bool,
 }
 
-/// Like [`counting`]; with `strict`, any later revision makes approvals
-/// and requests for changes stale.
-#[must_use]
-pub fn counting_with(
-    reviews: &[Review],
-    current: i32,
-    same_patches: &HashMap<i32, bool>,
-    dismiss_stale: bool,
-    strict: bool,
-) -> Vec<ReviewView> {
-    let mut latest: HashMap<UserId, uuid::Uuid> = HashMap::new();
-    for r in reviews.iter().filter(|r| r.verdict != "comment") {
-        if let Some(u) = r.reviewer_id {
-            latest.insert(u, r.id);
+impl History {
+    /// Whether a verdict on the whole of revision `seq` still counts: on
+    /// the current revision, or every revision since kept every patch.
+    fn carried(&self, seq: i32) -> bool {
+        if self.strict {
+            return seq == self.current;
+        }
+        !self.dismiss_stale
+            || ((seq + 1)..=self.current)
+                .all(|s| self.same_patches.get(&s).copied().unwrap_or(false))
+    }
+
+    /// Whether a verdict on change `k`'s version in revision `seq` still
+    /// counts: the current revision has the change, and every revision
+    /// since kept its patch (other changes don't matter).
+    fn change_carried(&self, seq: i32, k: uuid::Uuid) -> bool {
+        let at = |s: i32| self.patches.get(&s).and_then(|m| m.get(&k));
+        if at(self.current).is_none() {
+            return false;
+        }
+        if self.strict {
+            return seq == self.current;
+        }
+        if !self.dismiss_stale {
+            return true;
+        }
+        match at(seq) {
+            Some(Some(p)) => {
+                (seq..=self.current).all(|s| at(s).is_some_and(|q| q.as_ref() == Some(p)))
+            }
+            _ => false,
         }
     }
-    let carried = |seq: i32| {
-        if strict {
-            return seq == current;
+
+    fn counts(&self, r: &Review) -> bool {
+        match r.change_id {
+            None => self.carried(r.revision_seq),
+            Some(k) => self.change_carried(r.revision_seq, k),
         }
-        !dismiss_stale
-            || ((seq + 1)..=current).all(|s| same_patches.get(&s).copied().unwrap_or(false))
+    }
+}
+
+/// Which reviews count on the current revision. A review of the whole
+/// revision counts when it's the reviewer's latest approval or request
+/// for changes of the whole, and carried; a review of one change when
+/// it's the reviewer's latest for that change (reviews of the whole
+/// included), and that change kept its patch.
+#[must_use]
+pub fn counting(reviews: &[Review], h: &History) -> Vec<ReviewView> {
+    let decisive: Vec<&Review> = reviews.iter().filter(|r| r.verdict != "comment").collect();
+    let latest = |r: &Review| {
+        decisive
+            .iter()
+            .rev()
+            .find(|o| {
+                o.reviewer_id == r.reviewer_id
+                    && (o.change_id.is_none() || o.change_id == r.change_id)
+                    && (r.change_id.is_some() || o.change_id.is_none())
+            })
+            .map(|o| o.id)
     };
     reviews
         .iter()
         .map(|r| {
             let decisive =
-                r.verdict != "comment" && r.reviewer_id.and_then(|u| latest.get(&u)) == Some(&r.id);
-            let current = decisive && carried(r.revision_seq);
+                r.verdict != "comment" && r.reviewer_id.is_some() && latest(r) == Some(r.id);
+            let current = decisive && h.counts(r);
             ReviewView {
                 review: r.clone(),
                 counts: current,
                 stale: decisive && !current,
             }
+        })
+        .collect()
+}
+
+/// Who approves and who requests changes for one change of the current
+/// revision (`None`: the revision, reviewed as a whole).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Standing {
+    pub change: Option<uuid::Uuid>,
+    /// (reviewer, review) of each counting approval.
+    pub approvals: Vec<(UserId, uuid::Uuid)>,
+    pub blockers: Vec<UserId>,
+}
+
+/// Each change's standing, in `order` (the current revision's changes,
+/// bottom first; empty when it's reviewed as a whole). For each change,
+/// a reviewer's latest verdict on the whole or on that change decides.
+#[must_use]
+pub fn standings(reviews: &[Review], h: &History, order: &[uuid::Uuid]) -> Vec<Standing> {
+    let keys: Vec<Option<uuid::Uuid>> = if order.is_empty() {
+        vec![None]
+    } else {
+        order.iter().copied().map(Some).collect()
+    };
+    keys.into_iter()
+        .map(|k| {
+            let mut latest: Vec<(UserId, &Review)> = Vec::new();
+            for r in reviews.iter().filter(|r| {
+                r.verdict != "comment"
+                    && (r.change_id.is_none() || (k.is_some() && r.change_id == k))
+            }) {
+                let Some(u) = r.reviewer_id else { continue };
+                match latest.iter_mut().find(|(v, _)| *v == u) {
+                    Some(e) => e.1 = r,
+                    None => latest.push((u, r)),
+                }
+            }
+            let mut out = Standing {
+                change: k,
+                approvals: Vec::new(),
+                blockers: Vec::new(),
+            };
+            for (u, r) in latest.into_iter().filter(|(_, r)| h.counts(r)) {
+                if r.verdict == "approve" {
+                    out.approvals.push((u, r.id));
+                } else {
+                    out.blockers.push(u);
+                }
+            }
+            out
         })
         .collect()
 }
@@ -241,14 +330,16 @@ impl Services {
             .collect())
     }
 
-    /// Submits a review of the current revision. The author may only
-    /// comment; a comment needs a body.
+    /// Submits a review of the current revision, or with `change` (its
+    /// display ID, or at least its first 8 characters) of that change's
+    /// version in it. The author may only comment; a comment needs a body.
     pub async fn submit_review(
         &self,
         subject: &Subject,
         (ns, repo, number): (&str, &str, i32),
         verdict: &str,
         body: &str,
+        change: Option<&str>,
     ) -> Result<Review> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
         if !a.can(subject, Action::MrReview) {
@@ -284,10 +375,14 @@ impl Services {
             ));
         }
         self.check_body("body", body)?;
-        // An approval's coverage: the files of the revision's diff the
-        // approver viewed, as they are in it.
+        let change = match change.map(str::trim).filter(|c| !c.is_empty()) {
+            Some(c) => Some(self.review_target(&m, c).await?),
+            None => None,
+        };
+        // An approval's coverage: the files of the revision's (or the
+        // change's) diff the approver viewed, as they are in it.
         let coverage = if verdict == Verdict::Approve {
-            Some(self.coverage_snapshot(&m, *me).await?)
+            Some(self.coverage_snapshot(&m, *me, change.as_ref()).await?)
         } else {
             None
         };
@@ -299,7 +394,7 @@ impl Services {
         let id = db::insert(
             &mut *tx,
             m.id,
-            m.revisions,
+            (m.revisions, change.as_ref().map(|v| v.0)),
             *me,
             verdict.as_str(),
             body.trim(),
@@ -354,14 +449,71 @@ impl Services {
         )
     }
 
-    /// The coverage of `user`'s approval of the current revision: how many
-    /// files its diff has, and which the user viewed as they are in it.
+    /// The change a review of one change targets, with its version's
+    /// parent and commit in the current revision. Only revisions reviewed
+    /// per change have changes, and only bound commits can be reviewed.
+    async fn review_target(
+        &self,
+        m: &MergeRequest,
+        id: &str,
+    ) -> Result<(uuid::Uuid, Option<ObjectId>, ObjectId)> {
+        let versions = slath_db::mr_changes::versions(&self.pool, m.id).await?;
+        let here: Vec<_> = versions
+            .iter()
+            .filter(|v| v.revision_seq == m.revisions)
+            .collect();
+        if here.is_empty() {
+            return Err(ServiceError::invalid(
+                "change",
+                "whole",
+                "This revision is reviewed as a whole; review it without choosing a change.",
+            ));
+        }
+        let changes = slath_db::mr_changes::changes(&self.pool, m.id).await?;
+        let named: Vec<_> = changes
+            .iter()
+            .filter(|c| c.display_id == id || (id.len() >= 8 && c.display_id.starts_with(id)))
+            .filter_map(|c| here.iter().find(|v| v.change_id == Some(c.id)))
+            .collect();
+        let [v] = named.as_slice() else {
+            return Err(ServiceError::invalid(
+                "change",
+                "unknown",
+                "The current revision has no such change.",
+            ));
+        };
+        let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
+        Ok((
+            v.change_id
+                .ok_or_else(|| ServiceError::internal("unbound version"))?,
+            v.parent_oid.as_deref().map(parse).transpose()?,
+            parse(&v.commit_oid)?,
+        ))
+    }
+
+    /// The coverage of `user`'s approval of the current revision, or of
+    /// one change's version: how many files its diff has, and which the
+    /// user viewed as they are in it.
     async fn coverage_snapshot(
         &self,
         m: &MergeRequest,
         user: UserId,
+        change: Option<&(uuid::Uuid, Option<ObjectId>, ObjectId)>,
     ) -> Result<(i32, Vec<String>)> {
-        let files = self.revision_files(m, m.revisions).await?;
+        let files = match change {
+            None => self.revision_files(m, m.revisions).await?,
+            Some((_, parent, commit)) => slath_git::browse::changed_blobs(
+                &self.runner,
+                &self.repo_path(m.repo_id),
+                parent.as_ref(),
+                commit,
+            )
+            .await
+            .map_err(ServiceError::internal)?
+            .into_iter()
+            .map(|(p, o)| (String::from_utf8_lossy(&p).into_owned(), o))
+            .collect(),
+        };
         let viewed: HashMap<String, String> = slath_db::mr_threads::viewed(&self.pool, m.id, user)
             .await?
             .into_iter()
@@ -409,22 +561,37 @@ impl Services {
         Ok(Some(out))
     }
 
+    /// What decides whether verdicts still count on revision `current`.
+    pub(crate) async fn history(&self, m: &MergeRequest, current: i32) -> Result<History> {
+        let same_patches = db::same_patches(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .filter(|(s, _)| *s <= current)
+            .map(|(s, v)| (s, v.unwrap_or(false)))
+            .collect();
+        let mut patches: HashMap<i32, HashMap<uuid::Uuid, Option<String>>> = HashMap::new();
+        for v in slath_db::mr_changes::versions(&self.pool, m.id).await? {
+            if let Some(k) = v.change_id {
+                patches
+                    .entry(v.revision_seq)
+                    .or_default()
+                    .insert(k, v.patch_id);
+            }
+        }
+        let eff = self.effective_for(m).await?;
+        Ok(History {
+            current,
+            same_patches,
+            patches,
+            dismiss_stale: eff.dismiss_stale_approvals,
+            strict: eff.dismiss_approvals_on_new_revision,
+        })
+    }
+
     /// The reviews, with whether each still counts.
     pub async fn mr_reviews(&self, m: &MergeRequest) -> Result<Vec<ReviewView>> {
         let reviews = db::list(&self.pool, m.id).await?;
-        let same: HashMap<i32, bool> = db::same_patches(&self.pool, m.id)
-            .await?
-            .into_iter()
-            .map(|(s, v)| (s, v.unwrap_or(false)))
-            .collect();
-        let eff = self.effective_for(m).await?;
-        Ok(counting_with(
-            &reviews,
-            m.revisions,
-            &same,
-            eff.dismiss_stale_approvals,
-            eff.dismiss_approvals_on_new_revision,
-        ))
+        Ok(counting(&reviews, &self.history(m, m.revisions).await?))
     }
 
     /// The viewer's latest review's revision, if older than the current one
@@ -677,7 +844,11 @@ impl Services {
             let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.as_ref()) else {
                 continue;
             };
-            if v.review.verdict != "approve" || !v.counts || m.author_id == Some(u) {
+            if v.review.verdict != "approve"
+                || !v.counts
+                || v.review.change_id.is_some()
+                || m.author_id == Some(u)
+            {
                 continue;
             }
             let Some(user) = slath_db::users::get(&self.pool, u).await? else {
@@ -742,7 +913,7 @@ impl Services {
         let mut approvals = Vec::new();
         let mut blockers = Vec::new();
         let mut stale = 0;
-        for v in &views {
+        for v in views.iter().filter(|v| v.review.change_id.is_none()) {
             let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.clone()) else {
                 continue;
             };
@@ -978,19 +1149,7 @@ impl Services {
         // The approvals that counted on the previous revision, and what this
         // one does to them.
         let reviews = db::list(&self.pool, id).await?;
-        let same_map: HashMap<i32, bool> = db::same_patches(&self.pool, id)
-            .await?
-            .into_iter()
-            .filter(|(s, _)| *s < seq)
-            .map(|(s, v)| (s, v.unwrap_or(false)))
-            .collect();
-        let before = counting_with(
-            &reviews,
-            seq - 1,
-            &same_map,
-            eff.dismiss_stale_approvals,
-            eff.dismiss_approvals_on_new_revision,
-        );
+        let before = counting(&reviews, &self.history(&m, seq - 1).await?);
         let stale_reason = if here.is_empty() {
             "whole-only"
         } else if here.iter().any(|v| v.change_id.is_none()) {
@@ -1003,7 +1162,7 @@ impl Services {
         let mut carried_any = false;
         for v in before
             .iter()
-            .filter(|v| v.counts && v.review.verdict == "approve")
+            .filter(|v| v.counts && v.review.verdict == "approve" && v.review.change_id.is_none())
         {
             let (kind, reason) = match (eff.dismiss_stale_approvals, same) {
                 _ if eff.dismiss_approvals_on_new_revision => ("approval_stale", "new-revision"),
@@ -1088,6 +1247,18 @@ mod tests {
             body: String::new(),
             origin: slath_core::origin::Origin::Writer,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
+            change_id: None,
+            change: None,
+        }
+    }
+
+    fn history(current: i32, same: &[(i32, bool)], dismiss_stale: bool, strict: bool) -> History {
+        History {
+            current,
+            same_patches: same.iter().copied().collect(),
+            dismiss_stale,
+            strict,
+            ..History::default()
         }
     }
 
@@ -1101,18 +1272,18 @@ mod tests {
     fn approvals_carry_over_pure_rebases_only() {
         let reviews = [review(1, 7, 1, "approve")];
         // Revision 2 kept every patch, revision 3 didn't.
-        let same = HashMap::from([(2, true), (3, false)]);
+        let same = [(2, true), (3, false)];
         assert_eq!(
-            counted(&counting(&reviews, 2, &same, true)),
+            counted(&counting(&reviews, &history(2, &same, true, false))),
             vec![(1, true, false)]
         );
         assert_eq!(
-            counted(&counting(&reviews, 3, &same, true)),
+            counted(&counting(&reviews, &history(3, &same, true, false))),
             vec![(1, false, true)]
         );
         // Without dismissal, approvals stay.
         assert_eq!(
-            counted(&counting(&reviews, 3, &same, false)),
+            counted(&counting(&reviews, &history(3, &same, false, false))),
             vec![(1, true, false)]
         );
     }
@@ -1120,13 +1291,13 @@ mod tests {
     #[test]
     fn the_strict_rule_dismisses_on_any_new_revision() {
         let reviews = [review(1, 7, 1, "approve")];
-        let same = HashMap::from([(2, true)]);
+        let same = [(2, true)];
         assert_eq!(
-            counted(&counting_with(&reviews, 2, &same, true, true)),
+            counted(&counting(&reviews, &history(2, &same, true, true))),
             vec![(1, false, true)]
         );
         assert_eq!(
-            counted(&counting_with(&reviews, 1, &same, true, true)),
+            counted(&counting(&reviews, &history(1, &same, true, true))),
             vec![(1, true, false)]
         );
     }
@@ -1139,7 +1310,7 @@ mod tests {
             review(3, 7, 1, "comment"),
             review(4, 8, 1, "approve"),
         ];
-        let got = counted(&counting(&reviews, 1, &HashMap::new(), true));
+        let got = counted(&counting(&reviews, &history(1, &[], true, false)));
         assert_eq!(
             got,
             vec![
@@ -1148,6 +1319,75 @@ mod tests {
                 (3, false, false),
                 (4, true, false)
             ]
+        );
+    }
+
+    fn on(n: u128, user: u128, seq: i32, verdict: &str, change: u128) -> Review {
+        Review {
+            change_id: Some(uuid::Uuid::from_u128(change)),
+            ..review(n, user, seq, verdict)
+        }
+    }
+
+    /// Revisions 1..=3 of changes 100 and 200: 100 keeps its patch, 200's
+    /// changes in revision 3.
+    fn stack_history() -> History {
+        let k = |c: u128| uuid::Uuid::from_u128(c);
+        let rev = |a: &str, b: &str| {
+            HashMap::from([(k(100), Some(a.to_owned())), (k(200), Some(b.to_owned()))])
+        };
+        History {
+            current: 3,
+            same_patches: HashMap::from([(2, true), (3, false)]),
+            patches: HashMap::from([(1, rev("a", "b")), (2, rev("a", "b")), (3, rev("a", "b2"))]),
+            dismiss_stale: true,
+            strict: false,
+        }
+    }
+
+    #[test]
+    fn change_verdicts_go_stale_with_their_own_patch_only() {
+        let h = stack_history();
+        let reviews = [on(1, 7, 1, "approve", 100), on(2, 8, 1, "approve", 200)];
+        assert_eq!(
+            counted(&counting(&reviews, &h)),
+            vec![(1, true, false), (2, false, true)]
+        );
+        // A change the current revision doesn't have counts for nothing.
+        let gone = [on(3, 7, 3, "approve", 300)];
+        assert_eq!(counted(&counting(&gone, &h)), vec![(3, false, true)]);
+        // Under the strict rule only verdicts on the current revision count.
+        let strict = History {
+            strict: true,
+            ..stack_history()
+        };
+        let reviews = [on(1, 7, 2, "approve", 100), on(2, 7, 3, "approve", 200)];
+        assert_eq!(
+            counted(&counting(&reviews, &strict)),
+            vec![(1, false, true), (2, true, false)]
+        );
+    }
+
+    #[test]
+    fn a_later_verdict_on_the_whole_decides_for_each_change() {
+        let h = stack_history();
+        // bob approves change 100, then requests changes on the whole.
+        let reviews = [
+            on(1, 7, 3, "approve", 100),
+            review(2, 7, 3, "request_changes"),
+        ];
+        assert_eq!(
+            counted(&counting(&reviews, &h)),
+            vec![(1, false, false), (2, true, false)]
+        );
+        // A later verdict on one change doesn't hide one on the whole.
+        let reviews = [
+            review(1, 7, 3, "approve"),
+            on(2, 7, 3, "request_changes", 100),
+        ];
+        assert_eq!(
+            counted(&counting(&reviews, &h)),
+            vec![(1, true, false), (2, true, false)]
         );
     }
 }
