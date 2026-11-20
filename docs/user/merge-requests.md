@@ -230,7 +230,12 @@ the API: `POST …/merge-requests/{n}/reviews` with
 `{"verdict": "approve", "change": "<change ID>"}` (the full ID or its
 first 8 characters, as the stack shows it). A verdict on one change
 covers only that change, and stays current while the change keeps its
-patch, whatever happens to the others. Revisions reviewed as a whole
+patch, whatever happens to the others. Requirements hold for every
+change: with one required approval, each change needs an approval, of
+the whole or of that change; a request for changes on any change blocks
+merging; and a change to a sensitive path needs a maintainer who
+approved every change. The readiness card names the changes still
+missing an approval. Revisions reviewed as a whole
 (with merge commits, for example) have no changes to review this way.
 
 The author and people who can triage ask for reviews under **Ask for

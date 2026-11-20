@@ -18,6 +18,20 @@ struct World {
     w: tempfile::TempDir,
 }
 
+/// Twenty numbered lines of `tag`, with line `edit` changed: an edit
+/// small enough to keep the change.
+fn lines(tag: &str, edit: Option<usize>) -> String {
+    (0..20)
+        .map(|i| {
+            if Some(i) == edit {
+                format!("{tag} {i}, edited\n")
+            } else {
+                format!("{tag} {i}\n")
+            }
+        })
+        .collect()
+}
+
 fn token(s: &TestServer, user: &str) -> String {
     let mut c = s.login(user, PASSWORD);
     slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
@@ -51,8 +65,8 @@ impl World {
         world.commit("README", "demo\n", "init");
         world.push("main");
         world.git.ok(w, &["switch", "-q", "-c", "topic"]);
-        world.commit("a.txt", "a\n", "Add a");
-        world.commit("b.txt", "b\n", "Add b");
+        world.commit("a.txt", &lines("a", None), "Add a");
+        world.commit("b.txt", &lines("b", None), "Add b");
         world.push("topic");
         let r = world.api(
             &world.alice,
@@ -212,4 +226,103 @@ fn conf_review_08_no_changes_in_a_revision_reviewed_as_a_whole() {
     let r = w.review(&w.bob, n, json!({"verdict": "approve", "change": id}));
     assert_eq!(r.status, 422, "{}", r.body);
     assert!(r.body.contains("as a whole"), "{}", r.body);
+}
+
+#[test]
+fn conf_review_08_change_approvals_count_for_their_change_only() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let ids = w.changes(n);
+    let (a, b) = (&ids[0][..8], &ids[1][..8]);
+
+    // One change approved: the other one is missing.
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[0]}));
+    let (state, reason) = w.requirement(n, "approvals");
+    assert_eq!(state, "unmet");
+    assert!(
+        reason.contains(&format!("missing: {b} (0 of 1)")),
+        "{reason}"
+    );
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[1]}));
+    assert_eq!(
+        w.requirement(n, "approvals"),
+        ("met".into(), "Approved by bob.".into())
+    );
+
+    // "Add b" changes: its approval goes stale, the one of "Add a" stays.
+    std::fs::write(w.w.path().join("b.txt"), lines("b", Some(3))).unwrap();
+    w.git
+        .ok(w.w.path(), &["commit", "-qa", "--amend", "--no-edit"]);
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let (state, reason) = w.requirement(n, "approvals");
+    assert_eq!(state, "unmet", "{reason}");
+    assert!(
+        reason.contains(&format!("missing: {b} (0 of 1)")),
+        "{reason}"
+    );
+    assert!(reason.contains("1 approval is stale"), "{reason}");
+    let reviews = w
+        .api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{n}/reviews"),
+            None,
+        )
+        .json();
+    let counts: Vec<(String, bool)> = reviews
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["change_id"].as_str().unwrap()[..8].to_owned(),
+                r["counts"].as_bool().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(counts, vec![(a.to_owned(), true), (b.to_owned(), false)]);
+
+    // An approval of the whole covers both; a request for changes on one
+    // change blocks merging.
+    w.review(&w.bob, n, json!({"verdict": "approve"}));
+    assert_eq!(w.requirement(n, "approvals").0, "met");
+    w.review(
+        &w.bob,
+        n,
+        json!({"verdict": "request_changes", "body": "not a", "change": ids[0]}),
+    );
+    let (state, reason) = w.requirement(n, "changes_requested");
+    assert_eq!(state, "unmet");
+    assert_eq!(reason, format!("bob (on {a}) requested changes."));
+    // ...and "Add a" is no longer approved by bob.
+    assert_eq!(w.requirement(n, "approvals").0, "unmet");
+}
+
+#[test]
+fn conf_review_08_sensitive_paths_need_a_maintainer_on_every_change() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 0}));
+    // A third change touches an agent instruction file.
+    w.commit("AGENTS.md", "be careful\n", "Instruct agents");
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let r = w.api(
+        &w.alice,
+        "PUT",
+        "/collaborators/bob",
+        Some(json!({"role": "maintain"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let ids = w.changes(n);
+    assert_eq!(ids.len(), 3);
+    for id in &ids[..2] {
+        w.review(&w.bob, n, json!({"verdict": "approve", "change": id}));
+    }
+    assert_eq!(w.requirement(n, "sensitive_paths").0, "unmet");
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[2]}));
+    let (state, reason) = w.requirement(n, "sensitive_paths");
+    assert_eq!(state, "met", "{reason}");
+    assert!(
+        reason.ends_with("approved by a maintainer: bob."),
+        "{reason}"
+    );
 }

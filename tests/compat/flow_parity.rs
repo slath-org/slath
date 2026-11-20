@@ -362,7 +362,23 @@ fn run(world: &World, made: Made, strategy: &str) -> Record {
         n,
     );
 
-    // Review.
+    // Review: one change, then the whole.
+    let bottom = world.get(n, "/stack")["entries"][0]["change_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    world.post(
+        &world.bob,
+        n,
+        "/reviews",
+        json!({"verdict": "approve", "change": bottom}),
+    );
+    rec.add(
+        "mergeability after a change's review",
+        &strip(world.get(n, "/mergeability")).to_string(),
+        &branch,
+        n,
+    );
     world.post(&world.bob, n, "/reviews", json!({"verdict": "approve"}));
     rec.add(
         "mergeability",

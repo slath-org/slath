@@ -14,6 +14,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Rebased or cherry-picked changes land one by one when the target gains their exact patch; the merge request merges once all have.
 - A pushed commit that carries a change's ID with different content notes that the change possibly landed with modifications.
 - Reviews can target one change of a merge request through the API; such a verdict stays current while that change keeps its patch.
+- Required approvals hold for every change: approving one change no longer leaves the others unreviewed, and the readiness card names the changes missing an approval.
+- A request for changes on one change blocks merging; sensitive paths need a maintainer who approved every change.
 
 ## [0.3.0] - 2026-11-18
 

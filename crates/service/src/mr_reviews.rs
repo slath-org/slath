@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use slath_core::authz::{Action, Role, Subject, UserKind};
+use slath_core::authz::{Action, Subject, UserKind};
 use slath_core::ids::{MergeRequestId, UserId};
 use slath_db::merge_requests::MergeRequest;
 use slath_db::mr_reviews::{self as db, Review};
@@ -122,7 +122,7 @@ impl ApprovalCoverage {
     }
 }
 
-fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
+pub(crate) fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
     Requirement {
         key,
         state: "met",
@@ -132,7 +132,7 @@ fn met(key: &'static str, reason: impl Into<String>) -> Requirement {
     }
 }
 
-fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement {
+pub(crate) fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement {
     Requirement {
         key,
         state: "unmet",
@@ -146,7 +146,7 @@ fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> Requirement
     }
 }
 
-fn plural(n: usize, one: &str, many: &str) -> String {
+pub(crate) fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
@@ -527,7 +527,7 @@ impl Services {
     }
 
     /// The coverage of the counting approvals `approvals` (review, name).
-    async fn approval_coverage(
+    pub(crate) async fn approval_coverage(
         &self,
         m: &MergeRequest,
         approvals: &[(&Review, String)],
@@ -773,7 +773,12 @@ impl Services {
 
     /// Whether a user's verdict counts: write access to the repository,
     /// not a bot unless the rules let bots approve.
-    async fn verdict_counts(&self, a: &RepoAccess, user: UserId, bots: bool) -> Result<bool> {
+    pub(crate) async fn verdict_counts(
+        &self,
+        a: &RepoAccess,
+        user: UserId,
+        bots: bool,
+    ) -> Result<bool> {
         let Some(u) = slath_db::users::get(&self.pool, user).await? else {
             return Ok(false);
         };
@@ -818,13 +823,13 @@ impl Services {
     }
 
     /// The `sensitive_paths` requirement: on a protected target, changes
-    /// to sensitive paths need an approval by a person with the maintain
-    /// role or higher, other than the author. Bots never satisfy it.
+    /// to sensitive paths need an approval of every change by a person
+    /// with the maintain role or higher, other than the author
+    /// (`maintainers`). Bots never satisfy it.
     async fn sensitive_requirement(
         &self,
-        a: &RepoAccess,
         m: &MergeRequest,
-        views: &[ReviewView],
+        maintainers: &[String],
     ) -> Result<Option<Requirement>> {
         let touched = self.mr_sensitive_changes(m).await?;
         if touched.is_empty() {
@@ -839,38 +844,7 @@ impl Services {
         if touched.len() > 10 {
             let _ = write!(list, " and {} more", touched.len() - 10);
         }
-        let mut by = Vec::new();
-        for v in views {
-            let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.as_ref()) else {
-                continue;
-            };
-            if v.review.verdict != "approve"
-                || !v.counts
-                || v.review.change_id.is_some()
-                || m.author_id == Some(u)
-            {
-                continue;
-            }
-            let Some(user) = slath_db::users::get(&self.pool, u).await? else {
-                continue;
-            };
-            if user.kind == UserKind::Bot {
-                continue;
-            }
-            let role = self
-                .repo_access_by_id(
-                    &crate::notifications::user_subject(u, &user),
-                    a.repo.id,
-                    Action::RepoRead,
-                )
-                .await
-                .ok()
-                .and_then(|x| x.ctx.role);
-            if role.is_some_and(|r| r >= Role::Maintain) {
-                by.push(name.clone());
-            }
-        }
-        Ok(Some(if by.is_empty() {
+        Ok(Some(if maintainers.is_empty() {
             unmet(
                 "sensitive_paths",
                 format!("Changes sensitive paths: {list}. Needs an approval by a maintainer."),
@@ -881,7 +855,7 @@ impl Services {
                 "sensitive_paths",
                 format!(
                     "Changes sensitive paths ({list}); approved by a maintainer: {}.",
-                    by.join(", ")
+                    maintainers.join(", ")
                 ),
             )
         }))
@@ -908,98 +882,16 @@ impl Services {
                 "Mark it as ready",
             ));
         }
-        let views = self.mr_reviews(m).await?;
-        let mut approvers = Vec::new();
-        let mut approvals = Vec::new();
-        let mut blockers = Vec::new();
-        let mut stale = 0;
-        for v in views.iter().filter(|v| v.review.change_id.is_none()) {
-            let (Some(u), Some(name)) = (v.review.reviewer_id, v.review.reviewer.clone()) else {
-                continue;
-            };
-            // Neither the author nor the author's bots approve the author's work.
-            if m.author_id == Some(u)
-                || (m.author_id.is_some()
-                    && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id)
-                || !self
-                    .verdict_counts(a, u, eff.bots_count_as_approvers)
-                    .await?
-            {
-                continue;
-            }
-            match (v.review.verdict.as_str(), v.counts) {
-                ("approve", true) => {
-                    approvers.push(name.clone());
-                    approvals.push((&v.review, name));
-                }
-                ("request_changes", true) => blockers.push(name),
-                ("approve", false) if v.stale => stale += 1,
-                _ => {}
-            }
-        }
-        let coverage = self.approval_coverage(m, &approvals).await?;
-        // Each approver with what they had viewed: "alice (r3, 12 of 15
-        // files viewed)".
-        let named: Vec<String> = approvers
-            .iter()
-            .map(|n| {
-                match coverage
-                    .as_ref()
-                    .and_then(|c| c.approvals.iter().find(|a| &a.reviewer == n))
-                {
-                    Some(a) => format!("{n} ({})", a.describe()),
-                    None => n.clone(),
-                }
-            })
-            .collect();
-        let needed = usize::try_from(eff.required_approvals).unwrap_or(0);
-        let stale_note = if stale > 0 {
-            format!(
-                " ({} stale after later changes)",
-                plural(stale, "approval is", "approvals are")
-            )
-        } else {
-            String::new()
-        };
-        reqs.push(if approvers.len() >= needed {
-            met(
-                "approvals",
-                if named.is_empty() {
-                    "No approvals are required.".to_owned()
-                } else {
-                    format!("Approved by {}.", named.join(", "))
-                },
-            )
-        } else {
-            unmet(
-                "approvals",
-                if named.is_empty() {
-                    format!("0 of {needed} required approvals{stale_note}.")
-                } else {
-                    format!(
-                        "{} of {needed} required approvals{stale_note}: {}.",
-                        named.len(),
-                        named.join(", ")
-                    )
-                },
-                "Ask a reviewer with write access",
-            )
-        });
-        reqs.push(if blockers.is_empty() {
-            met("changes_requested", "No one requested changes.")
-        } else {
-            unmet(
-                "changes_requested",
-                format!("{} requested changes.", blockers.join(", ")),
-                "Push changes that address the review",
-            )
-        });
+        let review = self.review_requirements(a, m, &eff, None).await?;
+        let coverage = review.coverage;
+        reqs.push(review.approvals);
+        reqs.push(review.changes_requested);
         let (up_to_date, up_req) = self.up_to_date(m).await?;
         if eff.require_up_to_date {
             reqs.push(up_req);
         }
         if eff.protected
-            && let Some(r) = self.sensitive_requirement(a, m, &views).await?
+            && let Some(r) = self.sensitive_requirement(m, &review.maintainers).await?
         {
             reqs.push(r);
         }
