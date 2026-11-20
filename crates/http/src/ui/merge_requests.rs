@@ -1052,6 +1052,31 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
                     .unwrap_or(0)
             ),
         ),
+        "approvals_stale" if e.data.get("changes").is_some() => {
+            let ids: Vec<&str> = e
+                .data
+                .get("changes")
+                .and_then(serde_json::Value::as_array)
+                .map(|a| a.iter().filter_map(serde_json::Value::as_str).collect())
+                .unwrap_or_default();
+            (
+                "history",
+                format!(
+                    "made earlier approvals of {} {} stale: revision {} changed {}",
+                    if ids.len() == 1 { "change" } else { "changes" },
+                    ids.join(", "),
+                    e.data
+                        .get("revision")
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(0),
+                    if ids.len() == 1 {
+                        "its patch"
+                    } else {
+                        "their patches"
+                    }
+                ),
+            )
+        }
         "approvals_stale" => (
             "history",
             format!(

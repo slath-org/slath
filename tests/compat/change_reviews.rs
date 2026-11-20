@@ -326,3 +326,62 @@ fn conf_review_08_sensitive_paths_need_a_maintainer_on_every_change() {
         "{reason}"
     );
 }
+
+#[test]
+fn conf_review_08_the_ledger_records_each_change_approval() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let ids = w.changes(n);
+    for id in &ids {
+        w.review(&w.bob, n, json!({"verdict": "approve", "change": id}));
+    }
+    std::fs::write(w.w.path().join("b.txt"), lines("b", Some(3))).unwrap();
+    w.git
+        .ok(w.w.path(), &["commit", "-qa", "--amend", "--no-edit"]);
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let ledger = w
+        .api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{n}/ledger"),
+            None,
+        )
+        .json();
+    let approvals: Vec<(String, String, String)> = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["kind"].as_str().unwrap().starts_with("approval_") && e["revision"] == 2)
+        .map(|e| {
+            (
+                e["kind"].as_str().unwrap().to_owned(),
+                e["change_id"].as_str().unwrap_or("").to_owned(),
+                e["reason"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        approvals,
+        vec![
+            (
+                "approval_carried".into(),
+                ids[0].clone(),
+                "same-patch".into()
+            ),
+            (
+                "approval_stale".into(),
+                ids[1].clone(),
+                "patch-changed".into()
+            ),
+        ]
+    );
+    let mut alice = w.s.login("alice", PASSWORD);
+    let page = alice.get(&format!("/alice/demo/merge-requests/{n}")).body;
+    assert!(
+        page.contains(&format!(
+            "made earlier approvals of change {} stale: revision 2 changed its patch",
+            &ids[1][..8]
+        )),
+        "no timeline note"
+    );
+}

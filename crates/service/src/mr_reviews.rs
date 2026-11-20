@@ -199,7 +199,7 @@ impl History {
     /// Whether a verdict on change `k`'s version in revision `seq` still
     /// counts: the current revision has the change, and every revision
     /// since kept its patch (other changes don't matter).
-    fn change_carried(&self, seq: i32, k: uuid::Uuid) -> bool {
+    pub(crate) fn change_carried(&self, seq: i32, k: uuid::Uuid) -> bool {
         let at = |s: i32| self.patches.get(&s).and_then(|m| m.get(&k));
         if at(self.current).is_none() {
             return false;
@@ -1102,6 +1102,70 @@ impl Services {
                 )
                 .await?;
             }
+        }
+        // Approvals of one change: each carries or goes stale on its own.
+        let after = self.history(&m, seq).await?;
+        let mut stale_changes: Vec<String> = Vec::new();
+        for v in before
+            .iter()
+            .filter(|v| v.counts && v.review.verdict == "approve")
+        {
+            let Some(k) = v.review.change_id else {
+                continue;
+            };
+            let has = after.patches.get(&seq).is_some_and(|p| p.contains_key(&k));
+            let (kind, reason) = if after.change_carried(v.review.revision_seq, k) {
+                let why = if eff.dismiss_stale_approvals {
+                    "same-patch"
+                } else {
+                    "not-dismissed"
+                };
+                ("approval_carried", why)
+            } else if here.is_empty() {
+                ("approval_stale", "whole-only")
+            } else if !has {
+                ("approval_stale", "removed")
+            } else if eff.dismiss_approvals_on_new_revision {
+                ("approval_stale", "new-revision")
+            } else {
+                ("approval_stale", "patch-changed")
+            };
+            if kind == "approval_stale"
+                && let Some(c) = &v.review.change
+            {
+                let short: String = c.chars().take(8).collect();
+                if !stale_changes.contains(&short) {
+                    stale_changes.push(short);
+                }
+            }
+            slath_db::mr_ledger::append(
+                &self.pool,
+                id,
+                &slath_db::mr_ledger::NewEntry {
+                    revision_seq: Some(seq),
+                    kind,
+                    change_id: v.review.change.as_deref(),
+                    reason: Some(reason),
+                    detail: serde_json::json!({
+                        "reviewer": v.review.reviewer,
+                        "approved_revision": v.review.revision_seq,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
+        if !stale_changes.is_empty() {
+            slath_db::issues::insert_event(
+                &self.pool,
+                m.repo_id,
+                "merge_request",
+                *id.as_uuid(),
+                None,
+                "approvals_stale",
+                &serde_json::json!({"revision": seq, "changes": stale_changes}),
+            )
+            .await?;
         }
         if !carried_any || !(eff.dismiss_stale_approvals || eff.dismiss_approvals_on_new_revision) {
             return Ok(());
