@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE mr_changes SET state = $2 WHERE id = $1",
+  "query": "UPDATE mr_changes SET state = $2 WHERE id = $1 AND state <> 'merged'",
   "describe": {
     "columns": [],
     "parameters": {
@@ -11,5 +11,5 @@
     },
     "nullable": []
   },
-  "hash": "b6fbfc48d305b3b5efe5860f32fc612c647ea6554f2b5a0abd61b760afe6bda4"
+  "hash": "9c369773c487b2d3ea7f1428147e71465a56a217a3b7b24327f5a23ed1764365"
 }

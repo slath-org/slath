@@ -433,6 +433,15 @@ the merge request records that last revision first, so pushing the
 target and deleting the branch at once counts as a merge, not a close.
 Merge requests whose commits didn't reach the target stay open.
 
+Rebased or cherry-picked commits get new commit IDs, so each change lands
+on its own: when the target gains a commit with exactly the change's
+latest patch that names no other change of the merge request. Once every
+change has landed, the merge request is merged; until then the timeline
+lists the changes that did, and the next push of the branch reports them
+as `landed` instead of `removed`. A commit that carries a change's ID but
+different content only adds a note that the change possibly landed with
+modifications; it doesn't merge the change.
+
 ## Merge when ready
 
 While a requirement is still missing (an approval, a check, a resolved

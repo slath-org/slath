@@ -132,15 +132,30 @@ pub async fn insert_change(
     Ok(id)
 }
 
+/// Sets a change's state; a merged change stays merged.
 pub async fn set_change_state(
     exec: impl PgExecutor<'_>,
     change: uuid::Uuid,
     state: &str,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE mr_changes SET state = $2 WHERE id = $1",
+        "UPDATE mr_changes SET state = $2 WHERE id = $1 AND state <> 'merged'",
         change,
         state
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
+/// Marks changes merged (they landed by a push of the target).
+pub async fn set_changes_merged(
+    exec: impl PgExecutor<'_>,
+    changes: &[uuid::Uuid],
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE mr_changes SET state = 'merged' WHERE id = ANY($1)",
+        changes
     )
     .execute(exec)
     .await?;

@@ -13816,6 +13816,13 @@
             ],
             "description": "The change's ID in jj's format; null while unresolved."
           },
+          "change_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its change's state: `active`, or `merged` once it reached the\ntarget by a push; null while unresolved."
+          },
           "commit_oid": {
             "type": "string"
           },

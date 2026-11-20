@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_changes SET state = 'merged' WHERE id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ecdaad5cc67cf0053386b8c8cefc1a57d598e1989163835c28e56e080905bf6"
+}

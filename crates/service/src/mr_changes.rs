@@ -20,7 +20,7 @@ use crate::error::{Result, ServiceError};
 use crate::repos::RepoAccess;
 
 /// At most this much patch text is read per revision for matching.
-const MAX_PATCH_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_PATCH_BYTES: usize = 32 * 1024 * 1024;
 
 /// The bindings of a new revision, computed before its transaction.
 /// One commit of a planned revision.
@@ -57,6 +57,8 @@ pub struct StackEntry {
     pub earlier_versions: usize,
     /// Other open merge requests that bound one of its aliases.
     pub also_in: Vec<i32>,
+    /// Its change's state: `active`, or `merged` once it landed.
+    pub change_state: Option<String>,
 }
 
 /// The current revision's stack and the removed changes.
@@ -65,7 +67,8 @@ pub struct Stack {
     /// `None` without revisions; whole-only revisions have no entries.
     pub revision: Option<i32>,
     pub entries: Vec<StackEntry>,
-    /// Display IDs of changes without a version in the current revision.
+    /// Display IDs of changes without a version in the current revision,
+    /// except those that landed.
     pub removed: Vec<String>,
 }
 
@@ -113,14 +116,14 @@ fn binding_row(b: &Binding<uuid::Uuid>) -> (&'static str, Option<&'static str>, 
     }
 }
 
-fn alias_of(kind: &str, value: &str) -> Option<Alias> {
+pub(crate) fn alias_of(kind: &str, value: &str) -> Option<Alias> {
     Some(Alias {
         kind: AliasKind::parse(kind)?,
         value: value.to_owned(),
     })
 }
 
-fn aliases_of(c: &StackCommit) -> Vec<Alias> {
+pub(crate) fn aliases_of(c: &StackCommit) -> Vec<Alias> {
     change_identity::aliases(c.change_id.as_deref(), c.trailer.as_deref(), c.oid.as_str())
 }
 
@@ -314,6 +317,8 @@ impl Services {
             .iter()
             .map(|c| (c.id, c.display_id.clone()))
             .collect();
+        let states: HashMap<uuid::Uuid, &str> =
+            changes.iter().map(|c| (c.id, c.state.as_str())).collect();
         let versions = db::versions(&self.pool, m.id).await?;
         let revision = (m.revisions > 0).then_some(m.revisions);
         let current: Vec<&db::Version> = versions
@@ -367,11 +372,18 @@ impl Services {
                         .change_id
                         .and_then(|k| also.get(&k).cloned())
                         .unwrap_or_default(),
+                    change_state: v
+                        .change_id
+                        .and_then(|k| states.get(&k).map(|s| (*s).to_owned())),
                 })
                 .collect(),
             removed: changes
                 .iter()
-                .filter(|c| !in_current.contains(&c.id) && earlier.contains_key(&c.id))
+                .filter(|c| {
+                    !in_current.contains(&c.id)
+                        && earlier.contains_key(&c.id)
+                        && c.state != "merged"
+                })
                 .map(|c| c.display_id.clone())
                 .collect(),
         })
@@ -385,6 +397,14 @@ impl Services {
     ) -> Result<HashMap<i32, RevisionSummary>> {
         let versions = db::versions(&self.pool, m.id).await?;
         let revisions = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        // A change that landed by a push and then left the branch wasn't
+        // removed.
+        let landed: HashSet<uuid::Uuid> = db::changes(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .filter(|c| c.state == "merged")
+            .map(|c| c.id)
+            .collect();
         let mut out = HashMap::new();
         let mut prev: Option<(i32, HashMap<uuid::Uuid, Option<String>>)> = None;
         for r in &revisions {
@@ -418,7 +438,10 @@ impl Services {
                         },
                     }
                 }
-                sum.removed = before.keys().filter(|k| !patches.contains_key(k)).count();
+                sum.removed = before
+                    .keys()
+                    .filter(|k| !patches.contains_key(k) && !landed.contains(k))
+                    .count();
                 out.insert(r.seq, sum);
             }
             prev = Some((r.seq, patches));
@@ -491,11 +514,14 @@ impl Services {
             return Ok(out);
         }
         let versions = db::versions(&self.pool, m.id).await?;
-        let display: HashMap<uuid::Uuid, String> = db::changes(&self.pool, m.id)
-            .await?
-            .into_iter()
-            .map(|c| (c.id, c.display_id))
+        let changes = db::changes(&self.pool, m.id).await?;
+        let landed: HashSet<uuid::Uuid> = changes
+            .iter()
+            .filter(|c| c.state == "merged")
+            .map(|c| c.id)
             .collect();
+        let display: HashMap<uuid::Uuid, String> =
+            changes.into_iter().map(|c| (c.id, c.display_id)).collect();
         let here: Vec<&db::Version> = versions.iter().filter(|v| v.revision_seq == seq).collect();
         let prev_seq = versions
             .iter()
@@ -594,14 +620,22 @@ impl Services {
             out.push(line.trim_end().to_owned());
         }
         let current: HashSet<uuid::Uuid> = here.iter().filter_map(|v| v.change_id).collect();
-        let mut removed: Vec<&String> = before
+        // Changes that landed by a push of the target say so instead.
+        let mut removed: Vec<(&String, &str)> = before
             .keys()
             .filter(|k| !current.contains(k))
-            .filter_map(|k| display.get(k))
+            .filter_map(|k| {
+                let outcome = if landed.contains(k) {
+                    "landed"
+                } else {
+                    "removed"
+                };
+                Some((display.get(k)?, outcome))
+            })
             .collect();
         removed.sort();
-        for d in removed {
-            out.push(format!("slath:   {} removed", d.get(..8).unwrap_or(d)));
+        for (d, outcome) in removed {
+            out.push(format!("slath:   {} {outcome}", d.get(..8).unwrap_or(d)));
         }
         Ok(out)
     }

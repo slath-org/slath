@@ -207,3 +207,136 @@ fn conf_review_07_jj_push_of_the_target_bookmark_merges() {
         c.wait_state(n, "merged");
     }
 }
+
+impl Ctx {
+    fn stack(&self, n: i64) -> Value {
+        self.api("GET", &format!("/merge-requests/{n}/stack"), None)
+            .json()
+    }
+
+    /// Waits until the stack's change states are `states`, bottom first.
+    fn wait_changes(&self, n: i64, states: &[&str]) -> Value {
+        let start = Instant::now();
+        loop {
+            let s = self.stack(n);
+            let now: Vec<&str> = s["entries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| e["change_state"].as_str().unwrap_or(""))
+                .collect();
+            if now == states {
+                return s;
+            }
+            assert!(
+                start.elapsed() < Duration::from_secs(30),
+                "!{n}: {now:?}, not {states:?}\n{}",
+                self.s.log()
+            );
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+}
+
+#[test]
+fn conf_review_07_git_cherry_picks_land_change_by_change() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    seed(&c, &w);
+    c.git.ok(&w, &["switch", "-q", "-c", "topic", "main"]);
+    commit(&c, &w, "a.txt", "a\n", "Add a");
+    commit(&c, &w, "b.txt", "b\n", "Add b");
+    commit(&c, &w, "c.txt", "c\n", "Add c");
+    c.push(&w, &["topic"]);
+    let n = c.open_mr("topic");
+    c.wait_changes(n, &["active", "active", "active"]);
+
+    // main moves, then the first two commits are picked onto it: new
+    // commit IDs with the same patches. Git commits name no change.
+    c.git.ok(&w, &["switch", "-q", "main"]);
+    commit(&c, &w, "m.txt", "m\n", "Main moves");
+    c.git.ok(&w, &["cherry-pick", "topic~2", "topic~1"]);
+    c.push(&w, &["main"]);
+    c.wait_changes(n, &["merged", "merged", "active"]);
+    assert_eq!(c.mr(n)["state"], "open");
+    assert!(c.page(n).contains("the rest is still open"));
+
+    // Rebasing the branch drops the landed commits; they're reported as
+    // landed, not removed, and stay merged.
+    c.git.ok(&w, &["switch", "-q", "topic"]);
+    c.git.ok(&w, &["rebase", "-q", "main"]);
+    let out = c
+        .git
+        .cmd(&w)
+        .args(["push", "--force", &c.url, "topic"])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert_eq!(err.matches(" landed").count(), 2, "{err}");
+    assert!(!err.contains(" removed"), "{err}");
+    let s = c.wait_changes(n, &["active"]);
+    assert_eq!(s["removed"], json!([]), "{s}");
+
+    // The last one lands too: the merge request is merged.
+    c.git.ok(&w, &["switch", "-q", "main"]);
+    c.git.ok(&w, &["cherry-pick", "topic"]);
+    c.push(&w, &["main"]);
+    c.wait_state(n, "merged");
+}
+
+#[test]
+fn conf_review_07_jj_push_of_main_with_two_of_three_changes() {
+    for (version, bin) in jj_binaries() {
+        let c = Ctx::start();
+        let d = tempfile::tempdir().unwrap();
+        let w = d.path().join("w");
+        seed(&c, &w);
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(d.path(), &["git", "clone", &c.url, j.to_str().unwrap()]);
+        jj.ok(&j, &["new", "main"]);
+        for f in ["a", "b", "c"] {
+            std::fs::write(j.join(format!("{f}.txt")), format!("{f}\n")).unwrap();
+            jj.ok(&j, &["commit", "-m", &format!("Add {f}")]);
+        }
+        jj.ok(&j, &["bookmark", "create", "topic", "-r", "@-"]);
+        jj.ok(&j, &["git", "push", "--bookmark", "topic"]);
+        let n = c.open_mr("topic");
+        c.wait_changes(n, &["active", "active", "active"]);
+        // An unrelated merge request, made with Git.
+        c.git.ok(&w, &["switch", "-q", "-c", "other", "main"]);
+        commit(&c, &w, "o.txt", "o\n", "Other");
+        c.push(&w, &["other"]);
+        let other = c.open_mr("other");
+
+        // Someone else moved main; the stack is rebased onto it (same
+        // patches, the same change IDs), and "Add c" is edited on the way.
+        c.git.ok(&w, &["switch", "-q", "main"]);
+        commit(&c, &w, "m.txt", "m\n", "Main moves");
+        c.push(&w, &["main"]);
+        jj.ok(&j, &["git", "fetch"]);
+        jj.ok(&j, &["rebase", "-b", "topic", "-d", "main@origin"]);
+        jj.ok(&j, &["edit", "topic"]);
+        std::fs::write(j.join("c.txt"), "c, edited\n").unwrap();
+        jj.ok(&j, &["new"]);
+        jj.ok(&j, &["bookmark", "set", "main", "-r", "topic"]);
+        jj.ok(&j, &["git", "push", "--bookmark", "main"]);
+
+        // "Add a" and "Add b" landed as reviewed; "Add c" names its change
+        // but brings another patch, so it isn't merged.
+        c.wait_changes(n, &["merged", "merged", "active"]);
+        assert_eq!(c.mr(n)["state"], "open", "{version}");
+        let start = Instant::now();
+        while !c.page(n).contains("possibly landed with modifications") {
+            assert!(
+                start.elapsed() < Duration::from_secs(30),
+                "{version}: no hint"
+            );
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        assert_eq!(c.mr(other)["state"], "open", "{version}");
+        c.wait_changes(other, &["active"]);
+    }
+}

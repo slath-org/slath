@@ -533,6 +533,71 @@ pub fn patch_lines(patch: &[u8]) -> Vec<u64> {
         .collect()
 }
 
+/// A commit the target branch gained, for [`landed`].
+#[derive(Debug, Clone)]
+pub struct TargetCommit<K> {
+    /// The merge request's changes its aliases name.
+    pub names: Vec<K>,
+    /// `git patch-id --stable`; `None` for an empty or unreadable patch.
+    pub patch_id: Option<String>,
+}
+
+/// What a push of the target did to a merge request's changes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Landing<K> {
+    /// Changes whose latest patch landed in a commit that names no other
+    /// change, in stack order.
+    pub merged: Vec<K>,
+    /// (change, index of the target commit): commits that name a change
+    /// that didn't land, with another patch.
+    pub modified: Vec<(K, usize)>,
+}
+
+/// Which changes landed by a push of the target: a change (with its
+/// latest version's patch ID) landed when a new target commit has that
+/// patch and names no other change. Each target commit lands at most one
+/// change, and a patch shared by several unnamed changes lands none,
+/// since it can't say which. A commit naming a change that didn't land,
+/// with another patch, is reported as possibly landed with modifications.
+#[must_use]
+pub fn landed<K: Copy + Eq + Hash>(
+    changes: &[(K, Option<String>)],
+    targets: &[TargetCommit<K>],
+) -> Landing<K> {
+    let mut merged: Vec<K> = Vec::new();
+    for t in targets {
+        let Some(p) = t.patch_id.as_deref() else {
+            continue;
+        };
+        let fits: Vec<K> = changes
+            .iter()
+            .filter(|(k, patch)| {
+                patch.as_deref() == Some(p) && !merged.contains(k) && t.names.iter().all(|n| n == k)
+            })
+            .map(|(k, _)| *k)
+            .collect();
+        // Several fit only when the commit names none: it can't say which.
+        if let [k] = fits.as_slice() {
+            merged.push(*k);
+        }
+    }
+    let mut modified = Vec::new();
+    for (i, t) in targets.iter().enumerate() {
+        for (k, patch) in changes {
+            if t.names.contains(k)
+                && !merged.contains(k)
+                && (t.patch_id.is_none() || t.patch_id != *patch)
+                && !modified.iter().any(|(m, _)| m == k)
+            {
+                modified.push((*k, i));
+            }
+        }
+    }
+    let order: Vec<K> = changes.iter().map(|(k, _)| *k).collect();
+    merged.sort_by_key(|k| order.iter().position(|o| o == k));
+    Landing { merged, modified }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -849,5 +914,62 @@ mod tests {
         );
         assert_eq!(a, b);
         assert_eq!(a.len(), 2);
+    }
+
+    fn target(names: &[u8], patch: Option<&str>) -> TargetCommit<u8> {
+        TargetCommit {
+            names: names.to_vec(),
+            patch_id: patch.map(str::to_owned),
+        }
+    }
+
+    fn changes(list: &[(u8, &str)]) -> Vec<(u8, Option<String>)> {
+        list.iter()
+            .map(|(k, p)| (*k, Some((*p).to_owned())))
+            .collect()
+    }
+
+    #[test]
+    fn landing_needs_the_identical_patch_naming_no_other_change() {
+        let cs = changes(&[(1, "p1"), (2, "p2"), (3, "p3")]);
+        // A Git rebase: no names, the same patches for 1 and 2.
+        let l = landed(&cs, &[target(&[], Some("p2")), target(&[], Some("p1"))]);
+        assert_eq!(l.merged, vec![1, 2]);
+        assert!(l.modified.is_empty());
+        // A jj rebase: named, the same patch.
+        let l = landed(&cs, &[target(&[3], Some("p3"))]);
+        assert_eq!(l.merged, vec![3]);
+        // The same patch, but the commit names another change.
+        let l = landed(&cs, &[target(&[2], Some("p1"))]);
+        assert!(l.merged.is_empty());
+        assert_eq!(l.modified, vec![(2, 0)]);
+        // Named, another patch: possibly landed with modifications.
+        let l = landed(&cs, &[target(&[1], Some("px")), target(&[], None)]);
+        assert!(l.merged.is_empty());
+        assert_eq!(l.modified, vec![(1, 0)]);
+        // A commit naming two changes lands neither.
+        let l = landed(&cs, &[target(&[1, 2], Some("p1"))]);
+        assert!(l.merged.is_empty());
+        assert_eq!(l.modified, vec![(2, 0)]);
+    }
+
+    #[test]
+    fn one_commit_lands_one_change() {
+        // Two changes with the same patch: an unnamed commit can't say
+        // which, a named one can, and a second commit lands the other.
+        let cs = changes(&[(1, "p"), (2, "p")]);
+        assert!(landed(&cs, &[target(&[], Some("p"))]).merged.is_empty());
+        assert_eq!(landed(&cs, &[target(&[2], Some("p"))]).merged, vec![2]);
+        assert_eq!(
+            landed(&cs, &[target(&[2], Some("p")), target(&[], Some("p"))]).merged,
+            vec![1, 2]
+        );
+        // A landed change isn't also reported as modified.
+        let l = landed(
+            &changes(&[(1, "p1")]),
+            &[target(&[1], Some("p1")), target(&[1], Some("px"))],
+        );
+        assert_eq!(l.merged, vec![1]);
+        assert!(l.modified.is_empty());
     }
 }

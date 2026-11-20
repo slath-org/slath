@@ -943,6 +943,37 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             format!("merged this by pushing to {}", str_of("target")),
         ),
         "merged" => ("git-merge", "merged this".to_owned()),
+        "changes_landed" => {
+            let ids: Vec<String> = e
+                .data
+                .get("changes")
+                .and_then(serde_json::Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(|id| id.chars().take(8).collect())
+                        .collect()
+                })
+                .unwrap_or_default();
+            (
+                "git-merge",
+                format!(
+                    "pushed {} {} to {}; the rest is still open",
+                    if ids.len() == 1 { "change" } else { "changes" },
+                    ids.join(", "),
+                    str_of("target")
+                ),
+            )
+        }
+        "possibly_landed" => (
+            "triangle-alert",
+            format!(
+                "pushed commit {} to {}: change {} possibly landed with modifications (the commit names it, but its changes differ)",
+                str_of("commit").chars().take(10).collect::<String>(),
+                str_of("target"),
+                str_of("change").chars().take(8).collect::<String>()
+            ),
+        ),
         "draft" => (
             "git-pull-request-draft",
             "marked this as a draft".to_owned(),

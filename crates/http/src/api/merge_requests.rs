@@ -534,6 +534,9 @@ pub struct StackEntry {
     pub earlier_versions: usize,
     /// Other open merge requests of the repository with one of its IDs.
     pub also_in: Vec<i32>,
+    /// Its change's state: `active`, or `merged` once it reached the
+    /// target by a push; null while unresolved.
+    pub change_state: Option<String>,
 }
 
 /// The changes of a merge request's current revision.
@@ -577,6 +580,7 @@ pub async fn get_stack(
                 conflicted: e.conflicted,
                 earlier_versions: e.earlier_versions,
                 also_in: e.also_in,
+                change_state: e.change_state,
             })
             .collect(),
     }))
