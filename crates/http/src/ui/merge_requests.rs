@@ -1424,25 +1424,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
             ..done("Not ready".to_owned(), String::new(), None)
         };
     };
-    let headline = match r.key {
-        "draft" => "Draft".to_owned(),
-        "iterating" => "Iterating".to_owned(),
-        "approvals" => "Approval required".to_owned(),
-        "sensitive_paths" => "Maintainer approval required".to_owned(),
-        "changes_requested" => "Changes requested".to_owned(),
-        "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
-        "statuses" => "Checks failing".to_owned(),
-        "conflicts" => format!("Conflicts with {}", m.target_branch),
-        // One requirement for both: unresolved IDs come first, a
-        // conflict recorded by jj says so in its reason.
-        "identity" if r.reason.ends_with("with a conflict recorded by jj.") => {
-            "Conflict recorded by jj".to_owned()
-        }
-        "identity" => "Commits need a change".to_owned(),
-        "up_to_date" => format!("Behind {}", m.target_branch),
-        "threads" => "Unresolved threads".to_owned(),
-        _ => "Not ready".to_owned(),
-    };
+    let (tone, headline) = slath_service::mr_reviews::readiness_summary(m, &mb);
     let action = match r.key {
         "draft" | "iterating" if v.edit => Some(NextAction {
             label: "Mark as ready",
@@ -1464,7 +1446,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
     Card {
         headline,
         reason: r.reason.clone(),
-        tone: r.tone,
+        tone,
         action,
         rows: mb.requirements,
         since,

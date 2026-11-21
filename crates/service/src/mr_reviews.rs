@@ -156,6 +156,49 @@ pub(crate) fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> 
     }
 }
 
+/// A merge request's readiness in short, as its readiness card heads it:
+/// the tone (`done`, `waiting`, `blocking`) and the headline. The card,
+/// the list, and the list's snapshot all take it from here.
+#[must_use]
+pub fn readiness_summary(m: &MergeRequest, mb: &Mergeability) -> (&'static str, String) {
+    match m.state.as_str() {
+        "merged" => return ("done", "Merged".to_owned()),
+        "closed" => return ("waiting", "Closed".to_owned()),
+        _ => {}
+    }
+    if mb.mergeable {
+        return ("done", "Ready to merge".to_owned());
+    }
+    let Some(r) = mb
+        .requirements
+        .iter()
+        .find(|r| r.tone == "blocking")
+        .or_else(|| mb.requirements.iter().find(|r| r.tone == "waiting"))
+    else {
+        return ("done", "Not ready".to_owned());
+    };
+    let headline = match r.key {
+        "draft" => "Draft".to_owned(),
+        "iterating" => "Iterating".to_owned(),
+        "approvals" => "Approval required".to_owned(),
+        "sensitive_paths" => "Maintainer approval required".to_owned(),
+        "changes_requested" => "Changes requested".to_owned(),
+        "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
+        "statuses" => "Checks failing".to_owned(),
+        "conflicts" => format!("Conflicts with {}", m.target_branch),
+        // One requirement for both: unresolved IDs come first, a conflict
+        // recorded by jj says so in its reason.
+        "identity" if r.reason.ends_with("with a conflict recorded by jj.") => {
+            "Conflict recorded by jj".to_owned()
+        }
+        "identity" => "Commits need a change".to_owned(),
+        "up_to_date" => format!("Behind {}", m.target_branch),
+        "threads" => "Unresolved threads".to_owned(),
+        _ => "Not ready".to_owned(),
+    };
+    (r.tone, headline)
+}
+
 /// The `threads` requirement from the unresolved threads that block and
 /// those on changes above a prefix being landed, which don't.
 fn threads_requirement(open: usize, later: usize) -> Requirement {
