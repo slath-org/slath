@@ -142,7 +142,7 @@ fn conf_jj_11_the_same_merge_request_from_git_and_jj_renders_the_same() {
             v["entries"][i]["change_id"].as_str().unwrap()
         )
     };
-    let tabs: Vec<(String, String)> = ["", "/commits", "/changes"]
+    let tabs: Vec<(String, String)> = ["", "/changes", "/files"]
         .iter()
         .map(|t| ((*t).to_owned(), (*t).to_owned()))
         .chain((0..2).map(|i| (change(numbers[0].1, i), change(numbers[1].1, i))))

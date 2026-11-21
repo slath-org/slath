@@ -578,11 +578,11 @@ impl Services {
                     "(unresolved)".to_owned(),
                     if v.reason.as_deref() == Some("duplicate-id") {
                         format!(
-                            "unresolved: another commit has the same ID; choose at {url}/commits"
+                            "unresolved: another commit has the same ID; choose at {url}/changes"
                         )
                     } else {
                         format!(
-                            "unresolved: its IDs name {} changes; choose at {url}/commits",
+                            "unresolved: its IDs name {} changes; choose at {url}/changes",
                             v.candidates.len()
                         )
                     },

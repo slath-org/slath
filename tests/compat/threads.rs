@@ -336,7 +336,7 @@ fn line_comments_without_javascript_and_viewed_files() {
         .unwrap();
     wait(&s, &alice, n, 1);
     let mut ui = s.login("alice", PASSWORD);
-    let changes = format!("/alice/demo/merge-requests/{n}/changes");
+    let changes = format!("/alice/demo/merge-requests/{n}/files");
     // A line number links to a comment form under that line.
     let page = ui.get(&changes).body;
     assert!(

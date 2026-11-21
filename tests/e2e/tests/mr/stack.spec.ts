@@ -26,8 +26,8 @@ async function shown(page: Page): Promise<string> {
 
 /** Keyboard alone: Tab to the step buttons, then j, k, and Enter. */
 async function byKeyboard(page: Page, url: string): Promise<void> {
-  await page.goto(`${url}/commits`);
-  const first = await page.locator("section[aria-labelledby=commits-heading] .change-id").first().getAttribute("href");
+  await page.goto(`${url}/changes`);
+  const first = await page.locator("section[aria-labelledby=changes-heading] a.item-title").first().getAttribute("href");
   await page.goto(first ?? "");
   await expect(stack(page).locator(".stack-item")).toHaveCount(5);
   expect(await shown(page)).toBe("Step 1");
@@ -63,8 +63,8 @@ async function byKeyboard(page: Page, url: string): Promise<void> {
 
 /** Taps (touch cells) or clicks on the same buttons and the stack. */
 async function byPointer(page: Page, url: string): Promise<void> {
-  await page.goto(`${url}/commits`);
-  await tapOrClick(page, page.locator("section[aria-labelledby=commits-heading] .change-id").first());
+  await page.goto(`${url}/changes`);
+  await tapOrClick(page, page.locator("section[aria-labelledby=changes-heading] a.item-title").first());
   expect(await shown(page)).toBe("Step 1");
   for (const step of ["Step 2", "Step 3", "Step 4", "Step 5"]) {
     await tapOrClick(page, page.getByRole("link", { name: "Next change" }));

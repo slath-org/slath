@@ -12,7 +12,7 @@
 {%- endif %}
 {% include "settings/errors.html" %}
 {%- if let Some(k) = since_review %}
-{%- call msg::notice() %}<p>You last reviewed revision {{ k }}. Changes since your last review: <a href="{{ here }}/interdiff?from={{ k }}">compare the revisions</a> or <a href="{{ here }}/changes?since={{ k }}">see the tree diff</a>.</p>{% endcall %}
+{%- call msg::notice() %}<p>You last reviewed revision {{ k }}. Changes since your last review: <a href="{{ here }}/interdiff?from={{ k }}">compare the revisions</a> or <a href="{{ here }}/files?since={{ k }}">see the tree diff</a>.</p>{% endcall %}
 {%- endif %}
 {%- if h.mr.state == "closed" && !h.source_exists %}
 {%- if h.can_push %}

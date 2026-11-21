@@ -4,7 +4,7 @@
 //! timeline, commits, changes, and the actions on them.
 
 use askama::Template;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query, RawQuery, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
@@ -1417,7 +1417,7 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         "approvals" | "sensitive_paths" if v.edit => link("Ask for review", "users", "#reviewers"),
         "conflicts" if v.push || v.author => link("Resolve conflicts", "terminal", "#conflicts"),
         "identity" if v.push || v.author => {
-            link("Choose changes", "git-commit-horizontal", "/commits")
+            link("Choose changes", "git-commit-horizontal", "/changes")
         }
         "up_to_date" if v.update => link("Update branch", "refresh-cw", "#update-branch"),
         _ => None,
@@ -2239,8 +2239,8 @@ struct ChangeRow {
 }
 
 #[derive(Template)]
-#[template(path = "repo/merge_request_commits.html")]
-struct CommitsPage {
+#[template(path = "repo/merge_request_stack.html")]
+struct StackPage {
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
@@ -2257,7 +2257,7 @@ fn short(id: &str) -> &str {
     id.get(..8).unwrap_or(id)
 }
 
-async fn commits_page(
+async fn stack_page(
     state: &AppState,
     ctx: PageCtx,
     subject: &Subject,
@@ -2335,7 +2335,7 @@ async fn commits_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
-    let mut res = render(&CommitsPage {
+    let mut res = render(&StackPage {
         header: RepoHeader::load(state, &a, subject, TAB).await,
         whole: stack.entries.is_empty() && m.revisions > 0,
         blocked: stack.blocks_merge(),
@@ -2350,18 +2350,39 @@ async fn commits_page(
     Ok(res)
 }
 
-async fn commits(
+/// Query keys only the diff of the files takes: links to the files from
+/// before it moved from `…/changes` to `…/files`.
+const FILES_KEYS: [&str; 5] = ["since", "view", "w", "file", "comment"];
+
+/// The stack (the Changes tab). A query for the diff of the files (an
+/// older link from when that page was here) goes on to `…/files`.
+async fn stack(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo, n)): Path<(String, String, String)>,
     Query(q): Query<StatusQuery>,
+    RawQuery(raw): RawQuery,
 ) -> Result<Response, AppError> {
+    let raw = raw.unwrap_or_default();
+    let for_files = raw.split('&').any(|kv| {
+        let key = kv.split('=').next().unwrap_or("");
+        FILES_KEYS.contains(&key)
+    });
+    if for_files {
+        return moved(
+            &state,
+            &session.subject(),
+            (&ns, &repo, &n),
+            &format!("/files?{raw}"),
+        )
+        .await;
+    }
     let message = match q.status.as_deref() {
         Some("rebound") => Some("Saved. The next push keeps this choice."),
         _ => None,
     };
-    commits_page(
+    stack_page(
         &state,
         ctx,
         &session.subject(),
@@ -2370,6 +2391,32 @@ async fn commits(
         Vec::new(),
     )
     .await
+}
+
+/// The Commits tab's old address: the stack is the Changes tab now.
+async fn old_commits(
+    State(state): State<AppState>,
+    session: MaybeSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    RawQuery(raw): RawQuery,
+) -> Result<Response, AppError> {
+    let rest = match raw {
+        Some(q) if !q.is_empty() => format!("/changes?{q}"),
+        _ => "/changes".to_owned(),
+    };
+    moved(&state, &session.subject(), (&ns, &repo, &n), &rest).await
+}
+
+/// A permanent redirect to `rest` of a merge request the subject can
+/// see; otherwise not found, as for the page itself.
+async fn moved(
+    state: &AppState,
+    subject: &Subject,
+    (ns, repo, n): (&str, &str, &str),
+    rest: &str,
+) -> Result<Response, AppError> {
+    let (_, m) = state.services.mr(subject, ns, repo, number(n)?).await?;
+    Ok(Redirect::permanent(&mr_url(ns, repo, m.number, rest)).into_response())
 }
 
 #[derive(Deserialize)]
@@ -2398,18 +2445,18 @@ async fn bind(
         .await
     {
         Ok(()) => {
-            Ok(Redirect::to(&mr_url(&ns, &repo, n, "/commits?status=rebound")).into_response())
+            Ok(Redirect::to(&mr_url(&ns, &repo, n, "/changes?status=rebound")).into_response())
         }
         Err(ServiceError::Invalid(errors)) => {
-            commits_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+            stack_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
         }
         Err(e) => Err(e.into()),
     }
 }
 
 #[derive(Template)]
-#[template(path = "repo/merge_request_changes.html")]
-struct ChangesPage {
+#[template(path = "repo/merge_request_files.html")]
+struct FilesPage {
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
@@ -2421,17 +2468,17 @@ struct ChangesPage {
 }
 
 #[derive(Deserialize, Default)]
-struct ChangesQuery {
+struct FilesQuery {
     since: Option<i32>,
 }
 
-async fn changes(
+async fn files(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
     hx: super::HxRequest,
     Path((ns, repo, n)): Path<(String, String, String)>,
-    Query(q): Query<ChangesQuery>,
+    Query(q): Query<FilesQuery>,
     Query(dq): Query<DiffQuery>,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
@@ -2457,14 +2504,14 @@ async fn changes(
         ),
     };
     let href = match q.since {
-        Some(k) => mr_url(&ns, &repo, m.number, &format!("/changes?since={k}")),
-        None => mr_url(&ns, &repo, m.number, "/changes"),
+        Some(k) => mr_url(&ns, &repo, m.number, &format!("/files?since={k}")),
+        None => mr_url(&ns, &repo, m.number, "/files"),
     };
     let mut diff = super::diff::view(&raw, limits, &generated, &highlights, &dq, &ctx, href);
     if q.since.is_none() && m.state == "open" {
         attach_review(&state, &subject, &a, &m, &mut diff, &dq, None).await?;
     }
-    let page = ChangesPage {
+    let page = FilesPage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         current: m.revisions,
         h: heading(&state, &subject, &a, m).await?,
@@ -2490,6 +2537,9 @@ struct ChangePage {
     stack: Vec<StackRow>,
     /// Changes not in the current revision, for the stack.
     removed: Vec<String>,
+    /// This change's position in the current stack and the stack's size;
+    /// `None` without a stack column or when it isn't in the stack.
+    change_pos: Option<(usize, usize)>,
     /// The changes below and above this one in the current revision.
     prev_change: Option<String>,
     next_change: Option<String>,
@@ -2532,9 +2582,6 @@ struct StackRow {
     display_id: String,
     subject: String,
     href: String,
-    /// This change's position in the current stack and the stack's size;
-    /// `None` without a stack column or when it isn't in the stack.
-    change_pos: Option<(usize, usize)>,
     /// The change shown on the page.
     current: bool,
     /// Its state in words with a tone, if not simply open: landed, new in
@@ -2724,6 +2771,7 @@ async fn change(
             .map(|r| r.href.clone())
     };
     let (prev_change, next_change) = (neighbour(-1), neighbour(1));
+    let change_pos = at.map(|i| (i + 1, stack.len()));
     let vi = change
         .versions
         .iter()
@@ -2757,6 +2805,7 @@ async fn change(
         rows,
         stack,
         removed,
+        change_pos,
         prev_change,
         next_change,
         prev_version,
@@ -2766,7 +2815,6 @@ async fn change(
         shown,
         from,
         kind,
-    let change_pos = at.map(|i| (i + 1, stack.len()));
         diff,
         text,
         too_big,
@@ -2800,7 +2848,6 @@ async fn stack_rows(
         .await?
         .into_iter()
         .map(|c| {
-        change_pos,
             (
                 c.oid.as_str().to_owned(),
                 slath_markup::reveal_bidi(&c.subject).into_owned(),
@@ -2848,7 +2895,7 @@ async fn stack_rows(
                 position: i + 1,
                 subject: subjects.get(&e.commit_oid).cloned().unwrap_or_default(),
                 href: if id.is_empty() {
-                    format!("{base}/commits")
+                    format!("{base}/changes")
                 } else {
                     format!("{base}/changes/{id}")
                 },
@@ -3939,7 +3986,7 @@ pub fn router() -> Router<AppState> {
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/commits",
             Access::Resource,
-            get(commits),
+            get(old_commits),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/stack/{pos}/bind",
@@ -3959,7 +4006,12 @@ pub fn router() -> Router<AppState> {
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/changes",
             Access::Resource,
-            get(changes),
+            get(stack),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/files",
+            Access::Resource,
+            get(files),
         )
         .route_as(
             "/{ns}/{repo}/merge-requests/{n}/edit",

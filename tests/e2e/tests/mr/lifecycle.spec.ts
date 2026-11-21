@@ -128,28 +128,28 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   await expect(page.locator(".diff-file")).toContainText("Second draft.");
   await expectAccessible(page);
 
-  // The tabs count the current revision's commits and changed files.
+  // The tabs count the current revision's changes and changed files.
   const tabs = page.getByRole("navigation", { name: "Merge request" });
-  await expect(tabs.getByRole("link", { name: "Commits" }).locator(".count")).toHaveText("2");
-  await tapOrClick(page, tabs.getByRole("link", { name: "Changes" }));
-  await expect(page).toHaveURL(/\/changes$/);
-  const files = tabs.getByRole("link", { name: "Changes" }).locator(".count");
+  await expect(tabs.getByRole("link", { name: "Changes" }).locator(".count")).toHaveText("2");
+  await tapOrClick(page, tabs.getByRole("link", { name: "Files" }));
+  await expect(page).toHaveURL(/\/files$/);
+  const files = tabs.getByRole("link", { name: "Files" }).locator(".count");
   await expect(files).toHaveText(/^[1-9]\d*$/);
   await expect(page.locator(".diff-file")).toHaveCount(Number(await files.textContent()));
-  await tapOrClick(page, tabs.getByRole("link", { name: "Commits" }));
-  await expect(page).toHaveURL(/\/commits$/);
-  await expect(page.getByRole("heading", { name: "2 commits" })).toBeVisible();
-  const rows = page.locator("section[aria-labelledby=commits-heading] .item-list > li");
+  await tapOrClick(page, tabs.getByRole("link", { name: "Changes" }));
+  await expect(page).toHaveURL(/\/changes$/);
+  await expect(page.getByRole("heading", { name: "2 changes" })).toBeVisible();
+  const rows = page.locator("section[aria-labelledby=changes-heading] .item-list > li");
   await expect(rows.first()).toBeVisible();
-  await expect(page.locator("section[aria-labelledby=commits-heading]")).toContainText("Revise review notes");
-  // Each commit shows its change ID (jj's format); the second one is new.
+  await expect(page.locator("section[aria-labelledby=changes-heading]")).toContainText("Revise review notes");
+  // Each change shows its ID (jj's format); the second one is new.
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).locator(".change-id")).toHaveText(/^[k-z]{8}$/);
   // How a commit was matched shows in the change's history, not here.
   await expect(rows.locator(".badge")).toHaveCount(0);
   await expectAccessible(page);
   // Each change has its own page with its versions.
-  await tapOrClick(page, rows.nth(0).locator("a.change-id"));
+  await tapOrClick(page, rows.nth(0).locator("a.item-title"));
   await expect(page.getByRole("heading", { name: /^Change [k-z]{8}$/ })).toBeVisible();
   const versions = page.getByRole("list", { name: "Versions" });
   await expect(versions.getByRole("listitem")).toHaveCount(2);
@@ -233,7 +233,7 @@ test("conf_review_reply_resolves_its_thread", async ({ page }, testInfo) => {
   await expect(page).toHaveURL(/\/merge-requests\/\d+$/);
   const conversation = page.url();
   // A thread of this browser's own, started on a line.
-  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Files" }));
   await tapOrClick(page, page.locator(".diff-unified a[title='Comment on this line']").first());
   const note = `Resolve me on ${testInfo.project.name}`;
   await page.getByLabel("Comment", { exact: true }).fill(note);
@@ -267,8 +267,8 @@ test("conf_agent_02_findings_show_as_bot_threads", async ({ page }) => {
   await expect(finding.locator(".thread-comment-head").first()).toContainText("Bot");
   await expect(finding.locator(".finding-message")).toHaveText("Say what changed in the draft.\nKeep it to one line.");
   await expectAccessible(page);
-  // The Changes tab shows it under its line.
-  await page.goto(page.url().replace(/#.*$/, "") + "/changes");
+  // The Files tab shows it under its line.
+  await page.goto(page.url().replace(/#.*$/, "") + "/files");
   await expect(page.locator(".inline-thread").filter({ hasText: "Finding from lint (warning)" })).toBeVisible();
   await expectAccessible(page);
 });
@@ -278,7 +278,7 @@ test("conf_a11y_04_line_comments_on_the_changes_tab", async ({ page }, testInfo)
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
-  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Files" }));
   // The seeded thread sits under its line.
   await expect(page.locator(".diff-thread-row").first()).toContainText("Is this the final wording?");
   await expectAccessible(page);
@@ -336,7 +336,7 @@ test("conf_agent_12_a_bot_marks_a_persons_thread_addressed", async ({ page }) =>
   // Still open: a person resolves it.
   await expect(thread.getByRole("button", { name: "Resolve thread" })).toBeVisible();
   await expectAccessible(page);
-  await page.goto(page.url().replace(/#.*$/, "") + "/changes");
+  await page.goto(page.url().replace(/#.*$/, "") + "/files");
   await expect(page.locator(".inline-thread").filter({ hasText: /Marked as addressed by\s*e2e-agent/ })).toBeVisible();
   await expectAccessible(page);
 });

@@ -1,0 +1,17 @@
+{% extends "repo/layout.html" %}
+{% block title %}Files · {{ h.mr.title }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+<div class="page">
+{% include "repo/header.html" %}
+{% let mr_tab = "files" %}
+{% include "repo/mr_heading.html" %}
+{% include "repo/mr_nav.html" %}
+{%- if let Some(s) = since %}
+{%- call msg::notice() %}<p>Changes from revision {{ s }} to revision {{ current }}. If the branch was rebased, this includes changes from the target. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/files">Show all changes</a></p>{% endcall %}
+{%- endif %}
+{%- if too_big %}
+{%- call msg::notice() %}<p>This diff is too large to show.</p>{% endcall %}
+{%- endif %}
+{% include "repo/diff_files.html" %}
+</div>
+{% endblock %}

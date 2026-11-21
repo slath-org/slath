@@ -536,3 +536,55 @@ fn conf_jj_04_the_stack_column_needs_more_than_one_change() {
     assert!(!r.body.contains("stack-heading"), "{}", r.body);
     assert!(!r.body.contains("data-key="), "{}", r.body);
 }
+
+#[test]
+fn conf_jj_04_changes_and_files_tabs_and_their_old_addresses() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let ids = w.changes(n);
+    let mut ui = w.s.login("alice", PASSWORD);
+    let mr = format!("/alice/demo/merge-requests/{n}");
+    // The Changes tab is the stack; each title leads to its change.
+    let stack = ui.get(&format!("{mr}/changes"));
+    assert_eq!(stack.status, 200);
+    assert!(stack.body.contains(">2 changes<"), "{}", stack.body);
+    assert!(stack.body.contains(&format!(
+        "<a class=\"item-title\" href=\"{mr}/changes/{}\">Add a</a>",
+        ids[0]
+    )));
+    for (href, label) in [("changes", "Changes"), ("files", "Files")] {
+        assert!(
+            stack.body.contains(&format!("<a href=\"{mr}/{href}\""))
+                && stack
+                    .body
+                    .contains(&format!(">{label} <span class=\"count\">")),
+            "{label}: {}",
+            stack.body
+        );
+    }
+    // The Files tab is the diff.
+    let files = ui.get(&format!("{mr}/files"));
+    assert_eq!(files.status, 200);
+    assert!(files.body.contains("a.txt") && files.body.contains("diff-file"));
+    // Old addresses: the Commits tab is now Changes, and the diff's
+    // queries go on to Files, with their query.
+    for (old, new) in [
+        ("/commits", "/changes"),
+        ("/commits?status=rebound", "/changes?status=rebound"),
+        ("/changes?since=1", "/files?since=1"),
+        ("/changes?file=0&w=1", "/files?file=0&w=1"),
+    ] {
+        let r = ui.get(&format!("{mr}{old}"));
+        assert_eq!(r.status, 308, "{old}");
+        assert_eq!(
+            r.header("location"),
+            Some(format!("{mr}{new}").as_str()),
+            "{old}"
+        );
+    }
+    // Invisible merge requests stay not found, old address or new.
+    let mut stranger = w.s.client();
+    for path in ["/commits", "/changes?since=1", "/changes", "/files"] {
+        let r = stranger.get(&format!("/alice/demo/merge-requests/{}{path}", n + 100));
+        assert_eq!(r.status, 404, "{path}");
+    }
+}

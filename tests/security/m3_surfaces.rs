@@ -502,8 +502,8 @@ fn conf_sec_04_xss_commits_refs_paths_suggestions() {
     let pages = [
         "/alice/proj/merge-requests".to_owned(),
         "/alice/proj/merge-requests/1".to_owned(),
-        "/alice/proj/merge-requests/1/commits".to_owned(),
         "/alice/proj/merge-requests/1/changes".to_owned(),
+        "/alice/proj/merge-requests/1/files".to_owned(),
         format!("/alice/proj/commit/{head}"),
         format!("/alice/proj/commits/{}", encoded(&source)),
         "/alice/proj/branches".to_owned(),

@@ -753,7 +753,7 @@ fn conf_review_13_returning_reviewer_and_the_strict_rule() {
 
 /// Marks `path` viewed (or not) as the signed-in user, as the page does.
 fn mark_viewed(ui: &mut slath_tests::http::Client, n: i64, path: &str, viewed: bool) {
-    let changes = format!("/alice/demo/merge-requests/{n}/changes");
+    let changes = format!("/alice/demo/merge-requests/{n}/files");
     let r = slath_tests::http::submit(
         ui,
         &changes,
@@ -899,7 +899,7 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
         "{page}"
     );
     let changes = carol_ui
-        .get(&format!("/alice/demo/merge-requests/{n}/changes"))
+        .get(&format!("/alice/demo/merge-requests/{n}/files"))
         .body;
     assert!(
         !changes.contains("You marked this file viewed")
@@ -908,7 +908,7 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
     );
     // Bob's own viewed state is his (a.txt unmarked, c.txt marked).
     let changes = bob_ui
-        .get(&format!("/alice/demo/merge-requests/{n}/changes"))
+        .get(&format!("/alice/demo/merge-requests/{n}/files"))
         .body;
     assert_eq!(
         changes.matches(r#"aria-pressed="true""#).count(),

@@ -8,7 +8,7 @@
 {% include "repo/mr_nav.html" %}
 <section class="section" aria-labelledby="interdiff-heading">
 <h2 id="interdiff-heading">Revision {{ from }} to revision {{ to }}</h2>
-{%- call msg::notice() %}<p><strong>Heuristic:</strong> <code>git range-diff</code> pairs the commits of both revisions by similarity, and may pair them differently than the changes on the Commits tab. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes?since={{ from }}">Show the tree diff between both revisions</a></p>{% endcall %}
+{%- call msg::notice() %}<p><strong>Heuristic:</strong> <code>git range-diff</code> pairs the commits of both revisions by similarity, and may pair them differently than the Changes tab does. <a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/files?since={{ from }}">Show the tree diff between both revisions</a></p>{% endcall %}
 {%- if too_big %}
 {%- call msg::notice() %}<p>This comparison is too large to show.</p>{% endcall %}
 {%- else if text.is_empty() %}

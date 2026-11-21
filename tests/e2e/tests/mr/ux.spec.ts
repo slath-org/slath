@@ -66,13 +66,13 @@ async function walk(page: Page, kind: string, project: string): Promise<Record<s
   await expect(page.locator(".badge", { hasText: /^(Git|jj)$/ })).toHaveCount(0);
   await expectAccessible(page);
   // The commits tab: one change per commit, in jj's format.
-  await page.goto(`${url}/commits`);
-  const rows = page.locator("section[aria-labelledby=commits-heading] .item-list > li");
+  await page.goto(`${url}/changes`);
+  const rows = page.locator("section[aria-labelledby=changes-heading] .item-list > li");
   await expect(rows).toHaveCount(2);
   await expect(rows.locator(".change-id")).toHaveText([/^[k-z]{8}$/, /^[k-z]{8}$/]);
-  state.commits = await texts(page, "section[aria-labelledby=commits-heading] .item-list > li", kind, project);
+  state.commits = await texts(page, "section[aria-labelledby=changes-heading] .item-list > li", kind, project);
   // 6. Review: the file tree, viewed marks, threads, and the navigation.
-  await page.goto(`${url}/changes`);
+  await page.goto(`${url}/files`);
   const tree = page.getByRole("navigation", { name: "Changed files" });
   await expect(tree.getByRole("link")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Next unviewed file" })).toHaveAttribute("href", "#diff-0");
@@ -160,7 +160,7 @@ test("ux_mr_09_conversation_render_budget_and_progressive_diff", async ({ page }
   console.log(`conversation of 50 files and 200 comments: p95 ${p95} ms (${times.join(", ")})`);
   expect(p95, `p95 ${p95} ms`).toBeLessThan(budget);
   // The diff streams: the first files with the page, the rest as they scroll in.
-  await page.goto(`${url}/changes`);
+  await page.goto(`${url}/files`);
   await expect(page.locator(".diff-file")).toHaveCount(50);
   await expect(page.locator(".diff-file .diff-hunk")).toHaveCount(20);
   await page.locator("#diff-49").scrollIntoViewIfNeeded();

@@ -102,7 +102,7 @@ fn conf_design_01_diffs_are_highlighted_from_whole_files() {
         assert!(start.elapsed().as_secs() < 30, "no revision");
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
-    let changes = alice.get("/alice/demo/merge-requests/1/changes").body;
+    let changes = alice.get("/alice/demo/merge-requests/1/files").body;
     assert!(changes.contains("syn-comment"), "MR changes");
     assert!(changes.contains("Shown without highlighting"), "MR changes");
 }

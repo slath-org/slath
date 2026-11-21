@@ -16,7 +16,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>Things people open by their title: issues, merge requests, repositories, notifications, commits, changes. Rows separated by lines, not cards: a state icon, the title, labels, and one line of secondary facts; counts at the end.</dd>
   <dt>Markup</dt><dd><code>ul.item-list</code> &gt; <code>li.item-row</code> with <code>span.item-state</code>, <code>div.item-main</code> (<code>a.item-title</code>, <code>span.item-labels</code>, <code>p.item-meta</code>), and <code>span.item-count</code>.</dd>
-  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change, label, milestone (with <code>progress.milestone-progress</code>), the commit of a merge request's change (its change ID, flags, checks as a status line, a note, and the form that picks its change), the versions of a change (<code>ol.version-list</code>: the shown version marked with <code>aria-current</code> and not a link, its facts, checks, and how it was matched; then <code>form.version-picker</code>, two labeled selects that compare any two versions). Rows that can be changed end with <code>div.item-actions</code>, icon buttons with tooltips. Compact density removes padding, never text size.</dd>
+  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change, label, milestone (with <code>progress.milestone-progress</code>), a change of a merge request's stack (its title leads to the change's page; its change ID, its commit, flags, checks as a status line, a note, and the form that picks its change), the versions of a change (<code>ol.version-list</code>: the shown version marked with <code>aria-current</code> and not a link, its facts, checks, and how it was matched; then <code>form.version-picker</code>, two labeled selects that compare any two versions). Rows that can be changed end with <code>div.item-actions</code>, icon buttons with tooltips. Compact density removes padding, never text size.</dd>
   <dt>Accessibility</dt><dd>A list; the state icon has its word for screen readers; the title is the row's one link.</dd>
   <dt>Not for</dt><dd>Records compared by column (a table); the properties of one thing (facts).</dd>
 </dl>
@@ -58,7 +58,7 @@
     <div class="item-main">
       <a class="item-title" href="#rows">Parse empty input</a>
       <span class="item-labels"><span class="badge badge-danger">Unresolved</span></span>
-      <p class="item-meta text-secondary">Change <a class="change-id" href="#rows" data-tip="Change kxwmqrstuvpo"><code>kxwmqrst</code></a> · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · 3 hours ago · <code>a1e62f5c7d0b</code></p>
+      <p class="item-meta text-secondary">Change <code class="change-id" data-tip="Change kxwmqrstuvpo">kxwmqrst</code> · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · 3 hours ago · <a class="hash" href="#rows" data-tip="a1e62f5c7d0b"><code>a1e62f5c7d0b</code></a></p>
       <p class="commit-checks tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>1 of 2 checks failed</span></p>
       <p class="change-note">This commit's IDs name 2 different changes.</p>
       <form class="cluster change-form" action="#rows">

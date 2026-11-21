@@ -212,10 +212,10 @@ fn conf_diff_02_every_file_in_one_class_for_git_jj_and_mixed_stacks() {
             .unwrap();
         assert_eq!(a["hunks"], json!(["content"]));
         assert_eq!(a["folded"], false);
-        // The Changes tab's file list gives folded files their reasons,
+        // The Files tab's file list gives folded files their reasons,
         // and hides them by default.
         let mut web = s.login("alice", slath_tests::server::PASSWORD);
-        let html = web.get(&format!("{path}/changes")).body;
+        let html = web.get(&format!("{path}/files")).body;
         let files = inv["files"].as_array().unwrap();
         for f in files {
             let entry = format!(" · {}</span>", f["reason"].as_str().unwrap());
