@@ -1433,6 +1433,11 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
         "statuses" => "Checks failing".to_owned(),
         "conflicts" => format!("Conflicts with {}", m.target_branch),
+        // One requirement for both: unresolved IDs come first, a
+        // conflict recorded by jj says so in its reason.
+        "identity" if r.reason.ends_with("with a conflict recorded by jj.") => {
+            "Conflict recorded by jj".to_owned()
+        }
         "identity" => "Commits need a change".to_owned(),
         "up_to_date" => format!("Behind {}", m.target_branch),
         "threads" => "Unresolved threads".to_owned(),
