@@ -151,8 +151,10 @@ test("ux_mr_05_08_checkout_commands_and_revisions_in_the_timeline", async ({ pag
   // Each change has its own page with its versions.
   await tapOrClick(page, rows.nth(0).locator("a.change-id"));
   await expect(page.getByRole("heading", { name: /^Change [k-z]{8}$/ })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Versions" }).getByRole("row")).toHaveCount(3);
-  await expect(page.getByRole("region", { name: "Versions" })).toContainText("first version");
+  const versions = page.getByRole("list", { name: "Versions" });
+  await expect(versions.getByRole("listitem")).toHaveCount(2);
+  await expect(versions.getByRole("listitem").first()).toContainText("First version.");
+  await expect(versions.getByRole("listitem").first()).toContainText("Revision 1");
   await expectAccessible(page);
 
   // Issue URLs of a merge request lead to it.

@@ -8,23 +8,48 @@
 {% include "repo/mr_nav.html" %}
 <section class="section" aria-labelledby="change-heading">
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
-<div class="table-wrap" tabindex="0" role="region" aria-label="Versions">
-<table class="table table-records">
-  <caption class="visually-hidden">Versions of this change</caption>
-  <thead><tr><th scope="col">Version</th><th scope="col">Revision</th><th scope="col">Commit</th><th scope="col">Matched</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
-  <tbody>
-  {%- for v in change.versions %}
-    <tr{% if v.revision == shown.revision %} aria-current="true"{% endif %}>
-      <td data-label="Version">{% if v.revision == shown.revision && from.is_none() %}<strong>{{ v.number }}</strong>{% else %}<a href="{{ self.version_href(v) }}">{{ v.number }}</a>{% endif %}</td>
-      <td data-label="Revision">{{ v.revision }}</td>
-      <td data-label="Commit">{% call c::hash(v.commit_oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ v.commit_oid) %}{% endcall %}</td>
-      <td data-label="Matched">{{ matched[loop.index0] }}</td>
-      <td class="table-actions">{% if v.revision != shown.revision %}<a href="{{ self.compare_href(v) }}">Compare with version {{ shown.number }}</a>{% endif %}</td>
-    </tr>
-  {%- endfor %}
-  </tbody>
-</table>
-</div>
+<ol class="item-list version-list" aria-label="Versions">
+{%- for r in rows %}
+  <li class="item-row"{% if r.v.revision == shown.revision %} aria-current="true"{% endif %}>
+    <div class="item-main">
+      {%- if r.v.revision == shown.revision && from.is_none() %}
+      <span class="item-title">Version {{ r.v.number }}</span>
+      {%- else %}
+      <a class="item-title" href="{{ self.version_href(r.v) }}">Version {{ r.v.number }}</a>
+      {%- endif %}
+      <p class="item-meta text-secondary">Revision {{ r.v.revision }}
+        {%- if let Some(st) = r.stat %} · {% call p::git_identity(ctx, st.author, st.author_account) %}{% endcall %} · {% call c::time(st.time) %}{% endcall %}{% endif %} · {% call c::hash(r.v.commit_oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ r.v.commit_oid) %}{% endcall %}
+        {%- if let Some(st) = r.stat %} · {{ st.files }} file{% if st.files != 1 %}s{% endif %}, +{{ st.added }} −{{ st.removed }}{% endif %}
+        {%- if r.comments > 0 %} · {{ r.comments }} comment{% if r.comments != 1 %}s{% endif %}{% endif -%}
+      </p>
+      {%- if let Some(ch) = r.checks %}
+      <p class="commit-checks tone-{{ ch.tone }}">{% call m::tone_icon(ctx, ch.tone.to_string()) %}{% endcall %}<span>{{ ch.text }}</span></p>
+      {%- endif %}
+      <p class="change-note text-secondary">{{ r.matched }}.</p>
+      {%- if r.v.revision != shown.revision %}
+      <p><a href="{{ self.compare_href(r.v) }}">Compare with version {{ shown.number }}</a></p>
+      {%- endif %}
+    </div>
+  </li>
+{%- endfor %}
+</ol>
+{%- if change.versions.len() > 1 %}
+<form method="get" action="{{ base }}" class="cluster version-picker">
+  <label for="compare-from">Compare version</label>
+  <select id="compare-from" name="from">
+    {%- for v in change.versions %}
+    <option value="{{ v.revision }}"{% if v.revision == self.picker_from() %} selected{% endif %}>{{ v.number }}</option>
+    {%- endfor %}
+  </select>
+  <label for="compare-to">with version</label>
+  <select id="compare-to" name="rev">
+    {%- for v in change.versions %}
+    <option value="{{ v.revision }}"{% if v.revision == shown.revision %} selected{% endif %}>{{ v.number }}</option>
+    {%- endfor %}
+  </select>
+  <button type="submit" class="button">Compare</button>
+</form>
+{%- endif %}
 {%- if !history.is_empty() %}
 {%- call d::disclosure(ctx, "History of this change") %}
   <ol class="plain-list">

@@ -2481,8 +2481,8 @@ struct ChangePage {
     header: RepoHeader,
     h: MrHeading,
     change: ChangeInfo,
-    /// Per version (same order): how it was bound, from the ledger.
-    matched: Vec<String>,
+    /// The versions, oldest first, with what the list shows of each.
+    rows: Vec<VersionRow>,
     /// The change's history from the ledger, oldest first.
     history: Vec<(Time, String)>,
     /// The version shown (or compared to).
@@ -2501,9 +2501,48 @@ struct ChangePage {
     base: String,
 }
 
+/// One version in a change's list of versions.
+struct VersionRow {
+    v: VersionInfo,
+    /// Its commit's author and patch size, if Git could read it.
+    stat: Option<VersionStat>,
+    /// Comments in threads on this version's own diff.
+    comments: usize,
+    checks: Option<Checks>,
+    /// How it was bound, from the ledger.
+    matched: String,
+}
+
+struct VersionStat {
+    author: String,
+    author_account: String,
+    time: Time,
+    files: usize,
+    added: usize,
+    removed: usize,
+}
+
 impl ChangePage {
     fn version_href(&self, v: &VersionInfo) -> String {
         format!("{}?rev={}", self.base, v.revision)
+    }
+
+    /// The version the picker compares from: the one compared now, else
+    /// the one before the shown version.
+    fn picker_from(&self) -> i32 {
+        if let Some(f) = &self.from {
+            return f.revision;
+        }
+        let i = self
+            .change
+            .versions
+            .iter()
+            .position(|v| v.revision == self.shown.revision)
+            .unwrap_or(0);
+        self.change
+            .versions
+            .get(i.saturating_sub(1))
+            .map_or(self.shown.revision, |v| v.revision)
     }
 
     fn compare_href(&self, v: &VersionInfo) -> String {
@@ -2571,7 +2610,9 @@ async fn change(
     let from = match q.from {
         Some(_) => Some(pick(q.from).ok_or_else(AppError::not_found)?),
         None => None,
-    };
+    }
+    // The version picker can name the shown version twice: its own diff.
+    .filter(|f| f.revision != shown.revision);
     let base = mr_url(
         &ns,
         &repo,
@@ -2642,21 +2683,7 @@ async fn change(
         .iter()
         .filter(|e| e.change_id.as_deref() == Some(change.display_id.as_str()))
         .collect();
-    let matched = change
-        .versions
-        .iter()
-        .map(|v| {
-            mine.iter()
-                .rev()
-                .find(|e| {
-                    e.kind == "binding"
-                        && e.revision_seq == Some(v.revision)
-                        && e.detail.get("commit").and_then(serde_json::Value::as_str)
-                            == Some(v.commit_oid.as_str())
-                })
-                .map_or_else(|| "recorded".to_owned(), |e| binding_text(e))
-        })
-        .collect();
+    let rows = version_rows(&state, &subject, &a, &m, &change, &mine).await?;
     let history = mine
         .iter()
         .map(|e| {
@@ -2677,7 +2704,7 @@ async fn change(
     let page = ChangePage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
-        matched,
+        rows,
         history,
         change,
         shown,
@@ -2694,6 +2721,83 @@ async fn change(
         Some(d) => Ok(super::diff::respond(hx, &page.ctx, d, &page)),
         None => Ok(render(&page)),
     }
+}
+
+/// The rows of a change's list of versions: author, age, and patch size
+/// from Git, comments on each version's own diff, its checks, and how the
+/// ledger bound it.
+async fn version_rows(
+    state: &AppState,
+    subject: &Subject,
+    a: &RepoAccess,
+    m: &MergeRequest,
+    change: &ChangeInfo,
+    ledger: &[&slath_db::mr_ledger::Entry],
+) -> Result<Vec<VersionRow>, AppError> {
+    let stats = state.services.mr_version_stats(m, &change.versions).await?;
+    let idents: Vec<slath_service::git_identities::CommitIdent<'_>> = stats
+        .iter()
+        .map(|s| slath_service::git_identities::CommitIdent {
+            oid: s.oid.as_str(),
+            author_email: &s.author_email,
+            committer_email: "",
+        })
+        .collect();
+    let people = state
+        .services
+        .commit_people(subject, a.repo.id, &idents)
+        .await?;
+    let mut stats: Vec<Option<VersionStat>> = stats
+        .iter()
+        .zip(people)
+        .map(|(s, p)| {
+            Some(VersionStat {
+                author: s.author_name.clone(),
+                author_account: p.author,
+                time: time(s.author_time),
+                files: s.files,
+                added: s.added,
+                removed: s.removed,
+            })
+        })
+        .collect();
+    stats.resize_with(change.versions.len(), || None);
+    let threads = state.services.mr_threads(subject, a, m).await?;
+    let oids: Vec<String> = change
+        .versions
+        .iter()
+        .map(|v| v.commit_oid.clone())
+        .collect();
+    let statuses = state.services.statuses_of_commits(m, &oids).await?;
+    Ok(change
+        .versions
+        .iter()
+        .zip(stats)
+        .map(|(v, stat)| VersionRow {
+            stat,
+            comments: threads
+                .iter()
+                .filter(|t| t.thread.anchor.new_oid.as_deref() == Some(v.commit_oid.as_str()))
+                .map(|t| t.comments.iter().filter(|c| c.deleted_at.is_none()).count())
+                .sum(),
+            checks: statuses.get(&v.commit_oid).and_then(|s| checks_summary(s)),
+            matched: ledger
+                .iter()
+                .rev()
+                .find(|e| {
+                    e.kind == "binding"
+                        && e.revision_seq == Some(v.revision)
+                        && e.detail.get("commit").and_then(serde_json::Value::as_str)
+                            == Some(v.commit_oid.as_str())
+                })
+                .map_or_else(|| "recorded".to_owned(), |e| binding_text(e))
+                .chars()
+                .enumerate()
+                .map(|(i, c)| if i == 0 { c.to_ascii_uppercase() } else { c })
+                .collect(),
+            v: v.clone(),
+        })
+        .collect())
 }
 
 #[derive(Template)]

@@ -194,10 +194,12 @@ name different changes, or two commits with the same ID. The author, or
 anyone who can push the source branch, picks a change for each of them on
 the Commits page. The choice is kept for the next pushes.
 
-Each change ID links to the change's page. It lists the change's versions
-and how each was matched (by its ID, by an identical patch, by similar
-content, or by hand), with the change's history, and compares any two
-versions:
+Each change ID links to the change's page. It lists the change's
+versions, each with its revision, author, age, commit, size (files and
+lines added and removed), comments on it, checks, and how it was matched
+(by its ID, by an identical patch, by similar content, or by hand), with
+the change's history. **Compare version … with version …** compares any
+two versions:
 
 - **Exact**, when both versions have the same parent: the diff is
   exactly what changed between them.

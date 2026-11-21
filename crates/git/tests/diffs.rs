@@ -224,3 +224,30 @@ async fn stack_reads_ids_patches_and_conflicts() {
         .unwrap();
     assert!(s[0].patch.is_empty() && s[0].patch_id.is_none());
 }
+
+#[tokio::test]
+async fn commit_stats_in_the_order_asked() {
+    let f = fixture().await;
+    let a = commit(&f, &[("x", "a\nb\n")], "a", None).await;
+    let b = commit(&f, &[("x", "a\nc\n"), ("y", "1\n2\n3\n")], "b", Some(&a)).await;
+    let empty = commit(&f, &[("x", "a\nc\n"), ("y", "1\n2\n3\n")], "e", Some(&b)).await;
+    let stats = browse::commit_stats(&f.runner, &f.repo, &[b.clone(), empty.clone(), a.clone()])
+        .await
+        .unwrap();
+    let got: Vec<(ObjectId, usize, usize, usize)> = stats
+        .iter()
+        .map(|s| (s.oid.clone(), s.files, s.added, s.removed))
+        .collect();
+    assert_eq!(got, vec![(b, 2, 4, 1), (empty, 0, 0, 0), (a, 1, 2, 0)]);
+    assert!(
+        stats
+            .iter()
+            .all(|s| s.author_name == "T" && s.author_time > 0)
+    );
+    assert!(
+        browse::commit_stats(&f.runner, &f.repo, &[])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

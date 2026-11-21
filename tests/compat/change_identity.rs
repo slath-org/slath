@@ -867,6 +867,20 @@ fn conf_review_03_interdiffs_are_labeled_exact_or_heuristic() {
     );
     // The tree diff includes the rebase; the patches don't.
     assert!(tree.contains("m.txt") && !patches.contains("m.txt"));
+    // The list of versions: each with its revision, author, patch size,
+    // and how it was matched; the picker compares any two.
+    let plain = page(&mut ui, &base);
+    for v in 1..=3 {
+        assert!(plain.contains(&format!("Version {v}<")), "{plain}");
+    }
+    assert!(plain.contains("Revision 3"), "{plain}");
+    assert!(plain.contains("1 file, +"), "{plain}");
+    assert!(plain.contains("First version."), "{plain}");
+    assert!(plain.contains("Matched by"), "{plain}");
+    assert!(plain.contains("name=\"from\""), "{plain}");
+    // The same version twice is its own diff.
+    let same = page(&mut ui, &format!("{base}?from=2&rev=2"));
+    assert!(same.contains("the commit's own changes"), "{same}");
     // The short form of the ID and a commit ID lead to the change too.
     page(&mut ui, &format!("/changes/{}", &id[..8]));
     let revs = page(&mut ui, "/interdiff?from=1&to=3");

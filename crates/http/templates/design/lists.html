@@ -16,7 +16,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>Things people open by their title: issues, merge requests, repositories, notifications, commits, changes. Rows separated by lines, not cards: a state icon, the title, labels, and one line of secondary facts; counts at the end.</dd>
   <dt>Markup</dt><dd><code>ul.item-list</code> &gt; <code>li.item-row</code> with <code>span.item-state</code>, <code>div.item-main</code> (<code>a.item-title</code>, <code>span.item-labels</code>, <code>p.item-meta</code>), and <code>span.item-count</code>.</dd>
-  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change, label, milestone (with <code>progress.milestone-progress</code>), the commit of a merge request's change (its change ID, flags, checks as a status line, a note, and the form that picks its change). Rows that can be changed end with <code>div.item-actions</code>, icon buttons with tooltips. Compact density removes padding, never text size.</dd>
+  <dt>Variants</dt><dd>Issue, merge request (with its checks), notification (unread rows keep the title's weight), repository, commit, change, label, milestone (with <code>progress.milestone-progress</code>), the commit of a merge request's change (its change ID, flags, checks as a status line, a note, and the form that picks its change), the versions of a change (<code>ol.version-list</code>: the shown version marked with <code>aria-current</code> and not a link, its facts, checks, and how it was matched; then <code>form.version-picker</code>, two labeled selects that compare any two versions). Rows that can be changed end with <code>div.item-actions</code>, icon buttons with tooltips. Compact density removes padding, never text size.</dd>
   <dt>Accessibility</dt><dd>A list; the state icon has its word for screen readers; the title is the row's one link.</dd>
   <dt>Not for</dt><dd>Records compared by column (a table); the properties of one thing (facts).</dd>
 </dl>
@@ -69,6 +69,31 @@
     </div>
   </li>
 </ol>
+<ol class="item-list version-list" aria-label="Example versions">
+  <li class="item-row">
+    <div class="item-main">
+      <a class="item-title" href="#rows">Version 1</a>
+      <p class="item-meta text-secondary">Revision 1 · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · yesterday · <code>a1e62f5c7d0b</code> · 1 file, +20 −0</p>
+      <p class="change-note text-secondary">First version.</p>
+      <p><a href="#rows">Compare with version 2</a></p>
+    </div>
+  </li>
+  <li class="item-row" aria-current="true">
+    <div class="item-main">
+      <span class="item-title">Version 2</span>
+      <p class="item-meta text-secondary">Revision 3 · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · 3 hours ago · <code>b2f73a6d8e1c</code> · 1 file, +21 −0 · 2 comments</p>
+      <p class="commit-checks tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>All 2 checks passed</span></p>
+      <p class="change-note text-secondary">Matched by its change ID.</p>
+    </div>
+  </li>
+</ol>
+<form method="get" action="#rows" class="cluster version-picker">
+  <label for="demo-compare-from">Compare version</label>
+  <select id="demo-compare-from"><option selected>1</option><option>2</option></select>
+  <label for="demo-compare-to">with version</label>
+  <select id="demo-compare-to"><option>1</option><option selected>2</option></select>
+  <button type="button" class="button">Compare</button>
+</form>
 <ul class="item-list notification-list">
   <li class="item-row item-unread">
     <span class="item-state item-state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}<span class="visually-hidden">open</span></span>

@@ -911,6 +911,28 @@ impl Services {
         })
     }
 
+    /// Each version's author and patch size, in the same order; empty if
+    /// Git can't read one of the commits (the page then shows less).
+    pub async fn mr_version_stats(
+        &self,
+        m: &MergeRequest,
+        versions: &[VersionInfo],
+    ) -> Result<Vec<slath_git::browse::CommitStat>> {
+        let oids = versions
+            .iter()
+            .map(|v| oid(&v.commit_oid))
+            .collect::<Result<Vec<_>>>()?;
+        match slath_git::browse::commit_stats(&self.runner, &self.repo_path(m.repo_id), &oids).await
+        {
+            Ok(s) if s.len() == oids.len() => Ok(s),
+            Ok(_) => Ok(Vec::new()),
+            Err(e) => {
+                tracing::warn!(error = %e, mr = %m.id, "reading the versions' commits failed");
+                Ok(Vec::new())
+            }
+        }
+    }
+
     /// The patch of one version: its commit against its parent.
     pub async fn mr_version_diff(
         &self,

@@ -526,6 +526,104 @@ pub async fn format_patch(
     }
 }
 
+/// One commit's author and the size of its own patch (against its first
+/// parent, renames detected as in [`diff`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitStat {
+    pub oid: ObjectId,
+    pub author_name: String,
+    pub author_email: String,
+    pub author_time: i64,
+    pub files: usize,
+    pub added: usize,
+    pub removed: usize,
+}
+
+/// [`CommitStat`] of each commit in `commits`, in one Git call; unknown
+/// commits fail the call. A merge commit counts as changing nothing.
+pub async fn commit_stats(
+    runner: &Runner,
+    git_dir: &Path,
+    commits: &[ObjectId],
+) -> Result<Vec<CommitStat>, GitError> {
+    if commits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut cmd = runner.repo(git_dir).args([
+        "log",
+        "--no-color",
+        "--no-walk=unsorted",
+        "--no-ext-diff",
+        "--no-textconv",
+        "-M",
+        "--shortstat",
+        "--format=%H%x00%an%x00%ae%x00%at%x00",
+        "--end-of-options",
+    ]);
+    for c in commits {
+        cmd = cmd.arg(c.as_str());
+    }
+    let out = cmd.arg("--").run().await?;
+    Ok(parse_stats(&out.stdout))
+}
+
+/// Parses `commit_stats` output: per commit its ID, author name, email,
+/// and time, each ended by NUL, then the shortstat line (none for an
+/// empty patch) ended by a newline, right before the next commit's ID.
+fn parse_stats(stdout: &[u8]) -> Vec<CommitStat> {
+    let fields: Vec<&[u8]> = stdout.split(|&b| b == 0).collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    // The first ID has nothing before it.
+    let mut lead: &[u8] = fields.first().copied().unwrap_or_default();
+    while i + 4 < fields.len() {
+        // `lead` is the shortstat of the previous commit, then this ID.
+        let start = lead.iter().rposition(|&b| b == b'\n').map_or(0, |p| p + 1);
+        let Ok(oid) = ObjectId::parse(lead[start..].trim_ascii()) else {
+            break;
+        };
+        if let Some(last) = out.last_mut() {
+            apply_shortstat(last, &lead[..start]);
+        }
+        out.push(CommitStat {
+            oid,
+            author_name: String::from_utf8_lossy(fields[i + 1]).into_owned(),
+            author_email: String::from_utf8_lossy(fields[i + 2]).into_owned(),
+            author_time: std::str::from_utf8(fields[i + 3])
+                .ok()
+                .and_then(|t| t.parse().ok())
+                .unwrap_or(0),
+            files: 0,
+            added: 0,
+            removed: 0,
+        });
+        lead = fields[i + 4];
+        i += 4;
+    }
+    if let Some(last) = out.last_mut() {
+        apply_shortstat(last, lead);
+    }
+    out
+}
+
+/// Reads " 3 files changed, 10 insertions(+), 2 deletions(-)".
+fn apply_shortstat(s: &mut CommitStat, line: &[u8]) {
+    for part in String::from_utf8_lossy(line).split(',') {
+        let mut words = part.split_whitespace();
+        let (Some(n), Some(what)) = (words.next(), words.next()) else {
+            continue;
+        };
+        let Ok(n) = n.parse::<usize>() else { continue };
+        if what.starts_with("file") {
+            s.files = n;
+        } else if what.starts_with("insertion") {
+            s.added = n;
+        } else if what.starts_with("deletion") {
+            s.removed = n;
+        }
+    }
+}
+
 /// How many files `base..commit` changes (renames counted once, as in
 /// [`diff`]), for when the diff itself is too big to read.
 pub async fn changed_file_count(

@@ -1648,6 +1648,16 @@ h1 > bdi code,
 .change-form select {
   min-height: var(--control-height);
 }
+/* A change page: its versions and the version picker. */
+.version-picker {
+  margin-block: var(--gap-items);
+}
+.version-picker select {
+  min-height: var(--control-height);
+}
+.version-list > .item-row[aria-current="true"] {
+  background: var(--selection);
+}
 .markdown a.ref-closed {
   color: var(--text-secondary);
 }
