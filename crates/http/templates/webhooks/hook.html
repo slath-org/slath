@@ -37,7 +37,7 @@
   {%- for dl in v.deliveries %}
     <tr>
       <td data-label="Event">{{ dl.event }}</td>
-      <td data-label="Result"><span class="tone-{{ dl.tone }}">{% call m::tone_icon(ctx, dl.tone) %}{% endcall %}<span>{{ dl.state }}</span></span>{% if dl.attempts > 1 %} <span class="text-secondary">({{ dl.attempts }} attempts)</span>{% endif %}</td>
+      <td data-label="Result">{% call m::status_text(ctx, dl.tone, dl.state) %}{% endcall %}{% if dl.attempts > 1 %} <span class="text-secondary">({{ dl.attempts }} attempts)</span>{% endif %}</td>
       <td data-label="Status">{% if let Some(st) = dl.status %}{{ st }}{% else %}<span class="text-secondary">none</span>{% endif %}</td>
       <td data-label="Sent">{% call c::time(dl.created) %}{% endcall %}</td>
       <td data-label="Delivery"><a href="{{ v.base }}/{{ v.id }}/deliveries/{{ dl.id }}"><code>…{{ dl.short }}</code></a></td>

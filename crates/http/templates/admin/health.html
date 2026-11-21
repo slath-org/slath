@@ -10,10 +10,10 @@
 {%- include "admin/update_notice.html" %}
 <dl class="facts">
   <dt>Slath</dt><dd>{{ version }}</dd>
-  <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Problem: {{ git }}</span></span>{% endif %}</dd>
+  <dt>Git</dt><dd>{% if git_ok %}{{ git }}{% else %}{% let why = "Problem: " ~ git %}{% call m::status_text(ctx, "blocking", why) %}{% endcall %}{% endif %}</dd>
   <dt>Email</dt><dd>{% if let Some(relay) = smtp %}Sent through {{ relay }}{% else %}Not configured: email features are hidden (set <code>[smtp] host</code>){% endif %}</dd>
-  <dt>Backups</dt><dd>{% if backup_failed %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Problem: {{ backup }}</span></span>{% else %}{{ backup }}{% endif %}</dd>
-  <dt>Database schema</dt><dd>{% if schema != required_schema %}<span class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>{{ schema }}; this binary needs {{ required_schema }}</span></span>{% else %}{{ schema }} (current){% endif %}</dd>
+  <dt>Backups</dt><dd>{% if backup_failed %}{% let why = "Problem: " ~ backup %}{% call m::status_text(ctx, "blocking", why) %}{% endcall %}{% else %}{{ backup }}{% endif %}</dd>
+  <dt>Database schema</dt><dd>{% if schema != required_schema %}{% let why = schema ~ "; this binary needs " ~ required_schema %}{% call m::status_text(ctx, "blocking", why) %}{% endcall %}{% else %}{{ schema }} (current){% endif %}</dd>
 </dl>
 {%- if smtp.is_some() %}
 <section class="section" aria-labelledby="test-email-heading">

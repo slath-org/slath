@@ -15,6 +15,10 @@ Template rules (crates/http/templates, every file but the catalog's):
   empty-state        an empty state is the empty state component (msg::empty
                      or p.empty-state) and a sentence with its full stop,
                      never a bare secondary paragraph ("None", "No one")
+  status-markup      a status is the status line component (m::status_line,
+                     m::status_text); a tone's icon written out by hand only
+                     in its list form (li.tone-*), a requirement's summary,
+                     the readiness card's icon, and a list row's readiness
 
 Catalog rules:
   catalog-class      every class a page template uses is shown in the design
@@ -60,7 +64,7 @@ ENTRY_MARKERS = {
     "links": r"c::external\(", "tooltip": r"data-tip=", "time": r"c::time\(", "hash": r"c::hash\(",
     "cut": r"c::cut\(", "popover": r"c::popover\(", "password": r'type="password"', "count": r"maxlength=",
     "names": r"data-names", "sort": r"m::view_menu\(ctx, \"Sort\"", "switches": r'type="checkbox"',
-    "status-line": r"m::tone_icon\(", "readiness": r"readiness_card", "timeline": r'class="timeline"',
+    "status-line": r"m::tone_icon\(|m::status_line\(|m::status_text\(", "readiness": r"readiness_card", "timeline": r'class="timeline"',
     "thread": r"timeline-thread", "chips": r'class="badge',
     "code-toolbar": r"repo/ref_line\.html", "file-list": r"table file-list", "code-view": r"code-table",
     "readme": r"section readme", "commit-message": r"commit-body",
@@ -113,6 +117,13 @@ def check_template(path: str, text: str) -> list[tuple[str, str]]:
             out.append(("empty-state", f"{path}:{line_of(text, m.start())}: empty state without its full stop"))
     for m in re.finditer(r'<p class="text-secondary">\s*(No |None\b|Nothing\b)', plain):
         out.append(("empty-state", f"{path}:{line_of(text, m.start())}: empty state as a secondary paragraph; use msg::empty"))
+    for m in re.finditer(r"m::tone_icon\(", text):
+        before = EXPR.sub("", text[: m.start()])
+        tags = re.findall(r"<[a-z][^>]*>", before)
+        last = tags[-1] if tags else ""
+        if re.match(r'<li\b[^>]*class="[^"]*tone-|<summary>|<span class="(?:readiness-icon|item-checks)', last):
+            continue
+        out.append(("status-markup", f"{path}:{line_of(text, m.start())}: a status written out; use m::status_line or m::status_text"))
     return out
 
 

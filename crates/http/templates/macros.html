@@ -22,6 +22,11 @@
 {%- macro status_line(ctx, tone, text) -%}
 <p class="status-line tone-{{ tone }}">{% call tone_icon(ctx, tone) %}{% endcall %}<span>{{ text }}</span></p>
 {%- endmacro -%}
+{#- A status inside a line of text, a table cell, or a fact (Weave:
+    StatusLine, inline). -#}
+{%- macro status_text(ctx, tone, text) -%}
+<span class="status-line status-inline tone-{{ tone }}">{% call tone_icon(ctx, tone) %}{% endcall %}<span>{{ text }}</span></span>
+{%- endmacro -%}
 {#- What kind of evidence something is (Weave: EvidenceChip). -#}
 {%- macro evidence(kind) -%}
 <span class="evidence-chip">{{ kind }}</span>

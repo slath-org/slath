@@ -43,6 +43,20 @@ class TemplateRules(unittest.TestCase):
         self.assertEqual(rules("<p>style=fine in text</p>"), [])
 
 
+    def test_statuses_use_the_component(self):
+        icon = '{% call m::tone_icon(ctx, "done") %}{% endcall %}'
+        for bad in (f'<span class="tone-done">{icon}<span>ok</span></span>', f'<p class="tone-done">{icon}<span>ok</span></p>'):
+            self.assertEqual(rules(bad), ["status-markup"], bad)
+        for ok in (
+            '{% call m::status_text(ctx, "done", "ok") %}{% endcall %}',
+            f'<li class="tone-{{{{ t }}}}">{icon}<span>ok</span></li>',
+            f'<li class="requirement tone-done"><details><summary>{icon}<span>ok<span class="disclosure">v</span></span></summary></details></li>',
+            f'<span class="readiness-icon">{icon}</span>',
+            f'<span class="item-checks tone-done" data-tip="Ready">{icon}<span class="visually-hidden">Ready</span></span>',
+        ):
+            self.assertEqual(rules(ok), [], ok)
+
+
 class Catalog(unittest.TestCase):
     def test_placeholders_match_as_prefixes(self):
         shown = {"item-state-open", "tone-done"}

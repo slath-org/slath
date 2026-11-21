@@ -16,12 +16,19 @@
 
 {%- call cat::entry("status-line", "Status line", "Stable") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>A status in one line: an icon, the words, and a reason. Three tones only: done (check), waiting (clock: normal, nothing wrong yet), and blocking (cross: something must change). Waiting is never red, so red keeps meaning "act". Used for requirements, checks (also in the details column), and deliveries.</dd>
-  <dt>Markup</dt><dd>A line of its own: <code>m::status_line(ctx, tone, text)</code>, a <code>p.status-line.tone-{done|waiting|blocking}</code> (icon, a small gap, then the words). In a list: <code>li.tone-*</code> with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>; checks in a details column are a <code>ul.plain-list</code> of these.</dd>
+  <dt>Purpose</dt><dd>A status in one line: an icon, the words, and a reason. Three tones only: done (check), waiting (clock: normal, nothing wrong yet), and blocking (cross: something must change). Waiting is never red, so red keeps meaning "act". Used for requirements, checks (also in the details column), deliveries, confirmations, and the instance's health.</dd>
+  <dt>Markup</dt><dd>A line of its own: <code>m::status_line(ctx, tone, text)</code>, a <code>p.status-line.tone-{done|waiting|blocking}</code> (icon, a small gap, then the words). Inside text, a table cell, or a fact: <code>m::status_text(ctx, tone, text)</code>, the same as <code>span.status-line.status-inline</code> at the text's size. In a list: <code>li.tone-*</code> with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>; checks in a details column are a <code>ul.plain-list</code> of these.</dd>
   <dt>Variants</dt><dd>The three tones; with a reporter and a time on a second line.</dd>
   <dt>Accessibility</dt><dd>The icon is decorative; screen readers hear the tone as a word ("Done:", "Waiting:", "Blocking:") before the reason. Color only adds to icon and words.</dd>
   <dt>Not for</dt><dd>An issue's or merge request's state (state label); categories (badge). A state that blocks, such as Conflict or Unresolved, is a status line, never a red badge.</dd>
 </dl>
+{%- call cat::example("A line of its own, and inline in facts.") %}
+{% call m::status_line(ctx, "blocking", "Conflict recorded by jj") %}{% endcall %}
+<dl class="facts">
+  <dt>Backups</dt><dd>{% call m::status_text(ctx, "blocking", "Problem: the last backup failed") %}{% endcall %}</dd>
+  <dt>Address</dt><dd>{% call m::status_text(ctx, "waiting", "Not confirmed") %}{% endcall %}</dd>
+</dl>
+{%- endcall %}
 {%- call cat::example("Checks in a details column.") %}
 <ul class="plain-list">
   <li class="tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span><strong>build</strong>: passed<br><span class="text-secondary">Reported by {% call p::account(ctx, "ci-bot") %}{% endcall %}, {% call c::time(recent) %}{% endcall %}</span></span></li>

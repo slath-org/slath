@@ -12,7 +12,7 @@
 #   external-url  no third-party URLs in resource positions
 #   htmx          hx-* elements carry the nonce macro; no eval-based htmx features
 #   e2e-hover     browser tests never hover (no hover-only affordances)
-#   weave         templates follow the Weave rules (disclosures, headings,
+#   weave         templates follow the Weave rules (disclosures, headings, statuses,
 #                 groups of fields, no inline style) and use only components
 #                 the design catalog shows; known violations in
 #                 weave-allowlist.txt, which only shrinks

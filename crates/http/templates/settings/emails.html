@@ -25,7 +25,7 @@
     {%- for a in addresses %}
       <tr>
         <td data-label="Address"><bdi>{{ a.email }}</bdi>{% if a.primary %} <span class="badge">Primary</span>{% endif %}</td>
-        <td data-label="State">{% if a.verified %}<span class="tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>Confirmed</span></span>{% else %}<span class="tone-waiting">{% call m::tone_icon(ctx, "waiting") %}{% endcall %}<span>Not confirmed</span></span>{% endif %}</td>
+        <td data-label="State">{% if a.verified %}{% call m::status_text(ctx, "done", "Confirmed") %}{% endcall %}{% else %}{% call m::status_text(ctx, "waiting", "Not confirmed") %}{% endcall %}{% endif %}</td>
         <td class="table-actions">
           <div class="cluster">
           {%- if a.verified && !a.primary %}

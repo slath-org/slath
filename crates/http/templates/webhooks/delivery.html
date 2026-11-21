@@ -16,7 +16,7 @@
 {%- endif %}
 <dl class="facts">
   <dt>Event</dt><dd>{{ v.d.event }}</dd>
-  <dt>Result</dt><dd><span class="tone-{{ v.d.tone }}">{% call m::tone_icon(ctx, v.d.tone) %}{% endcall %}<span>{{ v.d.state }}</span></span>{% if let Some(n) = v.d.next %}; next attempt {% call c::time(n) %}{% endcall %}{% endif %}</dd>
+  <dt>Result</dt><dd>{% call m::status_text(ctx, v.d.tone, v.d.state) %}{% endcall %}{% if let Some(n) = v.d.next %}; next attempt {% call c::time(n) %}{% endcall %}{% endif %}</dd>
   <dt>Delivery ID</dt><dd><code>{{ v.d.id }}</code> (<code>X-Slath-Delivery</code>, the same on every attempt)</dd>
   <dt>Created</dt><dd>{% call c::time(v.d.created, true) %}{% endcall %}</dd>
   {%- if let Some(r) = v.redelivery_of %}
