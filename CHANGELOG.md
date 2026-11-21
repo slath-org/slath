@@ -20,6 +20,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A merge request's Commits and Changes tabs show how many commits and changed files the current revision has, as Conversation shows its comments.
 - A change's page lists its versions with author, age, size, comments, checks, and how each was matched, and compares any two versions picked there.
 - In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.
+- The readiness card lists a sixth file not viewed by an approver instead of hiding it behind "and 1 more".
 - On a change's page, j and k move to the next and previous change, and ] and [ between versions, while focus is on the page.
 
 ## [0.3.0] - 2026-11-18

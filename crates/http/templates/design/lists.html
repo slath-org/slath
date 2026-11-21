@@ -160,8 +160,8 @@
 
 {%- call cat::entry("more", "And N more", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>A short list in a limited space (a details column, a card, a requirement) shows up to five items, then "and N more", which links to the full list.</dd>
-  <dt>Markup</dt><dd>The first five items, then <code>l::more(href, n)</code>.</dd>
+  <dt>Purpose</dt><dd>A short list in a limited space (a details column, a card, a requirement) shows up to five items, then "and N more", which links to the full list. N is at least 2: with six items, all six show, since "and 1 more" would take the place of the item it hides.</dd>
+  <dt>Markup</dt><dd>The first five items, then <code>l::more(href, n)</code>; six or fewer items without it.</dd>
   <dt>Variants</dt><dd>None.</dd>
   <dt>Accessibility</dt><dd>A link that says how many more there are.</dd>
   <dt>Not for</dt><dd>Lists with their own page (they use the pager).</dd>

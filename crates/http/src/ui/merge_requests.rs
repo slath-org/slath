@@ -1278,7 +1278,8 @@ struct Card {
 impl Card {
     /// The files not viewed by an approver that the card names.
     fn unviewed_shown(&self) -> &[String] {
-        if self.all_unviewed {
+        // "and 1 more" would take the place of the one file it hides.
+        if self.all_unviewed || self.unviewed.len() <= UNVIEWED_SHOWN + 1 {
             &self.unviewed
         } else {
             &self.unviewed[..self.unviewed.len().min(UNVIEWED_SHOWN)]
@@ -1292,7 +1293,8 @@ impl Card {
 }
 
 /// How many files not viewed by an approver the card names before "and N
-/// more", and how many the full list holds.
+/// more" (all of them when only one more is left), and how many the full
+/// list holds.
 const UNVIEWED_SHOWN: usize = 5;
 const UNVIEWED_MAX: usize = 500;
 
@@ -4084,6 +4086,17 @@ mod tests {
         assert_eq!(c.unviewed_more(), 7);
         let c = card(3, false);
         assert_eq!((c.unviewed_shown().len(), c.unviewed_more()), (3, 0));
+        // One more than five is shown, not hidden behind "and 1 more".
+        let c = card(UNVIEWED_SHOWN + 1, false);
+        assert_eq!(
+            (c.unviewed_shown().len(), c.unviewed_more()),
+            (UNVIEWED_SHOWN + 1, 0)
+        );
+        let c = card(UNVIEWED_SHOWN + 2, false);
+        assert_eq!(
+            (c.unviewed_shown().len(), c.unviewed_more()),
+            (UNVIEWED_SHOWN, 2)
+        );
         let c = card(UNVIEWED_SHOWN + 7, true);
         assert_eq!(
             (c.unviewed_shown().len(), c.unviewed_more()),
