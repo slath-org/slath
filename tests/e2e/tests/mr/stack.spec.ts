@@ -5,8 +5,9 @@
 // keyboard alone (j and k between changes, [ and ] between versions, only
 // while focus is in the change view) and with taps or clicks on the same
 // buttons, in every browser cell. The e2e server seeds `stack/<project>`,
-// "Outcomes fixture" for what each revision did to its changes, and "jj
-// conflict fixture" for conflicts recorded by jj.
+// "Outcomes fixture" for what each revision did to its changes, "jj
+// conflict fixture" for conflicts recorded by jj, and `land/<project>` for
+// landing part of a stack.
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
@@ -146,4 +147,33 @@ test("conf_jj_07_conflicts_recorded_by_jj_on_change_pages", async ({ page }) => 
   await tapOrClick(page, conflict.getByLabel("Git", { exact: true }));
   await expect(conflict.locator("#conflict-git")).toContainText("git rebase -i origin/main");
   await expectAccessible(page);
+});
+
+// `land/<project>`: three changes; the first two land, the third stays.
+test("conf_review_08_land_up_to_here_from_a_change_page", async ({ page }, info) => {
+  const project = info.project.name;
+  await signIn(page, USERS.alice);
+  await page.goto(`/alice/demo/compare?source=${encodeURIComponent(`land/${project}`)}`);
+  await page.getByLabel("Title").fill(`Three parts in ${project}`);
+  await tapOrClick(page, page.getByRole("button", { name: "Create merge request" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(`Three parts in ${project}`);
+  const url = new URL(page.url()).pathname;
+  // The top change lands only with the whole merge request.
+  await page.goto(`${url}/changes`);
+  await tapOrClick(page, page.getByRole("link", { name: "Part 3" }));
+  await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Part 3");
+  await expect(page.getByRole("region", { name: "Land up to here" })).toHaveCount(0);
+  await tapOrClick(page, stack(page).getByRole("link", { name: "Part 2" }));
+  const land = page.getByRole("region", { name: "Land up to here" });
+  await expect(land).toContainText("Merges changes 1–2 of 3 into main");
+  await expectAccessible(page);
+  await land.getByLabel("Land with").selectOption("rebase");
+  await tapOrClick(page, land.getByRole("button", { name: "Land 2 changes" }));
+  await expect(page.getByText("Landed. The rest of the stack is a new revision on the new target.")).toBeVisible();
+  await expect(page.locator("section[aria-labelledby=changes-heading] .item-row")).toHaveCount(1);
+  await expect(page.locator("section[aria-labelledby=changes-heading]")).toContainText("Part 3");
+  await expectAccessible(page);
+  // The timeline says what landed.
+  await page.goto(url);
+  await expect(page.getByText(/landed changes \S+, \S+ into main \(rebase\); the rest is still open/)).toBeVisible();
 });

@@ -313,7 +313,8 @@ impl Jj {
 /// For each project, a stack of two changes made with Git
 /// (`ux/<project>/git`), with jj (`…/jj`), and mixed (`…/mixed`: a Git
 /// commit under a jj change), and a stack of five Git changes
-/// (`stack/<project>`), with no merge request yet; and
+/// (`stack/<project>`) and one of three (`land/<project>`), with no merge
+/// request yet; and
 /// `ux/<project>/conflict`, which conflicts with `main`.
 fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
     let jj = Jj::new();
@@ -363,6 +364,14 @@ fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
             git.ok(w, &["commit", "-q", "-m", &format!("Step {i}")]);
         }
         git.ok(w, &["push", "-q", url, &format!("stack/{p}")]);
+        // A stack of three changes, for landing part of it.
+        git.ok(w, &["switch", "-q", "-c", &format!("land/{p}"), "main"]);
+        for i in 1..=3 {
+            std::fs::write(w.join(format!("land-{p}-{i}.md")), format!("Part {i}\n")).unwrap();
+            git.ok(w, &["add", "-A"]);
+            git.ok(w, &["commit", "-q", "-m", &format!("Part {i}")]);
+        }
+        git.ok(w, &["push", "-q", url, &format!("land/{p}")]);
         // A branch whose file main changes too.
         let shared = format!("ux-{p}-shared.md");
         git.ok(w, &["switch", "-q", "main"]);

@@ -483,8 +483,11 @@ The API merges with `POST …/merge-requests/{n}/merge` and
 ### Landing part of a stack
 
 When the bottom changes of a stack are ready and the rest isn't, land
-just those: the merge request stays open with the rest. The API takes
-the change to land up to, by its ID or its first 8 characters:
+just those: the merge request stays open with the rest. On the page of
+the highest change that should land, **Land up to here** names the
+changes that land; pick a strategy and land them. It shows when you may
+merge and those changes meet the requirements. The API takes the change
+to land up to, by its ID or its first 8 characters:
 `POST …/merge-requests/{n}/merge` with
 `{"strategy": "rebase", "expected_head_oid": "…", "upto_change": "kxyzabcd"}`.
 `GET …/merge-requests/{n}/mergeability?upto_change=kxyzabcd` shows what
@@ -493,7 +496,7 @@ only, the checks of the top one, and no conflicts.
 
 Every strategy works. A rebase or squash rewrites what lands, so Slath
 also rebases the rest of the branch onto it; that needs the right to push
-to the branch. A fast-forward or merge commit leaves the rest as it is.
+to the branch, and the page offers them only then. A fast-forward or merge commit leaves the rest as it is.
 Either way the rest becomes a new revision on the new target and keeps
 its change IDs. jj picks up the rebased rest as the same changes with
 `jj git fetch`; with Git, `git pull --rebase` before you push again.

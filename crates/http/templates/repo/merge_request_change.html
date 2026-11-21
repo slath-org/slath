@@ -86,6 +86,25 @@
   </ol>
 {%- endcall %}
 {%- endif %}
+{%- if let Some(l) = land %}
+<section class="frame" id="land" aria-labelledby="land-title">
+  <h3 id="land-title" class="frame-title">Land up to here</h3>
+  <p>Merges {% if l.changes.len() == 1 %}change 1{% else %}changes 1–{{ l.changes.len() }}{% endif %} of {{ l.of }} into <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code>: {% for id in l.changes %}<code>{{ id }}</code>{% if !loop.last %}, {% endif %}{% endfor %}. The merge request stays open with the rest, as a new revision on top of them.</p>
+  <form method="post" action="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/merge" class="form-layout" novalidate>
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="expected_head_oid" value="{{ l.head }}">
+    <input type="hidden" name="upto_change" value="{{ change.display_id }}">
+    {%- call f::field("land-strategy", "Land with", "Rebase and squash also rebase the rest of the branch onto what lands.", "") %}
+    <select id="land-strategy" name="strategy"{% call f::described("land-strategy", "x", "") %}{% endcall %}>
+      {%- for (value, label) in l.strategies %}
+      <option value="{{ value }}">{{ label }}</option>
+      {%- endfor %}
+    </select>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "git-merge") %}{% endcall %}Land {{ l.changes.len() }} change{% if l.changes.len() != 1 %}s{% endif %}</button>{% endcall %}
+  </form>
+</section>
+{%- endif %}
 </section>
 {%- if let Some(f) = from %}
 {%- if kind == "exact" %}

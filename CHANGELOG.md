@@ -21,7 +21,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A change's page lists its versions with author, age, size, comments, checks, and how each was matched, and compares any two versions picked there.
 - In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.
 - The readiness card lists a sixth file not viewed by an approver instead of hiding it behind "and 1 more".
-- Land part of a stack through the API: the changes up to one of them merge with any strategy, and the merge request stays open with the rest as a new revision.
+- Land part of a stack with **Land up to here** on a change's page, or through the API: the changes up to it merge with any strategy, and the rest stays open as a new revision.
 - The mergeability API reports what landing the changes up to one of a stack needs (`?upto_change=`): approvals of those changes and checks of the top one.
 - Rebases on the server leave out changes that already landed instead of writing empty commits.
 - Commits with a conflict recorded by jj explain on their change's page how to read their tree and resolve them with jj or Git, starting with the lowest conflicted change.

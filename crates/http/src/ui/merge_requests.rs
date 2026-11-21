@@ -2417,6 +2417,9 @@ async fn stack(
     }
     let message = match q.status.as_deref() {
         Some("rebound") => Some("Saved. The next push keeps this choice."),
+        Some("landed") => {
+            Some("Landed. The rest of the stack is a new revision on the new target.")
+        }
         _ => None,
     };
     stack_page(
@@ -2603,6 +2606,19 @@ struct ChangePage {
     base: String,
     /// The shown version holds a conflict jj recorded.
     conflict: Option<ConflictView>,
+    /// "Land up to here", when the changes up to this one can land.
+    land: Option<LandForm>,
+}
+
+/// Landing the changes of a stack up to the shown one.
+struct LandForm {
+    /// The repository's strategies that can land them, its default first.
+    strategies: Vec<(String, &'static str)>,
+    head: String,
+    /// The short IDs of the changes that land, bottom first.
+    changes: Vec<String>,
+    /// How many changes the stack has.
+    of: usize,
 }
 
 /// What a change page says about a conflict jj recorded in the shown
@@ -2835,6 +2851,14 @@ async fn change(
     };
     let (prev_change, next_change) = (neighbour(-1), neighbour(1));
     let change_pos = at.map(|i| (i + 1, stack.len()));
+    let land = if from.is_none()
+        && shown.revision == m.revisions
+        && at.is_some_and(|i| i + 1 < stack.len())
+    {
+        land_form(&state, &subject, &a, &m, &change.display_id, stack.len()).await?
+    } else {
+        None
+    };
     let vi = change
         .versions
         .iter()
@@ -2885,12 +2909,65 @@ async fn change(
         other_href,
         base,
         conflict,
+        land,
         ctx,
     };
     match &page.diff {
         Some(d) => Ok(super::diff::respond(hx, &page.ctx, d, &page)),
         None => Ok(render(&page)),
     }
+}
+
+/// "Land up to here" for the change `id` of an open merge request, when
+/// the viewer may merge and the changes up to it meet their requirements.
+/// Rebase and squash rewrite the rest of the branch, so only people who
+/// may update the branch get them.
+async fn land_form(
+    state: &AppState,
+    subject: &Subject,
+    a: &RepoAccess,
+    m: &MergeRequest,
+    id: &str,
+    of: usize,
+) -> Result<Option<LandForm>, AppError> {
+    if m.state != "open"
+        || !a.can(subject, Action::MrMerge)
+        || !matches!(subject, Subject::User { .. })
+    {
+        return Ok(None);
+    }
+    let Some(p) = state.services.mr_prefix(m, id).await? else {
+        return Ok(None);
+    };
+    if !state
+        .services
+        .mr_mergeability_upto(a, m, Some(&p))
+        .await?
+        .mergeable
+    {
+        return Ok(None);
+    }
+    let rewrite = state.services.may_update_branch(subject, a, m).await;
+    let (allowed, default) = state.services.mr_merge_settings(a).await?;
+    let mut strategies: Vec<(String, &'static str)> = allowed
+        .iter()
+        .filter(|x| rewrite || !matches!(x.as_str(), "rebase" | "squash"))
+        .map(|x| (x.clone(), strategy_label(x)))
+        .collect();
+    if strategies.is_empty() {
+        return Ok(None);
+    }
+    strategies.sort_by_key(|(x, _)| *x != default);
+    Ok(Some(LandForm {
+        strategies,
+        head: m.head_oid.clone().unwrap_or_default(),
+        changes: p
+            .changes
+            .iter()
+            .map(|d| d.chars().take(8).collect())
+            .collect(),
+        of,
+    }))
 }
 
 /// What the page of `shown` (a version of the change `id` with a conflict)
@@ -3678,6 +3755,9 @@ async fn merge(
         .merge_mr(&s.subject, (&ns, &repo, n), &input)
         .await
     {
+        Ok(m) if m.state == "open" => {
+            Ok(Redirect::to(&mr_url(&ns, &repo, n, "/changes?status=landed")).into_response())
+        }
         Ok(_) => Ok(Redirect::to(&mr_url(&ns, &repo, n, "?status=merged")).into_response()),
         Err(ServiceError::Invalid(errors)) => {
             mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
