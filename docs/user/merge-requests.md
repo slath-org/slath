@@ -492,7 +492,9 @@ to land up to, by its ID or its first 8 characters:
 `{"strategy": "rebase", "expected_head_oid": "…", "upto_change": "kxyzabcd"}`.
 `GET …/merge-requests/{n}/mergeability?upto_change=kxyzabcd` shows what
 landing them needs: approvals and requests for changes of those changes
-only, the checks of the top one, and no conflicts.
+only, the checks of the top one, and no conflicts. When threads must be
+resolved, those started on a later change's own page wait for that
+change; general threads and threads on the Files tab still count.
 
 Every strategy works. A rebase or squash rewrites what lands, so Slath
 also rebases the rest of the branch onto it; that needs the right to push

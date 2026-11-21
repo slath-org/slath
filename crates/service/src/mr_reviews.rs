@@ -156,6 +156,41 @@ pub(crate) fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> 
     }
 }
 
+/// The `threads` requirement from the unresolved threads that block and
+/// those on changes above a prefix being landed, which don't.
+fn threads_requirement(open: usize, later: usize) -> Requirement {
+    let on_later = match later {
+        1 => "1 is on a later change".to_owned(),
+        n => format!("{n} are on later changes"),
+    };
+    match (open, later) {
+        (0, 0) => met("threads", "No threads are unresolved."),
+        (0, _) => met(
+            "threads",
+            format!("No unresolved threads block landing these; {on_later}."),
+        ),
+        _ => unmet(
+            "threads",
+            if later == 0 {
+                format!("{} unresolved.", plural(open, "thread is", "threads are"))
+            } else {
+                format!(
+                    "{} unresolved and {} landing these; {} more {}.",
+                    plural(open, "thread is", "threads are"),
+                    if open == 1 { "blocks" } else { "block" },
+                    later,
+                    if later == 1 {
+                        "is on a later change"
+                    } else {
+                        "are on later changes"
+                    }
+                )
+            },
+            "Resolve them, or answer and let their authors resolve them",
+        ),
+    }
+}
+
 pub(crate) fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
@@ -940,16 +975,10 @@ impl Services {
         }
         reqs.extend(self.check_requirements(lands, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
-            let open = self.unresolved_threads(m).await?;
-            reqs.push(if open == 0 {
-                met("threads", "No threads are unresolved.")
-            } else {
-                unmet(
-                    "threads",
-                    format!("{} unresolved.", plural(open, "thread is", "threads are")),
-                    "Resolve them, or answer and let their authors resolve them",
-                )
-            });
+            let (open, later) = self
+                .unresolved_threads_upto(m, prefix.map(|p| p.changes.as_slice()))
+                .await?;
+            reqs.push(threads_requirement(open, later));
         }
         if m.state == "open" {
             let files = self.mr_conflicts(lands).await?;
@@ -1231,6 +1260,36 @@ impl Services {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn threads_on_later_changes_are_named_but_dont_block() {
+        let r = super::threads_requirement(0, 0);
+        assert_eq!(
+            (r.state, r.reason.as_str()),
+            ("met", "No threads are unresolved.")
+        );
+        let r = super::threads_requirement(0, 2);
+        assert_eq!(
+            (r.state, r.reason.as_str()),
+            (
+                "met",
+                "No unresolved threads block landing these; 2 are on later changes."
+            )
+        );
+        let r = super::threads_requirement(1, 1);
+        assert_eq!(
+            (r.state, r.reason.as_str()),
+            (
+                "unmet",
+                "1 thread is unresolved and blocks landing these; 1 more is on a later change."
+            )
+        );
+        let r = super::threads_requirement(3, 0);
+        assert_eq!(
+            (r.state, r.reason.as_str()),
+            ("unmet", "3 threads are unresolved.")
+        );
+    }
     use super::*;
 
     fn review(n: u128, user: u128, seq: i32, verdict: &str) -> Review {

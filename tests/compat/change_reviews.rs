@@ -682,3 +682,76 @@ fn conf_review_08_a_prefix_lands_with_the_approvals_of_its_changes() {
     let (state, reason) = w.requirement(n, "changes_requested");
     assert_eq!(state, "unmet", "{reason}");
 }
+
+#[test]
+fn conf_review_08_threads_on_later_changes_dont_block_a_prefix() {
+    let (w, n) = World::start(json!({"pattern": "main", "require_resolved_threads": true}));
+    let stack = w
+        .api(&w.alice, "GET", &format!("/merge-requests/{n}/stack"), None)
+        .json();
+    let entry = |i: usize| stack["entries"][i].clone();
+    let (a, b) = (entry(0), entry(1));
+    let a_id = a["change_id"].as_str().unwrap().to_owned();
+    let thread = |body: Value| {
+        let r = w.api(
+            &w.bob,
+            "POST",
+            &format!("/merge-requests/{n}/threads"),
+            Some(body),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        r.json()["id"].as_str().unwrap().to_owned()
+    };
+    let threads = |id: &str| {
+        let m = w
+            .api(
+                &w.alice,
+                "GET",
+                &format!("/merge-requests/{n}/mergeability?upto_change={id}"),
+                None,
+            )
+            .json();
+        let r = m["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["key"] == "threads")
+            .unwrap()
+            .clone();
+        (
+            r["state"].as_str().unwrap().to_owned(),
+            r["reason"].as_str().unwrap().to_owned(),
+        )
+    };
+    // A thread on "Add b"'s own diff waits for "Add b".
+    thread(json!({"body": "b?", "path": "b.txt", "line_start": 2, "commit": b["commit_oid"]}));
+    assert_eq!(
+        threads(&a_id),
+        (
+            "met".into(),
+            "No unresolved threads block landing these; 1 is on a later change.".into()
+        )
+    );
+    assert_eq!(w.requirement(n, "threads").0, "unmet");
+    // One on "Add a"'s diff, and a general one, block it.
+    let on_a =
+        thread(json!({"body": "a?", "path": "a.txt", "line_start": 2, "commit": a["commit_oid"]}));
+    let general = thread(json!({"body": "overall?"}));
+    assert_eq!(
+        threads(&a_id),
+        (
+            "unmet".into(),
+            "2 threads are unresolved and block landing these; 1 more is on a later change.".into()
+        )
+    );
+    for id in [on_a, general] {
+        let r = w.api(
+            &w.alice,
+            "PATCH",
+            &format!("/merge-requests/{n}/threads/{id}"),
+            Some(json!({"resolved": true})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+    assert_eq!(threads(&a_id).0, "met");
+}

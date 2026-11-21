@@ -574,10 +574,24 @@ impl Services {
     /// Published threads that aren't resolved, findings aside (they never
     /// count as requirements).
     pub async fn unresolved_threads(&self, m: &MergeRequest) -> Result<usize> {
+        Ok(self.unresolved_threads_upto(m, None).await?.0)
+    }
+
+    /// Unresolved threads for landing the changes `prefix` (display IDs;
+    /// `None`: the whole merge request): `(blocking, on later changes)`.
+    /// A thread belongs to one change when it was made on that change's
+    /// own diff (a version's parent to its commit); only those on changes
+    /// outside the prefix don't block. General threads and threads on the
+    /// whole diff block, as they may be about any change.
+    pub(crate) async fn unresolved_threads_upto(
+        &self,
+        m: &MergeRequest,
+        prefix: Option<&[String]>,
+    ) -> Result<(usize, usize)> {
         let comments = db::comments(&self.pool, m.id).await?;
-        Ok(db::threads(&self.pool, m.id)
+        let open: Vec<db::Thread> = db::threads(&self.pool, m.id)
             .await?
-            .iter()
+            .into_iter()
             .filter(|t| {
                 t.resolved_at.is_none()
                     && t.finding.is_none()
@@ -585,7 +599,37 @@ impl Services {
                         .iter()
                         .any(|c| c.thread_id == t.id && !c.pending && c.deleted_at.is_none())
             })
-            .count())
+            .collect();
+        let Some(prefix) = prefix else {
+            return Ok((open.len(), 0));
+        };
+        let display: std::collections::HashMap<uuid::Uuid, String> =
+            slath_db::mr_changes::changes(&self.pool, m.id)
+                .await?
+                .into_iter()
+                .map(|c| (c.id, c.display_id))
+                .collect();
+        // Each version's own diff, and its change.
+        let own: std::collections::HashMap<(String, String), &String> =
+            slath_db::mr_changes::versions(&self.pool, m.id)
+                .await?
+                .into_iter()
+                .filter_map(|v| {
+                    let d = display.get(&v.change_id?)?;
+                    Some(((v.parent_oid?, v.commit_oid), d))
+                })
+                .collect();
+        let later = open
+            .iter()
+            .filter(|t| {
+                let (Some(o), Some(n)) = (&t.anchor.old_oid, &t.anchor.new_oid) else {
+                    return false;
+                };
+                own.get(&(o.clone(), n.clone()))
+                    .is_some_and(|d| !prefix.contains(d))
+            })
+            .count();
+        Ok((open.len() - later, later))
     }
 
     /// How many of the viewer's comments wait for their review.
