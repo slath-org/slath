@@ -127,8 +127,34 @@ fn conf_jj_11_the_same_merge_request_from_git_and_jj_renders_the_same() {
     assert_eq!(stack(numbers[0].1), stack(numbers[1].1));
     // Every tab of the merge request page, as a visitor and as alice.
     let mut alice_web = s.login("alice", PASSWORD);
-    for tab in ["", "/commits", "/changes"] {
+    // And each change's page, with the stack beside it.
+    let change = |n: i64, i: usize| {
+        let v = api(
+            &s,
+            &alice,
+            "GET",
+            &format!("/alice/demo/merge-requests/{n}/stack"),
+            None,
+        )
+        .json();
+        format!(
+            "/changes/{}",
+            v["entries"][i]["change_id"].as_str().unwrap()
+        )
+    };
+    let tabs: Vec<(String, String)> = ["", "/commits", "/changes"]
+        .iter()
+        .map(|t| ((*t).to_owned(), (*t).to_owned()))
+        .chain((0..2).map(|i| (change(numbers[0].1, i), change(numbers[1].1, i))))
+        .collect();
+    for (tab_git, tab_jj) in &tabs {
+        let tab = tab_git;
         let page = |c: &mut slath_tests::http::Client, (b, n): (&str, i64)| {
+            let tab = if b == "made-with-git" {
+                tab_git
+            } else {
+                tab_jj
+            };
             let r = c.get(&format!("/alice/demo/merge-requests/{n}{tab}"));
             assert_eq!(r.status, 200, "{b}{tab}");
             normalized(&r.body, b, n)

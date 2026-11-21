@@ -19,6 +19,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The ledger records for each approval of one change whether it carried or went stale, and the timeline names the changes whose approvals went stale.
 - A merge request's Commits and Changes tabs show how many commits and changed files the current revision has, as Conversation shows its comments.
 - A change's page lists its versions with author, age, size, comments, checks, and how each was matched, and compares any two versions picked there.
+- In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.
 
 ## [0.3.0] - 2026-11-18
 

@@ -385,3 +385,139 @@ fn conf_review_08_the_ledger_records_each_change_approval() {
         "no timeline note"
     );
 }
+
+/// The stack column of a change page: each `<li class="stack-item">`'s
+/// text with tags removed and spaces folded, bottom first.
+fn stack_column(html: &str) -> Vec<String> {
+    let tags = regex::Regex::new(r"<[^>]*>").unwrap();
+    let Some(start) = html.find("aria-labelledby=\"stack-heading\"") else {
+        return Vec::new();
+    };
+    let end = html[start..]
+        .find("</ol>")
+        .map_or(html.len(), |e| start + e);
+    html[start..end]
+        .split("<li class=\"stack-item\"")
+        .skip(1)
+        .map(|item| {
+            tags.replace_all(&format!("<{item}"), " ")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
+#[test]
+fn conf_jj_04_change_pages_show_the_stack_bottom_first() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let mut ui = w.s.login("alice", PASSWORD);
+    let page = |ui: &mut slath_tests::http::Client, id: &str| {
+        let r = ui.get(&format!("/alice/demo/merge-requests/{n}/changes/{id}"));
+        assert_eq!(r.status, 200, "{id}: {}", r.body);
+        r.body
+    };
+    // Two more changes make a stack of four; bob approves the second.
+    w.commit("c.txt", &lines("c", None), "Add c");
+    w.commit("d.txt", &lines("d", None), "Add d");
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let ids = w.changes(n);
+    assert_eq!(ids.len(), 4);
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[1]}));
+
+    let second = page(&mut ui, &ids[1]);
+    let rows = stack_column(&second);
+    assert_eq!(rows.len(), 4, "{second}");
+    for (i, (row, subject)) in rows
+        .iter()
+        .zip(["Add a", "Add b", "Add c", "Add d"])
+        .enumerate()
+    {
+        assert!(row.starts_with(&format!("{}. ", i + 1)), "{row}");
+        assert!(row.contains(subject), "{row}");
+        assert!(row.contains(&ids[i][..8]), "{row}");
+    }
+    // The shown change is marked and not a link; the others are links.
+    assert!(rows[1].contains("(shown)"), "{}", rows[1]);
+    let base = format!("/alice/demo/merge-requests/{n}/changes/");
+    assert!(second.contains(&format!("<a href=\"{base}{}\">Add a</a>", ids[0])));
+    assert!(!second.contains(&format!("<a href=\"{base}{}\">Add b</a>", ids[1])));
+    assert!(rows[1].contains("Approved by bob"), "{}", rows[1]);
+    assert!(!rows[0].contains("Approved"), "{}", rows[0]);
+    // The two changes added by revision 2 are new in it.
+    assert!(rows[2].contains("New in revision 2") && rows[3].contains("New in revision 2"));
+    assert!(!rows[0].contains("New in"), "{}", rows[0]);
+    // Buttons to the changes below and above.
+    assert!(second.contains(&format!("href=\"{base}{}\" data-key=\"k\"", ids[0])));
+    assert!(second.contains(&format!("href=\"{base}{}\" data-key=\"j\"", ids[2])));
+    // The bottom change has no previous change, the top one no next.
+    assert!(!page(&mut ui, &ids[0]).contains("data-key=\"k\""));
+    assert!(!page(&mut ui, &ids[3]).contains("data-key=\"j\""));
+
+    // Reordering c and d and inserting a change below them: the stack
+    // follows the new order, and the version steps appear for a change
+    // with two versions.
+    let p = w.w.path();
+    w.git.ok(p, &["reset", "-q", "--hard", "HEAD~2"]);
+    w.commit("e.txt", &lines("e", None), "Add e");
+    w.commit("d.txt", &lines("d", None), "Add d");
+    w.commit("c.txt", &lines("c", None), "Add c");
+    w.push("topic");
+    w.wait_revisions(n, 3);
+    let now = w.changes(n);
+    assert_eq!(now.len(), 5);
+    assert_eq!((&now[3], &now[4]), (&ids[3], &ids[2]));
+    let top = page(&mut ui, &ids[2]);
+    let rows = stack_column(&top);
+    let subjects: Vec<&str> = rows
+        .iter()
+        .map(|r| {
+            ["Add a", "Add b", "Add e", "Add d", "Add c"]
+                .into_iter()
+                .find(|s| r.contains(s))
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(subjects, ["Add a", "Add b", "Add e", "Add d", "Add c"]);
+    assert!(rows[2].contains("New in revision 3"), "{}", rows[2]);
+    assert!(top.contains("data-key=\"[\""), "{top}");
+    assert!(!top.contains("data-key=\"]\""), "{top}");
+}
+
+#[test]
+fn conf_jj_04_the_stack_column_needs_more_than_one_change() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let p = w.w.path();
+    w.git.ok(p, &["reset", "-q", "--hard", "HEAD~1"]);
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let ids = w.changes(n);
+    assert_eq!(ids.len(), 1);
+    // The removed change still has a page: the stack lists it apart.
+    let mut ui = w.s.login("alice", PASSWORD);
+    let r = ui.get(&format!(
+        "/alice/demo/merge-requests/{n}/changes/{}",
+        ids[0]
+    ));
+    assert_eq!(r.status, 200);
+    assert!(r.body.contains("Removed changes"), "{}", r.body);
+
+    // A merge request of one change from the start shows no stack.
+    w.git.ok(p, &["switch", "-q", "-c", "single", "main"]);
+    w.commit("s.txt", "s\n", "Add s");
+    w.push("single");
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "single", "title": "Add s"})),
+    );
+    let m = r.json()["number"].as_i64().unwrap();
+    w.wait_revisions(m, 1);
+    let id = w.changes(m)[0].clone();
+    let r = ui.get(&format!("/alice/demo/merge-requests/{m}/changes/{id}"));
+    assert_eq!(r.status, 200);
+    assert!(!r.body.contains("stack-heading"), "{}", r.body);
+    assert!(!r.body.contains("data-key="), "{}", r.body);
+}

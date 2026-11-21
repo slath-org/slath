@@ -16,7 +16,9 @@ use slath_db::mr_reviews::{self as db, Review};
 
 use crate::Services;
 use crate::error::Result;
-use crate::mr_reviews::{Coverage, History, Requirement, Standing, met, plural, standings, unmet};
+use crate::mr_reviews::{
+    ChangeVerdicts, Coverage, History, Requirement, Standing, met, plural, standings, unmet,
+};
 use crate::protections::Effective;
 use crate::repos::RepoAccess;
 
@@ -151,7 +153,94 @@ pub(crate) struct ReviewRequirements {
     pub coverage: Option<Coverage>,
 }
 
+/// Each standing among the people whose verdicts count, by name.
+fn judge(
+    all: &[Standing],
+    labels: &HashMap<uuid::Uuid, String>,
+    eligible: &HashMap<UserId, bool>,
+    names: &HashMap<UserId, String>,
+) -> Vec<Judged> {
+    let ok = |u: &UserId| eligible.get(u).copied().unwrap_or(false);
+    let name = |u: &UserId| names.get(u).cloned().unwrap_or_default();
+    all.iter()
+        .map(|s| Judged {
+            label: s.change.and_then(|k| labels.get(&k).cloned()),
+            approvers: s
+                .approvals
+                .iter()
+                .filter(|(u, _)| ok(u))
+                .map(|(u, _)| name(u))
+                .collect(),
+            blockers: s.blockers.iter().filter(|u| ok(u)).map(name).collect(),
+        })
+        .collect()
+}
+
 impl Services {
+    /// Whose verdicts count, per reviewer of `reviews`: not the author's or
+    /// the author's bots', and only people (and bots, if allowed) with
+    /// write access; with each reviewer's name.
+    async fn eligible_reviewers(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        eff: &Effective,
+        reviews: &[Review],
+    ) -> Result<(HashMap<UserId, bool>, HashMap<UserId, String>)> {
+        let mut eligible: HashMap<UserId, bool> = HashMap::new();
+        let mut names: HashMap<UserId, String> = HashMap::new();
+        for r in reviews {
+            let Some(u) = r.reviewer_id else { continue };
+            if let Some(n) = &r.reviewer {
+                names.insert(u, n.clone());
+            }
+            if eligible.contains_key(&u) {
+                continue;
+            }
+            let ok = m.author_id != Some(u)
+                && !(m.author_id.is_some()
+                    && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id)
+                && r.reviewer.is_some()
+                && self
+                    .verdict_counts(a, u, eff.bots_count_as_approvers)
+                    .await?;
+            eligible.insert(u, ok);
+        }
+        Ok((eligible, names))
+    }
+
+    /// The verdicts that count for each change of the current revision,
+    /// bottom first: the same as the review requirements count. Empty when
+    /// the revision is reviewed as a whole or a commit is unresolved.
+    pub async fn mr_change_verdicts(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+    ) -> Result<Vec<ChangeVerdicts>> {
+        let order = self.change_order(m).await?;
+        if order.is_empty() {
+            return Ok(Vec::new());
+        }
+        let eff = self.effective_for(m).await?;
+        let reviews = db::list(&self.pool, m.id).await?;
+        let h: History = self.history(m, m.revisions).await?;
+        let all = standings(&reviews, &h, &order);
+        let labels: HashMap<uuid::Uuid, String> = slath_db::mr_changes::changes(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .map(|c| (c.id, c.display_id))
+            .collect();
+        let (eligible, names) = self.eligible_reviewers(a, m, &eff, &reviews).await?;
+        Ok(judge(&all, &labels, &eligible, &names)
+            .into_iter()
+            .map(|j| ChangeVerdicts {
+                display_id: j.label.unwrap_or_default(),
+                approvers: j.approvers,
+                blockers: j.blockers,
+            })
+            .collect())
+    }
+
     /// The current revision's changes, bottom first; empty when it's
     /// reviewed as a whole or a commit is still unresolved (which blocks
     /// merging anyway, so its verdicts only matter as a whole).
@@ -191,42 +280,10 @@ impl Services {
             .into_iter()
             .map(|c| (c.id, c.display_id.chars().take(8).collect()))
             .collect();
-        // Whose verdicts count: not the author's or the author's bots', and
-        // only people (and bots, if allowed) with write access.
-        let mut eligible: HashMap<UserId, bool> = HashMap::new();
-        let mut names: HashMap<UserId, String> = HashMap::new();
-        for r in &reviews {
-            let Some(u) = r.reviewer_id else { continue };
-            if let Some(n) = &r.reviewer {
-                names.insert(u, n.clone());
-            }
-            if eligible.contains_key(&u) {
-                continue;
-            }
-            let ok = m.author_id != Some(u)
-                && !(m.author_id.is_some()
-                    && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id)
-                && r.reviewer.is_some()
-                && self
-                    .verdict_counts(a, u, eff.bots_count_as_approvers)
-                    .await?;
-            eligible.insert(u, ok);
-        }
+        let (eligible, names) = self.eligible_reviewers(a, m, eff, &reviews).await?;
         let ok = |u: &UserId| eligible.get(u).copied().unwrap_or(false);
         let name = |u: &UserId| names.get(u).cloned().unwrap_or_default();
-        let judged: Vec<Judged> = all
-            .iter()
-            .map(|s| Judged {
-                label: s.change.and_then(|k| labels.get(&k).cloned()),
-                approvers: s
-                    .approvals
-                    .iter()
-                    .filter(|(u, _)| ok(u))
-                    .map(|(u, _)| name(u))
-                    .collect(),
-                blockers: s.blockers.iter().filter(|u| ok(u)).map(name).collect(),
-            })
-            .collect();
+        let judged = judge(&all, &labels, &eligible, &names);
         // Each counting approval once, for coverage.
         let mut seen = HashSet::new();
         let approvals: Vec<(&Review, String)> = all

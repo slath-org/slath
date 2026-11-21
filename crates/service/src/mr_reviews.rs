@@ -60,6 +60,16 @@ pub struct ReviewView {
     pub stale: bool,
 }
 
+/// One change's verdicts that count, for the stack: who approves it and
+/// who requests changes, by name.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChangeVerdicts {
+    /// The change's full display ID.
+    pub display_id: String,
+    pub approvers: Vec<String>,
+    pub blockers: Vec<String>,
+}
+
 /// One requirement of the merge box.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {

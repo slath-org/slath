@@ -6,8 +6,19 @@
 {% let mr_tab = "commits" %}
 {% include "repo/mr_heading.html" %}
 {% include "repo/mr_nav.html" %}
+<div data-change-keys>
+<div class="{% if !stack.is_empty() %}detail{% else %}stack-groups{% endif %}">
+<div class="stack-groups">
 <section class="section" aria-labelledby="change-heading">
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
+{%- if prev_change.is_some() || next_change.is_some() || prev_version.is_some() || next_version.is_some() %}
+<nav class="cluster change-steps" aria-label="Changes and versions">
+  {%- if let Some(href) = prev_change %}<a class="button" href="{{ href }}" data-key="k">Previous change</a>{% endif %}
+  {%- if let Some(href) = next_change %}<a class="button" href="{{ href }}" data-key="j">Next change</a>{% endif %}
+  {%- if let Some(href) = prev_version %}<a class="button" href="{{ href }}" data-key="[">Previous version</a>{% endif %}
+  {%- if let Some(href) = next_version %}<a class="button" href="{{ href }}" data-key="]">Next version</a>{% endif %}
+</nav>
+{%- endif %}
 <ol class="item-list version-list" aria-label="Versions">
 {%- for r in rows %}
   <li class="item-row"{% if r.v.revision == shown.revision %} aria-current="true"{% endif %}>
@@ -84,5 +95,52 @@
 {%- if let Some(diff) = diff %}
 {% include "repo/diff_files.html" %}
 {%- endif %}
+</div>
+{%- if !stack.is_empty() %}
+<aside class="details-column" aria-label="Stack of this merge request">
+  <section class="details-section" aria-labelledby="stack-heading">
+    <h2 id="stack-heading" class="details-heading">Stack</h2>
+    <p class="text-secondary">Bottom first: each change builds on the one before.</p>
+    <ol class="plain-list stack-list">
+    {%- for r in stack %}
+      <li class="stack-item"{% if r.current %} aria-current="true"{% endif %}>
+        <span class="stack-position">{{ r.position }}.</span>
+        <div class="stack-main">
+          {%- if r.current %}
+          <strong>{% if r.subject.is_empty() %}{{ r.display_id }}{% else %}{{ r.subject }}{% endif %}</strong> <span class="visually-hidden">(shown)</span>
+          {%- else %}
+          <a href="{{ r.href }}">{% if r.subject.is_empty() %}Unresolved commit{% else %}{{ r.subject }}{% endif %}</a>
+          {%- endif %}
+          {%- if !r.display_id.is_empty() %}
+          <p class="text-secondary"><code>{{ r.display_id[..8] }}</code></p>
+          {%- endif %}
+          {%- for (tone, text) in r.flags %}
+          <p class="tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+          {%- endfor %}
+          {%- if let Some((tone, text)) = r.verdicts %}
+          <p class="tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+          {%- endif %}
+          {%- if let Some(ch) = r.checks %}
+          <p class="tone-{{ ch.tone }}">{% call m::tone_icon(ctx, ch.tone.to_string()) %}{% endcall %}<span>{{ ch.text }}</span></p>
+          {%- endif %}
+        </div>
+      </li>
+    {%- endfor %}
+    </ol>
+  </section>
+  {%- if !removed.is_empty() %}
+  <section class="details-section" aria-labelledby="stack-removed-heading">
+    <h2 id="stack-removed-heading" class="details-heading">Removed changes</h2>
+    <ul class="plain-list">
+    {%- for dd in removed %}
+      <li>{% if dd.as_str() == change.display_id.as_str() %}<strong><code>{{ dd[..8] }}</code></strong> <span class="visually-hidden">(shown)</span>{% else %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ dd }}"><code>{{ dd[..8] }}</code></a>{% endif %}</li>
+    {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+</aside>
+{%- endif %}
+</div>
+</div>
 </div>
 {% endblock %}

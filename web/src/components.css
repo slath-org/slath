@@ -1648,7 +1648,10 @@ h1 > bdi code,
 .change-form select {
   min-height: var(--control-height);
 }
-/* A change page: its versions and the version picker. */
+/* A change page: the steps between changes and versions, the version
+   picker, and the stack in the details column (bottom first, the shown
+   change marked as the side menu marks its page). */
+.change-steps,
 .version-picker {
   margin-block: var(--gap-items);
 }
@@ -1657,6 +1660,41 @@ h1 > bdi code,
 }
 .version-list > .item-row[aria-current="true"] {
   background: var(--selection);
+}
+.stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-inline);
+}
+.stack-item {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.stack-item[aria-current="true"] {
+  background: var(--selection);
+  box-shadow: inset calc(var(--space-1) - 1px) 0 0 var(--accent);
+}
+.stack-position {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.stack-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stack-main > p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.stack-main > p[class^="tone-"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 .markdown a.ref-closed {
   color: var(--text-secondary);

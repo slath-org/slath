@@ -2483,6 +2483,17 @@ struct ChangePage {
     change: ChangeInfo,
     /// The versions, oldest first, with what the list shows of each.
     rows: Vec<VersionRow>,
+    /// The current revision's changes, bottom first; empty for a stack
+    /// of one change, which needs no list.
+    stack: Vec<StackRow>,
+    /// Changes not in the current revision, for the stack.
+    removed: Vec<String>,
+    /// The changes below and above this one in the current revision.
+    prev_change: Option<String>,
+    next_change: Option<String>,
+    /// The versions before and after the shown one.
+    prev_version: Option<String>,
+    next_version: Option<String>,
     /// The change's history from the ledger, oldest first.
     history: Vec<(Time, String)>,
     /// The version shown (or compared to).
@@ -2511,6 +2522,22 @@ struct VersionRow {
     checks: Option<Checks>,
     /// How it was bound, from the ledger.
     matched: String,
+}
+
+/// One change in the stack column.
+struct StackRow {
+    position: usize,
+    display_id: String,
+    subject: String,
+    href: String,
+    /// The change shown on the page.
+    current: bool,
+    /// Its state in words with a tone, if not simply open: landed, new in
+    /// this revision, unresolved, or conflicted.
+    flags: Vec<(&'static str, String)>,
+    /// Its verdicts that count, in words, with a tone.
+    verdicts: Option<(&'static str, String)>,
+    checks: Option<Checks>,
 }
 
 struct VersionStat {
@@ -2684,6 +2711,24 @@ async fn change(
         .filter(|e| e.change_id.as_deref() == Some(change.display_id.as_str()))
         .collect();
     let rows = version_rows(&state, &subject, &a, &m, &change, &mine).await?;
+    let (stack, removed) = stack_rows(&state, &a, &m, &change.display_id).await?;
+    let at = stack.iter().position(|r| r.current);
+    let neighbour = |d: isize| {
+        at.and_then(|i| i.checked_add_signed(d))
+            .and_then(|i| stack.get(i))
+            .map(|r| r.href.clone())
+    };
+    let (prev_change, next_change) = (neighbour(-1), neighbour(1));
+    let vi = change
+        .versions
+        .iter()
+        .position(|v| v.revision == shown.revision)
+        .unwrap_or(0);
+    let version_at = |i: Option<usize>| {
+        i.and_then(|i| change.versions.get(i))
+            .map(|v| format!("{base}?rev={}", v.revision))
+    };
+    let (prev_version, next_version) = (version_at(vi.checked_sub(1)), version_at(Some(vi + 1)));
     let history = mine
         .iter()
         .map(|e| {
@@ -2705,6 +2750,12 @@ async fn change(
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
         rows,
+        stack,
+        removed,
+        prev_change,
+        next_change,
+        prev_version,
+        next_version,
         history,
         change,
         shown,
@@ -2721,6 +2772,88 @@ async fn change(
         Some(d) => Ok(super::diff::respond(hx, &page.ctx, d, &page)),
         None => Ok(render(&page)),
     }
+}
+
+/// The stack column of a change page: the current revision's changes,
+/// bottom first, with their state, verdicts, and checks, and the changes
+/// it no longer has. Empty for a revision of one change (or reviewed as a
+/// whole) without removed changes: there's nothing to move between.
+async fn stack_rows(
+    state: &AppState,
+    a: &RepoAccess,
+    m: &MergeRequest,
+    shown: &str,
+) -> Result<(Vec<StackRow>, Vec<String>), AppError> {
+    let stack = state.services.mr_stack(m).await?;
+    if stack.entries.len() + stack.removed.len() < 2 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let subjects: std::collections::HashMap<String, String> = state
+        .services
+        .mr_commits(m)
+        .await?
+        .into_iter()
+        .map(|c| {
+            (
+                c.oid.as_str().to_owned(),
+                slath_markup::reveal_bidi(&c.subject).into_owned(),
+            )
+        })
+        .collect();
+    let verdicts = state.services.mr_change_verdicts(a, m).await?;
+    let oids: Vec<String> = stack.entries.iter().map(|e| e.commit_oid.clone()).collect();
+    let statuses = state.services.statuses_of_commits(m, &oids).await?;
+    let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
+    let rows = stack
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let id = e.display_id.clone().unwrap_or_default();
+            let mut flags = Vec::new();
+            if e.change_state.as_deref() == Some("merged") {
+                flags.push(("done", "Landed".to_owned()));
+            } else if e.binding == "new" && e.earlier_versions == 0 && m.revisions > 1 {
+                flags.push(("waiting", format!("New in revision {}", m.revisions)));
+            }
+            if e.binding == "unresolved" {
+                flags.push(("blocking", "Unresolved".to_owned()));
+            }
+            if e.conflicted {
+                flags.push(("blocking", "Conflict".to_owned()));
+            }
+            let v = verdicts
+                .iter()
+                .find(|v| !id.is_empty() && v.display_id == id);
+            let verdicts = v.and_then(|v| {
+                if !v.blockers.is_empty() {
+                    Some((
+                        "blocking",
+                        format!("Changes requested by {}", v.blockers.join(", ")),
+                    ))
+                } else if !v.approvers.is_empty() {
+                    Some(("done", format!("Approved by {}", v.approvers.join(", "))))
+                } else {
+                    None
+                }
+            });
+            StackRow {
+                position: i + 1,
+                subject: subjects.get(&e.commit_oid).cloned().unwrap_or_default(),
+                href: if id.is_empty() {
+                    format!("{base}/commits")
+                } else {
+                    format!("{base}/changes/{id}")
+                },
+                current: !id.is_empty() && id == shown,
+                display_id: id,
+                flags,
+                verdicts,
+                checks: statuses.get(&e.commit_oid).and_then(|s| checks_summary(s)),
+            }
+        })
+        .collect();
+    Ok((rows, stack.removed))
 }
 
 /// The rows of a change's list of versions: author, age, and patch size
