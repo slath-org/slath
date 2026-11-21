@@ -549,9 +549,11 @@ fn main() {
     seed_performance(&server, &git, w, &url);
     seed_merge_requests(&server, &git, w, &url);
     seed_diffs(&git, w, &url);
-    // After the others, so their merge request numbers stay.
-    seed_outcomes(&server, &git, w, &url);
+    // After the others, so their merge request numbers stay; the jj-made
+    // one before the Git pushes of outcomes, as the viewer's tool follows
+    // their latest push.
     seed_jj_conflict(&server, &git, &url);
+    seed_outcomes(&server, &git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");
