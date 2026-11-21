@@ -34,7 +34,7 @@
   <li class="item-row">
     <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state_text }}</span></span>
     <div class="item-main">
-      <a class="item-title" href="{{ base }}/merge-requests/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>{% if let Some(ck) = i.checks %} <span class="item-checks tone-{{ ck.tone }}" data-tip="{{ ck.text }}">{% call m::tone_icon(ctx, ck.tone) %}{% endcall %}<span class="visually-hidden">{{ ck.text }}</span></span>{% endif %}
+      <a class="item-title" href="{{ base }}/merge-requests/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>{% if let Some((tone, headline)) = i.readiness %} <span class="item-checks tone-{{ tone }}" data-tip="{{ headline }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span class="visually-hidden">{{ headline }}</span></span>{% endif %}
       {%- if i.state == "draft" %} <span class="badge">Draft</span>{% else if i.state == "iterating" %} <span class="badge">Iterating</span>{% endif %}
       {%- if !i.labels.is_empty() %}
       <span class="item-labels">

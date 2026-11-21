@@ -123,8 +123,10 @@ struct MrRow {
     comments: i64,
     source: String,
     target: String,
-    /// The head's checks; `None` without statuses or when not open.
-    checks: Option<Checks>,
+    /// Its readiness as the merge request's readiness card has it: the
+    /// tone (`done`, `waiting`, `blocking`) and the headline; `None` when
+    /// not open.
+    readiness: Option<(&'static str, String)>,
     /// Who is asked to review it, or reviewed it.
     reviewers: Vec<String>,
 }
@@ -229,17 +231,28 @@ async fn list(
         .await?;
     let more = items.len() as i64 > PER_PAGE;
     let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
+    let items: Vec<MergeRequest> = items.into_iter().take(PER_PAGE as usize).collect();
+    // Each open one's readiness, as its card shows it; worked out at once,
+    // as each takes a few Git and database reads.
+    let readiness = futures_util::future::try_join_all(items.iter().map(|m| {
+        let (state, a) = (&state, &a);
+        async move {
+            if m.state != "open" {
+                return Ok::<_, ServiceError>(None);
+            }
+            let mb = state.services.mr_mergeability(a, m).await?;
+            let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
+            let c = card(m, mb, &Viewer::default(), None, &base);
+            Ok(Some((c.tone, c.headline)))
+        }
+    }))
+    .await?;
     let mut rows = Vec::new();
-    for m in items.into_iter().take(PER_PAGE as usize) {
+    for (m, readiness) in items.into_iter().zip(readiness) {
         let (_, reviewers, labels, _) = state.services.mr_details(&m).await?;
         let (icon, s, text) = state_view(&m);
-        let checks = if m.state == "open" {
-            checks_summary(&state.services.mr_statuses(&m).await?)
-        } else {
-            None
-        };
         rows.push(MrRow {
-            checks,
+            readiness,
             labels,
             reviewers: reviewers.into_iter().map(|(n, _)| n).collect(),
             number: m.number,
@@ -1317,6 +1330,9 @@ const UNVIEWED_SHOWN: usize = 5;
 const UNVIEWED_MAX: usize = 500;
 
 /// Who the viewer is to this merge request, for choosing the next step.
+/// The default is nobody in particular: the tone and headline don't
+/// depend on it, only the action does.
+#[derive(Default)]
 struct Viewer {
     author: bool,
     edit: bool,

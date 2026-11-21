@@ -325,6 +325,10 @@ marked done (✓), waiting (clock, for normal waiting such as missing
 approvals or running checks), or blocking (✗, something must change).
 Open a line to see why and what fixes it. The same card sits again above
 the merge and review forms at the bottom, so you don't have to scroll up.
+The merge request list shows each open merge request's card as one icon
+next to its title: ✓ ready to merge, clock for waiting, ✗ where someone
+must act (conflicts, failing checks, requested changes). Point at it, or
+use a screen reader, for the headline.
 The API returns the requirements at `GET …/merge-requests/{n}/mergeability`.
 
 When you approve, Slath notes how many files of the revision's diff you

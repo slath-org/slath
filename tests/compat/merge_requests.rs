@@ -213,7 +213,7 @@ fn conf_review_01_only_people_who_can_push_open_merge_requests() {
 
 /// Lists show code in titles and each open merge request's checks.
 #[test]
-fn titles_show_code_and_lists_show_checks() {
+fn titles_show_code_and_lists_show_readiness() {
     let s = TestServer::start();
     let mut alice = s.login("alice", PASSWORD);
     let token = slath_tests::http::create_token(
@@ -258,31 +258,37 @@ fn titles_show_code_and_lists_show_checks() {
         list.contains("Upgrade <code>vite</code> to &lt;v8&gt;"),
         "{list}"
     );
+    // Each open merge request shows its readiness card's tone and
+    // headline: nothing is required yet.
     assert!(
-        !list.contains("item-checks"),
-        "no statuses, no checks: {list}"
+        list.contains(r#"<span class="item-checks tone-done" data-tip="Ready to merge">"#),
+        "{list}"
     );
-    for (context, state) in [("build", "success"), ("lint", "pending")] {
-        let r = api(
-            "POST",
-            &format!("/statuses/{head}"),
-            Some(serde_json::json!({"context": context, "state": state})),
-        );
-        assert_eq!(r.status, 201, "{}", r.body);
-    }
+    // A required check that fails needs action.
+    let r = api(
+        "POST",
+        "/protections",
+        Some(
+            serde_json::json!({"pattern": "main", "required_approvals": 0, "required_status_contexts": ["lint"], "statuses_on_head_ok": true}),
+        ),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
     let list = alice.get("/alice/demo/merge-requests").body;
-    assert!(list.contains("1 of 2 checks running"), "{list}");
+    assert!(
+        list.contains(r#"tone-waiting" data-tip="Checks running">"#),
+        "{list}"
+    );
     let r = api(
         "POST",
         &format!("/statuses/{head}"),
         Some(serde_json::json!({"context": "lint", "state": "failure"})),
     );
     assert_eq!(r.status, 201, "{}", r.body);
+    let list = alice.get("/alice/demo/merge-requests").body;
     assert!(
-        alice
-            .get("/alice/demo/merge-requests")
-            .body
-            .contains("1 of 2 checks failed")
+        list.contains(r#"tone-blocking" data-tip="Checks failing">"#)
+            && list.contains("Blocking: </span><span class=\"visually-hidden\">Checks failing"),
+        "{list}"
     );
     // Headings and the issue list too; the page title stays text.
     let page = alice.get(&format!("/alice/demo/merge-requests/{n}")).body;
