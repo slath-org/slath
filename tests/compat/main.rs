@@ -31,6 +31,7 @@ mod merge_requests;
 mod mergeability;
 mod oidc_providers;
 mod partial_landing;
+mod readiness;
 mod reserved_refs;
 mod reviews;
 mod suggestions;

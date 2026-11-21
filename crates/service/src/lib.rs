@@ -55,6 +55,7 @@ pub mod passkeys;
 pub mod protections;
 pub mod push;
 pub mod push_protection;
+pub mod readiness;
 pub mod reconcile;
 pub mod recovery;
 pub mod references;

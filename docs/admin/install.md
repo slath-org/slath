@@ -269,6 +269,9 @@ way:
 - [Backup and restore](backup.md)
 - [Upgrading](upgrading.md)
 - `slath fsck` checks repositories against the database; `--reconcile`
-  repairs refs changed outside Slath.
+  repairs refs changed outside Slath. It also compares the readiness that
+  merge request lists show (stored, and computed again after each change)
+  with a fresh computation; `--reconcile` rebuilds any that differ. Lists
+  never decide a merge, so a stale one only shows a wrong icon.
 - Metrics are served on `server.metrics_listen` (Prometheus format); keep
   that address private.

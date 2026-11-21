@@ -820,6 +820,20 @@ pub async fn open_by_target(
     Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
 }
 
+/// The open merge requests into a repository.
+pub async fn open_ids(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        "SELECT id FROM merge_requests WHERE repo_id = $1 AND state = 'open'",
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}
+
 /// Records (or, with `None`, clears) what push protection found in a fork
 /// MR's source head.
 pub async fn set_source_findings(

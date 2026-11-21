@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_readiness (mr_id)\n         SELECT m.id FROM merge_requests m WHERE m.id = ANY($1)\n         ON CONFLICT (mr_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b7624a1bab2e1d17db0f0fc81285d5c7b43ca05519ec5b478c770cec93dfb47"
+}

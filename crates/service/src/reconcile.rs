@@ -33,6 +33,9 @@ pub struct RepoCheck {
     pub unpinned_revisions: usize,
     /// Merge request revisions whose head commit is gone from Git.
     pub missing_revisions: Vec<(MergeRequestId, i32)>,
+    /// Open merge requests whose readiness snapshot for lists differs from
+    /// a live computation (stored anew with `--reconcile`).
+    pub readiness_differences: usize,
     /// Differences were recorded (with `--reconcile`).
     pub repaired: bool,
 }
@@ -45,6 +48,7 @@ impl RepoCheck {
             && !self.orphan
             && self.unpinned_revisions == 0
             && self.missing_revisions.is_empty()
+            && self.readiness_differences == 0
     }
 }
 
@@ -123,6 +127,10 @@ impl Services {
             check.repaired = true;
         }
         self.check_revision_pins(id, repair, &mut check).await?;
+        check.readiness_differences = self.check_readiness(id, repair).await?;
+        if repair && check.readiness_differences > 0 {
+            check.repaired = true;
+        }
         Ok(check)
     }
 

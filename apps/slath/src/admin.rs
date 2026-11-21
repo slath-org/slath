@@ -357,6 +357,13 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
                         c.name, c.unpinned_revisions
                     );
                 }
+                if c.readiness_differences > 0 {
+                    let verb = if c.repaired { "rebuilt " } else { "stale   " };
+                    println!(
+                        "{verb} {} ({} readiness snapshots of merge requests)",
+                        c.name, c.readiness_differences
+                    );
+                }
                 for (mr, seq) in &c.missing_revisions {
                     println!(
                         "lost     {} (merge request {mr}, revision {seq}: commits are gone)",
@@ -379,6 +386,7 @@ pub fn fsck(path: &Path, repo: Option<String>, reconcile: bool, format: OutputFo
                 "missing_on_disk": c.missing_on_disk,
                 "repaired": c.repaired,
                 "unpinned_revisions": c.unpinned_revisions,
+                "readiness_differences": c.readiness_differences,
                 "missing_revisions": c.missing_revisions.iter().map(|(mr, seq)| json!({
                     "merge_request": mr.to_string(),
                     "revision": seq,
