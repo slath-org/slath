@@ -49,6 +49,9 @@
       {%- if let Some(ch) = r.checks %}
       <p class="commit-checks tone-{{ ch.tone }}">{% call m::tone_icon(ctx, ch.tone.to_string()) %}{% endcall %}<span>{{ ch.text }}</span></p>
       {%- endif %}
+      {%- if r.v.conflicted %}
+      <p class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Conflict recorded by jj</span></p>
+      {%- endif %}
       <p class="change-note text-secondary">{{ r.matched }}.</p>
       {%- if r.v.revision != shown.revision %}
       <p><a href="{{ self.compare_href(r.v) }}">Compare with version {{ shown.number }}</a></p>
@@ -94,6 +97,32 @@
 {%- endif %}
 {%- else %}
 <p class="text-secondary">Version {{ shown.number }}, in revision {{ shown.revision }}: the commit's own changes.</p>
+{%- endif %}
+{%- if let Some(cf) = conflict %}
+<section class="frame" id="conflict" aria-labelledby="conflict-title">
+  <h3 id="conflict-title" class="frame-title">Conflict recorded by jj</h3>
+  <p>Version {{ shown.number }}'s commit holds a conflict that jj hasn't resolved{% if cf.current %}, so this merge request can't merge until a push resolves it{% endif %}. Its diff shows the commit's tree as Git stores it: the <code>.jjconflict-base-*</code> and <code>.jjconflict-side-*</code> folders hold the conflict's base and sides, <code>JJ-CONFLICT-README</code> explains them, and the conflicted files show only one side.</p>
+  {%- if let Some((short, href)) = cf.below %}
+  <p>Change <a href="{{ href }}"><code>{{ short }}</code></a> below has a conflict too, and jj carries a conflict over to the changes above it: resolving that one first may resolve this one.</p>
+  {%- endif %}
+  {%- if let Some((git, jj)) = cf.commands %}
+  <div class="choice">
+    <fieldset class="choice-options">
+      <legend>Commands for</legend>
+      <div class="radio"><input id="conflict-tool-git" type="radio" name="conflict-tool" value="git"{% if h.tool.git || !h.tool.known() %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="conflict-tool-git">Git</label></div>
+      <div class="radio"><input id="conflict-tool-jj" type="radio" name="conflict-tool" value="jj"{% if h.tool.jj %} checked{% endif %}{% if !h.tool.known() %} data-remember="tool"{% endif %}><label for="conflict-tool-jj">jj</label></div>
+    </fieldset>
+    <div class="choice-panel">
+      <div class="code-wrap" tabindex="0" role="region" aria-label="Git commands to resolve the conflict"><pre><code id="conflict-git">{{ git }}</code></pre></div>
+      <div class="cluster"><button type="button" class="button" data-copy="conflict-git" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy Git commands</button></div>
+    </div>
+    <div class="choice-panel">
+      <div class="code-wrap" tabindex="0" role="region" aria-label="jj commands to resolve the conflict"><pre><code id="conflict-jj">{{ jj }}</code></pre></div>
+      <div class="cluster"><button type="button" class="button" data-copy="conflict-jj" hidden>{% call m::icon(ctx, "copy") %}{% endcall %}Copy jj commands</button></div>
+    </div>
+  </div>
+  {%- endif %}
+</section>
 {%- endif %}
 {%- if too_big %}
 {%- call msg::notice() %}<p>This diff is too large to show.</p>{% endcall %}

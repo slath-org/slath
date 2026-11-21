@@ -437,6 +437,42 @@ fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// "jj conflict fixture": a merge request of three changes made by jj,
+/// the second with a conflict that the third inherits. jj refuses to push
+/// conflicts, so Git pushes them from jj's store.
+fn seed_jj_conflict(server: &TestServer, git: &GitClient, url: &str) {
+    let jj = Jj::new();
+    let j = jj.home.path().join("conflict");
+    jj.ok(jj.home.path(), &["git", "clone", url, j.to_str().unwrap()]);
+    jj.ok(&j, &["new", "main@origin", "-m", "Add kappa"]);
+    std::fs::write(j.join("conflict-kappa.md"), "kappa\n").unwrap();
+    jj.ok(&j, &["new", "-m", "Conflict base"]);
+    std::fs::write(j.join("conflict-shared.md"), "one\n").unwrap();
+    jj.ok(&j, &["new", "-m", "Change shared"]);
+    std::fs::write(j.join("conflict-shared.md"), "two\n").unwrap();
+    jj.ok(&j, &["new", "-m", "Add top"]);
+    std::fs::write(j.join("conflict-top.md"), "top\n").unwrap();
+    // Abandoning the base leaves the edit of a file that isn't there.
+    jj.ok(&j, &["abandon", "description(substring:\"Conflict base\")"]);
+    jj.ok(&j, &["bookmark", "create", "jj-conflict", "-r", "@"]);
+    let store = if j.join(".git").is_dir() {
+        j.join(".git")
+    } else {
+        j.join(".jj/repo/store/git")
+    };
+    git.ok(&store, &["push", "-q", url, "jj-conflict"]);
+    let mut alice = server.login("alice", PASSWORD);
+    let token =
+        slath_tests::http::create_token(&mut alice, "conflict", &["repo:write", "mrs:write"]);
+    let r = server.client().api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&token),
+        Some(&serde_json::json!({"source_branch": "jj-conflict", "title": "jj conflict fixture"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+}
+
 /// "Performance fixture": a merge request with 50 changed files and 200
 /// comments, for the conversation tab's time budget.
 fn seed_performance(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
@@ -515,6 +551,7 @@ fn main() {
     seed_diffs(&git, w, &url);
     // After the others, so their merge request numbers stay.
     seed_outcomes(&server, &git, w, &url);
+    seed_jj_conflict(&server, &git, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");

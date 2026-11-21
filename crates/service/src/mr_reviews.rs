@@ -968,7 +968,7 @@ impl Services {
                     "{} with a conflict recorded by jj.",
                     plural(conflicted, "commit", "commits")
                 ),
-                "Resolve the conflict and push again",
+                "Resolve it and push again; the page of each change marked Conflict on the Changes tab shows how",
             )
         } else {
             met("identity", "Every commit belongs to one change.")

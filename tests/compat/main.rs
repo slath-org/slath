@@ -22,6 +22,7 @@ mod import;
 mod inventory;
 mod iteration;
 mod jj;
+mod jj_conflicts;
 mod jj_prediction;
 mod landed;
 mod ledger;

@@ -2593,6 +2593,21 @@ struct ChangePage {
     /// The same comparison the other way (patches or tree).
     other_href: Option<String>,
     base: String,
+    /// The shown version holds a conflict jj recorded.
+    conflict: Option<ConflictView>,
+}
+
+/// What a change page says about a conflict jj recorded in the shown
+/// version.
+struct ConflictView {
+    /// The version is in the current revision, so it blocks merging.
+    current: bool,
+    /// The lowest change of the stack with a conflict, when that's another
+    /// change below this one: its short display ID and page.
+    below: Option<(String, String)>,
+    /// Commands (Git, jj) resolving the lowest conflict, while the merge
+    /// request is open.
+    commands: Option<(String, String)>,
 }
 
 /// One version in a change's list of versions.
@@ -2795,6 +2810,11 @@ async fn change(
         .collect();
     let rows = version_rows(&state, &subject, &a, &m, &change, &mine).await?;
     let (stack, removed) = stack_rows(&state, &a, &m, &change.display_id).await?;
+    let conflict = if shown.conflicted {
+        Some(conflict_view(&state, &m, &base, &change.display_id, &shown).await?)
+    } else {
+        None
+    };
     let removed_in = removed
         .iter()
         .find(|r| r.display_id == change.display_id)
@@ -2856,12 +2876,71 @@ async fn change(
         too_big,
         other_href,
         base,
+        conflict,
         ctx,
     };
     match &page.diff {
         Some(d) => Ok(super::diff::respond(hx, &page.ctx, d, &page)),
         None => Ok(render(&page)),
     }
+}
+
+/// What the page of `shown` (a version of the change `id` with a conflict)
+/// says about it: whether it blocks merging, the lowest change with a
+/// conflict below it (jj's conflicts carry over to the changes above, so
+/// resolving that one often resolves this one too), and the commands that
+/// resolve the lowest.
+async fn conflict_view(
+    state: &AppState,
+    m: &MergeRequest,
+    base: &str,
+    id: &str,
+    shown: &VersionInfo,
+) -> Result<ConflictView, AppError> {
+    let current = m.revisions == shown.revision;
+    if !current {
+        return Ok(ConflictView {
+            current,
+            below: None,
+            commands: None,
+        });
+    }
+    let stack = state.services.mr_stack(m).await?;
+    let lowest = stack
+        .entries
+        .iter()
+        .filter(|e| e.conflicted)
+        .min_by_key(|e| e.position);
+    let below = lowest
+        .and_then(|e| e.display_id.as_deref())
+        .filter(|d| *d != id)
+        .map(|d| {
+            let page = match base.rsplit_once('/') {
+                Some((changes, _)) => format!("{changes}/{d}"),
+                None => d.to_owned(),
+            };
+            (d.chars().take(8).collect(), page)
+        });
+    let commands = (m.state == "open").then(|| {
+        let (change, commit) = match lowest {
+            Some(e) => (
+                e.display_id.clone().unwrap_or_default(),
+                e.commit_oid.clone(),
+            ),
+            None => (id.to_owned(), shown.commit_oid.clone()),
+        };
+        slath_service::merge::jj_conflict_commands(
+            &sh(&m.source_branch()),
+            &sh(&m.target_branch),
+            &change,
+            &commit.chars().take(12).collect::<String>(),
+        )
+    });
+    Ok(ConflictView {
+        current,
+        below,
+        commands,
+    })
 }
 
 /// The stack column of a change page: the current revision's changes,

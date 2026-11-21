@@ -57,6 +57,28 @@ pub fn conflict_commands(source: &str, target: &str) -> (String, String) {
     )
 }
 
+/// Copy-paste commands (Git, jj) that resolve a conflict jj recorded in
+/// the change `change` (its commit `commit`) of a stack on `source` based
+/// on `target`. jj resolves it in place and rebases the changes above; Git
+/// stops an interactive rebase at the commit, whose `.jjconflict-*` folders
+/// hold the conflict's base and sides. Tracking the bookmark makes the
+/// fetched changes editable in jj (a no-op for the pusher's own).
+pub fn jj_conflict_commands(
+    source: &str,
+    target: &str,
+    change: &str,
+    commit: &str,
+) -> (String, String) {
+    (
+        format!(
+            "git fetch origin\ngit switch {source}\ngit rebase -i origin/{target}\n# mark commit {commit} as \"edit\"; where the rebase stops, write each\n# conflicted file from the .jjconflict-side-* folders, then:\ngit rm -r --quiet -- '.jjconflict-*' JJ-CONFLICT-README\ngit add <files> && git commit --amend --no-edit && git rebase --continue\ngit push --force-with-lease origin {source}"
+        ),
+        format!(
+            "jj git fetch\njj bookmark track {source}@origin\njj new {change}\n# resolve the conflicts (jj resolve), then:\njj squash\njj git push --bookmark {source}"
+        ),
+    )
+}
+
 impl Services {
     /// `Name <username@users.noreply.host> <time> +0000` for commits the
     /// server writes on someone's behalf.

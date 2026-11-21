@@ -740,6 +740,23 @@ impl Services {
             };
             out.push(line.trim_end().to_owned());
         }
+        // jj carries a conflict to the changes above it: name the lowest.
+        let conflicted: Vec<&&db::Version> = here.iter().filter(|v| v.conflicted).collect();
+        if let Some(low) = conflicted.iter().min_by_key(|v| v.position) {
+            let n = conflicted.len();
+            let what = if n == 1 {
+                "1 change has a conflict recorded by jj".to_owned()
+            } else {
+                format!("{n} changes have a conflict recorded by jj")
+            };
+            out.push(match low.change_id.and_then(|k| display.get(&k)) {
+                Some(d) => format!(
+                    "slath:   {what}; resolve {} first: {url}/changes/{d}",
+                    d.get(..8).unwrap_or(d)
+                ),
+                None => format!("slath:   {what}: {url}/changes"),
+            });
+        }
         let current: HashSet<uuid::Uuid> = here.iter().filter_map(|v| v.change_id).collect();
         // Changes that landed by a push of the target say so instead.
         let mut removed: Vec<(&String, &str)> = before
@@ -966,6 +983,8 @@ pub struct VersionInfo {
     /// `new`, `confirmed`, `inferred`, or `unresolved`.
     pub binding: String,
     pub reason: Option<String>,
+    /// jj recorded a conflict in its commit.
+    pub conflicted: bool,
 }
 
 /// A change with all its versions, oldest first.
@@ -1027,6 +1046,7 @@ impl Services {
                     parent_oid: v.parent_oid.clone(),
                     binding: v.state.clone(),
                     reason: v.reason.clone(),
+                    conflicted: v.conflicted,
                 })
                 .collect(),
         })

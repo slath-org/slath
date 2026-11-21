@@ -5,7 +5,8 @@
 // keyboard alone (j and k between changes, [ and ] between versions, only
 // while focus is in the change view) and with taps or clicks on the same
 // buttons, in every browser cell. The e2e server seeds `stack/<project>`,
-// and "Outcomes fixture" for what each revision did to its changes.
+// "Outcomes fixture" for what each revision did to its changes, and "jj
+// conflict fixture" for conflicts recorded by jj.
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
@@ -116,5 +117,33 @@ test("conf_jj_06_outcomes_on_the_changes_tab_and_change_pages", async ({ page })
   // The returned change says so in the stack.
   await tapOrClick(page, stack(page).getByRole("link", { name: "Add beta" }));
   await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Returned in revision 3");
+  await expectAccessible(page);
+});
+
+// "jj conflict fixture": jj made three changes, the second with a conflict
+// that the third inherits.
+test("conf_jj_07_conflicts_recorded_by_jj_on_change_pages", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "jj conflict fixture" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("jj conflict fixture");
+  await expect(page.getByText("2 commits with a conflict recorded by jj.").first()).toBeVisible();
+  const url = new URL(page.url()).pathname;
+  await page.goto(`${url}/changes`);
+  await tapOrClick(page, page.getByRole("link", { name: "Add top" }));
+  const conflict = page.getByRole("region", { name: "Conflict recorded by jj" });
+  await expect(conflict).toContainText("can't merge until a push resolves it");
+  await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Conflict");
+  await expectAccessible(page);
+  // The change above points at the lowest conflict, whose page shows how
+  // to resolve it with either tool.
+  await tapOrClick(page, conflict.getByRole("link"));
+  await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Change shared");
+  await expect(conflict).not.toContainText("below has a conflict too");
+  await tapOrClick(page, conflict.getByLabel("jj", { exact: true }));
+  await expect(conflict.locator("#conflict-jj")).toContainText("jj bookmark track jj-conflict@origin");
+  await expect(conflict.locator("#conflict-git")).toBeHidden();
+  await tapOrClick(page, conflict.getByLabel("Git", { exact: true }));
+  await expect(conflict.locator("#conflict-git")).toContainText("git rebase -i origin/main");
   await expectAccessible(page);
 });

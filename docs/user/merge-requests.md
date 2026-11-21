@@ -245,6 +245,25 @@ same comparison as plain text at
 `GET …/merge-requests/{n}/interdiff?from=<revision>&to=<revision>` (`to`
 defaults to the current revision).
 
+### Conflicts recorded by jj
+
+jj can record a conflict in a commit and resolve it later. `jj git push`
+refuses to push such commits, but a Git push from the same repository
+sends them, and plain Git sees only a strange tree. Slath recognizes them
+(by jj's `jj:trees` header or the `.jjconflict-*` folders in the tree),
+marks them **Conflict** on the Changes tab and in the stack, and won't
+merge until a push resolves them. The push that sends them says so and
+links the lowest change with a conflict.
+
+The change's page explains it above the diff, which shows the tree as Git
+stores it: the `.jjconflict-base-*` and `.jjconflict-side-*` folders hold
+the conflict's base and sides, and `JJ-CONFLICT-README` describes them.
+jj carries a conflict over to the changes above it, so the page of a
+higher change links the lowest change with a conflict: resolve that one
+first. Its page has the commands for jj (`jj new` on the change, resolve,
+`jj squash`, push) and for Git (an interactive rebase that stops at the
+commit).
+
 On the same page you can also **split** a commit off into a new change,
 when it was matched wrongly, or attach a new change to one that was
 removed. Both are recorded in the timeline and the audit log, and can be
