@@ -181,15 +181,26 @@ remote: slath: merge request !12 for my-topic, revision 3: https://slath.example
 remote: slath:   kxyzabcd unchanged          Add the parser
 remote: slath:   lmnopqrs updated (version 3) Handle empty input
 remote: slath:   nopqrstu new                Add a flag
+remote: slath:   qrstuvwx returned (version 2) Add tests
 remote: slath:   zyxwvuts removed
 ```
+
+**Unchanged** means the patch is identical to the previous revision's.
+**Removed** changes aren't in the stack anymore: abandoned, squashed into
+another change, or rewritten without an ID. A removed change **returns**
+when a later push brings it back (by its ID, for example after
+`jj op restore`, or by pushing the same commit again); it's still the same
+change, with its history. Squashing two changes never merges them: the one
+you squash into is updated, the other is removed. When you split a change,
+the part that keeps its ID continues it and the other part is new.
 
 If recording the revision takes longer than a few seconds, the push only
 prints the link, and the merge request updates a moment later.
 
 If two equally similar changes could fit, the commit becomes a new change
 and the Changes tab says which ones it may continue. The timeline sums up
-each push, for example "rebased onto main, 2 changes modified, 1 added".
+each push, for example "rebased onto main, 2 changes modified, 1 added,
+1 returned".
 
 **Unresolved commits** block merging: a commit whose header and trailer
 name different changes, or two commits with the same ID. The author, or

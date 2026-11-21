@@ -12434,6 +12434,7 @@
         "required": [
           "entries",
           "removed",
+          "removed_changes",
           "merge_blocked"
         ],
         "properties": {
@@ -12453,7 +12454,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Changes without a version in the current revision."
+            "description": "IDs of the changes without a version in the current revision\n(abandoned, squashed, or rewritten without an ID), except those\nthat landed."
+          },
+          "removed_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemovedChange"
+            },
+            "description": "The same changes with the revision that removed each."
           },
           "revision": {
             "type": [
@@ -13442,6 +13450,24 @@
           }
         }
       },
+      "RemovedChange": {
+        "type": "object",
+        "description": "A change without a version in the current revision.",
+        "required": [
+          "change_id",
+          "removed_in"
+        ],
+        "properties": {
+          "change_id": {
+            "type": "string"
+          },
+          "removed_in": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The first revision without it."
+          }
+        }
+      },
       "ReplyBody": {
         "type": "object",
         "properties": {
@@ -13801,7 +13827,8 @@
           "candidates",
           "conflicted",
           "earlier_versions",
-          "also_in"
+          "also_in",
+          "outcome"
         ],
         "properties": {
           "also_in": {
@@ -13849,6 +13876,10 @@
             "description": "Versions of its change in earlier revisions.",
             "minimum": 0
           },
+          "outcome": {
+            "type": "string",
+            "description": "What this revision did to its change, compared with the previous\nrevision that had changes: `new`, `unchanged` (identical patch),\n`updated`, `returned` (back after a revision without it), or\n`unresolved`."
+          },
           "position": {
             "type": "integer",
             "format": "int32",
@@ -13860,6 +13891,14 @@
               "null"
             ],
             "description": "`alias`, `patch`, `content`, `aliases-conflict`, `duplicate-id`,\n`split`, `join`, or `resolved`."
+          },
+          "removed_in": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "For `returned`: the revision that removed it."
           }
         }
       },

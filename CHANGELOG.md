@@ -23,6 +23,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The readiness card lists a sixth file not viewed by an approver instead of hiding it behind "and 1 more".
 - A merge request's tabs are now Conversation, Changes (the stack, each title leading to its change's page), and Files (the diff); links to the old Commits and Changes pages still work.
 - On a change's page, j and k move to the next and previous change, and ] and [ between versions, while focus is on the page.
+- A change that comes back after a push without it is reported as "returned" in push output and the timeline, not as new; it keeps its history.
+- The stack API gives each change's outcome in the current revision (new, unchanged, updated, returned, unresolved) and the revision that removed each removed change.
 
 ## [0.3.0] - 2026-11-18
 

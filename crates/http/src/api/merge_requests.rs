@@ -12,7 +12,7 @@ use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
 use slath_service::labels::FilterInput;
 use slath_service::merge_requests::{MrTimelineItem, NewMr};
-use slath_service::mr_changes::Rebind;
+use slath_service::mr_changes::{Outcome, Rebind};
 use utoipa::{IntoParams, ToSchema};
 
 use super::support::{PageParams, page};
@@ -537,6 +537,21 @@ pub struct StackEntry {
     /// Its change's state: `active`, or `merged` once it reached the
     /// target by a push; null while unresolved.
     pub change_state: Option<String>,
+    /// What this revision did to its change, compared with the previous
+    /// revision that had changes: `new`, `unchanged` (identical patch),
+    /// `updated`, `returned` (back after a revision without it), or
+    /// `unresolved`.
+    pub outcome: String,
+    /// For `returned`: the revision that removed it.
+    pub removed_in: Option<i32>,
+}
+
+/// A change without a version in the current revision.
+#[derive(Serialize, ToSchema)]
+pub struct RemovedChange {
+    pub change_id: String,
+    /// The first revision without it.
+    pub removed_in: i32,
 }
 
 /// The changes of a merge request's current revision.
@@ -546,8 +561,12 @@ pub struct MrStack {
     pub revision: Option<i32>,
     /// Empty when the revision can only be reviewed as a whole.
     pub entries: Vec<StackEntry>,
-    /// Changes without a version in the current revision.
+    /// IDs of the changes without a version in the current revision
+    /// (abandoned, squashed, or rewritten without an ID), except those
+    /// that landed.
     pub removed: Vec<String>,
+    /// The same changes with the revision that removed each.
+    pub removed_changes: Vec<RemovedChange>,
     /// An unresolved or conflicted commit blocks merging.
     pub merge_blocked: bool,
 }
@@ -566,7 +585,15 @@ pub async fn get_stack(
     Ok(Json(MrStack {
         revision: st.revision,
         merge_blocked: st.blocks_merge(),
-        removed: st.removed,
+        removed: st.removed.iter().map(|r| r.display_id.clone()).collect(),
+        removed_changes: st
+            .removed
+            .into_iter()
+            .map(|r| RemovedChange {
+                change_id: r.display_id,
+                removed_in: r.removed_in,
+            })
+            .collect(),
         entries: st
             .entries
             .into_iter()
@@ -581,6 +608,11 @@ pub async fn get_stack(
                 earlier_versions: e.earlier_versions,
                 also_in: e.also_in,
                 change_state: e.change_state,
+                outcome: e.outcome.as_str().to_owned(),
+                removed_in: match e.outcome {
+                    Outcome::Returned { removed_in } => Some(removed_in),
+                    _ => None,
+                },
             })
             .collect(),
     }))

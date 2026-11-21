@@ -705,6 +705,7 @@ fn summary_text(s: &slath_service::mr_changes::RevisionSummary, target: &str) ->
     for (n, what) in [
         (s.modified, "modified"),
         (s.added, "added"),
+        (s.returned, "returned"),
         (s.removed, "removed"),
         (s.unresolved, "unresolved"),
     ] {
@@ -2298,7 +2299,10 @@ async fn stack_page(
                 Some(_) if can => stack
                     .removed
                     .iter()
-                    .map(|d| (d.clone(), format!("Continue {}", short(d))))
+                    .map(|d| {
+                        let d = &d.display_id;
+                        (d.clone(), format!("Continue {}", short(d)))
+                    })
                     .collect(),
                 _ => Vec::new(),
             };
@@ -2339,7 +2343,7 @@ async fn stack_page(
         header: RepoHeader::load(state, &a, subject, TAB).await,
         whole: stack.entries.is_empty() && m.revisions > 0,
         blocked: stack.blocks_merge(),
-        removed: stack.removed,
+        removed: stack.removed.into_iter().map(|r| r.display_id).collect(),
         h: heading(state, subject, &a, m).await?,
         rows,
         message,
@@ -2907,7 +2911,10 @@ async fn stack_rows(
             }
         })
         .collect();
-    Ok((rows, stack.removed))
+    Ok((
+        rows,
+        stack.removed.into_iter().map(|r| r.display_id).collect(),
+    ))
 }
 
 /// The rows of a change's list of versions: author, age, and patch size

@@ -59,6 +59,121 @@ pub struct StackEntry {
     pub also_in: Vec<i32>,
     /// Its change's state: `active`, or `merged` once it landed.
     pub change_state: Option<String>,
+    /// What the current revision did to its change.
+    pub outcome: Outcome,
+}
+
+/// What a revision did to the change of one of its commits, compared with
+/// the previous revision that had changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    /// The change has no earlier version.
+    New,
+    /// The previous revision had it with the identical patch.
+    Unchanged,
+    /// The previous revision had it with another patch.
+    Updated,
+    /// It was removed in revision `removed_in` and is back.
+    Returned { removed_in: i32 },
+    /// The commit isn't bound to a change.
+    Unresolved,
+}
+
+impl Outcome {
+    /// The name in the API and push output.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::New => "new",
+            Self::Unchanged => "unchanged",
+            Self::Updated => "updated",
+            Self::Returned { .. } => "returned",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+/// A change without a version in the current revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovedChange {
+    pub display_id: String,
+    /// The first revision without it.
+    pub removed_in: i32,
+}
+
+/// Each change's versions by revision, for telling what a revision did to
+/// it.
+struct History<'a> {
+    /// Revisions with changes (not reviewed as a whole), ascending.
+    seqs: Vec<i32>,
+    /// Per change: (revision, patch ID) of each version, ascending.
+    of: HashMap<uuid::Uuid, Vec<(i32, Option<&'a str>)>>,
+}
+
+impl<'a> History<'a> {
+    fn new(versions: &'a [db::Version]) -> Self {
+        let mut seqs: Vec<i32> = versions.iter().map(|v| v.revision_seq).collect();
+        seqs.sort_unstable();
+        seqs.dedup();
+        let mut of: HashMap<uuid::Uuid, Vec<(i32, Option<&str>)>> = HashMap::new();
+        for v in versions {
+            if let Some(k) = v.change_id {
+                of.entry(k)
+                    .or_default()
+                    .push((v.revision_seq, v.patch_id.as_deref()));
+            }
+        }
+        for list in of.values_mut() {
+            list.sort_by_key(|(s, _)| *s);
+        }
+        Self { seqs, of }
+    }
+
+    /// The revision with changes before `seq`.
+    fn previous(&self, seq: i32) -> Option<i32> {
+        self.seqs.iter().copied().filter(|s| *s < seq).max()
+    }
+
+    /// The first revision with changes after `seq`, else the next one.
+    fn after(&self, seq: i32) -> i32 {
+        self.seqs
+            .iter()
+            .copied()
+            .find(|s| *s > seq)
+            .unwrap_or(seq + 1)
+    }
+
+    /// What revision `v.revision_seq` did to the change of `v`.
+    fn outcome(&self, v: &db::Version) -> Outcome {
+        let Some(k) = v.change_id else {
+            return Outcome::Unresolved;
+        };
+        let seq = v.revision_seq;
+        let earlier: Vec<&(i32, Option<&str>)> = self
+            .of
+            .get(&k)
+            .map(|l| l.iter().filter(|(s, _)| *s < seq).collect())
+            .unwrap_or_default();
+        let Some((last, patch)) = earlier.last() else {
+            return Outcome::New;
+        };
+        if Some(*last) != self.previous(seq) {
+            return Outcome::Returned {
+                removed_in: self.after(*last),
+            };
+        }
+        if patch.is_some() && *patch == v.patch_id.as_deref() {
+            Outcome::Unchanged
+        } else {
+            Outcome::Updated
+        }
+    }
+
+    /// The first revision without change `k` after its last version.
+    fn removed_in(&self, k: uuid::Uuid) -> Option<i32> {
+        let (last, _) = self.of.get(&k)?.last()?;
+        Some(self.after(*last))
+    }
 }
 
 /// The current revision's stack and the removed changes.
@@ -67,9 +182,9 @@ pub struct Stack {
     /// `None` without revisions; whole-only revisions have no entries.
     pub revision: Option<i32>,
     pub entries: Vec<StackEntry>,
-    /// Display IDs of changes without a version in the current revision,
-    /// except those that landed.
-    pub removed: Vec<String>,
+    /// Changes without a version in the current revision, except those
+    /// that landed.
+    pub removed: Vec<RemovedChange>,
 }
 
 impl Stack {
@@ -91,6 +206,8 @@ pub struct RevisionSummary {
     pub unchanged: usize,
     pub modified: usize,
     pub added: usize,
+    /// Back after an earlier revision removed them.
+    pub returned: usize,
     pub removed: usize,
     pub unresolved: usize,
 }
@@ -348,6 +465,7 @@ impl Services {
             }
         }
         let in_current: HashSet<uuid::Uuid> = current.iter().filter_map(|v| v.change_id).collect();
+        let history = History::new(&versions);
         Ok(Stack {
             revision,
             entries: current
@@ -375,6 +493,7 @@ impl Services {
                     change_state: v
                         .change_id
                         .and_then(|k| states.get(&k).map(|s| (*s).to_owned())),
+                    outcome: history.outcome(v),
                 })
                 .collect(),
             removed: changes
@@ -384,7 +503,12 @@ impl Services {
                         && earlier.contains_key(&c.id)
                         && c.state != "merged"
                 })
-                .map(|c| c.display_id.clone())
+                .filter_map(|c| {
+                    Some(RemovedChange {
+                        display_id: c.display_id.clone(),
+                        removed_in: history.removed_in(c.id)?,
+                    })
+                })
                 .collect(),
         })
     }
@@ -405,8 +529,9 @@ impl Services {
             .filter(|c| c.state == "merged")
             .map(|c| c.id)
             .collect();
+        let history = History::new(&versions);
         let mut out = HashMap::new();
-        let mut prev: Option<(i32, HashMap<uuid::Uuid, Option<String>>)> = None;
+        let mut prev: Option<(i32, HashSet<uuid::Uuid>)> = None;
         for r in &revisions {
             let here: Vec<&db::Version> = versions
                 .iter()
@@ -416,10 +541,7 @@ impl Services {
                 continue;
             }
             let mut sum = RevisionSummary::default();
-            let patches: HashMap<uuid::Uuid, Option<String>> = here
-                .iter()
-                .filter_map(|v| Some((v.change_id?, v.patch_id.clone())))
-                .collect();
+            let changes: HashSet<uuid::Uuid> = here.iter().filter_map(|v| v.change_id).collect();
             if let Some((seq, before)) = &prev {
                 let base = |s: i32| {
                     revisions
@@ -429,22 +551,21 @@ impl Services {
                 };
                 sum.rebased = base(*seq) != r.merge_base_oid;
                 for v in &here {
-                    match v.change_id {
-                        None => sum.unresolved += 1,
-                        Some(k) => match before.get(&k) {
-                            None => sum.added += 1,
-                            Some(p) if p.is_some() && *p == v.patch_id => sum.unchanged += 1,
-                            Some(_) => sum.modified += 1,
-                        },
+                    match history.outcome(v) {
+                        Outcome::Unresolved => sum.unresolved += 1,
+                        Outcome::New => sum.added += 1,
+                        Outcome::Returned { .. } => sum.returned += 1,
+                        Outcome::Unchanged => sum.unchanged += 1,
+                        Outcome::Updated => sum.modified += 1,
                     }
                 }
                 sum.removed = before
-                    .keys()
-                    .filter(|k| !patches.contains_key(k) && !landed.contains(k))
+                    .iter()
+                    .filter(|k| !changes.contains(k) && !landed.contains(k))
                     .count();
                 out.insert(r.seq, sum);
             }
-            prev = Some((r.seq, patches));
+            prev = Some((r.seq, changes));
         }
         Ok(out)
     }
@@ -523,15 +644,12 @@ impl Services {
         let display: HashMap<uuid::Uuid, String> =
             changes.into_iter().map(|c| (c.id, c.display_id)).collect();
         let here: Vec<&db::Version> = versions.iter().filter(|v| v.revision_seq == seq).collect();
-        let prev_seq = versions
-            .iter()
-            .map(|v| v.revision_seq)
-            .filter(|s| *s < seq)
-            .max();
-        let before: HashMap<uuid::Uuid, Option<&str>> = versions
+        let history = History::new(&versions);
+        let prev_seq = history.previous(seq);
+        let before: HashSet<uuid::Uuid> = versions
             .iter()
             .filter(|v| Some(v.revision_seq) == prev_seq)
-            .filter_map(|v| Some((v.change_id?, v.patch_id.as_deref())))
+            .filter_map(|v| v.change_id)
             .collect();
         // Subjects of the revision's commits.
         let head = ObjectId::parse(&rev.head_oid).map_err(ServiceError::internal)?;
@@ -592,13 +710,16 @@ impl Services {
                         .get(&k)
                         .map_or("", |d| d.get(..8).unwrap_or(d))
                         .to_owned();
-                    let outcome = match (v.state.as_str(), before.get(&k)) {
-                        ("inferred", _) => format!("inferred (version {})", version_of(k)),
-                        ("new", _) | (_, None) => "new".to_owned(),
-                        (_, Some(p)) if p.is_some() && *p == v.patch_id.as_deref() => {
-                            "unchanged".to_owned()
+                    let outcome = match history.outcome(v) {
+                        Outcome::Unchanged => "unchanged".to_owned(),
+                        Outcome::Returned { .. } => {
+                            format!("returned (version {})", version_of(k))
                         }
-                        _ => format!("updated (version {})", version_of(k)),
+                        _ if v.state == "inferred" => {
+                            format!("inferred (version {})", version_of(k))
+                        }
+                        Outcome::Updated => format!("updated (version {})", version_of(k)),
+                        Outcome::New | Outcome::Unresolved => "new".to_owned(),
                     };
                     (id, outcome)
                 }
@@ -622,7 +743,7 @@ impl Services {
         let current: HashSet<uuid::Uuid> = here.iter().filter_map(|v| v.change_id).collect();
         // Changes that landed by a push of the target say so instead.
         let mut removed: Vec<(&String, &str)> = before
-            .keys()
+            .iter()
             .filter(|k| !current.contains(k))
             .filter_map(|k| {
                 let outcome = if landed.contains(k) {
@@ -1034,5 +1155,64 @@ impl Services {
     /// The merge request's ledger, oldest first.
     pub async fn mr_ledger(&self, m: &MergeRequest) -> Result<Vec<slath_db::mr_ledger::Entry>> {
         Ok(slath_db::mr_ledger::list(&self.pool, m.id).await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn version(seq: i32, change: Option<u128>, patch: &str) -> db::Version {
+        db::Version {
+            id: uuid::Uuid::new_v4(),
+            revision_seq: seq,
+            change_id: change.map(uuid::Uuid::from_u128),
+            position: 0,
+            commit_oid: String::new(),
+            parent_oid: None,
+            patch_id: (!patch.is_empty()).then(|| patch.to_owned()),
+            state: "confirmed".to_owned(),
+            reason: None,
+            candidates: Vec::new(),
+            conflicted: false,
+        }
+    }
+
+    #[test]
+    fn outcomes_compare_with_the_previous_revision_with_changes() {
+        // Revision 3 was reviewed as a whole and has no versions.
+        let vs = vec![
+            version(1, Some(1), "p1"),
+            version(1, Some(2), "p2"),
+            version(1, Some(3), "p3"),
+            version(2, Some(1), "p1"),
+            version(2, Some(2), "p2b"),
+            version(4, Some(1), "p1"),
+            version(4, Some(3), "p3"),
+            version(4, Some(4), "p4"),
+            version(4, None, "p5"),
+            version(4, Some(5), ""),
+        ];
+        let h = History::new(&vs);
+        let at = |i: usize| h.outcome(&vs[i]);
+        assert_eq!(at(0), Outcome::New);
+        assert_eq!(at(3), Outcome::Unchanged);
+        assert_eq!(at(4), Outcome::Updated);
+        // Unchanged against revision 2, across the whole-only revision 3.
+        assert_eq!(at(5), Outcome::Unchanged);
+        // Change 3 left in revision 2 and came back.
+        assert_eq!(at(6), Outcome::Returned { removed_in: 2 });
+        assert_eq!(at(7), Outcome::New);
+        assert_eq!(at(8), Outcome::Unresolved);
+        assert_eq!(at(9), Outcome::New);
+        // Change 2 was last in revision 2; the next one with changes is 4.
+        assert_eq!(h.removed_in(uuid::Uuid::from_u128(2)), Some(4));
+        assert_eq!(h.removed_in(uuid::Uuid::from_u128(9)), None);
+    }
+
+    #[test]
+    fn a_missing_patch_is_never_unchanged() {
+        let vs = vec![version(1, Some(1), ""), version(2, Some(1), "")];
+        assert_eq!(History::new(&vs).outcome(&vs[1]), Outcome::Updated);
     }
 }
