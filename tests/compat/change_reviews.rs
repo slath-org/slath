@@ -588,3 +588,38 @@ fn conf_jj_04_changes_and_files_tabs_and_their_old_addresses() {
         assert_eq!(r.status, 404, "{path}");
     }
 }
+
+#[test]
+fn conf_review_08_a_prefix_has_the_requirements_of_its_changes() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let ids = w.changes(n);
+    let upto = |id: &str| {
+        w.api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{n}/mergeability?upto_change={id}"),
+            None,
+        )
+    };
+    // Only "Add a" is approved, and bob asks for changes on "Add b": the
+    // prefix of "Add a" can land, the whole can't.
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[0]}));
+    w.review(
+        &w.bob,
+        n,
+        json!({"verdict": "request_changes", "body": "not yet", "change": ids[1]}),
+    );
+    let m = upto(&ids[0][..8]).json();
+    assert_eq!(m["mergeable"], true, "{m}");
+    assert_eq!(w.requirement(n, "approvals").0, "unmet");
+    assert_eq!(w.requirement(n, "changes_requested").0, "unmet");
+    // Up to the top change is the whole merge request.
+    let m = upto(&ids[1]).json();
+    assert_eq!(m["mergeable"], false, "{m}");
+    // Unknown changes and too short prefixes are refused.
+    for bad in ["zzzzzzzzzzzzzzzz", &ids[0][..4]] {
+        let r = upto(bad);
+        assert_eq!(r.status, 422, "{bad}: {}", r.body);
+        assert!(r.body.contains("upto_change"), "{}", r.body);
+    }
+}

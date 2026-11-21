@@ -50,6 +50,7 @@ pub mod notifications;
 pub mod oidc;
 pub mod orgs;
 pub mod origins;
+pub mod partial_landing;
 pub mod passkeys;
 pub mod protections;
 pub mod push;

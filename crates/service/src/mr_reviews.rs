@@ -806,7 +806,7 @@ impl Services {
     }
 
     /// The paths the current revision's whole diff changes (none before
-    /// the first revision).
+    /// the first revision), up to `m.head_oid`.
     pub async fn mr_changed_paths(&self, m: &MergeRequest) -> Result<Vec<Vec<u8>>> {
         let Some(rev) = slath_db::merge_requests::revisions(&self.pool, m.id)
             .await?
@@ -816,7 +816,8 @@ impl Services {
         };
         let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
         let base = rev.merge_base_oid.as_deref().map(parse).transpose()?;
-        let head = parse(&rev.head_oid)?;
+        // A prefix that lands has a head of its own.
+        let head = parse(m.head_oid.as_deref().unwrap_or(&rev.head_oid))?;
         slath_git::browse::changed_paths(
             &self.runner,
             &self.repo_path(m.repo_id),
@@ -880,6 +881,27 @@ impl Services {
 
     /// The requirements of the merge box for the current revision.
     pub async fn mr_mergeability(&self, a: &RepoAccess, m: &MergeRequest) -> Result<Mergeability> {
+        self.mr_mergeability_upto(a, m, None).await
+    }
+
+    /// The requirements for landing `prefix` (the bottom changes of the
+    /// stack), or the whole merge request (`None`). Approvals, requests
+    /// for changes, and sensitive paths count the prefix's changes; checks,
+    /// conflicts, and being up to date are those of its top commit; drafts
+    /// and unresolved threads are the merge request's.
+    pub async fn mr_mergeability_upto(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        prefix: Option<&crate::partial_landing::Prefix>,
+    ) -> Result<Mergeability> {
+        let upto = prefix.map(|p| {
+            let mut x = m.clone();
+            x.head_oid = Some(p.head.clone());
+            x
+        });
+        // What lands: the prefix's top commit, or the head.
+        let lands = upto.as_ref().unwrap_or(m);
         let eff = self.effective_for(m).await?;
         let mut reqs = Vec::new();
         reqs.push(match m.state.as_str() {
@@ -899,20 +921,24 @@ impl Services {
                 "Mark it as ready",
             ));
         }
-        let review = self.review_requirements(a, m, &eff, None).await?;
+        let review = self
+            .review_requirements(a, m, &eff, prefix.map(|p| p.len))
+            .await?;
         let coverage = review.coverage;
         reqs.push(review.approvals);
         reqs.push(review.changes_requested);
-        let (up_to_date, up_req) = self.up_to_date(m).await?;
+        let (up_to_date, up_req) = self.up_to_date(lands).await?;
         if eff.require_up_to_date {
             reqs.push(up_req);
         }
         if eff.protected
-            && let Some(r) = self.sensitive_requirement(m, &review.maintainers).await?
+            && let Some(r) = self
+                .sensitive_requirement(lands, &review.maintainers)
+                .await?
         {
             reqs.push(r);
         }
-        reqs.extend(self.check_requirements(m, &eff, up_to_date).await?);
+        reqs.extend(self.check_requirements(lands, &eff, up_to_date).await?);
         if eff.require_resolved_threads {
             let open = self.unresolved_threads(m).await?;
             reqs.push(if open == 0 {
@@ -926,7 +952,7 @@ impl Services {
             });
         }
         if m.state == "open" {
-            let files = self.mr_conflicts(m).await?;
+            let files = self.mr_conflicts(lands).await?;
             reqs.push(if files.is_empty() {
                 met(
                     "conflicts",
@@ -946,12 +972,9 @@ impl Services {
             });
         }
         let stack = self.mr_stack(m).await?;
-        let unresolved = stack
-            .entries
-            .iter()
-            .filter(|e| e.binding == "unresolved")
-            .count();
-        let conflicted = stack.entries.iter().filter(|e| e.conflicted).count();
+        let landing = &stack.entries[..prefix.map_or(stack.entries.len(), |p| p.len)];
+        let unresolved = landing.iter().filter(|e| e.binding == "unresolved").count();
+        let conflicted = landing.iter().filter(|e| e.conflicted).count();
         reqs.push(if unresolved > 0 {
             unmet(
                 "identity",

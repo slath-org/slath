@@ -827,16 +827,32 @@ pub struct CoverageBody {
     pub unviewed_files: Vec<String>,
 }
 
+/// Which part of the stack the mergeability is for.
+#[derive(Deserialize, IntoParams)]
+pub struct MergeabilityQuery {
+    /// The requirements for landing the changes up to this one (partial
+    /// landing); default: the whole merge request.
+    pub upto_change: Option<String>,
+}
+
 /// Whether the merge request can be merged, with each requirement.
-#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), MergeabilityQuery),
     responses((status = 200, body = MergeabilityBody), (status = 404, body = super::Problem)))]
 pub async fn get_mergeability(
     State(state): State<AppState>,
     ApiSubject(s): ApiSubject,
     Path((ns, repo, number)): Path<(String, String, i32)>,
+    Query(q): Query<MergeabilityQuery>,
 ) -> Result<Json<MergeabilityBody>, AppError> {
     let (a, m) = state.services.mr(&s, &ns, &repo, number).await?;
-    let mb = state.services.mr_mergeability(&a, &m).await?;
+    let prefix = match q.upto_change.as_deref() {
+        Some(change) => state.services.mr_prefix(&m, change).await?,
+        None => None,
+    };
+    let mb = state
+        .services
+        .mr_mergeability_upto(&a, &m, prefix.as_ref())
+        .await?;
     Ok(Json(mb.into()))
 }
 

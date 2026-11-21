@@ -6456,6 +6456,18 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "upto_change",
+            "in": "path",
+            "description": "The requirements for landing the changes up to this one (partial\nlanding); default: the whole merge request.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
