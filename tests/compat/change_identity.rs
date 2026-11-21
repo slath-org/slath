@@ -14,15 +14,15 @@ use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
 use crate::jj::{Jj, git_store, jj_binaries, raw_commit};
 
 /// A server with alice/demo, `main` pushed, and an API token.
-struct Ctx {
-    s: TestServer,
+pub(crate) struct Ctx {
+    pub(crate) s: TestServer,
     token: String,
-    url: String,
-    git: GitClient,
+    pub(crate) url: String,
+    pub(crate) git: GitClient,
 }
 
 impl Ctx {
-    fn start() -> Self {
+    pub(crate) fn start() -> Self {
         let s = TestServer::start();
         let mut alice = s.login("alice", PASSWORD);
         let token =
@@ -36,7 +36,12 @@ impl Ctx {
         }
     }
 
-    fn api(&self, method: &str, path: &str, body: Option<&Value>) -> slath_tests::http::Resp {
+    pub(crate) fn api(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+    ) -> slath_tests::http::Resp {
         self.s.client().api(
             method,
             &format!("/api/v1/repos/alice/demo{path}"),
@@ -45,7 +50,7 @@ impl Ctx {
         )
     }
 
-    fn open_mr(&self, branch: &str) -> i64 {
+    pub(crate) fn open_mr(&self, branch: &str) -> i64 {
         let r = self.api(
             "POST",
             "/merge-requests",
@@ -56,7 +61,7 @@ impl Ctx {
     }
 
     /// The stack once the merge request has `revisions` revisions.
-    fn stack(&self, n: i64, revisions: i64) -> Value {
+    pub(crate) fn stack(&self, n: i64, revisions: i64) -> Value {
         let start = std::time::Instant::now();
         loop {
             let m = self
@@ -78,7 +83,7 @@ impl Ctx {
     }
 
     /// A Git working copy of the server's repository with `main`.
-    fn clone(&self, dir: &Path) {
+    pub(crate) fn clone(&self, dir: &Path) {
         let out = self
             .git
             .cmd(dir.parent().unwrap())
@@ -92,14 +97,14 @@ impl Ctx {
         );
     }
 
-    fn push(&self, dir: &Path, refspec: &str) {
+    pub(crate) fn push(&self, dir: &Path, refspec: &str) {
         self.git
             .ok(dir, &["push", "--quiet", "--force", &self.url, refspec]);
     }
 }
 
 /// A working copy with an initial `main` on the server.
-fn seed(c: &Ctx, root: &Path) -> std::path::PathBuf {
+pub(crate) fn seed(c: &Ctx, root: &Path) -> std::path::PathBuf {
     let w = root.join("seed");
     std::fs::create_dir_all(&w).unwrap();
     c.git.ok(&w, &["init", "-q", "-b", "main"]);
@@ -112,7 +117,7 @@ fn seed(c: &Ctx, root: &Path) -> std::path::PathBuf {
 
 /// Twenty numbered lines, with line `edit` replaced if given (big enough
 /// for content pairing).
-fn lines(tag: &str, edit: Option<usize>) -> String {
+pub(crate) fn lines(tag: &str, edit: Option<usize>) -> String {
     (1..=20)
         .map(|i| {
             if Some(i) == edit {
@@ -124,7 +129,7 @@ fn lines(tag: &str, edit: Option<usize>) -> String {
         .collect()
 }
 
-fn commit_file(git: &GitClient, w: &Path, file: &str, text: &str, msg: &str) -> String {
+pub(crate) fn commit_file(git: &GitClient, w: &Path, file: &str, text: &str, msg: &str) -> String {
     std::fs::write(w.join(file), text).unwrap();
     git.ok(w, &["add", "-A"]);
     git.ok(w, &["commit", "-q", "-m", msg]);
@@ -168,18 +173,18 @@ fn craft(
     oid
 }
 
-fn entries(stack: &Value) -> &Vec<Value> {
+pub(crate) fn entries(stack: &Value) -> &Vec<Value> {
     stack["entries"].as_array().unwrap()
 }
 
-fn ids(stack: &Value) -> Vec<String> {
+pub(crate) fn ids(stack: &Value) -> Vec<String> {
     entries(stack)
         .iter()
         .map(|e| e["change_id"].as_str().unwrap_or("").to_owned())
         .collect()
 }
 
-fn bindings(stack: &Value) -> Vec<(String, String)> {
+pub(crate) fn bindings(stack: &Value) -> Vec<(String, String)> {
     entries(stack)
         .iter()
         .map(|e| {
@@ -191,7 +196,7 @@ fn bindings(stack: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
-fn pair(a: &str, b: &str) -> (String, String) {
+pub(crate) fn pair(a: &str, b: &str) -> (String, String) {
     (a.to_owned(), b.to_owned())
 }
 
@@ -699,7 +704,7 @@ fn revisions_reviewed_as_a_whole_have_no_changes() {
 }
 
 /// The `remote:` lines of a push, without the prefix.
-fn push_output(c: &Ctx, dir: &Path, refspec: &str) -> Vec<String> {
+pub(crate) fn push_output(c: &Ctx, dir: &Path, refspec: &str) -> Vec<String> {
     let out = c
         .git
         .cmd(dir)
@@ -711,7 +716,7 @@ fn push_output(c: &Ctx, dir: &Path, refspec: &str) -> Vec<String> {
     feedback(&err)
 }
 
-fn feedback(err: &str) -> Vec<String> {
+pub(crate) fn feedback(err: &str) -> Vec<String> {
     err.lines()
         .filter_map(|l| l.strip_prefix("remote: slath: "))
         .filter(|l| l.contains("merge request") || l.starts_with("  "))
