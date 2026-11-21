@@ -1,0 +1,26 @@
+{#- One merge request in a list (Weave: List rows). `grouped`: the list
+  is grouped by readiness, so its heading says what the icon would. -#}
+<li class="item-row">
+  <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state_text }}</span></span>
+  <div class="item-main">
+    <a class="item-title" href="{{ base }}/merge-requests/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>{% if let Some(r) = i.readiness %}{% if !grouped %} <span class="item-checks tone-{{ r.tone }}" data-tip="{{ r.headline }}">{% call m::tone_icon(ctx, r.tone.clone()) %}{% endcall %}<span class="visually-hidden">{{ r.headline }}</span></span>{% endif %}{% endif %}
+    {%- if i.state == "draft" %} <span class="badge">Draft</span>{% else if i.state == "iterating" %} <span class="badge">Iterating</span>{% endif %}
+    {%- if !i.labels.is_empty() %}
+    <span class="item-labels">
+      {%- for l in i.labels %}
+      <a class="label-chip" href="{{ self.label_href(l.name) }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></a>
+      {%- endfor %}
+    </span>
+    {%- endif %}
+    <p class="item-meta text-secondary">!{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %} · <code>{% call c::path(i.source) %}{% endcall %}</code> into <code>{% call c::path(i.target) %}{% endcall %}</code>{% if !i.reviewers.is_empty() %} · {% call p::avatar_group(ctx, i.reviewers, "Reviewers") %}{% endcall %}{% endif %}</p>
+    {%- if let Some(r) = i.readiness %}{% if r.checks.is_some() || r.approvals.is_some() %}
+    <p class="item-meta item-status">
+      {%- if let Some((tone, text)) = r.checks %}{% call m::status_text(ctx, tone.clone(), text) %}{% endcall %}{% endif %}
+      {%- if let Some((tone, text)) = r.approvals %}{% call m::status_text(ctx, tone.clone(), text) %}{% endcall %}{% endif %}
+    </p>
+    {%- endif %}{% endif %}
+  </div>
+  {%- if i.comments > 0 %}
+  <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
+  {%- endif %}
+</li>

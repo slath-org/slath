@@ -18,7 +18,8 @@ Template rules (crates/http/templates, every file but the catalog's):
   status-markup      a status is the status line component (m::status_line,
                      m::status_text); a tone's icon written out by hand only
                      in its list form (li.tone-*), a requirement's summary,
-                     the readiness card's icon, and a list row's readiness
+                     the readiness card's icon, a list row's readiness, and
+                     a list group's heading
 
 Catalog rules:
   catalog-class      every class a page template uses is shown in the design
@@ -58,7 +59,7 @@ ENTRY_MARKERS = {
     "copy-value": r"f::copy_value\(|m::copy_field\(", "danger": r"f::danger\(",
     "disclosure": r"d::disclosure\(|details class=\"disclosure", "menu": r'class="menu[ "]|d::menu\(',
     "reply-box": r"d::reply_box\(", "choice": r'class="choice"',
-    "rows": r"item-list", "table": r"table-records", "facts": r'class="facts"', "pager": r"l::pager\(",
+    "rows": r"item-list", "groups": r"item-group-heading", "table": r"table-records", "facts": r'class="facts"', "pager": r"l::pager\(",
     "more": r"l::more\(",
     "account": r"p::account\(", "avatar-upload": r'class="profile-avatar"', "git-identity": r"p::git_identity\(", "avatar-group": r"p::avatar_group\(",
     "links": r"c::external\(", "tooltip": r"data-tip=", "time": r"c::time\(", "hash": r"c::hash\(",
@@ -121,7 +122,7 @@ def check_template(path: str, text: str) -> list[tuple[str, str]]:
         before = EXPR.sub("", text[: m.start()])
         tags = re.findall(r"<[a-z][^>]*>", before)
         last = tags[-1] if tags else ""
-        if re.match(r'<li\b[^>]*class="[^"]*tone-|<summary>|<span class="(?:readiness-icon|item-checks)', last):
+        if re.match(r'<li\b[^>]*class="[^"]*tone-|<summary>|<span class="(?:readiness-icon|item-checks|item-group-tone)', last):
             continue
         out.append(("status-markup", f"{path}:{line_of(text, m.start())}: a status written out; use m::status_line or m::status_text"))
     return out

@@ -253,13 +253,14 @@ fn titles_show_code_and_lists_show_readiness() {
     eventually(&s, "no revision", || {
         api("GET", &format!("/merge-requests/{n}"), None).json()["revisions"] == 1
     });
-    let list = alice.get("/alice/demo/merge-requests").body;
+    let list = alice.get("/alice/demo/merge-requests?state=all").body;
     assert!(
         list.contains("Upgrade <code>vite</code> to &lt;v8&gt;"),
         "{list}"
     );
     // Each open merge request shows its readiness card's tone and
-    // headline: nothing is required yet.
+    // headline next to its title where the list isn't grouped by it:
+    // nothing is required yet.
     assert!(
         list.contains(r#"<span class="item-checks tone-done" data-tip="Ready to merge">"#),
         "{list}"
@@ -273,7 +274,7 @@ fn titles_show_code_and_lists_show_readiness() {
         ),
     );
     assert_eq!(r.status, 200, "{}", r.body);
-    let list = alice.get("/alice/demo/merge-requests").body;
+    let list = alice.get("/alice/demo/merge-requests?state=all").body;
     assert!(
         list.contains(r#"tone-waiting" data-tip="Checks running">"#),
         "{list}"
@@ -284,7 +285,7 @@ fn titles_show_code_and_lists_show_readiness() {
         Some(serde_json::json!({"context": "lint", "state": "failure"})),
     );
     assert_eq!(r.status, 201, "{}", r.body);
-    let list = alice.get("/alice/demo/merge-requests").body;
+    let list = alice.get("/alice/demo/merge-requests?state=all").body;
     assert!(
         list.contains(r#"tone-blocking" data-tip="Checks failing">"#)
             && list.contains("Blocking: </span><span class=\"visually-hidden\">Checks failing"),

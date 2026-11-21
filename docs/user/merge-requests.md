@@ -325,10 +325,15 @@ marked done (✓), waiting (clock, for normal waiting such as missing
 approvals or running checks), or blocking (✗, something must change).
 Open a line to see why and what fixes it. The same card sits again above
 the merge and review forms at the bottom, so you don't have to scroll up.
-The merge request list shows each open merge request's card as one icon
-next to its title: ✓ ready to merge, clock for waiting, ✗ where someone
-must act (conflicts, failing checks, requested changes). Point at it, or
-use a screen reader, for the headline. Below the title line, a row also
+The list of open merge requests is grouped by their cards' headlines:
+**Ready to merge** first, so what you can merge now is at the top, then
+groups where someone must act (✗: conflicts, failing checks, requested
+changes), then groups that are waiting (clock: drafts, missing
+approvals, running checks). Each group heading counts its merge
+requests on all pages. Other lists (State: **All**) show each open merge
+request's card as one icon next to its title instead: ✓ ready to merge,
+clock for waiting, ✗ where someone must act. Point at it, or use a
+screen reader, for the headline. Below the title line, a row also
 shows its checks ("1 of 3 checks failed", "All 3 checks passed") and its
 approvals ("Approval required", "Approved", "Changes requested"). A
 merge request without checks, review rules, or reviews shows neither.

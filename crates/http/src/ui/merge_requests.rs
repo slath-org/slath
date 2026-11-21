@@ -142,12 +142,81 @@ fn checks_summary(statuses: &[slath_db::statuses::Status]) -> Option<Checks> {
     slath_service::readiness::checks_state(statuses).map(|(tone, text)| Checks { tone, text })
 }
 
+/// Rows of the merge request list under one heading, or without one.
+struct MrGroup {
+    heading: Option<GroupHeading>,
+    rows: Vec<MrRow>,
+}
+
+/// A readiness group's heading: the readiness card's tone and headline,
+/// and how many merge requests have it on all pages.
+struct GroupHeading {
+    /// `None`: readiness not computed yet.
+    tone: Option<String>,
+    headline: String,
+    count: i64,
+}
+
+/// Puts consecutive rows with the same readiness under one heading, with
+/// the counts of all pages; or all rows without one, if not `grouped`.
+fn group_rows(
+    rows: Vec<MrRow>,
+    counts: Option<&[slath_db::merge_requests::GroupCount]>,
+) -> Vec<MrGroup> {
+    let Some(counts) = counts else {
+        return if rows.is_empty() {
+            Vec::new()
+        } else {
+            vec![MrGroup {
+                heading: None,
+                rows,
+            }]
+        };
+    };
+    type Key = Option<(String, String)>;
+    let mut out: Vec<(Key, Vec<MrRow>)> = Vec::new();
+    for r in rows {
+        let key = r
+            .readiness
+            .as_ref()
+            .map(|r| (r.tone.clone(), r.headline.clone()));
+        match out.last_mut() {
+            Some((k, rows)) if *k == key => rows.push(r),
+            _ => out.push((key, vec![r])),
+        }
+    }
+    out.into_iter()
+        .map(|(key, rows)| {
+            // A row computed only for this page may not be counted yet.
+            let count = counts
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map_or(0, |(_, n)| *n)
+                .max(rows.len() as i64);
+            let (tone, headline) = match key {
+                Some((t, h)) => (Some(t), h),
+                None => (None, "Readiness not computed yet".to_owned()),
+            };
+            MrGroup {
+                heading: Some(GroupHeading {
+                    tone,
+                    headline,
+                    count,
+                }),
+                rows,
+            }
+        })
+        .collect()
+}
+
 #[derive(Template)]
 #[template(path = "repo/merge_requests.html")]
 struct ListPage {
     ctx: PageCtx,
     header: RepoHeader,
-    items: Vec<MrRow>,
+    groups: Vec<MrGroup>,
+    /// Grouped by readiness (open merge requests).
+    grouped: bool,
     state: String,
     open: i64,
     merged: i64,
@@ -189,9 +258,14 @@ async fn list(
         _ => "open",
     };
     let page = q.page.unwrap_or(1).clamp(1, 10_000);
-    let (a, items, (open, merged, closed)) = state
+    let slath_service::readiness::ListPage {
+        access: a,
+        items,
+        counts: (open, merged, closed),
+        groups,
+    } = state
         .services
-        .mr_list(
+        .mr_list_page(
             &subject,
             &ns,
             &repo,
@@ -202,11 +276,12 @@ async fn list(
         .await?;
     let more = items.len() as i64 > PER_PAGE;
     let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
-    let items: Vec<MergeRequest> = items.into_iter().take(PER_PAGE as usize).collect();
-    // Each open one's readiness, as its card shows it, from the snapshot.
-    let readiness = state.services.mr_list_readiness(&a, &items).await?;
+    let mut items: Vec<_> = items.into_iter().take(PER_PAGE as usize).collect();
+    if groups.is_some() {
+        slath_service::readiness::group_order(&mut items);
+    }
     let mut rows = Vec::new();
-    for (m, readiness) in items.into_iter().zip(readiness) {
+    for (m, readiness) in items {
         let (_, reviewers, labels, _) = state.services.mr_details(&m).await?;
         let (icon, s, text) = state_view(&m);
         rows.push(MrRow {
@@ -236,7 +311,8 @@ async fn list(
             .with_recent_pushes(&state, &a, &subject)
             .await,
         can_create: a.can(&subject, Action::MrCreate),
-        items: rows,
+        grouped: groups.is_some(),
+        groups: group_rows(rows, groups.as_deref()),
         state: st.to_owned(),
         open,
         merged,

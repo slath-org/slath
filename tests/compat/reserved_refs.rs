@@ -95,13 +95,20 @@ fn conf_git_09_reserved_refs_are_hidden_or_read_only_and_pins_are_kept() {
         s.db.query_one("SELECT missing_objects::text FROM mr_revisions WHERE seq = 3"),
         "true"
     );
-    // The merge request list still loads; that one shows no readiness.
-    let r = s
-        .login("alice", slath_tests::server::PASSWORD)
-        .get("/alice/demo/merge-requests");
+    // The merge request lists still load; that one shows no readiness,
+    // and the open list groups it as not computed.
+    let mut alice = s.login("alice", slath_tests::server::PASSWORD);
+    let r = alice.get("/alice/demo/merge-requests?state=all");
     assert_eq!(r.status, 200, "{}", r.body);
     assert!(
         r.body.contains("Topic") && !r.body.contains("item-checks"),
+        "{}",
+        r.body
+    );
+    let r = alice.get("/alice/demo/merge-requests");
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(
+        r.body.contains("Topic") && r.body.contains("<span>Readiness not computed yet</span>"),
         "{}",
         r.body
     );

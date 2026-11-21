@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The readiness snapshot behind merge request lists (REVIEW-16): each row
-//! shows what the merge request's readiness card shows, after every kind of
+//! The readiness snapshot behind merge request lists (REVIEW-16): the open
+//! list groups each merge request under what its readiness card shows, after every kind of
 //! change that affects it; the snapshot is rebuildable, `fsck` finds and
 //! repairs a wrong one, and it never allows a merge.
 
@@ -12,23 +12,59 @@ use slath_tests::server::PASSWORD;
 
 use crate::change_identity::{Ctx, commit_file, seed};
 
-/// The only open merge request's icon in the list: tone and tooltip.
-fn listed(c: &Ctx) -> (String, String) {
+/// One readiness group of the open list.
+#[derive(Debug, PartialEq, Eq)]
+struct Group {
+    tone: String,
+    headline: String,
+    count: i64,
+    numbers: Vec<i64>,
+}
+
+/// The open list's groups in their order.
+fn groups(c: &Ctx) -> Vec<Group> {
     let body =
         c.s.login("alice", PASSWORD)
             .get("/alice/demo/merge-requests")
             .body;
-    let at = body
-        .find(r#"<span class="item-checks tone-"#)
-        .unwrap_or_else(|| panic!("no readiness icon: {body}"));
-    let rest = &body[at + r#"<span class="item-checks tone-"#.len()..];
-    let (tone, rest) = rest.split_once('"').unwrap();
-    let tip = rest
-        .split_once(r#"data-tip=""#)
-        .and_then(|(_, r)| r.split_once('"'))
-        .map(|(t, _)| t.replace("&#x27;", "'"))
-        .unwrap();
-    (tone.to_owned(), tip)
+    body.split(r#"<h2 class="item-group-heading""#)
+        .skip(1)
+        .map(|g| {
+            let tone = g
+                .split_once(r#"<span class="item-group-tone tone-"#)
+                .and_then(|(_, r)| r.split_once('"'))
+                .map(|(t, _)| t.to_owned())
+                .unwrap_or_default();
+            let (_, rest) = g.split_once("</span><span>").unwrap();
+            let (headline, rest) = rest.split_once("</span>").unwrap();
+            let count = rest
+                .split_once(r#"<span class="count">"#)
+                .and_then(|(_, r)| r.split_once('<'))
+                .map(|(n, _)| n.parse().unwrap())
+                .unwrap();
+            let section = g.split_once("</section>").map_or(g, |(s, _)| s);
+            let numbers = section
+                .split(r#"class="item-title" href="/alice/demo/merge-requests/"#)
+                .skip(1)
+                .map(|r| r.split_once('"').unwrap().0.parse().unwrap())
+                .collect();
+            Group {
+                tone,
+                headline: headline.replace("&#x27;", "'"),
+                count,
+                numbers,
+            }
+        })
+        .collect()
+}
+
+/// The only open merge request's group in the list: tone and headline.
+fn listed(c: &Ctx) -> (String, String) {
+    let mut g = groups(c);
+    assert_eq!(g.len(), 1, "{g:?}");
+    let g = g.remove(0);
+    assert_eq!(g.count, 1, "{g:?}");
+    (g.tone, g.headline)
 }
 
 /// The only open merge request's check and approval states in the list,
@@ -240,4 +276,79 @@ fn conf_review_16_the_snapshot_is_rebuildable_and_never_allows_a_merge() {
     );
     assert_eq!(r.status, 200, "{}", r.body);
     shows(&c, n, "waiting", "Approval required");
+}
+
+#[test]
+fn conf_review_16_the_open_list_is_grouped_by_the_cards_headline() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    seed(&c, d.path());
+    let w = d.path().join("w");
+    c.clone(&w);
+    let open = |branch: &str, file: &str| {
+        c.git.ok(&w, &["switch", "-q", "-c", branch, "origin/main"]);
+        commit_file(&c.git, &w, file, "topic\n", &format!("Add {file}"));
+        c.push(&w, branch);
+        let n = c.open_mr(branch);
+        c.stack(n, 1);
+        n
+    };
+    let ready = open("ready", "a.txt");
+    let draft = open("drafted", "b.txt");
+    let conflict = open("conflict", "c.txt");
+    let ready_too = open("ready-too", "d.txt");
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{draft}"),
+        Some(&json!({"draft": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    c.git
+        .ok(&w, &["switch", "-q", "-c", "other", "origin/main"]);
+    commit_file(&c.git, &w, "c.txt", "main\n", "Add c on main");
+    c.push(&w, "other:main");
+
+    // Ready to merge first, then what needs action, then waiting; newest
+    // first within a group.
+    let group = |tone: &str, headline: &str, numbers: Vec<i64>| Group {
+        tone: tone.into(),
+        headline: headline.into(),
+        count: numbers.len() as i64,
+        numbers,
+    };
+    assert_eq!(
+        groups(&c),
+        [
+            group("done", "Ready to merge", vec![ready_too, ready]),
+            group("blocking", "Conflicts with main", vec![conflict]),
+            group("waiting", "Draft", vec![draft]),
+        ]
+    );
+    for (n, headline) in [
+        (ready, "Ready to merge"),
+        (conflict, "Conflicts with main"),
+        (draft, "Draft"),
+    ] {
+        assert_eq!(card(&c, n), headline);
+    }
+    // A merge request that changes moves to its new group.
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{draft}"),
+        Some(&json!({"draft": false})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(
+        groups(&c),
+        [
+            group("done", "Ready to merge", vec![ready_too, draft, ready]),
+            group("blocking", "Conflicts with main", vec![conflict]),
+        ]
+    );
+    // Other states aren't grouped.
+    let all =
+        c.s.login("alice", PASSWORD)
+            .get("/alice/demo/merge-requests?state=all")
+            .body;
+    assert!(!all.contains("item-group-heading"), "{all}");
 }

@@ -210,6 +210,21 @@ curl -H "Authorization: Bearer $TOKEN" -d '{"key": "ssh-ed25519 AAAA… deploy@c
   removes one; the next connection with it fails. Adding and removing are
   in the audit log, and actions taken with a key name it there.
 
+## Merge request lists
+
+The list of open merge requests is grouped by each one's readiness, as
+its readiness card shows it. Slath stores that readiness and computes it
+again after anything it depends on changes. A list view first computes
+up to 100 outdated ones matching its filter, then groups them. After a
+change that touches many merge requests at once, such as a change of
+team membership, any beyond that show under "Readiness not computed yet"
+until a later view computes them:
+
+```toml
+[limits]
+mr_list_readiness_rebuilds = 100   # 0 groups only what is current
+```
+
 ## Issues
 
 Every repository has issues unless they are turned off. Issues and merge

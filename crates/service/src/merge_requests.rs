@@ -620,16 +620,36 @@ impl Services {
         offset: i64,
         limit: i64,
     ) -> Result<(RepoAccess, Vec<MergeRequest>, (i64, i64, i64))> {
+        let (a, f) = self.mr_list_filter(subject, ns, repo, filter).await?;
+        let items = slath_db::merge_requests::list(
+            &self.pool,
+            a.repo.id,
+            &f,
+            &slath_db::merge_requests::ListOptions::default(),
+            offset,
+            limit,
+        )
+        .await?;
+        let counts = slath_db::merge_requests::counts(&self.pool, a.repo.id, &f).await?;
+        Ok((a, items, counts))
+    }
+
+    /// The repository, if the subject may read its merge requests, and
+    /// the filter resolved in it.
+    pub(crate) async fn mr_list_filter(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+        filter: &crate::labels::FilterInput,
+    ) -> Result<(RepoAccess, slath_db::issues::Filter)> {
         let a = self.mrs_access(subject, ns, repo, Action::RepoRead).await?;
         let mut f = self.resolve_filter(&a, filter).await?;
         f.state = filter
             .state
             .clone()
             .filter(|s| matches!(s.as_str(), "open" | "merged" | "closed"));
-        let items =
-            slath_db::merge_requests::list(&self.pool, a.repo.id, &f, offset, limit).await?;
-        let counts = slath_db::merge_requests::counts(&self.pool, a.repo.id, &f).await?;
-        Ok((a, items, counts))
+        Ok((a, f))
     }
 
     /// One merge request.

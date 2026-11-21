@@ -258,10 +258,20 @@ pub async fn get_by_id(
 
 /// Merge requests of a repository matching an issue-style filter (state
 /// `open`, `merged`, `closed`, or all).
+/// What only merge request lists filter or order by, beyond the filter
+/// they share with issues.
+#[derive(Debug, Clone, Default)]
+pub struct ListOptions {
+    /// Order by the readiness snapshot first: current ones by tone
+    /// (`done`, `blocking`, `waiting`) and headline, outdated ones last.
+    pub grouped: bool,
+}
+
 pub async fn list(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     f: &crate::issues::Filter,
+    o: &ListOptions,
     offset: i64,
     limit: i64,
 ) -> Result<Vec<MergeRequest>, DbError> {
@@ -276,13 +286,18 @@ pub async fn list(
                   (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS "revisions!"
            FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
+           LEFT JOIN mr_readiness r ON r.mr_id = m.id
+             AND r.built_generation = r.generation AND r.built_format = $11
            WHERE m.repo_id = $1
              AND ($2::text IS NULL OR m.state = $2)
              AND ($3::uuid IS NULL OR m.author_id = $3)
              AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $4))
              AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($5)) = cardinality($5)
              AND ($6::uuid IS NULL OR m.milestone_id = $6)
-           ORDER BY CASE WHEN $7 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC
+           ORDER BY CASE WHEN NOT $10 THEN 0 WHEN r.tone = 'done' THEN 1 WHEN r.tone = 'blocking' THEN 2
+                         WHEN r.tone = 'waiting' THEN 3 ELSE 4 END,
+                    CASE WHEN $10 THEN r.headline END,
+                    CASE WHEN $7 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC
            OFFSET $8 LIMIT $9"#,
         repo.as_uuid(),
         f.state,
@@ -292,11 +307,83 @@ pub async fn list(
         f.milestone,
         f.sort_updated,
         offset,
-        limit
+        limit,
+        o.grouped,
+        crate::mr_readiness::FORMAT
     )
     .fetch_all(exec)
     .await?;
     Ok(rows.into_iter().map(|r| to_mr!(r)).collect())
+}
+
+/// Open merge requests matching a filter whose readiness snapshot is
+/// missing or outdated, newest first, at most `limit`.
+pub async fn outdated_readiness(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    f: &crate::issues::Filter,
+    limit: i64,
+) -> Result<Vec<MergeRequestId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        r#"SELECT m.id FROM merge_requests m
+           LEFT JOIN mr_readiness r ON r.mr_id = m.id
+           WHERE m.repo_id = $1 AND m.state = 'open'
+             AND ($2::uuid IS NULL OR m.author_id = $2)
+             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
+             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
+             AND ($5::uuid IS NULL OR m.milestone_id = $5)
+             AND (r.mr_id IS NULL OR r.built_generation IS DISTINCT FROM r.generation OR r.built_format <> $6)
+           ORDER BY m.number DESC
+           LIMIT $7"#,
+        repo.as_uuid(),
+        f.author.map(|u| *u.as_uuid()),
+        f.assignee.map(|u| *u.as_uuid()),
+        &f.labels,
+        f.milestone,
+        crate::mr_readiness::FORMAT,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(MergeRequestId::from_uuid).collect())
+}
+
+/// A readiness `(tone, headline)`, `None` when not computed yet, and how
+/// many merge requests have it.
+pub type GroupCount = (Option<(String, String)>, i64);
+
+/// How many open merge requests matching a filter have each current
+/// readiness `(tone, headline)`; `None` counts those without a current
+/// snapshot.
+pub async fn readiness_groups(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    f: &crate::issues::Filter,
+) -> Result<Vec<GroupCount>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT r.tone, r.headline, count(*) AS "count!"
+           FROM merge_requests m
+           LEFT JOIN mr_readiness r ON r.mr_id = m.id
+             AND r.built_generation = r.generation AND r.built_format = $6
+           WHERE m.repo_id = $1 AND m.state = 'open'
+             AND ($2::uuid IS NULL OR m.author_id = $2)
+             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
+             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
+             AND ($5::uuid IS NULL OR m.milestone_id = $5)
+           GROUP BY r.tone, r.headline"#,
+        repo.as_uuid(),
+        f.author.map(|u| *u.as_uuid()),
+        f.assignee.map(|u| *u.as_uuid()),
+        &f.labels,
+        f.milestone,
+        crate::mr_readiness::FORMAT
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.tone.zip(r.headline), r.count))
+        .collect())
 }
 
 /// `(open, merged, closed)` counts matching a filter (its state ignored).

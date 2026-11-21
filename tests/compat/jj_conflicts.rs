@@ -153,7 +153,7 @@ fn conf_jj_07_real_jj_conflicts_are_detected_by_either_signal_and_block_merging(
         let reason = merge_blocked(&c, n, &head);
         assert!(reason.contains("2 commits with a conflict"), "{reason}");
         // The list and the readiness card name it.
-        let list = ui.get("/alice/demo/merge-requests").body;
+        let list = ui.get("/alice/demo/merge-requests?state=all").body;
         assert!(
             list.contains(r#"tone-blocking" data-tip="Conflict recorded by jj">"#),
             "{version}: {list}"

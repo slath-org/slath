@@ -25,38 +25,24 @@
 {%- let list_path = base ~ "/merge-requests" %}
 {%- let noun = "merge requests" %}
 {% include "repo/list_filters.html" %}
-{%- if items.is_empty() %}
+{%- if groups.is_empty() %}
 {%- let empty_text %}{% if filtered %}No merge requests match these filters.{% else if state == "merged" %}No merged merge requests.{% else if state == "closed" %}No closed merge requests.{% else if state == "all" %}No merge requests yet.{% else %}No open merge requests.{% endif %}{% endlet %}
 {%- call msg::empty(empty_text) %}{% endcall %}
 {%- else %}
+{%- for g in groups %}
+{%- if let Some(h) = g.heading %}
+<section class="item-group" aria-labelledby="group-{{ loop.index }}">
+<h2 class="item-group-heading" id="group-{{ loop.index }}">{% if let Some(t) = h.tone %}<span class="item-group-tone tone-{{ t }}">{% call m::tone_icon(ctx, t.clone()) %}{% endcall %}</span>{% endif %}<span>{{ h.headline }}</span> <span class="count">{{ h.count }}<span class="visually-hidden"> {% if h.count == 1 %}merge request{% else %}merge requests{% endif %}</span></span></h2>
+{%- endif %}
 <ul class="item-list">
-{%- for i in items %}
-  <li class="item-row">
-    <span class="item-state item-state-{{ i.state }}">{% call m::icon(ctx, i.icon) %}{% endcall %}<span class="visually-hidden">{{ i.state_text }}</span></span>
-    <div class="item-main">
-      <a class="item-title" href="{{ base }}/merge-requests/{{ i.number }}"><bdi>{{ crate::ui::title_html(i.title.as_str()) }}</bdi></a>{% if let Some(r) = i.readiness %} <span class="item-checks tone-{{ r.tone }}" data-tip="{{ r.headline }}">{% call m::tone_icon(ctx, r.tone.clone()) %}{% endcall %}<span class="visually-hidden">{{ r.headline }}</span></span>{% endif %}
-      {%- if i.state == "draft" %} <span class="badge">Draft</span>{% else if i.state == "iterating" %} <span class="badge">Iterating</span>{% endif %}
-      {%- if !i.labels.is_empty() %}
-      <span class="item-labels">
-        {%- for l in i.labels %}
-        <a class="label-chip" href="{{ self.label_href(l.name) }}">{% include "repo/label_swatch.html" %}<bdi>{{ l.name }}</bdi></a>
-        {%- endfor %}
-      </span>
-      {%- endif %}
-      <p class="item-meta text-secondary">!{{ i.number }} opened {% call c::time(i.created) %}{% endcall %} by {% if let Some(a) = i.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx) %}{% endcall %}{% endif %} · <code>{% call c::path(i.source) %}{% endcall %}</code> into <code>{% call c::path(i.target) %}{% endcall %}</code>{% if !i.reviewers.is_empty() %} · {% call p::avatar_group(ctx, i.reviewers, "Reviewers") %}{% endcall %}{% endif %}</p>
-      {%- if let Some(r) = i.readiness %}{% if r.checks.is_some() || r.approvals.is_some() %}
-      <p class="item-meta item-status">
-        {%- if let Some((tone, text)) = r.checks %}{% call m::status_text(ctx, tone.clone(), text) %}{% endcall %}{% endif %}
-        {%- if let Some((tone, text)) = r.approvals %}{% call m::status_text(ctx, tone.clone(), text) %}{% endcall %}{% endif %}
-      </p>
-      {%- endif %}{% endif %}
-    </div>
-    {%- if i.comments > 0 %}
-    <span class="item-count text-secondary">{% call m::icon(ctx, "message-square") %}{% endcall %}{{ i.comments }}<span class="visually-hidden"> comments</span></span>
-    {%- endif %}
-  </li>
+{%- for i in g.rows %}
+{% include "repo/merge_request_row.html" %}
 {%- endfor %}
 </ul>
+{%- if g.heading.is_some() %}
+</section>
+{%- endif %}
+{%- endfor %}
 {%- endif %}
 {%- if let Some(n) = next %}
 <div {% call m::swap_region(ctx, "list-view") %}{% endcall %}>

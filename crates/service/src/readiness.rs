@@ -91,7 +91,105 @@ pub fn list_readiness(m: &MergeRequest, mb: &Mergeability, statuses: &[Status]) 
     }
 }
 
+/// A page of a repository's merge request list with each one's readiness.
+pub struct ListPage {
+    pub access: RepoAccess,
+    /// The merge requests of the page, with the readiness of open ones.
+    pub items: Vec<(MergeRequest, Option<Readiness>)>,
+    /// `(open, merged, closed)` counts matching the filter.
+    pub counts: (i64, i64, i64),
+    /// For open lists, which are grouped by readiness: how many matching
+    /// merge requests each `(tone, headline)` has, `None` for those not
+    /// computed yet.
+    pub groups: Option<Vec<slath_db::merge_requests::GroupCount>>,
+}
+
+/// Where a readiness tone's group comes in an open list: ready to merge
+/// first, then where someone must act, then waiting.
+#[must_use]
+pub fn group_rank(tone: &str) -> u8 {
+    match tone {
+        "done" => 0,
+        "blocking" => 1,
+        _ => 2,
+    }
+}
+
+/// Puts the rows of a page of an open list in group order, keeping their
+/// order within a group: rows computed only for the page take their
+/// group's place, and rows not computed come last.
+pub fn group_order(items: &mut [(MergeRequest, Option<Readiness>)]) {
+    items.sort_by_key(|(_, r)| match r {
+        Some(r) => (false, group_rank(&r.tone), r.headline.clone()),
+        None => (true, 0, String::new()),
+    });
+}
+
 impl Services {
+    /// A page of the merge request list as the web UI shows it. Open lists
+    /// are grouped by readiness: outdated snapshots of the matching merge
+    /// requests are computed first (at most
+    /// `limits.mr_list_readiness_rebuilds`), so the order and the groups'
+    /// counts come from current ones. The caller puts the rows it shows
+    /// in [`group_order`].
+    pub async fn mr_list_page(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+        filter: &crate::labels::FilterInput,
+        offset: i64,
+        limit: i64,
+    ) -> Result<ListPage> {
+        use slath_db::merge_requests as mrs;
+        let (a, f) = self.mr_list_filter(subject, ns, repo, filter).await?;
+        let grouped = f.state.as_deref() == Some("open");
+        if grouped {
+            self.refresh_readiness(&a, &f).await?;
+        }
+        let o = mrs::ListOptions { grouped };
+        let ms = mrs::list(&self.pool, a.repo.id, &f, &o, offset, limit).await?;
+        let readiness = self.mr_list_readiness(&a, &ms).await?;
+        let items = ms.into_iter().zip(readiness).collect();
+        let counts = mrs::counts(&self.pool, a.repo.id, &f).await?;
+        let groups = if grouped {
+            Some(mrs::readiness_groups(&self.pool, a.repo.id, &f).await?)
+        } else {
+            None
+        };
+        Ok(ListPage {
+            access: a,
+            items,
+            counts,
+            groups,
+        })
+    }
+
+    /// Computes the outdated snapshots of the open merge requests matching
+    /// `f` again, a few at a time, at most
+    /// `limits.mr_list_readiness_rebuilds` of them.
+    async fn refresh_readiness(&self, a: &RepoAccess, f: &slath_db::issues::Filter) -> Result<()> {
+        use futures_util::StreamExt;
+        let most = i64::try_from(self.config.limits.mr_list_readiness_rebuilds).unwrap_or(i64::MAX);
+        if most == 0 {
+            return Ok(());
+        }
+        let ids =
+            slath_db::merge_requests::outdated_readiness(&self.pool, a.repo.id, f, most).await?;
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let snaps = db::get_many(&self.pool, &ids).await?;
+        futures_util::stream::iter(snaps)
+            .for_each_concurrent(8, |s| async move {
+                if let Err(e) = self.rebuild_readiness(a, s.mr_id, Some(s.generation)).await {
+                    tracing::warn!(error = %e, mr = %s.mr_id, "computing a merge request's readiness failed");
+                }
+            })
+            .await;
+        Ok(())
+    }
+
     /// The readiness of these merge requests for a list, in the same order;
     /// `None` for those that aren't open. Outdated snapshots are computed
     /// again, concurrently, from the merge request as it is now.
