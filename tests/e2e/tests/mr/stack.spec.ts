@@ -132,7 +132,8 @@ test("conf_jj_07_conflicts_recorded_by_jj_on_change_pages", async ({ page }) => 
   const url = new URL(page.url()).pathname;
   await page.goto(`${url}/changes`);
   await tapOrClick(page, page.getByRole("link", { name: "Add top" }));
-  const conflict = page.getByRole("region", { name: "Conflict recorded by jj" });
+  // The frame, not the readiness card, which has the same name.
+  const conflict = page.locator("#conflict");
   await expect(conflict).toContainText("can't merge until a push resolves it");
   await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Conflict");
   await expectAccessible(page);

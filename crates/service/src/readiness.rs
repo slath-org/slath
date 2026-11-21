@@ -50,8 +50,18 @@ impl Services {
                 if let Some((tone, headline)) = snap.and_then(db::Snapshot::current) {
                     return Ok(Some((tone.to_owned(), headline.to_owned())));
                 }
-                self.rebuild_readiness(a, m.id, snap.map(|s| s.generation))
+                // One merge request that can't be computed (its commits
+                // gone, say) shows no icon rather than failing the list.
+                match self
+                    .rebuild_readiness(a, m.id, snap.map(|s| s.generation))
                     .await
+                {
+                    Ok(r) => Ok(r),
+                    Err(e) => {
+                        tracing::warn!(error = %e, mr = %m.id, "computing a merge request's readiness failed");
+                        Ok(None)
+                    }
+                }
             }
         }))
         .await
@@ -99,7 +109,15 @@ impl Services {
             let Some(m) = slath_db::merge_requests::get_by_id(&self.pool, s.mr_id).await? else {
                 continue;
             };
-            let mb = self.mr_mergeability(&a, &m).await?;
+            // What can't be computed is left for the checks that report
+            // it (a revision's missing commits).
+            let mb = match self.mr_mergeability(&a, &m).await {
+                Ok(mb) => mb,
+                Err(e) => {
+                    tracing::warn!(error = %e, mr = %m.id, "computing a merge request's readiness failed");
+                    continue;
+                }
+            };
             let (tone, headline) = readiness_summary(&m, &mb);
             let stored = s.current();
             if stored.is_some_and(|(t, h)| t != tone || h != headline) {
