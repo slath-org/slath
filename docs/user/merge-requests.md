@@ -207,6 +207,12 @@ name different changes, or two commits with the same ID. The author, or
 anyone who can push the source branch, picks a change for each of them on
 the Changes tab. The choice is kept for the next pushes.
 
+After the first revision, the Changes tab says what the latest push did to
+each change: **New**, **Updated**, **Unchanged** (the same patch, so
+there's nothing new to review), or **Returned** (with the revision that had
+removed it). Removed changes are listed below the stack with the revision
+that removed them; their pages stay, with all their versions and comments.
+
 Each change's title leads to its page. It lists the change's
 versions, each with its revision, author, age, commit, size (files and
 lines added and removed), comments on it, checks, and how it was matched
@@ -222,7 +228,7 @@ two versions:
 
 In a stack of more than one change, the change's page shows the whole
 stack beside it (below it on narrow screens), bottom first: each change's
-subject and ID, whether it landed or is new in this revision, who approves
+subject and ID, whether it landed or is new or returned in this revision, who approves
 it or asks for changes, and its checks. Above the change, the arrows next
 to **Change 2 of 6** move down and up the stack, and those next to
 **Version 1 of 3** through the shown change's versions. While focus is on

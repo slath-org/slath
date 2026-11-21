@@ -11,6 +11,9 @@
 <div class="stack-groups">
 <section class="section" aria-labelledby="change-heading">
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
+{%- if let Some(r) = removed_in %}
+<p class="text-secondary">Removed in revision {{ r }}: abandoned, squashed into another change, or rewritten without an ID. A later push can bring it back.</p>
+{%- endif %}
 {%- if change_pos.is_some() || change.versions.len() > 1 %}
 <nav class="cluster change-steps" aria-label="Changes and versions">
   {%- if let Some((at, of)) = change_pos %}
@@ -143,7 +146,7 @@
     <h2 id="stack-removed-heading" class="details-heading">Removed changes</h2>
     <ul class="plain-list">
     {%- for dd in removed %}
-      <li>{% if dd.as_str() == change.display_id.as_str() %}<strong><code>{{ dd[..8] }}</code></strong> <span class="visually-hidden">(shown)</span>{% else %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ dd }}"><code>{{ dd[..8] }}</code></a>{% endif %}</li>
+      <li>{% if dd.display_id == change.display_id %}<strong><code>{{ dd.display_id[..8] }}</code></strong> <span class="visually-hidden">(shown)</span>{% else %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}/changes/{{ dd.display_id }}"><code>{{ dd.display_id[..8] }}</code></a>{% endif %} <span class="text-secondary">removed in revision {{ dd.removed_in }}</span></li>
     {%- endfor %}
     </ul>
   </section>

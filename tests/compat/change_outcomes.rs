@@ -8,6 +8,7 @@
 use std::path::Path;
 
 use serde_json::{Value, json};
+use slath_tests::server::PASSWORD;
 
 use crate::change_identity::{Ctx, commit_file, entries, feedback, ids, lines, push_output, seed};
 use crate::jj::{Jj, jj_binaries};
@@ -234,12 +235,43 @@ fn conf_jj_06_drop_return_and_reorder_in_git() {
     assert_eq!(ids(&s), made);
     assert_eq!(outcomes(&s), ["unchanged", "returned", "unchanged"]);
     assert_eq!(entries(&s)[1]["removed_in"], 2);
-    assert_eq!(removed(&s), vec![(other, 4)]);
+    assert_eq!(removed(&s), vec![(other.clone(), 4)]);
     assert!(
         out.contains(&format!("{} returned (version 2) Add b", short(&made[1]))),
         "{out:?}"
     );
     assert_eq!(thread_state(&c, n, &on_b), "current");
+
+    // The pages say the same.
+    let mut ui = c.s.login("alice", PASSWORD);
+    let mut page = |path: &str| {
+        let r = ui.get(&format!("/alice/demo/merge-requests/{n}{path}"));
+        assert_eq!(r.status, 200, "{path}: {}", r.body);
+        r.body
+    };
+    let tab = page("/changes");
+    assert!(
+        tab.contains("Returned in revision 4, after it was removed in revision 2."),
+        "{tab}"
+    );
+    assert_eq!(
+        tab.matches("Unchanged in revision 4: the same patch.")
+            .count(),
+        2,
+        "{tab}"
+    );
+    assert!(
+        tab.contains(&format!(
+            "<code>{}</code></a> <span class=\"text-secondary\">removed in revision 4</span>",
+            short(&other)
+        )),
+        "{tab}"
+    );
+    let returned = page(&format!("/changes/{}", made[1]));
+    assert!(returned.contains("Returned in revision 4"), "{returned}");
+    let gone = page(&format!("/changes/{other}"));
+    assert!(gone.contains("Removed in revision 4: abandoned"), "{gone}");
+    assert!(!returned.contains("Removed in revision"), "{returned}");
 
     // Reorder by cherry-picking: same changes, identical patches.
     c.git.ok(&w, &["reset", "-q", "--hard", "main"]);

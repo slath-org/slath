@@ -37,6 +37,9 @@
         {% call p::git_identity(ctx, r.commit.author, r.commit.author_account) %}{% endcall %} · {% call c::time(r.commit.time) %}{% endcall %} · {% call c::hash(r.commit.oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ r.commit.oid) %}{% endcall %}
         {%- if let Some(e) = r.entry %}{% if !e.also_in.is_empty() %} · Also in {% for o in e.also_in %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ o }}">!{{ o }}</a>{% if !loop.last %}, {% endif %}{% endfor %}{% endif %}{% endif -%}
       </p>
+      {%- if let Some(o) = r.outcome %}
+      <p class="change-note text-secondary">{{ o }}.</p>
+      {%- endif %}
       {%- if let Some((tone, text)) = r.checks %}
       <p class="commit-checks tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
       {%- endif %}
@@ -71,7 +74,7 @@
 <p class="text-secondary">Not in the current revision: abandoned, squashed, or rewritten without an ID.</p>
 <ul class="plain-list">
 {%- for dd in removed %}
-  <li><a href="{{ mr_base }}/changes/{{ dd }}" data-tip="Change {{ dd }}"><code>{{ dd[..8] }}</code></a></li>
+  <li><a href="{{ mr_base }}/changes/{{ dd.display_id }}" data-tip="Change {{ dd.display_id }}"><code>{{ dd.display_id[..8] }}</code></a> <span class="text-secondary">removed in revision {{ dd.removed_in }}</span></li>
 {%- endfor %}
 </ul>
 </section>

@@ -14,7 +14,9 @@ use slath_db::merge_requests::MergeRequest;
 use slath_markup::refs::RefContext;
 use slath_service::issues::TimelineItem;
 use slath_service::merge_requests::{Compare, MrPerms, MrTimelineItem, NewMr};
-use slath_service::mr_changes::{ChangeInfo, Interdiff, Rebind, StackEntry, VersionInfo};
+use slath_service::mr_changes::{
+    ChangeInfo, Interdiff, Outcome, Rebind, RemovedChange, StackEntry, VersionInfo,
+};
 use slath_service::mr_reviews::Mergeability;
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
@@ -2228,12 +2230,32 @@ async fn view(
     .await
 }
 
+/// What revision `rev` did to a change, for its row: `None` for the first
+/// revision, where everything is new, and for unresolved commits, which
+/// say so themselves.
+fn outcome_text(o: Outcome, rev: i32) -> Option<String> {
+    if rev < 2 {
+        return None;
+    }
+    Some(match o {
+        Outcome::New => format!("New in revision {rev}"),
+        Outcome::Unchanged => format!("Unchanged in revision {rev}: the same patch"),
+        Outcome::Updated => format!("Updated in revision {rev}"),
+        Outcome::Returned { removed_in } => {
+            format!("Returned in revision {rev}, after it was removed in revision {removed_in}")
+        }
+        Outcome::Unresolved => return None,
+    })
+}
+
 /// A commit with the change it belongs to.
 struct ChangeRow {
     commit: CommitRow,
     /// The commit's statuses in one: tone and words ("2 passed").
     checks: Option<(&'static str, String)>,
     entry: Option<StackEntry>,
+    /// What this revision did to its change ("Updated in revision 3").
+    outcome: Option<String>,
     /// What the commit can be rebound to: (value, label); `""` is a new
     /// change.
     options: Vec<(String, String)>,
@@ -2246,7 +2268,7 @@ struct StackPage {
     header: RepoHeader,
     h: MrHeading,
     rows: Vec<ChangeRow>,
-    removed: Vec<String>,
+    removed: Vec<RemovedChange>,
     /// The revision can only be reviewed as a whole.
     whole: bool,
     blocked: bool,
@@ -2329,6 +2351,9 @@ async fn stack_page(
             ChangeRow {
                 checks,
                 commit: c,
+                outcome: entry
+                    .as_ref()
+                    .and_then(|e| outcome_text(e.outcome, m.revisions)),
                 entry,
                 options,
             }
@@ -2343,7 +2368,7 @@ async fn stack_page(
         header: RepoHeader::load(state, &a, subject, TAB).await,
         whole: stack.entries.is_empty() && m.revisions > 0,
         blocked: stack.blocks_merge(),
-        removed: stack.removed.into_iter().map(|r| r.display_id).collect(),
+        removed: stack.removed,
         h: heading(state, subject, &a, m).await?,
         rows,
         message,
@@ -2539,8 +2564,10 @@ struct ChangePage {
     /// The current revision's changes, bottom first; empty for a stack
     /// of one change, which needs no list.
     stack: Vec<StackRow>,
-    /// Changes not in the current revision, for the stack.
-    removed: Vec<String>,
+    /// Changes not in the current revision.
+    removed: Vec<RemovedChange>,
+    /// The revision that removed the shown change, if it's removed.
+    removed_in: Option<i32>,
     /// This change's position in the current stack and the stack's size;
     /// `None` without a stack column or when it isn't in the stack.
     change_pos: Option<(usize, usize)>,
@@ -2768,6 +2795,10 @@ async fn change(
         .collect();
     let rows = version_rows(&state, &subject, &a, &m, &change, &mine).await?;
     let (stack, removed) = stack_rows(&state, &a, &m, &change.display_id).await?;
+    let removed_in = removed
+        .iter()
+        .find(|r| r.display_id == change.display_id)
+        .map(|r| r.removed_in);
     let at = stack.iter().position(|r| r.current);
     let neighbour = |d: isize| {
         at.and_then(|i| i.checked_add_signed(d))
@@ -2809,6 +2840,7 @@ async fn change(
         rows,
         stack,
         removed,
+        removed_in,
         change_pos,
         prev_change,
         next_change,
@@ -2834,17 +2866,17 @@ async fn change(
 
 /// The stack column of a change page: the current revision's changes,
 /// bottom first, with their state, verdicts, and checks, and the changes
-/// it no longer has. Empty for a revision of one change (or reviewed as a
-/// whole) without removed changes: there's nothing to move between.
+/// it no longer has. No rows for a revision of one change (or reviewed as
+/// a whole) without removed changes: there's nothing to move between.
 async fn stack_rows(
     state: &AppState,
     a: &RepoAccess,
     m: &MergeRequest,
     shown: &str,
-) -> Result<(Vec<StackRow>, Vec<String>), AppError> {
+) -> Result<(Vec<StackRow>, Vec<RemovedChange>), AppError> {
     let stack = state.services.mr_stack(m).await?;
     if stack.entries.len() + stack.removed.len() < 2 {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), stack.removed));
     }
     let subjects: std::collections::HashMap<String, String> = state
         .services
@@ -2871,8 +2903,16 @@ async fn stack_rows(
             let mut flags = Vec::new();
             if e.change_state.as_deref() == Some("merged") {
                 flags.push(("done", "Landed".to_owned()));
-            } else if e.binding == "new" && e.earlier_versions == 0 && m.revisions > 1 {
-                flags.push(("waiting", format!("New in revision {}", m.revisions)));
+            } else if m.revisions > 1 {
+                match e.outcome {
+                    Outcome::New => {
+                        flags.push(("waiting", format!("New in revision {}", m.revisions)));
+                    }
+                    Outcome::Returned { .. } => {
+                        flags.push(("waiting", format!("Returned in revision {}", m.revisions)));
+                    }
+                    _ => {}
+                }
             }
             if e.binding == "unresolved" {
                 flags.push(("blocking", "Unresolved".to_owned()));
@@ -2911,10 +2951,7 @@ async fn stack_rows(
             }
         })
         .collect();
-    Ok((
-        rows,
-        stack.removed.into_iter().map(|r| r.display_id).collect(),
-    ))
+    Ok((rows, stack.removed))
 }
 
 /// The rows of a change's list of versions: author, age, and patch size

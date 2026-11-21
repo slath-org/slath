@@ -4,7 +4,8 @@
 // Moving through a stack of five changes on the change pages: with the
 // keyboard alone (j and k between changes, [ and ] between versions, only
 // while focus is in the change view) and with taps or clicks on the same
-// buttons, in every browser cell. The e2e server seeds `stack/<project>`.
+// buttons, in every browser cell. The e2e server seeds `stack/<project>`,
+// and "Outcomes fixture" for what each revision did to its changes.
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
@@ -88,4 +89,32 @@ test("conf_jj_04_moving_through_a_stack_of_five", async ({ page }, testInfo) => 
   // Touch cells move by touch alone.
   if (!testInfo.project.use.hasTouch) await byKeyboard(page, url);
   await byPointer(page, url);
+});
+
+// "Outcomes fixture": in revision 3, alpha is unchanged, beta returned
+// after revision 2 removed it, delta is new, and gamma was removed.
+test("conf_jj_06_outcomes_on_the_changes_tab_and_change_pages", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Outcomes fixture" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Outcomes fixture");
+  const url = new URL(page.url()).pathname;
+  await page.goto(`${url}/changes`);
+  const changes = page.locator("section[aria-labelledby=changes-heading]");
+  await expect(changes.locator(".item-row").nth(0)).toContainText("Unchanged in revision 3: the same patch.");
+  await expect(changes.locator(".item-row").nth(1)).toContainText(
+    "Returned in revision 3, after it was removed in revision 2.",
+  );
+  await expect(changes.locator(".item-row").nth(2)).toContainText("New in revision 3.");
+  const removed = page.locator("section[aria-labelledby=removed-heading]");
+  await expect(removed).toContainText("removed in revision 3");
+  await expectAccessible(page);
+  // The removed change's page says when and why it left.
+  await tapOrClick(page, removed.getByRole("link"));
+  await expect(page.getByText("Removed in revision 3: abandoned, squashed into another change")).toBeVisible();
+  await expectAccessible(page);
+  // The returned change says so in the stack.
+  await tapOrClick(page, stack(page).getByRole("link", { name: "Add beta" }));
+  await expect(stack(page).locator(".stack-item[aria-current=true]")).toContainText("Returned in revision 3");
+  await expectAccessible(page);
 });

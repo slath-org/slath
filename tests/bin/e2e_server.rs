@@ -381,6 +381,62 @@ fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
     }
 }
 
+/// "Outcomes fixture": a merge request whose third revision has a change
+/// unchanged, one returned, one new, and one removed.
+fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "outcomes", "main"]);
+    let mut commits = Vec::new();
+    for name in ["alpha", "beta", "gamma"] {
+        std::fs::write(w.join(format!("outcomes-{name}.md")), format!("{name}\n")).unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", &format!("Add {name}")]);
+        commits.push(git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned());
+    }
+    git.ok(w, &["push", "-q", url, "outcomes"]);
+    let mut alice = server.login("alice", PASSWORD);
+    let token =
+        slath_tests::http::create_token(&mut alice, "outcomes", &["repo:write", "mrs:write"]);
+    let mut api = server.client();
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&token),
+        Some(&serde_json::json!({"source_branch": "outcomes", "title": "Outcomes fixture"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let mut wait = |k: i64| {
+        let start = std::time::Instant::now();
+        while api
+            .api(
+                "GET",
+                &format!("/api/v1/repos/alice/demo/merge-requests/{n}"),
+                Some(&token),
+                None,
+            )
+            .json()["revisions"]
+            != k
+        {
+            assert!(start.elapsed().as_secs() < 30, "no revision {k}");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    };
+    wait(1);
+    // Revision 2 drops beta; revision 3 brings it back, drops gamma, and
+    // adds delta.
+    git.ok(w, &["reset", "-q", "--hard", &commits[0]]);
+    git.ok(w, &["cherry-pick", &commits[2]]);
+    git.ok(w, &["push", "-q", "--force", url, "outcomes"]);
+    wait(2);
+    git.ok(w, &["reset", "-q", "--hard", &commits[1]]);
+    std::fs::write(w.join("outcomes-delta.md"), "delta\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Add delta"]);
+    git.ok(w, &["push", "-q", "--force", url, "outcomes"]);
+    wait(3);
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// "Performance fixture": a merge request with 50 changed files and 200
 /// comments, for the conversation tab's time budget.
 fn seed_performance(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
@@ -457,6 +513,8 @@ fn main() {
     seed_performance(&server, &git, w, &url);
     seed_merge_requests(&server, &git, w, &url);
     seed_diffs(&git, w, &url);
+    // After the others, so their merge request numbers stay.
+    seed_outcomes(&server, &git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");
