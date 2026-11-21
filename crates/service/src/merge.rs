@@ -460,32 +460,10 @@ impl Services {
                         "This branch has merge commits or too many commits to rebase; merge or squash instead.",
                     ));
                 }
-                let mut reader = slath_git::ObjectReader::open(r, &dir)
-                    .await
-                    .map_err(internal)?;
-                let mut onto = t.clone();
-                for c in &commits {
-                    let raw = reader.read_raw_commit(&c.oid).await.map_err(internal)?;
-                    let tree = match merge::merge_trees(r, &dir, c.parents.first(), &onto, &c.oid)
-                        .await
-                        .map_err(internal)?
-                    {
-                        TreeMerge::Clean(tree) => tree,
-                        TreeMerge::Conflicts(files) => return Err(conflict(files)),
-                    };
-                    let new = merge::rewrite(
-                        &raw,
-                        &tree,
-                        std::slice::from_ref(&onto),
-                        committer,
-                        ids.get(c.oid.as_str()).map(String::as_str),
-                    );
-                    onto = merge::write_commit(r, &dir, &new).await.map_err(internal)?;
-                    if raw.header(b"gpgsig").is_some() || raw.header(b"gpgsig-sha256").is_some() {
-                        signatures.push((c.oid.as_str().to_owned(), onto.as_str().to_owned()));
-                    }
-                }
-                Ok(onto)
+                let new = self
+                    .rebase_commits(m, &dir, &commits, t, committer, ids, signatures)
+                    .await?;
+                Ok(new.last().cloned().unwrap_or_else(|| t.clone()))
             }
             "merge-commit" | "squash" => {
                 let tree = match merge::merge_trees(r, &dir, None, t, head)
@@ -565,6 +543,86 @@ impl Services {
                 format!("Unknown strategy {other}."),
             )),
         }
+    }
+
+    /// Rebases `commits` (bottom first, no merges) onto `onto` with the
+    /// merge engine: headers, authors, and change IDs survive, signatures
+    /// go (recorded in `signatures`). Returns the new commit of each, in
+    /// order. A commit of a change that already landed whose patch the
+    /// target has (so it would be empty) is left out: its entry is the
+    /// commit below it.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn rebase_commits(
+        &self,
+        m: &MergeRequest,
+        dir: &std::path::Path,
+        commits: &[slath_git::browse::LogEntry],
+        onto: &ObjectId,
+        committer: &str,
+        ids: &HashMap<String, String>,
+        signatures: &mut Vec<(String, String)>,
+    ) -> Result<Vec<ObjectId>> {
+        let r = &self.runner;
+        let landed = self.landed_commits(m).await?;
+        let mut reader = slath_git::ObjectReader::open(r, dir)
+            .await
+            .map_err(internal)?;
+        let mut onto = onto.clone();
+        let mut out = Vec::with_capacity(commits.len());
+        for c in commits {
+            let raw = reader.read_raw_commit(&c.oid).await.map_err(internal)?;
+            let tree = match merge::merge_trees(r, dir, c.parents.first(), &onto, &c.oid)
+                .await
+                .map_err(internal)?
+            {
+                TreeMerge::Clean(tree) => tree,
+                TreeMerge::Conflicts(files) => {
+                    return Err(ServiceError::Conflict(format!(
+                        "Merging into {} conflicts in: {}.",
+                        m.target_branch,
+                        files.join(", ")
+                    )));
+                }
+            };
+            if landed.contains(c.oid.as_str()) {
+                let below = reader.read_raw_commit(&onto).await.map_err(internal)?;
+                if below.tree() == Some(tree.as_str().as_bytes()) {
+                    out.push(onto.clone());
+                    continue;
+                }
+            }
+            let new = merge::rewrite(
+                &raw,
+                &tree,
+                std::slice::from_ref(&onto),
+                committer,
+                ids.get(c.oid.as_str()).map(String::as_str),
+            );
+            onto = merge::write_commit(r, dir, &new).await.map_err(internal)?;
+            if raw.header(b"gpgsig").is_some() || raw.header(b"gpgsig-sha256").is_some() {
+                signatures.push((c.oid.as_str().to_owned(), onto.as_str().to_owned()));
+            }
+            out.push(onto.clone());
+        }
+        Ok(out)
+    }
+
+    /// The current revision's commits whose change already landed.
+    async fn landed_commits(&self, m: &MergeRequest) -> Result<std::collections::HashSet<String>> {
+        let merged: std::collections::HashSet<uuid::Uuid> =
+            slath_db::mr_changes::changes(&self.pool, m.id)
+                .await?
+                .into_iter()
+                .filter(|c| c.state == "merged")
+                .map(|c| c.id)
+                .collect();
+        Ok(slath_db::mr_changes::versions(&self.pool, m.id)
+            .await?
+            .into_iter()
+            .filter(|v| v.revision_seq == m.revisions)
+            .filter(|v| v.change_id.is_some_and(|k| merged.contains(&k)))
+            .map(|v| v.commit_oid)
+            .collect())
     }
 
     /// Deletes the source branch after a merge, if the merger can push it

@@ -286,6 +286,42 @@ fn conf_review_07_git_cherry_picks_land_change_by_change() {
     c.wait_state(n, "merged");
 }
 
+/// A rebase merge in Slath of a merge request whose bottom changes landed
+/// by cherry-picks leaves them out instead of writing empty commits.
+#[test]
+fn conf_review_07_rebases_leave_out_changes_that_landed() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    seed(&c, &w);
+    c.git.ok(&w, &["switch", "-q", "-c", "topic", "main"]);
+    commit(&c, &w, "a.txt", "a\n", "Add a");
+    commit(&c, &w, "b.txt", "b\n", "Add b");
+    c.push(&w, &["topic"]);
+    let n = c.open_mr("topic");
+    c.wait_changes(n, &["active", "active"]);
+    c.git.ok(&w, &["switch", "-q", "main"]);
+    commit(&c, &w, "m.txt", "m\n", "Main moves");
+    c.git.ok(&w, &["cherry-pick", "topic~1"]);
+    c.push(&w, &["main"]);
+    c.wait_changes(n, &["merged", "active"]);
+    let head = c.mr(n)["head_oid"].as_str().unwrap().to_owned();
+    let r = c.api(
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"strategy": "rebase", "expected_head_oid": head, "delete_source": false})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let log = c
+        .git
+        .ok(&c.s.repo_path(&DEMO), &["log", "--format=%s", "main"]);
+    assert_eq!(
+        log.lines().collect::<Vec<_>>(),
+        ["Add b", "Add a", "Main moves", "init"],
+        "{log}"
+    );
+}
+
 #[test]
 fn conf_review_07_jj_push_of_main_with_two_of_three_changes() {
     for (version, bin) in jj_binaries() {
