@@ -1529,10 +1529,11 @@ h1 > bdi code,
   flex-direction: column;
   gap: var(--space-2);
 }
-.commit-checks {
-  display: inline-flex;
+.status-line {
+  display: flex;
   align-items: center;
   gap: var(--space-1);
+  margin: 0;
   font-size: var(--text-sm);
 }
 .diff-thread-row > td {
@@ -1633,11 +1634,6 @@ h1 > bdi code,
   padding: var(--space-2);
   white-space: pre;
 }
-.badge-danger {
-  border-color: var(--error);
-  background: var(--error-bg);
-  color: var(--error-fg);
-}
 .change-id {
   font-weight: var(--weight-semibold);
 }
@@ -1716,11 +1712,6 @@ h1 > bdi code,
 .stack-main > p {
   margin: 0;
   font-size: var(--text-sm);
-}
-.stack-main > p[class^="tone-"] {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 .markdown a.ref-closed {
   color: var(--text-secondary);

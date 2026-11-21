@@ -170,8 +170,11 @@ fn conf_jj_07_real_jj_conflicts_are_detected_by_either_signal_and_block_merging(
         let r = ui.get(&format!("/alice/demo/merge-requests/{n}/changes/{top}"));
         assert!(r.body.contains("below has a conflict too"), "{version}");
         assert!(r.body.contains(&format!("jj new {two}")), "{version}");
+        // The clean change has no frame (its stack column still names the
+        // others' conflicts).
         let r = ui.get(&format!("/alice/demo/merge-requests/{n}/changes/{k}"));
-        assert!(!r.body.contains("Conflict recorded by jj"), "{version}");
+        assert!(!r.body.contains(r#"id="conflict-title""#), "{version}");
+        assert!(r.body.contains("Conflict recorded by jj"), "{version}");
 
         // Each signal alone: the tree entries without jj's headers, and
         // the header on a clean tree, each under a change ID of its own.

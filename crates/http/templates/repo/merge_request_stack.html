@@ -27,11 +27,6 @@
   <li class="item-row">
     <div class="item-main">
       <a class="item-title" href="{% if let Some(e) = r.entry %}{% if let Some(id) = e.display_id %}{{ mr_base }}/changes/{{ id }}{% else %}/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}{% endif %}{% else %}/{{ header.namespace }}/{{ header.name }}/commit/{{ r.commit.oid }}{% endif %}">{{ r.commit.subject }}</a>
-      {%- if let Some(e) = r.entry %}
-      {%- if e.binding == "unresolved" || e.conflicted %}
-      <span class="item-labels">{% if e.binding == "unresolved" %}<span class="badge badge-danger">Unresolved</span>{% endif %}{% if e.conflicted %}<span class="badge badge-danger">Conflict</span>{% endif %}</span>
-      {%- endif %}
-      {%- endif %}
       <p class="item-meta text-secondary">
         {%- if let Some(e) = r.entry %}{% if let Some(id) = e.display_id %}Change <code class="change-id" data-tip="Change {{ id }}">{{ id[..8] }}</code> · {% endif %}{% endif -%}
         {% call p::git_identity(ctx, r.commit.author, r.commit.author_account) %}{% endcall %} · {% call c::time(r.commit.time) %}{% endcall %} · {% call c::hash(r.commit.oid, "/" ~ header.namespace ~ "/" ~ header.name ~ "/commit/" ~ r.commit.oid) %}{% endcall %}
@@ -40,8 +35,12 @@
       {%- if let Some(o) = r.outcome %}
       <p class="change-note text-secondary">{{ o }}.</p>
       {%- endif %}
+      {%- if let Some(e) = r.entry %}
+      {%- if e.binding == "unresolved" %}{% call m::status_line(ctx, "blocking", "Unresolved") %}{% endcall %}{% endif %}
+      {%- if e.conflicted %}{% call m::status_line(ctx, "blocking", "Conflict recorded by jj") %}{% endcall %}{% endif %}
+      {%- endif %}
       {%- if let Some((tone, text)) = r.checks %}
-      <p class="commit-checks tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+      {% call m::status_line(ctx, tone.to_string(), text) %}{% endcall %}
       {%- endif %}
       {%- if let Some(e) = r.entry %}
       {%- if e.binding == "unresolved" %}

@@ -57,9 +57,9 @@
   <li class="item-row">
     <div class="item-main">
       <a class="item-title" href="#rows">Parse empty input</a>
-      <span class="item-labels"><span class="badge badge-danger">Unresolved</span></span>
       <p class="item-meta text-secondary">Change <code class="change-id" data-tip="Change kxwmqrstuvpo">kxwmqrst</code> · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · 3 hours ago · <a class="hash" href="#rows" data-tip="a1e62f5c7d0b"><code>a1e62f5c7d0b</code></a></p>
-      <p class="commit-checks tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>1 of 2 checks failed</span></p>
+      {% call m::status_line(ctx, "blocking", "Unresolved") %}{% endcall %}
+      {% call m::status_line(ctx, "blocking", "1 of 2 checks failed") %}{% endcall %}
       <p class="change-note">This commit's IDs name 2 different changes.</p>
       <form class="cluster change-form" action="#rows">
         <label class="visually-hidden" for="demo-change">Change for a1e62f5c7d0b</label>
@@ -82,7 +82,7 @@
     <div class="item-main">
       <span class="item-title">Version 2</span>
       <p class="item-meta text-secondary">Revision 3 · {% call p::git_identity(ctx, "Alice Example", "alice") %}{% endcall %} · 3 hours ago · <code>b2f73a6d8e1c</code> · 1 file, +21 −0 · 2 comments</p>
-      <p class="commit-checks tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}<span>All 2 checks passed</span></p>
+      {% call m::status_line(ctx, "done", "All 2 checks passed") %}{% endcall %}
       <p class="change-note text-secondary">Matched by its change ID.</p>
     </div>
   </li>

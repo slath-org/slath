@@ -17,10 +17,10 @@
 {%- call cat::entry("status-line", "Status line", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>A status in one line: an icon, the words, and a reason. Three tones only: done (check), waiting (clock: normal, nothing wrong yet), and blocking (cross: something must change). Waiting is never red, so red keeps meaning "act". Used for requirements, checks (also in the details column), and deliveries.</dd>
-  <dt>Markup</dt><dd><code>li.tone-{done|waiting|blocking}</code> (or any element) with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>. Checks in a details column: <code>ul.plain-list</code> of these.</dd>
+  <dt>Markup</dt><dd>A line of its own: <code>m::status_line(ctx, tone, text)</code>, a <code>p.status-line.tone-{done|waiting|blocking}</code> (icon, a small gap, then the words). In a list: <code>li.tone-*</code> with <code>m::tone_icon(ctx, tone)</code>, then the words in a <code>span</code>; checks in a details column are a <code>ul.plain-list</code> of these.</dd>
   <dt>Variants</dt><dd>The three tones; with a reporter and a time on a second line.</dd>
   <dt>Accessibility</dt><dd>The icon is decorative; screen readers hear the tone as a word ("Done:", "Waiting:", "Blocking:") before the reason. Color only adds to icon and words.</dd>
-  <dt>Not for</dt><dd>An issue's or merge request's state (state label); categories (badge).</dd>
+  <dt>Not for</dt><dd>An issue's or merge request's state (state label); categories (badge). A state that blocks, such as Conflict or Unresolved, is a status line, never a red badge.</dd>
 </dl>
 {%- call cat::example("Checks in a details column.") %}
 <ul class="plain-list">
@@ -172,7 +172,7 @@
 {%- call cat::entry("stack", "Stack and change steps", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>On a change's page, the merge request's stack in the details column, bottom first, with each change's position, subject, short ID, and status lines (landed, new or returned in this revision, unresolved, conflict, verdicts, checks); the shown change is marked. Above the change, one group per kind of step, [‹ Change 2 of 6 ›] and [‹ Version 1 of 3 ›], with arrow buttons to the previous and next one. Only for a stack of more than one change.</dd>
-  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines as <code>p.tone-*</code>). The steps: <code>nav.cluster.change-steps</code> of <code>div.step-group[role=group]</code>, each an icon link (<code>a.button.button-quiet.button-icon[data-key]</code> with <code>aria-keyshortcuts</code> and its name in words), <code>span.step-label</code> naming the group, and the other icon link.</dd>
+  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines, <code>m::status_line</code>). The steps: <code>nav.cluster.change-steps</code> of <code>div.step-group[role=group]</code>, each an icon link (<code>a.button.button-quiet.button-icon[data-key]</code> with <code>aria-keyshortcuts</code> and its name in words), <code>span.step-label</code> naming the group, and the other icon link.</dd>
   <dt>Variants</dt><dd>With removed changes: a second section, "Removed changes", each with the revision that removed it. At an end, its arrow stays in place, dimmed and hidden from screen readers (<code>.step-none</code>), so the label doesn't move. The version group only appears for a change with more than one version.</dd>
   <dt>Accessibility</dt><dd>An ordered list, so its order is announced; the shown change is named "(shown)" for screen readers. j and k (changes), [ and ] (versions) act only while focus is inside the change view and do exactly what the buttons do; each button's tooltip names its key.</dd>
   <dt>Not for</dt><dd>Navigation between pages of a context (side menu); a commit list (item list).</dd>
@@ -211,15 +211,14 @@
 {%- call cat::entry("chips", "Badges, state labels, counts, labels", "Stable") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Small facts beside text, each for its own job: a badge for a category or flag (Private, Archived, Bot, Outdated); the state label for an issue's or merge request's state; a count for a number; a label as a color dot and its name; the evidence chip for what kind of evidence something is (observed, reported, claimed).</dd>
-  <dt>Markup</dt><dd><code>span.badge</code>, <code>span.badge.badge-danger</code> for a flag that blocks (Unresolved, Conflict); <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>
+  <dt>Markup</dt><dd><code>span.badge</code>; <code>span.state-label.state-{open|closed|merged|draft|iterating}</code> with its icon; <code>m::tab</code>'s or <code>span.count</code>; <code>a.label-chip</code> with its swatch; <code>m::evidence(kind)</code>.</dd>
   <dt>Variants</dt><dd>As listed. No filled, saturated badges.</dd>
   <dt>Accessibility</dt><dd>Words, never color alone; a state label's icon is decorative.</dd>
-  <dt>Not for</dt><dd>Statuses of checks or requirements (status line).</dd>
+  <dt>Not for</dt><dd>Statuses of checks or requirements, and states that block such as Conflict (status line).</dd>
 </dl>
 {%- call cat::example("One of each.") %}
 <div class="cluster">
   <span class="badge">Private</span>
-  <span class="badge badge-danger">Conflict</span>
   <span class="state-label state-open">{% call m::icon(ctx, "git-pull-request") %}{% endcall %}Open</span>
   <span class="state-label state-merged">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merged</span>
   <span>Unresolved <span class="count">3</span></span>

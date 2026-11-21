@@ -3089,7 +3089,7 @@ async fn stack_rows(
                 flags.push(("blocking", "Unresolved".to_owned()));
             }
             if e.conflicted {
-                flags.push(("blocking", "Conflict".to_owned()));
+                flags.push(("blocking", "Conflict recorded by jj".to_owned()));
             }
             let v = verdicts
                 .iter()

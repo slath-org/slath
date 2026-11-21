@@ -17,6 +17,11 @@
 {%- macro tone_icon(ctx, tone) -%}
 {%- if tone == "done" %}{% call icon(ctx, "circle-check") %}{% endcall %}<span class="visually-hidden">Done: </span>{% else if tone == "waiting" %}{% call icon(ctx, "clock") %}{% endcall %}<span class="visually-hidden">Waiting: </span>{% else %}{% call icon(ctx, "circle-x") %}{% endcall %}<span class="visually-hidden">Blocking: </span>{% endif -%}
 {%- endmacro -%}
+{#- A status in one line of its own (Weave: StatusLine): the tone's icon,
+    then the words. -#}
+{%- macro status_line(ctx, tone, text) -%}
+<p class="status-line tone-{{ tone }}">{% call tone_icon(ctx, tone) %}{% endcall %}<span>{{ text }}</span></p>
+{%- endmacro -%}
 {#- What kind of evidence something is (Weave: EvidenceChip). -#}
 {%- macro evidence(kind) -%}
 <span class="evidence-chip">{{ kind }}</span>

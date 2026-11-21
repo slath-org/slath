@@ -47,10 +47,10 @@
         {%- if r.comments > 0 %} · {{ r.comments }} comment{% if r.comments != 1 %}s{% endif %}{% endif -%}
       </p>
       {%- if let Some(ch) = r.checks %}
-      <p class="commit-checks tone-{{ ch.tone }}">{% call m::tone_icon(ctx, ch.tone.to_string()) %}{% endcall %}<span>{{ ch.text }}</span></p>
+      {% call m::status_line(ctx, ch.tone.to_string(), ch.text) %}{% endcall %}
       {%- endif %}
       {%- if r.v.conflicted %}
-      <p class="tone-blocking">{% call m::tone_icon(ctx, "blocking") %}{% endcall %}<span>Conflict recorded by jj</span></p>
+      {% call m::status_line(ctx, "blocking", "Conflict recorded by jj") %}{% endcall %}
       {%- endif %}
       <p class="change-note text-secondary">{{ r.matched }}.</p>
       {%- if r.v.revision != shown.revision %}
@@ -176,13 +176,13 @@
           <p class="text-secondary"><code>{{ r.display_id[..8] }}</code></p>
           {%- endif %}
           {%- for (tone, text) in r.flags %}
-          <p class="tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+          {% call m::status_line(ctx, tone.to_string(), text) %}{% endcall %}
           {%- endfor %}
           {%- if let Some((tone, text)) = r.verdicts %}
-          <p class="tone-{{ tone }}">{% call m::tone_icon(ctx, tone.to_string()) %}{% endcall %}<span>{{ text }}</span></p>
+          {% call m::status_line(ctx, tone.to_string(), text) %}{% endcall %}
           {%- endif %}
           {%- if let Some(ch) = r.checks %}
-          <p class="tone-{{ ch.tone }}">{% call m::tone_icon(ctx, ch.tone.to_string()) %}{% endcall %}<span>{{ ch.text }}</span></p>
+          {% call m::status_line(ctx, ch.tone.to_string(), ch.text) %}{% endcall %}
           {%- endif %}
         </div>
       </li>
