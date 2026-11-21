@@ -172,17 +172,17 @@
 {%- call cat::entry("stack", "Stack and change steps", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>On a change's page, the merge request's stack in the details column, bottom first, with each change's position, subject, short ID, and status lines (landed, new in this revision, unresolved, conflict, verdicts, checks); the shown change is marked. Above the change, buttons to the previous and next change and version. Only for a stack of more than one change.</dd>
-  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines as <code>p.tone-*</code>). The steps: <code>nav.cluster.change-steps</code> of <code>a.button[data-key]</code>.</dd>
+  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines as <code>p.tone-*</code>). The steps: <code>nav.cluster.change-steps</code> of <code>a.button[data-key]</code> with <code>aria-keyshortcuts</code>.</dd>
   <dt>Variants</dt><dd>With removed changes: a second section, "Removed changes". Without a previous or next change, its button is left out.</dd>
-  <dt>Accessibility</dt><dd>An ordered list, so its order is announced; the shown change is named "(shown)" for screen readers. The steps are links, reached and used like any other.</dd>
+  <dt>Accessibility</dt><dd>An ordered list, so its order is announced; the shown change is named "(shown)" for screen readers. j and k (changes), [ and ] (versions) act only while focus is inside the change view and do exactly what the buttons do; each button's tooltip names its key.</dd>
   <dt>Not for</dt><dd>Navigation between pages of a context (side menu); a commit list (item list).</dd>
 </dl>
 {%- call cat::example("A stack of three, the second change shown.") %}
 <div class="detail">
 <div class="stack-groups">
 <nav class="cluster change-steps" aria-label="Example changes and versions">
-  <a class="button" href="#stack">Previous change</a>
-  <a class="button" href="#stack">Next change</a>
+  <a class="button" href="#stack" data-tip="Previous change (k)">Previous change</a>
+  <a class="button" href="#stack" data-tip="Next change (j)">Next change</a>
 </nav>
 <div class="catalog-block">The change: its versions and its diff</div>
 </div>

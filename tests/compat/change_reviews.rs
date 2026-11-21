@@ -448,9 +448,15 @@ fn conf_jj_04_change_pages_show_the_stack_bottom_first() {
     // The two changes added by revision 2 are new in it.
     assert!(rows[2].contains("New in revision 2") && rows[3].contains("New in revision 2"));
     assert!(!rows[0].contains("New in"), "{}", rows[0]);
-    // Buttons to the changes below and above.
-    assert!(second.contains(&format!("href=\"{base}{}\" data-key=\"k\"", ids[0])));
-    assert!(second.contains(&format!("href=\"{base}{}\" data-key=\"j\"", ids[2])));
+    // Buttons to the changes below and above, with their keys.
+    assert!(second.contains(&format!(
+        "href=\"{base}{}\" data-key=\"k\" aria-keyshortcuts=\"k\"",
+        ids[0]
+    )));
+    assert!(second.contains(&format!(
+        "href=\"{base}{}\" data-key=\"j\" aria-keyshortcuts=\"j\"",
+        ids[2]
+    )));
     // The bottom change has no previous change, the top one no next.
     assert!(!page(&mut ui, &ids[0]).contains("data-key=\"k\""));
     assert!(!page(&mut ui, &ids[3]).contains("data-key=\"j\""));

@@ -212,8 +212,11 @@ stack beside it (below it on narrow screens), bottom first: each change's
 subject and ID, whether it landed or is new in this revision, who approves
 it or asks for changes, and its checks. **Previous change** and **Next
 change** move down and up the stack, **Previous version** and **Next
-version** through the shown change's versions. A merge request of a
-single change has none of this, as there's nothing to move between.
+version** through the shown change's versions. While focus is on the
+change's page (for example after tabbing to one of these buttons), the
+keys **k** and **j** do the same for changes, and **[** and **]** for
+versions. A merge request of a single change has none of this, as there's
+nothing to move between.
 
 **Compare with previous** on a revision in the timeline compares two
 revisions with `git range-diff`. That's marked **heuristic**: it pairs

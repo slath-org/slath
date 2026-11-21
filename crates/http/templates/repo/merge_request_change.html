@@ -13,10 +13,10 @@
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
 {%- if prev_change.is_some() || next_change.is_some() || prev_version.is_some() || next_version.is_some() %}
 <nav class="cluster change-steps" aria-label="Changes and versions">
-  {%- if let Some(href) = prev_change %}<a class="button" href="{{ href }}" data-key="k">Previous change</a>{% endif %}
-  {%- if let Some(href) = next_change %}<a class="button" href="{{ href }}" data-key="j">Next change</a>{% endif %}
-  {%- if let Some(href) = prev_version %}<a class="button" href="{{ href }}" data-key="[">Previous version</a>{% endif %}
-  {%- if let Some(href) = next_version %}<a class="button" href="{{ href }}" data-key="]">Next version</a>{% endif %}
+  {%- if let Some(href) = prev_change %}<a class="button" href="{{ href }}" data-key="k" aria-keyshortcuts="k" data-tip="Previous change (k)">Previous change</a>{% endif %}
+  {%- if let Some(href) = next_change %}<a class="button" href="{{ href }}" data-key="j" aria-keyshortcuts="j" data-tip="Next change (j)">Next change</a>{% endif %}
+  {%- if let Some(href) = prev_version %}<a class="button" href="{{ href }}" data-key="[" aria-keyshortcuts="[" data-tip="Previous version ([)">Previous version</a>{% endif %}
+  {%- if let Some(href) = next_version %}<a class="button" href="{{ href }}" data-key="]" aria-keyshortcuts="]" data-tip="Next version (])">Next version</a>{% endif %}
 </nav>
 {%- endif %}
 <ol class="item-list version-list" aria-label="Versions">
