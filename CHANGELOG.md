@@ -24,6 +24,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Unresolved threads on a later change's own diff don't block landing the changes below it; general threads still do.
 - Land part of a stack with **Land up to here** on a change's page, or through the API: the changes up to it merge with any strategy, and the rest stays open as a new revision.
 - The mergeability API reports what landing the changes up to one of a stack needs (`?upto_change=`): approvals of those changes and checks of the top one.
+- Push output names changes of the branch that already landed and suggests a rebase or Update branch; the timeline says when a partial landing couldn't rebase the rest.
 - Rebases on the server leave out changes that already landed instead of writing empty commits.
 - Commits with a conflict recorded by jj explain on their change's page how to read their tree and resolve them with jj or Git, starting with the lowest conflicted change.
 - A merge request's tabs are now Conversation, Changes (the stack, each title leading to its change's page), and Files (the diff); links to the old Commits and Changes pages still work.

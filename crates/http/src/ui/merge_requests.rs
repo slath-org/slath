@@ -976,6 +976,13 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
                 },
             )
         }
+        "rest_not_rebased" => (
+            "triangle-alert",
+            format!(
+                "couldn't rebase the rest of the stack onto {}: the branch moved meanwhile. Update the branch with a rebase to drop what landed",
+                str_of("target")
+            ),
+        ),
         "possibly_landed" => (
             "triangle-alert",
             format!(
@@ -4349,6 +4356,40 @@ mod tests {
             all_unviewed: all,
             unviewed_href: String::new(),
         }
+    }
+
+    fn event(kind: &str, data: serde_json::Value) -> String {
+        super::event_view(slath_db::issues::Event {
+            id: uuid::Uuid::nil(),
+            actor: Some("rhea".to_owned()),
+            kind: kind.to_owned(),
+            data,
+            created_at: time::OffsetDateTime::UNIX_EPOCH,
+        })
+        .map(|v| v.text)
+        .unwrap_or_default()
+    }
+
+    #[test]
+    fn partial_landings_say_what_landed_and_when_the_rest_stayed() {
+        assert_eq!(
+            event(
+                "changes_landed",
+                serde_json::json!({"changes": ["kxyzabcdefgh", "lmnopqrstuvw"], "target": "main", "strategy": "rebase"})
+            ),
+            "landed changes kxyzabcd, lmnopqrs into main (rebase); the rest is still open"
+        );
+        assert_eq!(
+            event(
+                "changes_landed",
+                serde_json::json!({"changes": ["kxyzabcdefgh"], "target": "main"})
+            ),
+            "pushed change kxyzabcd to main; the rest is still open"
+        );
+        assert_eq!(
+            event("rest_not_rebased", serde_json::json!({"target": "main"})),
+            "couldn't rebase the rest of the stack onto main: the branch moved meanwhile. Update the branch with a rebase to drop what landed"
+        );
     }
 
     #[test]

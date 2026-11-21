@@ -305,6 +305,22 @@ fn conf_review_07_rebases_leave_out_changes_that_landed() {
     c.git.ok(&w, &["cherry-pick", "topic~1"]);
     c.push(&w, &["main"]);
     c.wait_changes(n, &["merged", "active"]);
+    // A push that still has it says so.
+    c.git.ok(&w, &["switch", "-q", "topic"]);
+    commit(&c, &w, "b.txt", "b, edited\n", "Edit b");
+    let out = c
+        .git
+        .cmd(&w)
+        .args(["push", &c.url, "topic"])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert!(
+        err.contains(" already landed in main; rebase onto it to drop it, or use Update branch: "),
+        "{err}"
+    );
+    c.wait_changes(n, &["merged", "active", "active"]);
     let head = c.mr(n)["head_oid"].as_str().unwrap().to_owned();
     let r = c.api(
         "POST",
@@ -317,7 +333,7 @@ fn conf_review_07_rebases_leave_out_changes_that_landed() {
         .ok(&c.s.repo_path(&DEMO), &["log", "--format=%s", "main"]);
     assert_eq!(
         log.lines().collect::<Vec<_>>(),
-        ["Add b", "Add a", "Main moves", "init"],
+        ["Edit b", "Add b", "Add a", "Main moves", "init"],
         "{log}"
     );
 }

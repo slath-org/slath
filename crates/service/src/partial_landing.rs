@@ -214,9 +214,20 @@ impl Services {
         match (w, rest) {
             (Some(w), Some(rest)) => {
                 // Someone pushed the source meanwhile: their push is the
-                // next revision, and a later rebase skips what landed.
+                // next revision, still with what landed. The timeline says
+                // so; a rebase (Update branch) drops it.
                 if let Err(e) = self.move_source(&w, a, m, &rest, user).await {
                     tracing::info!(error = %e, mr = %m.id, "the rest of a partially landed stack wasn't rebased");
+                    slath_db::issues::insert_event(
+                        &self.pool,
+                        a.repo.id,
+                        "merge_request",
+                        *m.id.as_uuid(),
+                        Some(user),
+                        "rest_not_rebased",
+                        &serde_json::json!({"target": m.target_branch}),
+                    )
+                    .await?;
                 }
             }
             _ => {

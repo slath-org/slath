@@ -740,6 +740,23 @@ impl Services {
             };
             out.push(line.trim_end().to_owned());
         }
+        // Commits of changes that already landed (by a push of the target,
+        // or a partial landing the push raced with): a rebase drops them.
+        let stale: Vec<&str> = here
+            .iter()
+            .filter_map(|v| v.change_id)
+            .filter(|k| landed.contains(k))
+            .filter_map(|k| display.get(&k))
+            .map(|d| d.get(..8).unwrap_or(d))
+            .collect();
+        if !stale.is_empty() {
+            out.push(format!(
+                "slath:   {} already landed in {}; rebase onto it to drop {}, or use Update branch: {url}",
+                stale.join(", "),
+                m.target_branch,
+                if stale.len() == 1 { "it" } else { "them" }
+            ));
+        }
         // jj carries a conflict to the changes above it: name the lowest.
         let conflicted: Vec<&&db::Version> = here.iter().filter(|v| v.conflicted).collect();
         if let Some(low) = conflicted.iter().min_by_key(|v| v.position) {

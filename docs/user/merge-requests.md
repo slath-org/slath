@@ -502,6 +502,10 @@ to the branch, and the page offers them only then. A fast-forward or merge commi
 Either way the rest becomes a new revision on the new target and keeps
 its change IDs. jj picks up the rebased rest as the same changes with
 `jj git fetch`; with Git, `git pull --rebase` before you push again.
+If someone pushes the branch while part of it lands, their push stays
+and still has the old commits of what landed; the timeline says so, and
+**Update branch** with a rebase drops them. Whenever a push still has
+changes that already landed, its output names them.
 
 ### Merging by pushing the target
 
