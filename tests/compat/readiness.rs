@@ -31,6 +31,37 @@ fn listed(c: &Ctx) -> (String, String) {
     (tone.to_owned(), tip)
 }
 
+/// The only open merge request's check and approval states in the list,
+/// each a tone and words.
+fn row_states(c: &Ctx) -> Vec<(String, String)> {
+    let body =
+        c.s.login("alice", PASSWORD)
+            .get("/alice/demo/merge-requests")
+            .body;
+    let Some((_, rest)) = body.split_once(r#"<p class="item-meta item-status">"#) else {
+        return Vec::new();
+    };
+    let row = rest.split_once("</p>").unwrap().0;
+    row.split(r#"status-inline tone-"#)
+        .skip(1)
+        .map(|s| {
+            let (tone, rest) = s.split_once('"').unwrap();
+            let text = rest
+                .split_once("</span><span>")
+                .and_then(|(_, r)| r.split_once("</span>"))
+                .unwrap()
+                .0;
+            (tone.to_owned(), text.to_owned())
+        })
+        .collect()
+}
+
+fn states(v: &[(&str, &str)]) -> Vec<(String, String)> {
+    v.iter()
+        .map(|(t, w)| ((*t).to_owned(), (*w).to_owned()))
+        .collect()
+}
+
 /// The readiness card's headline on the merge request's page.
 fn card(c: &Ctx, n: i64) -> String {
     let body =
@@ -82,10 +113,13 @@ fn conf_review_16_the_list_shows_the_cards_readiness_after_every_change() {
     c.clone(&w);
     let (n, head) = topic(&c, &w);
     shows(&c, n, "done", "Ready to merge");
+    // Without review rules, checks, or reviews, the row says nothing more.
+    assert_eq!(row_states(&c), states(&[]));
 
     // Protection of the target (all its merge requests).
     protect(&c, json!({"pattern": "main", "required_approvals": 1}));
     shows(&c, n, "waiting", "Approval required");
+    assert_eq!(row_states(&c), states(&[("waiting", "Approval required")]));
     // A collaborator and their review.
     let bob = bob(&c);
     let r = c.s.client().api(
@@ -96,6 +130,7 @@ fn conf_review_16_the_list_shows_the_cards_readiness_after_every_change() {
     );
     assert_eq!(r.status, 201, "{}", r.body);
     shows(&c, n, "done", "Ready to merge");
+    assert_eq!(row_states(&c), states(&[("done", "Approved")]));
     // The merge request itself.
     let r = c.api(
         "PATCH",
@@ -122,9 +157,19 @@ fn conf_review_16_the_list_shows_the_cards_readiness_after_every_change() {
         json!({"pattern": "main", "required_approvals": 1, "required_status_contexts": ["ci"]}),
     );
     shows(&c, n, "waiting", "Checks running");
-    for (state, tone, headline) in [
-        ("failure", "blocking", "Checks failing"),
-        ("success", "done", "Ready to merge"),
+    for (state, tone, headline, checks) in [
+        (
+            "failure",
+            "blocking",
+            "Checks failing",
+            ("blocking", "1 of 1 check failed"),
+        ),
+        (
+            "success",
+            "done",
+            "Ready to merge",
+            ("done", "The check passed"),
+        ),
     ] {
         let r = c.s.client().api(
             "POST",
@@ -134,6 +179,7 @@ fn conf_review_16_the_list_shows_the_cards_readiness_after_every_change() {
         );
         assert_eq!(r.status, 201, "{}", r.body);
         shows(&c, n, tone, headline);
+        assert_eq!(row_states(&c), states(&[checks, ("done", "Approved")]));
     }
     // A push to the target.
     c.git
@@ -180,6 +226,10 @@ fn conf_review_16_the_snapshot_is_rebuildable_and_never_allows_a_merge() {
     shows(&c, n, "waiting", "Approval required");
     let (ok, out, err) = c.s.slath(&["fsck"], None);
     assert!(ok, "{out}{err}");
+
+    // A snapshot of an older format is computed again.
+    c.s.db.execute(&format!("{wrong}, built_format = 1"));
+    shows(&c, n, "waiting", "Approval required");
 
     // Any change makes the list compute it again.
     c.s.db.execute(wrong);

@@ -27,6 +27,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Push output names changes of the branch that already landed and suggests a rebase or Update branch; the timeline says when a partial landing couldn't rebase the rest.
 - Rebases on the server leave out changes that already landed instead of writing empty commits.
 - The merge request list shows one icon per open merge request: ready, waiting, or where someone must act, with the readiness headline as its tooltip.
+- Each open merge request in the list shows its checks and approvals in words, such as "1 of 3 checks failed" and "Approval required".
 - Merge request lists load faster: each row's readiness is stored and computed again only after something it depends on changes.
 - `slath fsck` reports stored list readiness that differs from a fresh computation, and `--reconcile` rebuilds it.
 - Conflicts and unresolved commits show as status lines with an icon, like checks, instead of red badges.

@@ -1255,6 +1255,13 @@ main > .repo-context {
   margin: 0;
   font-size: var(--text-sm);
 }
+/* A merge request's check and approval states under its title line. */
+.item-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-block-start: var(--space-1);
+}
 .item-count {
   display: inline-flex;
   align-items: center;

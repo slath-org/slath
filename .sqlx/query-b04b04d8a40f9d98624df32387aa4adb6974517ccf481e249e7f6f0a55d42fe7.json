@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT mr_id, generation, built_generation, built_format, tone, headline,\n                checks_tone, checks_text, approvals_tone, approvals_text\n           FROM mr_readiness WHERE mr_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mr_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "mr_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "generation",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "generation"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "built_generation",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "built_generation"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "built_format",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "built_format"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "tone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "tone"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "headline",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "headline"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "checks_tone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "checks_tone"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "checks_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "checks_text"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "approvals_tone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "approvals_tone"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "approvals_text",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_readiness",
+            "name": "approvals_text"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b04b04d8a40f9d98624df32387aa4adb6974517ccf481e249e7f6f0a55d42fe7"
+}

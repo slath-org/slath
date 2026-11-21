@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_readiness SET built_generation = generation, built_format = $3, tone = $4, headline = $5,\n                checks_tone = $6, checks_text = $7, approvals_tone = $8, approvals_text = $9, built_at = now()\n         WHERE mr_id = $1 AND generation = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int2",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b094d26d1ab18b1e1a0922d0d8a34d799fbefa00560a203fc46811694833f8d4"
+}

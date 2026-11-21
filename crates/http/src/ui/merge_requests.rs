@@ -123,10 +123,10 @@ struct MrRow {
     comments: i64,
     source: String,
     target: String,
-    /// Its readiness as the merge request's readiness card has it: the
-    /// tone (`done`, `waiting`, `blocking`) and the headline; `None` when
+    /// Its readiness as the merge request's readiness card has it (the
+    /// tone and headline), with its check and approval states; `None` when
     /// not open.
-    readiness: Option<(String, String)>,
+    readiness: Option<slath_service::readiness::Readiness>,
     /// Who is asked to review it, or reviewed it.
     reviewers: Vec<String>,
 }
@@ -137,38 +137,9 @@ struct Checks {
     text: String,
 }
 
-/// The checks of a head in one tone and words: failing if any failed,
-/// running if any is pending, passed if all passed.
+/// The checks of a head in one tone and words.
 fn checks_summary(statuses: &[slath_db::statuses::Status]) -> Option<Checks> {
-    let total = statuses.len();
-    if total == 0 {
-        return None;
-    }
-    let count = |states: &[&str]| {
-        statuses
-            .iter()
-            .filter(|s| states.contains(&s.state.as_str()))
-            .count()
-    };
-    let failed = count(&["failure", "error"]);
-    let pending = count(&["pending"]);
-    let checks = |n: usize| if n == 1 { "check" } else { "checks" };
-    let (tone, text) = if failed > 0 {
-        (
-            "blocking",
-            format!("{failed} of {total} {} failed", checks(total)),
-        )
-    } else if pending > 0 {
-        (
-            "waiting",
-            format!("{pending} of {total} {} running", checks(total)),
-        )
-    } else if total == 1 {
-        ("done", "The check passed".to_owned())
-    } else {
-        ("done", format!("All {total} checks passed"))
-    };
-    Some(Checks { tone, text })
+    slath_service::readiness::checks_state(statuses).map(|(tone, text)| Checks { tone, text })
 }
 
 #[derive(Template)]
