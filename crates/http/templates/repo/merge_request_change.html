@@ -11,12 +11,22 @@
 <div class="stack-groups">
 <section class="section" aria-labelledby="change-heading">
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
-{%- if prev_change.is_some() || next_change.is_some() || prev_version.is_some() || next_version.is_some() %}
+{%- if change_pos.is_some() || change.versions.len() > 1 %}
 <nav class="cluster change-steps" aria-label="Changes and versions">
-  {%- if let Some(href) = prev_change %}<a class="button" href="{{ href }}" data-key="k" aria-keyshortcuts="k" data-tip="Previous change (k)">Previous change</a>{% endif %}
-  {%- if let Some(href) = next_change %}<a class="button" href="{{ href }}" data-key="j" aria-keyshortcuts="j" data-tip="Next change (j)">Next change</a>{% endif %}
-  {%- if let Some(href) = prev_version %}<a class="button" href="{{ href }}" data-key="[" aria-keyshortcuts="[" data-tip="Previous version ([)">Previous version</a>{% endif %}
-  {%- if let Some(href) = next_version %}<a class="button" href="{{ href }}" data-key="]" aria-keyshortcuts="]" data-tip="Next version (])">Next version</a>{% endif %}
+  {%- if let Some((at, of)) = change_pos %}
+  <div class="step-group" role="group" aria-labelledby="step-change">
+    {%- if let Some(href) = prev_change %}<a class="button button-quiet button-icon" href="{{ href }}" data-key="k" aria-keyshortcuts="k" data-tip="Previous change (k)">{% call m::icon(ctx, "chevron-left") %}{% endcall %}<span class="visually-hidden">Previous change</span></a>{% else %}<span class="button button-quiet button-icon step-none" aria-hidden="true">{% call m::icon(ctx, "chevron-left") %}{% endcall %}</span>{% endif %}
+    <span id="step-change" class="step-label">Change {{ at }} of {{ of }}</span>
+    {%- if let Some(href) = next_change %}<a class="button button-quiet button-icon" href="{{ href }}" data-key="j" aria-keyshortcuts="j" data-tip="Next change (j)">{% call m::icon(ctx, "chevron-right") %}{% endcall %}<span class="visually-hidden">Next change</span></a>{% else %}<span class="button button-quiet button-icon step-none" aria-hidden="true">{% call m::icon(ctx, "chevron-right") %}{% endcall %}</span>{% endif %}
+  </div>
+  {%- endif %}
+  {%- if change.versions.len() > 1 %}
+  <div class="step-group" role="group" aria-labelledby="step-version">
+    {%- if let Some(href) = prev_version %}<a class="button button-quiet button-icon" href="{{ href }}" data-key="[" aria-keyshortcuts="[" data-tip="Previous version ([)">{% call m::icon(ctx, "chevron-left") %}{% endcall %}<span class="visually-hidden">Previous version</span></a>{% else %}<span class="button button-quiet button-icon step-none" aria-hidden="true">{% call m::icon(ctx, "chevron-left") %}{% endcall %}</span>{% endif %}
+    <span id="step-version" class="step-label">Version {{ shown.number }} of {{ change.versions.len() }}</span>
+    {%- if let Some(href) = next_version %}<a class="button button-quiet button-icon" href="{{ href }}" data-key="]" aria-keyshortcuts="]" data-tip="Next version (])">{% call m::icon(ctx, "chevron-right") %}{% endcall %}<span class="visually-hidden">Next version</span></a>{% else %}<span class="button button-quiet button-icon step-none" aria-hidden="true">{% call m::icon(ctx, "chevron-right") %}{% endcall %}</span>{% endif %}
+  </div>
+  {%- endif %}
 </nav>
 {%- endif %}
 <ol class="item-list version-list" aria-label="Versions">

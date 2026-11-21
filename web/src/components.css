@@ -1655,6 +1655,28 @@ h1 > bdi code,
 .version-picker {
   margin-block: var(--gap-items);
 }
+/* Each kind of step is one group: [‹ Change 2 of 6 ›]. An end without a
+   step keeps its place, dimmed, so the label doesn't move. */
+.change-steps {
+  column-gap: var(--space-4);
+}
+.step-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.step-label {
+  padding-inline: var(--space-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.step-none {
+  opacity: 0.35;
+  pointer-events: none;
+}
 .version-picker select {
   min-height: var(--control-height);
 }
@@ -1666,8 +1688,12 @@ h1 > bdi code,
   flex-direction: column;
   gap: var(--gap-inline);
 }
-.stack-item {
+/* Above the plain list's centered rows: the number stays on the
+   subject's first line. */
+.stack-list > .stack-item {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);

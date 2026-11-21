@@ -457,6 +457,11 @@ fn conf_jj_04_change_pages_show_the_stack_bottom_first() {
         "href=\"{base}{}\" data-key=\"j\" aria-keyshortcuts=\"j\"",
         ids[2]
     )));
+    // Grouped by kind, with the position; a version per revision.
+    assert!(second.contains(">Change 2 of 4<"), "{second}");
+    assert!(second.contains(">Version 2 of 2<"), "{second}");
+    // A change new in revision 2 has one version: no version steps.
+    assert!(!page(&mut ui, &ids[2]).contains("step-version"));
     // The bottom change has no previous change, the top one no next.
     assert!(!page(&mut ui, &ids[0]).contains("data-key=\"k\""));
     assert!(!page(&mut ui, &ids[3]).contains("data-key=\"j\""));
@@ -488,6 +493,10 @@ fn conf_jj_04_change_pages_show_the_stack_bottom_first() {
     assert_eq!(subjects, ["Add a", "Add b", "Add e", "Add d", "Add c"]);
     assert!(rows[2].contains("New in revision 3"), "{}", rows[2]);
     assert!(top.contains("data-key=\"[\""), "{top}");
+    assert!(
+        top.contains(">Change 5 of 5<") && top.contains(">Version 2 of 2<"),
+        "{top}"
+    );
     assert!(!top.contains("data-key=\"]\""), "{top}");
 }
 

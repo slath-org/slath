@@ -9,6 +9,7 @@ bot
 building-2
 check
 chevron-down
+chevron-left
 chevron-right
 circle-alert
 circle-check

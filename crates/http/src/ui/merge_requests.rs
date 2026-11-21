@@ -2532,6 +2532,9 @@ struct StackRow {
     display_id: String,
     subject: String,
     href: String,
+    /// This change's position in the current stack and the stack's size;
+    /// `None` without a stack column or when it isn't in the stack.
+    change_pos: Option<(usize, usize)>,
     /// The change shown on the page.
     current: bool,
     /// Its state in words with a tone, if not simply open: landed, new in
@@ -2763,6 +2766,7 @@ async fn change(
         shown,
         from,
         kind,
+    let change_pos = at.map(|i| (i + 1, stack.len()));
         diff,
         text,
         too_big,
@@ -2796,6 +2800,7 @@ async fn stack_rows(
         .await?
         .into_iter()
         .map(|c| {
+        change_pos,
             (
                 c.oid.as_str().to_owned(),
                 slath_markup::reveal_bidi(&c.subject).into_owned(),

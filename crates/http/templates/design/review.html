@@ -171,9 +171,9 @@
 
 {%- call cat::entry("stack", "Stack and change steps", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>On a change's page, the merge request's stack in the details column, bottom first, with each change's position, subject, short ID, and status lines (landed, new in this revision, unresolved, conflict, verdicts, checks); the shown change is marked. Above the change, buttons to the previous and next change and version. Only for a stack of more than one change.</dd>
-  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines as <code>p.tone-*</code>). The steps: <code>nav.cluster.change-steps</code> of <code>a.button[data-key]</code> with <code>aria-keyshortcuts</code>.</dd>
-  <dt>Variants</dt><dd>With removed changes: a second section, "Removed changes". Without a previous or next change, its button is left out.</dd>
+  <dt>Purpose</dt><dd>On a change's page, the merge request's stack in the details column, bottom first, with each change's position, subject, short ID, and status lines (landed, new in this revision, unresolved, conflict, verdicts, checks); the shown change is marked. Above the change, one group per kind of step, [‹ Change 2 of 6 ›] and [‹ Version 1 of 3 ›], with arrow buttons to the previous and next one. Only for a stack of more than one change.</dd>
+  <dt>Markup</dt><dd><code>section.details-section</code> &gt; <code>ol.plain-list.stack-list</code> &gt; <code>li.stack-item</code> (<code>[aria-current=true]</code> for the shown change) with <code>span.stack-position</code> and <code>div.stack-main</code> (a link, or <code>strong</code> for the shown change, then status lines as <code>p.tone-*</code>). The steps: <code>nav.cluster.change-steps</code> of <code>div.step-group[role=group]</code>, each an icon link (<code>a.button.button-quiet.button-icon[data-key]</code> with <code>aria-keyshortcuts</code> and its name in words), <code>span.step-label</code> naming the group, and the other icon link.</dd>
+  <dt>Variants</dt><dd>With removed changes: a second section, "Removed changes". At an end, its arrow stays in place, dimmed and hidden from screen readers (<code>.step-none</code>), so the label doesn't move. The version group only appears for a change with more than one version.</dd>
   <dt>Accessibility</dt><dd>An ordered list, so its order is announced; the shown change is named "(shown)" for screen readers. j and k (changes), [ and ] (versions) act only while focus is inside the change view and do exactly what the buttons do; each button's tooltip names its key.</dd>
   <dt>Not for</dt><dd>Navigation between pages of a context (side menu); a commit list (item list).</dd>
 </dl>
@@ -181,8 +181,16 @@
 <div class="detail">
 <div class="stack-groups">
 <nav class="cluster change-steps" aria-label="Example changes and versions">
-  <a class="button" href="#stack" data-tip="Previous change (k)">Previous change</a>
-  <a class="button" href="#stack" data-tip="Next change (j)">Next change</a>
+  <div class="step-group" role="group" aria-labelledby="demo-step-change">
+    <a class="button button-quiet button-icon" href="#stack" data-tip="Previous change (k)">{% call m::icon(ctx, "chevron-left") %}{% endcall %}<span class="visually-hidden">Previous change</span></a>
+    <span id="demo-step-change" class="step-label">Change 2 of 3</span>
+    <a class="button button-quiet button-icon" href="#stack" data-tip="Next change (j)">{% call m::icon(ctx, "chevron-right") %}{% endcall %}<span class="visually-hidden">Next change</span></a>
+  </div>
+  <div class="step-group" role="group" aria-labelledby="demo-step-version">
+    <a class="button button-quiet button-icon" href="#stack" data-tip="Previous version ([)">{% call m::icon(ctx, "chevron-left") %}{% endcall %}<span class="visually-hidden">Previous version</span></a>
+    <span id="demo-step-version" class="step-label">Version 2 of 2</span>
+    <span class="button button-quiet button-icon step-none" aria-hidden="true">{% call m::icon(ctx, "chevron-right") %}{% endcall %}</span>
+  </div>
 </nav>
 <div class="catalog-block">The change: its versions and its diff</div>
 </div>
