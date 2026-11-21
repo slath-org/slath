@@ -480,6 +480,24 @@ conflicting files and the commands that resolve them with Git or jj.
 The API merges with `POST …/merge-requests/{n}/merge` and
 `{"strategy": "rebase", "expected_head_oid": "<head you reviewed>"}`.
 
+### Landing part of a stack
+
+When the bottom changes of a stack are ready and the rest isn't, land
+just those: the merge request stays open with the rest. The API takes
+the change to land up to, by its ID or its first 8 characters:
+`POST …/merge-requests/{n}/merge` with
+`{"strategy": "rebase", "expected_head_oid": "…", "upto_change": "kxyzabcd"}`.
+`GET …/merge-requests/{n}/mergeability?upto_change=kxyzabcd` shows what
+landing them needs: approvals and requests for changes of those changes
+only, the checks of the top one, and no conflicts.
+
+Every strategy works. A rebase or squash rewrites what lands, so Slath
+also rebases the rest of the branch onto it; that needs the right to push
+to the branch. A fast-forward or merge commit leaves the rest as it is.
+Either way the rest becomes a new revision on the new target and keeps
+its change IDs. jj picks up the rebased rest as the same changes with
+`jj git fetch`; with Git, `git pull --rebase` before you push again.
+
 ### Merging by pushing the target
 
 You don't have to merge in Slath. Merge or fast-forward on your machine

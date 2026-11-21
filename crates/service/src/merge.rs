@@ -34,6 +34,9 @@ pub struct MergeInput {
     pub commit_message: Option<String>,
     /// `None`: the merge request's setting.
     pub delete_source: Option<bool>,
+    /// Land only the stack's changes up to this one (its display ID); the
+    /// merge request stays open with the rest.
+    pub upto_change: Option<String>,
 }
 
 fn internal(e: impl std::fmt::Display) -> ServiceError {
@@ -225,7 +228,11 @@ impl Services {
             self.scan_message(&a, &m, &strategy, input.commit_message.as_deref())
                 .await?;
         }
-        let mb = self.mr_mergeability(&a, &m).await?;
+        let prefix = match input.upto_change.as_deref() {
+            Some(change) => self.mr_prefix(&m, change).await?,
+            None => None,
+        };
+        let mb = self.mr_mergeability_upto(&a, &m, prefix.as_ref()).await?;
         if !mb.mergeable {
             let why: Vec<String> = mb
                 .requirements
@@ -237,6 +244,11 @@ impl Services {
                 "It can't be merged yet: {}",
                 why.join(" ")
             )));
+        }
+        if let Some(p) = &prefix {
+            return self
+                .land_prefix(subject, (&a, &m), p, &strategy, input, user)
+                .await;
         }
         let committer = self.identity(subject).await?;
         let dir = self.repo_path(a.repo.id);

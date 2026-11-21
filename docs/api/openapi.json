@@ -12044,6 +12044,13 @@
               "null"
             ],
             "description": "`fast-forward`, `rebase`, `merge-commit`, or `squash`; default: the\nrepository's default."
+          },
+          "upto_change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Land only the stack's changes up to this one (its change ID, or at\nleast 8 of its first characters); the merge request stays open with\nthe rest as a new revision."
           }
         }
       },

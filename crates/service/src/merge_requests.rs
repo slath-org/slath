@@ -1147,6 +1147,25 @@ impl Services {
     /// revision's head: pins it, updates `refs/merge-requests/<n>/head`, and
     /// adds the timeline entry. Returns the new revision's number.
     pub async fn sync_mr(&self, id: MergeRequestId, pusher: Option<UserId>) -> Result<Option<i32>> {
+        self.sync_mr_inner(id, pusher, false).await
+    }
+
+    /// Records a new revision even if the head stayed: after part of the
+    /// stack landed, the rest is a revision of its own on the new target.
+    pub(crate) async fn resync_mr(
+        &self,
+        id: MergeRequestId,
+        pusher: Option<UserId>,
+    ) -> Result<Option<i32>> {
+        self.sync_mr_inner(id, pusher, true).await
+    }
+
+    async fn sync_mr_inner(
+        &self,
+        id: MergeRequestId,
+        pusher: Option<UserId>,
+        force: bool,
+    ) -> Result<Option<i32>> {
         let Some(m) = slath_db::merge_requests::get_by_id(&self.pool, id).await? else {
             return Ok(None);
         };
@@ -1163,7 +1182,7 @@ impl Services {
         let Some(head) = head else {
             return Ok(None);
         };
-        if m.head_oid.as_deref() == Some(head.as_str()) {
+        if !force && m.head_oid.as_deref() == Some(head.as_str()) {
             return Ok(None);
         }
         let target_ref = RefName::branch(m.target_branch.as_bytes())

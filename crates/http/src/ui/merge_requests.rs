@@ -958,14 +958,22 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
                         .collect()
                 })
                 .unwrap_or_default();
+            let what = format!(
+                "{} {}",
+                if ids.len() == 1 { "change" } else { "changes" },
+                ids.join(", ")
+            );
+            let target = str_of("target");
             (
                 "git-merge",
-                format!(
-                    "pushed {} {} to {}; the rest is still open",
-                    if ids.len() == 1 { "change" } else { "changes" },
-                    ids.join(", "),
-                    str_of("target")
-                ),
+                // Landed in Slath, with a strategy; else by a push.
+                match e.data.get("strategy").and_then(serde_json::Value::as_str) {
+                    Some(how) => format!(
+                        "landed {what} into {target} ({}); the rest is still open",
+                        strategy_label(how).to_lowercase()
+                    ),
+                    None => format!("pushed {what} to {target}; the rest is still open"),
+                },
             )
         }
         "possibly_landed" => (
@@ -3645,6 +3653,9 @@ struct MergeFormInput {
     #[serde(default)]
     commit_message: String,
     delete_source: Option<String>,
+    /// "Land up to here" on a change's page.
+    #[serde(default)]
+    upto_change: String,
 }
 
 async fn merge(
@@ -3660,6 +3671,7 @@ async fn merge(
         expected_head_oid: f.expected_head_oid,
         commit_message: Some(f.commit_message).filter(|x| !x.trim().is_empty()),
         delete_source: Some(f.delete_source.is_some()),
+        upto_change: Some(f.upto_change).filter(|x| !x.is_empty()),
     };
     match state
         .services

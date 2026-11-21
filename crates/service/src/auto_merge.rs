@@ -273,6 +273,7 @@ impl Services {
             expected_head_oid: head,
             commit_message: None,
             delete_source: None,
+            upto_change: None,
         };
         let setter_id = subject_user(&setter);
         match self

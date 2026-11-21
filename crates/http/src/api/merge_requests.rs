@@ -904,6 +904,11 @@ pub struct MergeBody {
     /// Default: the merge request's setting.
     #[serde(default)]
     pub delete_source: Option<bool>,
+    /// Land only the stack's changes up to this one (its change ID, or at
+    /// least 8 of its first characters); the merge request stays open with
+    /// the rest as a new revision.
+    #[serde(default)]
+    pub upto_change: Option<String>,
 }
 
 /// Merges the merge request (`mr.merge`). 409 when its head isn't
@@ -927,6 +932,7 @@ pub async fn merge(
                 expected_head_oid: b.expected_head_oid,
                 commit_message: b.commit_message,
                 delete_source: b.delete_source,
+                upto_change: b.upto_change,
             },
         )
         .await?;

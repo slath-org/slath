@@ -30,6 +30,7 @@ mod merge;
 mod merge_requests;
 mod mergeability;
 mod oidc_providers;
+mod partial_landing;
 mod reserved_refs;
 mod reviews;
 mod suggestions;

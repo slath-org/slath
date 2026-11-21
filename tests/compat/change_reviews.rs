@@ -623,3 +623,62 @@ fn conf_review_08_a_prefix_has_the_requirements_of_its_changes() {
         assert!(r.body.contains("upto_change"), "{}", r.body);
     }
 }
+
+#[test]
+fn conf_review_08_a_prefix_lands_with_the_approvals_of_its_changes() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let ids = w.changes(n);
+    let upto = |id: &str| {
+        w.api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{n}/mergeability?upto_change={id}"),
+            None,
+        )
+        .json()
+    };
+    // Only "Add a" is approved, and bob asks for changes on "Add b": the
+    // prefix of "Add a" can land, the whole can't.
+    w.review(&w.bob, n, json!({"verdict": "approve", "change": ids[0]}));
+    w.review(
+        &w.bob,
+        n,
+        json!({"verdict": "request_changes", "body": "not yet", "change": ids[1]}),
+    );
+    assert_eq!(upto(&ids[0])["mergeable"], true, "{}", upto(&ids[0]));
+    assert_eq!(w.requirement(n, "approvals").0, "unmet");
+    let head = |w: &World| {
+        w.api(&w.alice, "GET", &format!("/merge-requests/{n}"), None)
+            .json()["head_oid"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let merge = |w: &World, body: Value| {
+        w.api(
+            &w.bob,
+            "POST",
+            &format!("/merge-requests/{n}/merge"),
+            Some(body),
+        )
+    };
+    let r = merge(
+        &w,
+        json!({"strategy": "rebase", "expected_head_oid": head(&w)}),
+    );
+    assert_eq!(r.status, 409, "{}", r.body);
+    let r = merge(
+        &w,
+        json!({"strategy": "rebase", "expected_head_oid": head(&w), "upto_change": ids[0]}),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let main = w
+        .git
+        .ok(&w.s.repo_path(&DEMO), &["ls-tree", "--name-only", "main"]);
+    assert!(main.contains("a.txt") && !main.contains("b.txt"), "{main}");
+    // The rest is a revision of its own and still needs its approval.
+    w.wait_revisions(n, 2);
+    assert_eq!(w.changes(n), vec![ids[1].clone()]);
+    let (state, reason) = w.requirement(n, "changes_requested");
+    assert_eq!(state, "unmet", "{reason}");
+}
