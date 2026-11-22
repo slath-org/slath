@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mr_viewed_hunks (mr_id, user_id, path, hunk_key)\n             SELECT $1, $2, $3, k FROM unnest($4::text[]) AS k\n             ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9bd8530def815d92481b442a435fee2a860f4852dda143334e6bdd7ae8ab6006"
+}

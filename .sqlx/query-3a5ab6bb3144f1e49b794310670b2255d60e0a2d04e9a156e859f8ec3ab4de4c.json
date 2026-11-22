@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM mr_viewed_hunks\n             WHERE mr_id = $1 AND user_id = $2 AND path = $3 AND hunk_key = ANY ($4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a5ab6bb3144f1e49b794310670b2255d60e0a2d04e9a156e859f8ec3ab4de4c"
+}

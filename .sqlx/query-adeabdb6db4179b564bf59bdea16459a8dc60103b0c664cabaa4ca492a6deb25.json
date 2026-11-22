@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT path, hunk_key FROM mr_viewed_hunks WHERE mr_id = $1 AND user_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_viewed_hunks",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "hunk_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mr_viewed_hunks",
+            "name": "hunk_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "adeabdb6db4179b564bf59bdea16459a8dc60103b0c664cabaa4ca492a6deb25"
+}

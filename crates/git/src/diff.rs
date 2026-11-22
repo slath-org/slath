@@ -79,6 +79,53 @@ pub struct Diff {
     pub truncated: bool,
 }
 
+/// The key of each hunk of `file`, in order: the SHA-256 (hex) of the
+/// shown path, a NUL byte, and each removed or added line as its marker,
+/// its bytes, and a newline. Context and line numbers don't count, so a
+/// hunk keeps its key when a rebase moves it or changes its surroundings.
+/// Hunks with the same changed lines get a NUL and their order among them
+/// (from 1) appended.
+#[must_use]
+pub fn hunk_keys(file: &FileDiff) -> Vec<String> {
+    use sha2::{Digest, Sha256};
+    let mut seen: Vec<(Vec<u8>, usize)> = Vec::new();
+    file.hunks
+        .iter()
+        .map(|h| {
+            let mut body = Vec::new();
+            for l in &h.lines {
+                let marker = match l.kind {
+                    LineKind::Removed => b'-',
+                    LineKind::Added => b'+',
+                    LineKind::Context | LineKind::NoNewline => continue,
+                };
+                body.push(marker);
+                body.extend_from_slice(&l.text);
+                body.push(b'\n');
+            }
+            let nth = match seen.iter_mut().find(|(b, _)| *b == body) {
+                Some(e) => {
+                    e.1 += 1;
+                    e.1
+                }
+                None => {
+                    seen.push((body.clone(), 1));
+                    1
+                }
+            };
+            let mut d = Sha256::new();
+            d.update(file.path());
+            d.update([0]);
+            d.update(&body);
+            if nth > 1 {
+                d.update([0]);
+                d.update(nth.to_string().as_bytes());
+            }
+            d.finalize().iter().map(|b| format!("{b:02x}")).collect()
+        })
+        .collect()
+}
+
 /// Undoes Git's C-style path quoting (`"a\tb"`, octal escapes).
 fn unquote(s: &[u8]) -> Vec<u8> {
     let Some(inner) = s.strip_prefix(b"\"").and_then(|r| r.strip_suffix(b"\"")) else {
@@ -323,6 +370,42 @@ pub fn parse(out: &[u8], max_files: usize, max_lines: usize) -> Diff {
 
 #[cfg(test)]
 mod tests {
+
+    fn keys(raw: &str) -> Vec<String> {
+        let d = parse(raw.as_bytes(), 10, 1000);
+        hunk_keys(&d.files[0])
+    }
+
+    const BASE: &str =
+        "diff --git a/f.txt b/f.txt\nindex 1111111..2222222 100644\n--- a/f.txt\n+++ b/f.txt\n";
+
+    #[test]
+    fn conf_review_17_hunk_keys_ignore_context_and_numbers() {
+        let a = format!("{BASE}@@ -1,3 +1,3 @@\n ctx\n-old\n+new\n ctx2\n");
+        // Moved further down, with other context: the same hunk.
+        let moved = format!("{BASE}@@ -40,3 +41,3 @@ fn x\n other\n-old\n+new\n more\n");
+        // One changed line differs: another hunk.
+        let changed = format!("{BASE}@@ -1,3 +1,3 @@\n ctx\n-old\n+newer\n ctx2\n");
+        assert_eq!(keys(&a), keys(&moved));
+        assert_ne!(keys(&a), keys(&changed));
+        assert_eq!(keys(&a)[0].len(), 64);
+        // Another path: another key.
+        let other = a.replace("f.txt", "g.txt");
+        assert_ne!(keys(&a), keys(&other));
+    }
+
+    #[test]
+    fn conf_review_17_equal_hunks_of_a_file_get_their_order() {
+        let two =
+            format!("{BASE}@@ -1,2 +1,2 @@\n a\n-}}\n+ }}\n@@ -20,2 +20,2 @@\n b\n-}}\n+ }}\n");
+        let k = keys(&two);
+        assert_eq!(k.len(), 2);
+        assert_ne!(k[0], k[1]);
+        // The first keeps the key a lone such hunk has.
+        let one = format!("{BASE}@@ -1,2 +1,2 @@\n a\n-}}\n+ }}\n");
+        assert_eq!(k[0], keys(&one)[0]);
+    }
+
     use super::*;
 
     const SAMPLE: &[u8] = b"diff --git a/src/a.rs b/src/a.rs
