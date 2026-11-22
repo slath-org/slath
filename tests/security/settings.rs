@@ -266,3 +266,90 @@ fn conf_sec_07_avatars_are_generated_locally() {
     );
     assert_eq!(c.get("/-/avatars/alice.png").status, 404);
 }
+
+/// Whether the page tells its scripts that single-key shortcuts are off.
+fn single_keys_off(c: &mut Client, path: &str) -> bool {
+    c.get(path).body.contains("data-single-keys=\"off\"")
+}
+
+#[test]
+fn conf_design_02_single_key_shortcuts_can_be_turned_off() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    let mut a = s.login("alice", PW);
+    // On by default; the appearance page offers the switch.
+    assert!(!single_keys_off(&mut a, "/"));
+    let page = a.get("/-/settings/appearance").body;
+    assert!(page.contains("id=\"single-keys-on\""), "{page}");
+
+    // Saved for the account: every device it signs in on.
+    let form = [
+        ("theme", "system"),
+        ("density", "comfortable"),
+        ("code_font_size", "14"),
+        ("tool", "auto"),
+    ];
+    let off = [form.as_slice(), &[("single_keys", "off")]].concat();
+    let r = submit(
+        &mut a,
+        "/-/settings/appearance",
+        "/-/settings/appearance",
+        &off,
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(single_keys_off(&mut a, "/"));
+    let mut b = s.login("alice", PW);
+    assert!(single_keys_off(&mut b, "/-/settings/appearance"));
+    // A form without the field leaves it as it is; nonsense is refused.
+    let r = submit(
+        &mut a,
+        "/-/settings/appearance",
+        "/-/settings/appearance",
+        &form,
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(single_keys_off(&mut a, "/"));
+    let bad = [form.as_slice(), &[("single_keys", "sometimes")]].concat();
+    let r = submit(
+        &mut a,
+        "/-/settings/appearance",
+        "/-/settings/appearance",
+        &bad,
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(single_keys_off(&mut a, "/"));
+
+    // The shortcut list's switch turns them back on and returns.
+    let r = submit(
+        &mut a,
+        "/",
+        "/-/shortcuts",
+        &[("single_keys", "on"), ("next", "/-/settings/appearance")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(
+        r.headers.get("location").map(String::as_str),
+        Some("/-/settings/appearance")
+    );
+    assert!(!single_keys_off(&mut b, "/"));
+
+    // Without an account, a cookie keeps the choice.
+    let mut anon = s.client();
+    assert!(!single_keys_off(&mut anon, "/-/login"));
+    let r = submit(
+        &mut anon,
+        "/-/login",
+        "/-/shortcuts",
+        &[("single_keys", "off")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(single_keys_off(&mut anon, "/-/login"));
+    let r = submit(
+        &mut anon,
+        "/-/login",
+        "/-/shortcuts",
+        &[("single_keys", "on")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(!single_keys_off(&mut anon, "/-/login"));
+}

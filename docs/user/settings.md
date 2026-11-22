@@ -16,6 +16,8 @@ to your account, so they follow you to every device you sign in on.
 - **Commands for**: whether pages show checkout and conflict commands for
   Git or for jj. Automatic follows what your recent pushes came from. See
   [Merge requests](merge-requests.md).
+- **Keyboard shortcuts**: All, or Only with Ctrl or ⌘. See
+  [Keyboard shortcuts](#keyboard-shortcuts).
 
 ## Time zones
 
@@ -37,3 +39,16 @@ With a zone chosen:
 - The API always returns times in UTC (RFC 3339), whatever your setting.
 - Scheduled work, such as an instance's daily backup, runs at a time
   stated in UTC.
+
+## Keyboard shortcuts
+
+Some shortcuts are a single key, such as **j** for the next change of a
+stack or **n** for the next change in a diff. They act only where they're
+listed, never while you type in a field, and every one of them has a
+button that does the same.
+
+If you use speech input, or keys get pressed by mistake, choose **Only
+with Ctrl or ⌘** under **Keyboard shortcuts**: single keys then do
+nothing, and shortcuts with Ctrl or ⌘, such as Ctrl+Enter to send a
+comment, keep working. Without an account, the choice is kept in a cookie
+of your browser.

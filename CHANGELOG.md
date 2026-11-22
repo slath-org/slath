@@ -27,6 +27,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Webhooks can send payloads with only IDs, names, and API links, so no titles, descriptions, comments, or commit messages reach the receiver's logs.
 - Every webhook payload object carries the `api_url` it can be read at again, also for pushes, comments, reviews, statuses, and forks.
 - A stack guide shows, for Git and jj side by side, how to push a stack, change a commit in the middle, hand it between both tools, and land it in parts.
+- Single-key shortcuts, such as j and n, can be turned off under Settings → Appearance; shortcuts with Ctrl or ⌘ keep working.
 - The fork guide shows how to rebase a fork's branch onto the original's latest commits with Git and jj; rebased changes keep their approvals.
 - In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.
 - The readiness card lists a sixth file not viewed by an approver instead of hiding it behind "and 1 more".

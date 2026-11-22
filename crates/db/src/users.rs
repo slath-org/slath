@@ -340,6 +340,22 @@ pub async fn set_diff_preferences(
     Ok(())
 }
 
+/// Saves whether shortcuts of one key work for the user.
+pub async fn set_single_key_shortcuts(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+    on: bool,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE users SET single_key_shortcuts = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        on
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}
+
 pub async fn set_editor_mode(
     exec: impl PgExecutor<'_>,
     id: UserId,

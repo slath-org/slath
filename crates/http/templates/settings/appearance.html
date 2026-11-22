@@ -50,6 +50,10 @@
   {%- call f::option("radio", "tool-git", "tool", "git", "Git", tool == "git") %}{% endcall %}
   {%- call f::option("radio", "tool-jj", "tool", "jj", "jj", tool == "jj") %}{% endcall %}
   {%- endcall %}
+  {%- call f::question("single_keys", "Keyboard shortcuts", "Press ? on any page for the list.") %}
+  {%- call f::option("radio", "single-keys-on", "single_keys", "on", "All", ctx.single_keys, "Keys such as j, n, and ? act where they're listed.") %}{% endcall %}
+  {%- call f::option("radio", "single-keys-off", "single_keys", "off", "Only with Ctrl or ⌘", !ctx.single_keys, "For speech input, or if keys get pressed by mistake.") %}{% endcall %}
+  {%- endcall %}
   {%- call f::buttons() %}<button type="submit" class="button button-primary">Save appearance</button>{% endcall %}
 </form>
 {% endblock %}

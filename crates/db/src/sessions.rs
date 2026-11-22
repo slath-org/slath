@@ -60,6 +60,8 @@ pub struct SessionRow {
     /// `unified` or `split`.
     pub diff_view: String,
     pub diff_ignore_whitespace: bool,
+    /// Shortcuts of one key (without Ctrl or Cmd) work.
+    pub single_key_shortcuts: bool,
     /// The IANA zone times are shown in; `None` is UTC.
     pub timezone: Option<String>,
     pub created_at: OffsetDateTime,
@@ -112,7 +114,7 @@ pub async fn find(
         r#"SELECT s.id_hash, s.user_id, n.name::text AS "user_name!", u.kind, u.state, u.is_admin,
                   u.avatar_blob_sha256, (u.email IS NULL OR u.email_verified) AS "email_confirmed!", u.theme,
                   u.density, u.code_font_size, u.editor_mode, u.diff_view, u.diff_ignore_whitespace,
-                  u.timezone, s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,
+                  u.single_key_shortcuts, u.timezone, s.created_at, s.last_seen_at, s.expires_at, s.auth_level, s.sudo_until,
                   host(s.ip) AS ip, s.user_agent
            FROM sessions s
            JOIN users u ON u.id = s.user_id
@@ -138,6 +140,7 @@ pub async fn find(
         editor_mode: r.editor_mode,
         diff_view: r.diff_view,
         diff_ignore_whitespace: r.diff_ignore_whitespace,
+        single_key_shortcuts: r.single_key_shortcuts,
         timezone: r.timezone,
         created_at: r.created_at,
         last_seen_at: r.last_seen_at,

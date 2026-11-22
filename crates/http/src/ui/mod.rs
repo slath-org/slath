@@ -153,6 +153,9 @@ pub struct PageCtx {
     pub diff_split: bool,
     /// Diffs ignore whitespace changes (signed-in users' preference).
     pub diff_ignore_whitespace: bool,
+    /// Shortcuts of one key work (the user's setting, or the anonymous
+    /// cookie); off, only shortcuts with Ctrl or Cmd act.
+    pub single_keys: bool,
     /// User content may load images from other sites.
     pub external_images: bool,
     /// The lowercased names of all bots, to mark them wherever names
@@ -255,6 +258,10 @@ impl PageCtx {
             },
             diff_split: session.is_some_and(|s| s.row.diff_view == "split"),
             diff_ignore_whitespace: session.is_some_and(|s| s.row.diff_ignore_whitespace),
+            single_keys: session.map_or_else(
+                || cookie(headers, "slath_single_keys") != Some("off"),
+                |s| s.row.single_key_shortcuts,
+            ),
             needs_confirmation: session.is_some_and(|s| {
                 !s.row.email_confirmed && !s.row.is_admin && state.services.confirmation_required()
             }),

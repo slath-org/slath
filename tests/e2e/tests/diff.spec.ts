@@ -115,6 +115,21 @@ test("conf_a11y_04_hunk_navigation_by_link_and_key", async ({ page }) => {
   await expectAccessible(page);
 });
 
+test("conf_design_02_single_keys_turned_off_do_nothing", async ({ page }) => {
+  // Turned off (the page says so on its root; the server side is tested
+  // in Rust), n does nothing even inside the diff; the links still move.
+  await signIn(page, USERS.alice);
+  await openCommit(page);
+  await page.evaluate(() => (document.documentElement.dataset.singleKeys = "off"));
+  const hunks = page.locator(".diff-hunk");
+  const first = hunks.first().locator(".code-wrap.diff-unified");
+  await first.focus();
+  await page.keyboard.press("n");
+  await expect(first).toBeFocused();
+  await tapOrClick(page, hunks.first().locator("a", { hasText: "Next change" }).first());
+  await expect(page).toHaveURL(/#diff-1$/);
+});
+
 test("conf_review_17_hidden_lines_expand_in_place", async ({ page }) => {
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/commits/expand");

@@ -8,7 +8,7 @@
 {%- import "components/messages.html" as msg -%}
 {%- import "components/people.html" as p -%}
 <!doctype html>
-<html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}"{% if ctx.sidebar_collapsed %} data-sidebar="collapsed"{% endif %}{% if let Some(size) = ctx.code_size %} data-code-size="{{ size }}"{% endif %}>
+<html lang="en"{% if let Some(theme) = ctx.theme %} data-theme="{{ theme }}"{% endif %} data-density="{{ ctx.density }}"{% if ctx.sidebar_collapsed %} data-sidebar="collapsed"{% endif %}{% if let Some(size) = ctx.code_size %} data-code-size="{{ size }}"{% endif %}{% if !ctx.single_keys %} data-single-keys="off"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

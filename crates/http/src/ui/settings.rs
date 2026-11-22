@@ -1053,6 +1053,8 @@ struct AppearanceForm {
     tool: String,
     /// Absent from older forms: the zone stays as it is.
     timezone: Option<String>,
+    /// `on` or `off`; absent from older forms: unchanged.
+    single_keys: Option<String>,
 }
 
 async fn appearance_save(
@@ -1078,13 +1080,31 @@ async fn appearance_save(
         (Ok(()), Some(z)) => state.services.set_timezone(&session, z).await,
         (r, _) => r,
     };
+    let saved = match (saved, f.single_keys.as_deref()) {
+        (Ok(()), Some(v)) => match single_keys(v) {
+            Some(on) => state.services.set_single_key_shortcuts(&session, on).await,
+            None => Err(ServiceError::invalid(
+                "single_keys",
+                "invalid",
+                "Choose All or Only with Ctrl or ⌘.",
+            )),
+        },
+        (r, _) => r,
+    };
     match saved {
-        Ok(()) => Ok(appearance_cookies(
-            &state,
-            &f.theme,
-            &f.density,
-            Redirect::to("/-/settings/appearance?status=appearance-saved").into_response(),
-        )),
+        Ok(()) => {
+            let mut res = appearance_cookies(
+                &state,
+                &f.theme,
+                &f.density,
+                Redirect::to("/-/settings/appearance?status=appearance-saved").into_response(),
+            );
+            if let Some(on) = f.single_keys.as_deref().and_then(single_keys) {
+                res.headers_mut()
+                    .append(header::SET_COOKIE, single_keys_cookie(&state, on));
+            }
+            Ok(res)
+        }
         Err(e) => {
             let errors = field_errors(e)?;
             let (tool, detected) = tool_setting(&state, &session).await?;
@@ -1130,6 +1150,58 @@ fn appearance_cookies(state: &AppState, theme: &str, density: &str, mut res: Res
         );
     }
     res
+}
+
+/// The single-key shortcut choice: `on` or `off`.
+fn single_keys(v: &str) -> Option<bool> {
+    match v {
+        "on" => Some(true),
+        "off" => Some(false),
+        _ => None,
+    }
+}
+
+#[derive(Deserialize)]
+struct ShortcutsForm {
+    #[serde(default)]
+    single_keys: String,
+    #[serde(default)]
+    next: Option<String>,
+}
+
+/// The shortcut list's switch, for everyone: turns single-key shortcuts
+/// on or off for signed-in users and in a cookie for everyone (so it also
+/// holds after signing out), then returns to the page.
+async fn shortcuts_save(
+    State(state): State<AppState>,
+    MaybeSession(session): MaybeSession,
+    Form(f): Form<ShortcutsForm>,
+) -> Result<Response, AppError> {
+    let on = single_keys(&f.single_keys).ok_or_else(|| {
+        AppError::from(ServiceError::invalid(
+            "single_keys",
+            "invalid",
+            "Choose on or off.",
+        ))
+    })?;
+    if let Some(s) = &session {
+        state.services.set_single_key_shortcuts(s, on).await?;
+    }
+    let mut res = Redirect::to(&safe_next(f.next.as_deref())).into_response();
+    res.headers_mut()
+        .append(header::SET_COOKIE, single_keys_cookie(&state, on));
+    Ok(res)
+}
+
+/// The anonymous cookie for the single-key shortcut choice (none for on,
+/// the default).
+fn single_keys_cookie(state: &AppState, on: bool) -> header::HeaderValue {
+    const YEAR: i64 = 365 * 24 * 3600;
+    if on {
+        set_cookie(state, "slath_single_keys", "", None)
+    } else {
+        set_cookie(state, "slath_single_keys", "off", Some(YEAR))
+    }
 }
 
 #[derive(Deserialize)]
@@ -1251,6 +1323,7 @@ pub fn router() -> Router<AppState> {
             get(appearance).post(appearance_save),
         )
         .route_as("/-/appearance", Access::Public, post(appearance_menu))
+        .route_as("/-/shortcuts", Access::Public, post(shortcuts_save))
         .route_as("/-/sudo", Access::Account, get(sudo_page).post(sudo_submit))
         .route_as("/-/avatars/{file}", Access::Public, get(avatar))
 }

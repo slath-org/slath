@@ -64,6 +64,12 @@ impl Services {
         Ok(())
     }
 
+    /// Turns shortcuts of one key (without Ctrl or Cmd) on or off.
+    pub async fn set_single_key_shortcuts(&self, session: &Session, on: bool) -> Result<()> {
+        slath_db::users::set_single_key_shortcuts(&self.pool, session.user_id(), on).await?;
+        Ok(())
+    }
+
     /// Remembers how diffs are shown (`unified` or `split`, whitespace).
     pub async fn set_diff_preferences(
         &self,

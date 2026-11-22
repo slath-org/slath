@@ -6,20 +6,14 @@
 // They follow the page's own "Next change" (and similar) links, marked
 // with data-key, so the keys never do more than the buttons. Single-key
 // shortcuts act only while focus is inside the change view
-// ([data-change-keys]) (WCAG 2.1.4). After a move by key, focus goes to
-// the same button on the new page, so the next key continues from there.
+// ([data-change-keys]), and not when the viewer turned them off
+// (WCAG 2.1.4). After a move by key, focus goes to the same button on the
+// new page, so the next key continues from there.
+
+import { singleKey } from "./keys";
 
 const KEYS = new Set(["j", "k", "[", "]"]);
 let pending: string | null = null;
-
-function editing(t: EventTarget | null): boolean {
-  return (
-    t instanceof HTMLInputElement ||
-    t instanceof HTMLTextAreaElement ||
-    t instanceof HTMLSelectElement ||
-    (t instanceof HTMLElement && t.isContentEditable)
-  );
-}
 
 function link(view: Element, key: string): HTMLAnchorElement | null {
   return view.querySelector<HTMLAnchorElement>(`a[data-key="${CSS.escape(key)}"]`);
@@ -38,7 +32,7 @@ function refocus(): void {
 
 export function installChangeKeys(): void {
   document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || !KEYS.has(e.key) || editing(e.target)) return;
+    if (!KEYS.has(e.key) || !singleKey(e)) return;
     const view = e.target instanceof Element ? e.target.closest("[data-change-keys]") : null;
     if (!view) return;
     const to = link(view, e.key);

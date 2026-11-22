@@ -4,19 +4,13 @@
 // Hunk navigation by keyboard: while focus is inside a diff (#diff), n
 // moves to the next change and p to the previous one, v to the next file
 // not marked viewed and t to the next unresolved thread. Single-key
-// shortcuts work only there (WCAG 2.1.4); the "Previous change" and
-// "Next change" links in each hunk's header, and "Next unviewed file" and
-// "Next unresolved thread" above the files, do the same without them
-// (those two go to the first one without this script).
+// shortcuts work only there, and not when the viewer turned them off
+// (WCAG 2.1.4); the "Previous change" and "Next change" links in each
+// hunk's header, and "Next unviewed file" and "Next unresolved thread"
+// above the files, do the same without them (those two go to the first
+// one without this script).
 
-function editing(t: EventTarget | null): boolean {
-  return (
-    t instanceof HTMLInputElement ||
-    t instanceof HTMLTextAreaElement ||
-    t instanceof HTMLSelectElement ||
-    (t instanceof HTMLElement && t.isContentEditable)
-  );
-}
+import { singleKey } from "./keys";
 
 function hunks(diff: Element): HTMLElement[] {
   return [...diff.querySelectorAll<HTMLElement>(".diff-hunk")].filter((h) => h.offsetParent !== null);
@@ -58,7 +52,7 @@ export function installHunkNavigation(): void {
     goTo(to);
   });
   document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || editing(e.target)) return;
+    if (!singleKey(e)) return;
     if (e.key === "v" || e.key === "t") {
       const diff = e.target instanceof Element ? e.target.closest("#diff") : null;
       const to = diff ? nextReview(diff, e.key === "v" ? "unviewed" : "unresolved") : undefined;
