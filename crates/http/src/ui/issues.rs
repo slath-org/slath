@@ -93,6 +93,10 @@ pub(super) struct ListQuery {
     /// `created` (default) or `updated`.
     #[serde(default)]
     pub(super) sort: String,
+    /// A merge request list's built-in view (its key); empty: all. Issue
+    /// lists have none.
+    #[serde(default)]
+    pub(super) view: String,
 }
 
 /// Percent-encodes a query parameter value.
@@ -163,8 +167,9 @@ async fn list(
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo)): Path<(String, String)>,
-    Query(q): Query<ListQuery>,
+    Query(mut q): Query<ListQuery>,
 ) -> Result<Response, AppError> {
+    q.view.clear();
     let subject = session.subject();
     let st = match q.state.as_deref() {
         Some("closed") => "closed",

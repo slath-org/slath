@@ -18,6 +18,7 @@ use slath_service::mr_changes::{
     ChangeInfo, Interdiff, Outcome, Rebind, RemovedChange, StackEntry, VersionInfo,
 };
 use slath_service::mr_reviews::Mergeability;
+use slath_service::readiness::View;
 use slath_service::repos::RepoAccess;
 use slath_service::{FieldError, ServiceError};
 
@@ -230,9 +231,26 @@ struct ListPage {
     filters: String,
     milestones: Vec<String>,
     filtered: bool,
+    /// The view shown.
+    view: View,
+    /// The views the viewer can pick.
+    views: Vec<View>,
+    /// The filter and order without the view.
+    base_query: String,
 }
 
 impl ListPage {
+    /// The list in view `v`, with the same state, filters, and order.
+    fn view_href(&self, v: &View) -> String {
+        let key = v.key();
+        let view = if key.is_empty() {
+            String::new()
+        } else {
+            format!("&view={key}")
+        };
+        format!("?state={}{}{view}", self.state, self.base_query)
+    }
+
     fn label_href(&self, name: &str) -> String {
         format!(
             "/{}/{}/merge-requests?state=open&labels={}",
@@ -248,9 +266,11 @@ async fn list(
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo)): Path<(String, String)>,
-    Query(q): Query<ListQuery>,
+    Query(mut q): Query<ListQuery>,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
+    let view = View::parse(&q.view);
+    q.view = view.key().to_owned();
     let st = match q.state.as_deref() {
         Some("merged") => "merged",
         Some("closed") => "closed",
@@ -270,8 +290,8 @@ async fn list(
             &ns,
             &repo,
             &q.input(st),
-            (page - 1) * PER_PAGE,
-            PER_PAGE + 1,
+            view,
+            ((page - 1) * PER_PAGE, PER_PAGE + 1),
         )
         .await?;
     let more = items.len() as i64 > PER_PAGE;
@@ -300,12 +320,26 @@ async fn list(
             comments: m.comments,
         });
     }
-    let query = q.query();
-    let filters = q.filters();
+    let base_query = q.query();
+    let filtered = !q.filters().is_empty();
+    let in_view = if q.view.is_empty() {
+        String::new()
+    } else {
+        format!("&view={}", q.view)
+    };
+    let query = format!("{base_query}{in_view}");
+    let filters = format!("{}{in_view}", q.filters());
+    let signed_in = matches!(subject, Subject::User { .. });
     Ok(render(&ListPage {
         milestones: ms.into_iter().map(|m| m.title).collect(),
-        filtered: !filters.is_empty(),
+        filtered,
         filters,
+        base_query,
+        view,
+        views: View::ALL
+            .into_iter()
+            .filter(|v| signed_in || !v.personal())
+            .collect(),
         header: RepoHeader::load(&state, &a, &subject, TAB)
             .await
             .with_recent_pushes(&state, &a, &subject)

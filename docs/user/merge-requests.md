@@ -339,6 +339,21 @@ approvals ("Approval required", "Approved", "Changes requested"). A
 merge request without checks, review rules, or reviews shows neither.
 The API returns the requirements at `GET …/merge-requests/{n}/mergeability`.
 
+The **View** menu of the list narrows it, together with the state and the
+filters:
+
+- **Review requests**: merge requests you or one of your teams are asked
+  to review and haven't reviewed yet (in this repository; the icon next
+  to notifications lists them for all repositories).
+- **Mine**: merge requests you opened.
+- **Stalled**: open merge requests without activity (a push, comment,
+  review, or edit) for 14 days.
+- **Ready to merge**: open merge requests whose card says they can be
+  merged.
+
+Review requests and Mine need you to be signed in. A view only ever shows
+merge requests you can read.
+
 When you approve, Slath notes how many files of the revision's diff you
 had marked viewed, counting only files you viewed as they are in that
 revision. The approvals line shows it for each approval, for example

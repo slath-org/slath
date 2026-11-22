@@ -630,7 +630,13 @@ impl Services {
             limit,
         )
         .await?;
-        let counts = slath_db::merge_requests::counts(&self.pool, a.repo.id, &f).await?;
+        let counts = slath_db::merge_requests::counts(
+            &self.pool,
+            a.repo.id,
+            &f,
+            &slath_db::merge_requests::ListOptions::default(),
+        )
+        .await?;
         Ok((a, items, counts))
     }
 

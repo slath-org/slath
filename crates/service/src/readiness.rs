@@ -104,6 +104,93 @@ pub struct ListPage {
     pub groups: Option<Vec<slath_db::merge_requests::GroupCount>>,
 }
 
+/// A built-in view of a merge request list: a filter that combines with
+/// the others, never a grant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    All,
+    /// The viewer, or a team of theirs, is asked to review it.
+    ReviewRequests,
+    /// The viewer wrote it.
+    Mine,
+    /// Open without activity for [`STALLED_AFTER`].
+    Stalled,
+    /// Ready to merge, from the snapshot.
+    Ready,
+}
+
+/// How long an open merge request goes without activity (anything that
+/// updates it: a push, comment, review, or edit) before it's stalled.
+pub const STALLED_AFTER: time::Duration = time::Duration::days(14);
+
+impl View {
+    pub const ALL: [View; 5] = [
+        View::All,
+        View::ReviewRequests,
+        View::Mine,
+        View::Stalled,
+        View::Ready,
+    ];
+
+    /// The view a `view` query parameter names; `All` for anything else.
+    #[must_use]
+    pub fn parse(s: &str) -> View {
+        Self::ALL
+            .into_iter()
+            .find(|v| v.key() == s)
+            .unwrap_or(View::All)
+    }
+
+    /// Its `view` query parameter; empty for `All`.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            View::All => "",
+            View::ReviewRequests => "review-requests",
+            View::Mine => "mine",
+            View::Stalled => "stalled",
+            View::Ready => "ready",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            View::All => "All",
+            View::ReviewRequests => "Review requests",
+            View::Mine => "Mine",
+            View::Stalled => "Stalled",
+            View::Ready => "Ready to merge",
+        }
+    }
+
+    /// Whether it means something only to a signed-in viewer.
+    #[must_use]
+    pub fn personal(self) -> bool {
+        matches!(self, View::ReviewRequests | View::Mine)
+    }
+
+    /// The list options it adds for `subject`; personal views need a
+    /// signed-in user.
+    fn options(self, subject: &Subject) -> Result<slath_db::merge_requests::ListOptions> {
+        let mut o = slath_db::merge_requests::ListOptions::default();
+        let user = || match subject {
+            Subject::User { id, .. } => Ok(*id),
+            _ => Err(ServiceError::Unauthenticated),
+        };
+        match self {
+            View::All => {}
+            View::ReviewRequests => o.reviewer = Some(user()?),
+            View::Mine => o.mine = Some(user()?),
+            View::Stalled => {
+                o.stalled_before = Some(time::OffsetDateTime::now_utc() - STALLED_AFTER);
+            }
+            View::Ready => o.ready = Some(crate::mr_reviews::READY),
+        }
+        Ok(o)
+    }
+}
+
 /// Where a readiness tone's group comes in an open list: ready to merge
 /// first, then where someone must act, then waiting.
 #[must_use]
@@ -126,34 +213,35 @@ pub fn group_order(items: &mut [(MergeRequest, Option<Readiness>)]) {
 }
 
 impl Services {
-    /// A page of the merge request list as the web UI shows it. Open lists
+    /// A page of the merge request list as the web UI shows it, in a
+    /// view (personal ones need a signed-in subject). Open lists
     /// are grouped by readiness: outdated snapshots of the matching merge
     /// requests are computed first (at most
     /// `limits.mr_list_readiness_rebuilds`), so the order and the groups'
     /// counts come from current ones. The caller puts the rows it shows
-    /// in [`group_order`].
+    /// in [`group_order`]. `(offset, limit)` choose the rows.
     pub async fn mr_list_page(
         &self,
         subject: &Subject,
         ns: &str,
         repo: &str,
         filter: &crate::labels::FilterInput,
-        offset: i64,
-        limit: i64,
+        view: View,
+        (offset, limit): (i64, i64),
     ) -> Result<ListPage> {
         use slath_db::merge_requests as mrs;
         let (a, f) = self.mr_list_filter(subject, ns, repo, filter).await?;
-        let grouped = f.state.as_deref() == Some("open");
-        if grouped {
-            self.refresh_readiness(&a, &f).await?;
+        let mut o = view.options(subject)?;
+        o.grouped = f.state.as_deref() == Some("open");
+        if o.grouped || o.ready.is_some() {
+            self.refresh_readiness(&a, &f, &o).await?;
         }
-        let o = mrs::ListOptions { grouped };
         let ms = mrs::list(&self.pool, a.repo.id, &f, &o, offset, limit).await?;
         let readiness = self.mr_list_readiness(&a, &ms).await?;
         let items = ms.into_iter().zip(readiness).collect();
-        let counts = mrs::counts(&self.pool, a.repo.id, &f).await?;
-        let groups = if grouped {
-            Some(mrs::readiness_groups(&self.pool, a.repo.id, &f).await?)
+        let counts = mrs::counts(&self.pool, a.repo.id, &f, &o).await?;
+        let groups = if o.grouped {
+            Some(mrs::readiness_groups(&self.pool, a.repo.id, &f, &o).await?)
         } else {
             None
         };
@@ -168,14 +256,19 @@ impl Services {
     /// Computes the outdated snapshots of the open merge requests matching
     /// `f` again, a few at a time, at most
     /// `limits.mr_list_readiness_rebuilds` of them.
-    async fn refresh_readiness(&self, a: &RepoAccess, f: &slath_db::issues::Filter) -> Result<()> {
+    async fn refresh_readiness(
+        &self,
+        a: &RepoAccess,
+        f: &slath_db::issues::Filter,
+        o: &slath_db::merge_requests::ListOptions,
+    ) -> Result<()> {
         use futures_util::StreamExt;
         let most = i64::try_from(self.config.limits.mr_list_readiness_rebuilds).unwrap_or(i64::MAX);
         if most == 0 {
             return Ok(());
         }
         let ids =
-            slath_db::merge_requests::outdated_readiness(&self.pool, a.repo.id, f, most).await?;
+            slath_db::merge_requests::outdated_readiness(&self.pool, a.repo.id, f, o, most).await?;
         if ids.is_empty() {
             return Ok(());
         }

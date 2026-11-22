@@ -256,17 +256,26 @@ pub async fn get_by_id(
     Ok(r.map(|r| to_mr!(r)))
 }
 
-/// Merge requests of a repository matching an issue-style filter (state
-/// `open`, `merged`, `closed`, or all).
 /// What only merge request lists filter or order by, beyond the filter
-/// they share with issues.
+/// they share with issues. Every condition holds together with the others.
 #[derive(Debug, Clone, Default)]
 pub struct ListOptions {
     /// Order by the readiness snapshot first: current ones by tone
     /// (`done`, `blocking`, `waiting`) and headline, outdated ones last.
     pub grouped: bool,
+    /// Open, ready for review, by someone else, and this user or a team
+    /// of theirs is asked to review it (as [`crate::mr_reviews::waiting_for`]).
+    pub reviewer: Option<slath_core::ids::UserId>,
+    /// Written by this user.
+    pub mine: Option<slath_core::ids::UserId>,
+    /// Open and not updated since.
+    pub stalled_before: Option<time::OffsetDateTime>,
+    /// Open with a current snapshot of tone `done` and this headline.
+    pub ready: Option<&'static str>,
 }
 
+/// Merge requests of a repository matching an issue-style filter (state
+/// `open`, `merged`, `closed`, or all) and the list options.
 pub async fn list(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
@@ -289,57 +298,88 @@ pub async fn list(
            LEFT JOIN mr_readiness r ON r.mr_id = m.id
              AND r.built_generation = r.generation AND r.built_format = $11
            WHERE m.repo_id = $1
-             AND ($2::text IS NULL OR m.state = $2)
-             AND ($3::uuid IS NULL OR m.author_id = $3)
-             AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $4))
-             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($5)) = cardinality($5)
-             AND ($6::uuid IS NULL OR m.milestone_id = $6)
-           ORDER BY CASE WHEN NOT $10 THEN 0 WHEN r.tone = 'done' THEN 1 WHEN r.tone = 'blocking' THEN 2
+             AND ($2::uuid IS NULL OR m.author_id = $2)
+             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
+             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
+             AND ($5::uuid IS NULL OR m.milestone_id = $5)
+             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'
+                  AND m.author_id IS DISTINCT FROM $6
+                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'
+                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))
+             AND ($7::uuid IS NULL OR m.author_id = $7)
+             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))
+             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id
+                  AND rr.built_generation = rr.generation AND rr.built_format = $11
+                  AND rr.tone = 'done' AND rr.headline = $10)))
+             AND ($12::text IS NULL OR m.state = $12)
+           ORDER BY CASE WHEN NOT $16 THEN 0 WHEN r.tone = 'done' THEN 1 WHEN r.tone = 'blocking' THEN 2
                          WHEN r.tone = 'waiting' THEN 3 ELSE 4 END,
-                    CASE WHEN $10 THEN r.headline END,
-                    CASE WHEN $7 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC
-           OFFSET $8 LIMIT $9"#,
+                    CASE WHEN $16 THEN r.headline END,
+                    CASE WHEN $13 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC
+           OFFSET $14 LIMIT $15"#,
         repo.as_uuid(),
-        f.state,
         f.author.map(|u| *u.as_uuid()),
         f.assignee.map(|u| *u.as_uuid()),
         &f.labels,
         f.milestone,
+        o.reviewer.map(|u| *u.as_uuid()),
+        o.mine.map(|u| *u.as_uuid()),
+        o.stalled_before,
+        o.ready.is_some(),
+        o.ready.unwrap_or_default(),
+        crate::mr_readiness::FORMAT,
+        f.state,
         f.sort_updated,
         offset,
         limit,
-        o.grouped,
-        crate::mr_readiness::FORMAT
+        o.grouped
     )
     .fetch_all(exec)
     .await?;
     Ok(rows.into_iter().map(|r| to_mr!(r)).collect())
 }
 
-/// Open merge requests matching a filter whose readiness snapshot is
-/// missing or outdated, newest first, at most `limit`.
+/// Open merge requests matching a filter and the list options (but not
+/// `ready`, which needs them) whose readiness snapshot is missing or
+/// outdated, newest first, at most `limit`.
 pub async fn outdated_readiness(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     f: &crate::issues::Filter,
+    o: &ListOptions,
     limit: i64,
 ) -> Result<Vec<MergeRequestId>, DbError> {
     let rows = sqlx::query_scalar!(
         r#"SELECT m.id FROM merge_requests m
            LEFT JOIN mr_readiness r ON r.mr_id = m.id
-           WHERE m.repo_id = $1 AND m.state = 'open'
+           WHERE m.repo_id = $1
              AND ($2::uuid IS NULL OR m.author_id = $2)
              AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
              AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
              AND ($5::uuid IS NULL OR m.milestone_id = $5)
-             AND (r.mr_id IS NULL OR r.built_generation IS DISTINCT FROM r.generation OR r.built_format <> $6)
+             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'
+                  AND m.author_id IS DISTINCT FROM $6
+                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'
+                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))
+             AND ($7::uuid IS NULL OR m.author_id = $7)
+             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))
+             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id
+                  AND rr.built_generation = rr.generation AND rr.built_format = $11
+                  AND rr.tone = 'done' AND rr.headline = $10)))
+             AND m.state = 'open'
+             AND (r.mr_id IS NULL OR r.built_generation IS DISTINCT FROM r.generation OR r.built_format <> $11)
            ORDER BY m.number DESC
-           LIMIT $7"#,
+           LIMIT $12"#,
         repo.as_uuid(),
         f.author.map(|u| *u.as_uuid()),
         f.assignee.map(|u| *u.as_uuid()),
         &f.labels,
         f.milestone,
+        o.reviewer.map(|u| *u.as_uuid()),
+        o.mine.map(|u| *u.as_uuid()),
+        o.stalled_before,
+        false,
+        o.ready.unwrap_or_default(),
         crate::mr_readiness::FORMAT,
         limit
     )
@@ -352,31 +392,47 @@ pub async fn outdated_readiness(
 /// many merge requests have it.
 pub type GroupCount = (Option<(String, String)>, i64);
 
-/// How many open merge requests matching a filter have each current
-/// readiness `(tone, headline)`; `None` counts those without a current
-/// snapshot.
+/// How many open merge requests matching a filter and the list options
+/// have each current readiness `(tone, headline)`; `None` counts those
+/// without a current snapshot.
 pub async fn readiness_groups(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     f: &crate::issues::Filter,
+    o: &ListOptions,
 ) -> Result<Vec<GroupCount>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT r.tone, r.headline, count(*) AS "count!"
            FROM merge_requests m
            LEFT JOIN mr_readiness r ON r.mr_id = m.id
-             AND r.built_generation = r.generation AND r.built_format = $6
-           WHERE m.repo_id = $1 AND m.state = 'open'
+             AND r.built_generation = r.generation AND r.built_format = $11
+           WHERE m.repo_id = $1
              AND ($2::uuid IS NULL OR m.author_id = $2)
              AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
              AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
              AND ($5::uuid IS NULL OR m.milestone_id = $5)
+             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'
+                  AND m.author_id IS DISTINCT FROM $6
+                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'
+                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))
+             AND ($7::uuid IS NULL OR m.author_id = $7)
+             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))
+             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id
+                  AND rr.built_generation = rr.generation AND rr.built_format = $11
+                  AND rr.tone = 'done' AND rr.headline = $10)))
+             AND m.state = 'open'
            GROUP BY r.tone, r.headline"#,
         repo.as_uuid(),
         f.author.map(|u| *u.as_uuid()),
         f.assignee.map(|u| *u.as_uuid()),
         &f.labels,
         f.milestone,
-        crate::mr_readiness::FORMAT
+        o.reviewer.map(|u| *u.as_uuid()),
+        o.mine.map(|u| *u.as_uuid()),
+        o.stalled_before,
+        o.ready.is_some(),
+        o.ready.unwrap_or_default(),
+        crate::mr_readiness::FORMAT,
     )
     .fetch_all(exec)
     .await?;
@@ -386,26 +442,44 @@ pub async fn readiness_groups(
         .collect())
 }
 
-/// `(open, merged, closed)` counts matching a filter (its state ignored).
+/// `(open, merged, closed)` counts matching a filter (its state ignored)
+/// and the list options.
 pub async fn counts(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     f: &crate::issues::Filter,
+    o: &ListOptions,
 ) -> Result<(i64, i64, i64), DbError> {
     let r = sqlx::query!(
         r#"SELECT count(*) FILTER (WHERE m.state = 'open') AS "open!",
                   count(*) FILTER (WHERE m.state = 'merged') AS "merged!",
                   count(*) FILTER (WHERE m.state = 'closed') AS "closed!"
-           FROM merge_requests m WHERE m.repo_id = $1
+           FROM merge_requests m
+           WHERE m.repo_id = $1
              AND ($2::uuid IS NULL OR m.author_id = $2)
              AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))
              AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)
-             AND ($5::uuid IS NULL OR m.milestone_id = $5)"#,
+             AND ($5::uuid IS NULL OR m.milestone_id = $5)
+             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'
+                  AND m.author_id IS DISTINCT FROM $6
+                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'
+                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))
+             AND ($7::uuid IS NULL OR m.author_id = $7)
+             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))
+             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id
+                  AND rr.built_generation = rr.generation AND rr.built_format = $11
+                  AND rr.tone = 'done' AND rr.headline = $10)))"#,
         repo.as_uuid(),
         f.author.map(|u| *u.as_uuid()),
         f.assignee.map(|u| *u.as_uuid()),
         &f.labels,
-        f.milestone
+        f.milestone,
+        o.reviewer.map(|u| *u.as_uuid()),
+        o.mine.map(|u| *u.as_uuid()),
+        o.stalled_before,
+        o.ready.is_some(),
+        o.ready.unwrap_or_default(),
+        crate::mr_readiness::FORMAT,
     )
     .fetch_one(exec)
     .await?;

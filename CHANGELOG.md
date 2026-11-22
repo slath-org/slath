@@ -28,6 +28,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Rebases on the server leave out changes that already landed instead of writing empty commits.
 - The merge request list shows one icon per open merge request: ready, waiting, or where someone must act, with the readiness headline as its tooltip.
 - The list of open merge requests is grouped by readiness: ready to merge first, then what needs action, then what is waiting, each group with its count.
+- The merge request list has views: Review requests, Mine, Stalled (no activity for 14 days), and Ready to merge, combined with the filters.
 - Each open merge request in the list shows its checks and approvals in words, such as "1 of 3 checks failed" and "Approval required".
 - Merge request lists load faster: each row's readiness is stored and computed again only after something it depends on changes.
 - `slath fsck` reports stored list readiness that differs from a fresh computation, and `--reconcile` rebuilds it.

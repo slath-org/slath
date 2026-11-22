@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           LEFT JOIN mr_readiness r ON r.mr_id = m.id\n             AND r.built_generation = r.generation AND r.built_format = $11\n           WHERE m.repo_id = $1\n             AND ($2::text IS NULL OR m.state = $2)\n             AND ($3::uuid IS NULL OR m.author_id = $3)\n             AND ($4::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $4))\n             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($5)) = cardinality($5)\n             AND ($6::uuid IS NULL OR m.milestone_id = $6)\n           ORDER BY CASE WHEN NOT $10 THEN 0 WHEN r.tone = 'done' THEN 1 WHEN r.tone = 'blocking' THEN 2\n                         WHEN r.tone = 'waiting' THEN 3 ELSE 4 END,\n                    CASE WHEN $10 THEN r.headline END,\n                    CASE WHEN $7 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC\n           OFFSET $8 LIMIT $9",
+  "query": "SELECT m.id, m.repo_id, m.number, m.author_id, n.name::text AS author, m.title, m.description,\n                  m.draft, m.attention, m.origin, m.target_branch, m.source_repo_id, m.source_ref, m.allow_maintainer_edits,\n                  m.state, m.milestone_id, m.delete_source_on_merge, m.merged_at, m.closed_at, m.source_findings,\n                  m.created_at, m.updated_at,\n                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'merge_request' AND c.subject_id = m.id\n                     AND c.deleted_at IS NULL) AS \"comments!\",\n                  (SELECT v.head_oid FROM mr_revisions v WHERE v.mr_id = m.id ORDER BY v.seq DESC LIMIT 1) AS head_oid,\n                  (SELECT count(*)::int FROM mr_revisions v WHERE v.mr_id = m.id) AS \"revisions!\"\n           FROM merge_requests m LEFT JOIN users u ON u.id = m.author_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           LEFT JOIN mr_readiness r ON r.mr_id = m.id\n             AND r.built_generation = r.generation AND r.built_format = $11\n           WHERE m.repo_id = $1\n             AND ($2::uuid IS NULL OR m.author_id = $2)\n             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))\n             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)\n             AND ($5::uuid IS NULL OR m.milestone_id = $5)\n             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'\n                  AND m.author_id IS DISTINCT FROM $6\n                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'\n                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))\n             AND ($7::uuid IS NULL OR m.author_id = $7)\n             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))\n             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id\n                  AND rr.built_generation = rr.generation AND rr.built_format = $11\n                  AND rr.tone = 'done' AND rr.headline = $10)))\n             AND ($12::text IS NULL OR m.state = $12)\n           ORDER BY CASE WHEN NOT $16 THEN 0 WHEN r.tone = 'done' THEN 1 WHEN r.tone = 'blocking' THEN 2\n                         WHEN r.tone = 'waiting' THEN 3 ELSE 4 END,\n                    CASE WHEN $16 THEN r.headline END,\n                    CASE WHEN $13 THEN m.updated_at ELSE m.created_at END DESC, m.number DESC\n           OFFSET $14 LIMIT $15",
   "describe": {
     "columns": [
       {
@@ -262,16 +262,21 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
         "Uuid",
         "Uuid",
         "UuidArray",
         "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Bool",
+        "Text",
+        "Int2",
+        "Text",
         "Bool",
         "Int8",
         "Int8",
-        "Bool",
-        "Int2"
+        "Bool"
       ]
     },
     "nullable": [
@@ -302,5 +307,5 @@
       null
     ]
   },
-  "hash": "9e76a48ee2b487290e81caf7d8d4ac4a57994c1d4b1e14829cebdec823e47663"
+  "hash": "4d8d61842f98fb5970a9a3f33caee2bcf8efb5a4713767faee9e8d3d6d40f99f"
 }

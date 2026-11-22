@@ -27,6 +27,19 @@ fn groups(c: &Ctx) -> Vec<Group> {
         c.s.login("alice", PASSWORD)
             .get("/alice/demo/merge-requests")
             .body;
+    groups_in(&body)
+}
+
+/// The numbers a list page shows, in their order.
+fn numbers_in(body: &str) -> Vec<i64> {
+    body.split(r#"class="item-title" href="/alice/demo/merge-requests/"#)
+        .skip(1)
+        .map(|r| r.split_once('"').unwrap().0.parse().unwrap())
+        .collect()
+}
+
+/// A list page's groups in their order.
+fn groups_in(body: &str) -> Vec<Group> {
     body.split(r#"<h2 class="item-group-heading""#)
         .skip(1)
         .map(|g| {
@@ -43,11 +56,7 @@ fn groups(c: &Ctx) -> Vec<Group> {
                 .map(|(n, _)| n.parse().unwrap())
                 .unwrap();
             let section = g.split_once("</section>").map_or(g, |(s, _)| s);
-            let numbers = section
-                .split(r#"class="item-title" href="/alice/demo/merge-requests/"#)
-                .skip(1)
-                .map(|r| r.split_once('"').unwrap().0.parse().unwrap())
-                .collect();
+            let numbers = numbers_in(section);
             Group {
                 tone,
                 headline: headline.replace("&#x27;", "'"),
@@ -351,4 +360,114 @@ fn conf_review_16_the_open_list_is_grouped_by_the_cards_headline() {
             .get("/alice/demo/merge-requests?state=all")
             .body;
     assert!(!all.contains("item-group-heading"), "{all}");
+}
+
+#[test]
+fn conf_review_16_views_list_exactly_the_readable_matching_merge_requests() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    seed(&c, d.path());
+    let w = d.path().join("w");
+    c.clone(&w);
+    let bob = bob(&c);
+    let push = |branch: &str, file: &str| {
+        c.git.ok(&w, &["switch", "-q", "-c", branch, "origin/main"]);
+        commit_file(&c.git, &w, file, "topic\n", &format!("Add {file}"));
+        c.push(&w, branch);
+    };
+    // Alice's, ready to merge.
+    push("mine", "a.txt");
+    let mine = c.open_mr("mine");
+    c.stack(mine, 1);
+    // Bob's, with Alice asked to review it.
+    push("bobs", "b.txt");
+    let api_bob = |method: &str, path: &str, body: Value| {
+        c.s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(&bob),
+            Some(&body),
+        )
+    };
+    let r = api_bob(
+        "POST",
+        "/merge-requests",
+        json!({"source_branch": "bobs", "title": "bobs"}),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let bobs = r.json()["number"].as_i64().unwrap();
+    c.stack(bobs, 1);
+    let r = api_bob(
+        "PUT",
+        &format!("/merge-requests/{bobs}/reviewers"),
+        json!({"reviewers": ["alice"]}),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    // Alice's draft, without activity for 20 days.
+    push("old", "c.txt");
+    let old = c.open_mr("old");
+    c.stack(old, 1);
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{old}"),
+        Some(&json!({"draft": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    c.s.db.execute(&format!(
+        "UPDATE merge_requests SET updated_at = now() - interval '20 days' WHERE number = {old}"
+    ));
+
+    let mut alice = c.s.login("alice", PASSWORD);
+    let list = |alice: &mut slath_tests::http::Client, query: &str| {
+        let r = alice.get(&format!("/alice/demo/merge-requests{query}"));
+        assert_eq!(r.status, 200, "{query}: {}", r.body);
+        r.body
+    };
+    // Grouped as usual: ready ones first, newest first among them.
+    for (query, want) in [
+        ("", vec![bobs, mine, old]),
+        ("?view=review-requests", vec![bobs]),
+        ("?view=mine", vec![mine, old]),
+        ("?view=stalled", vec![old]),
+        ("?view=ready", vec![bobs, mine]),
+        ("?view=ready&author=alice", vec![mine]),
+        ("?view=mine&author=bob", vec![]),
+        ("?view=nonsense", vec![bobs, mine, old]),
+    ] {
+        assert_eq!(numbers_in(&list(&mut alice, query)), want, "{query}");
+    }
+    // The state menu counts the view's merge requests, and links keep it.
+    let page = list(&mut alice, "?view=mine");
+    assert!(
+        page.contains(r#"href="?state=merged&#38;view=mine""#),
+        "{page}"
+    );
+    assert!(
+        page.contains(r#"Open <span class="count">2</span>"#),
+        "{page}"
+    );
+    assert!(numbers_in(&list(&mut alice, "?state=merged&view=mine")).is_empty());
+    // Bob is asked for nothing; his merge request is his.
+    let mut bob_ui = c.s.login("bob", PASSWORD);
+    assert!(numbers_in(&list(&mut bob_ui, "?view=review-requests")).is_empty());
+    assert_eq!(numbers_in(&list(&mut bob_ui, "?view=mine")), vec![bobs]);
+
+    // A view is a filter, never a grant: someone who can't read the
+    // repository gets nothing, and personal views need an account.
+    c.s.create_user("carol", PASSWORD, false);
+    let mut carol = c.s.login("carol", PASSWORD);
+    for query in ["?view=ready", "?view=stalled", "?view=mine"] {
+        let r = carol.get(&format!("/alice/demo/merge-requests{query}"));
+        assert_eq!(r.status, 404, "{query}");
+    }
+    let r = c.api("PATCH", "", Some(&json!({"visibility": "public"})));
+    assert!(r.status < 300, "{}", r.body);
+    let mut anonymous = c.s.client();
+    let r = anonymous.get("/alice/demo/merge-requests?view=ready");
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(numbers_in(&r.body), vec![bobs, mine]);
+    assert!(!r.body.contains("view=mine"), "{}", r.body);
+    let r = anonymous.get("/alice/demo/merge-requests?view=mine");
+    assert_eq!(r.status, 401, "{}", r.body);
+    assert!(r.body.contains("Sign in to continue"), "{}", r.body);
 }

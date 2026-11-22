@@ -5,7 +5,7 @@
 // by their readiness headline, in every browser cell. Other scenarios add
 // merge requests to the shared server meanwhile, so the checks hold for
 // any mix of groups.
-import { USERS, expect, expectAccessible, signIn, test } from "../../fixtures";
+import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
 test("conf_review_16_open_list_is_grouped_by_readiness", async ({ page }) => {
   await signIn(page, USERS.alice);
@@ -35,5 +35,27 @@ test("conf_review_16_other_lists_keep_the_readiness_icon", async ({ page }) => {
   await page.goto("/alice/demo/merge-requests?state=all");
   await expect(page.locator("section.item-group")).toHaveCount(0);
   await expect(page.locator(".item-checks").first()).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("conf_review_16_views_are_picked_from_the_view_menu", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  const menu = page.locator("summary", { hasText: "View:" });
+  await expect(menu).toHaveText(/View: All/);
+  await tapOrClick(page, menu);
+  const views = page.getByRole("list", { name: "View" });
+  for (const name of ["All", "Review requests", "Mine", "Stalled", "Ready to merge"]) {
+    await expect(views.getByRole("link", { name, exact: true })).toBeVisible();
+  }
+  await tapOrClick(page, views.getByRole("link", { name: "Mine", exact: true }));
+  await expect(page).toHaveURL(/view=mine/);
+  await expect(page.locator("summary", { hasText: "View:" })).toHaveText(/View: Mine/);
+  // Every row is Alice's.
+  const meta = page.locator(".item-row .item-meta.text-secondary");
+  for (const m of await meta.all()) await expect(m.locator(".account").first()).toHaveText(/alice/);
+  // The state and order keep the view.
+  await tapOrClick(page, page.locator("summary", { hasText: "State:" }));
+  await expect(page.getByRole("list", { name: "State" }).getByRole("link", { name: /^Merged/ })).toHaveAttribute("href", /view=mine/);
   await expectAccessible(page);
 });

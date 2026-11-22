@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id FROM merge_requests m\n           LEFT JOIN mr_readiness r ON r.mr_id = m.id\n           WHERE m.repo_id = $1\n             AND ($2::uuid IS NULL OR m.author_id = $2)\n             AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM mr_assignees a WHERE a.mr_id = m.id AND a.user_id = $3))\n             AND (SELECT count(*) FROM mr_labels l WHERE l.mr_id = m.id AND l.label_id = ANY($4)) = cardinality($4)\n             AND ($5::uuid IS NULL OR m.milestone_id = $5)\n             AND ($6::uuid IS NULL OR (m.state = 'open' AND NOT m.draft AND m.attention = 'ready'\n                  AND m.author_id IS DISTINCT FROM $6\n                  AND EXISTS (SELECT 1 FROM mr_reviewers rv WHERE rv.mr_id = m.id AND rv.state = 'requested'\n                      AND (rv.user_id = $6 OR rv.team_id IN (SELECT team_id FROM team_members WHERE user_id = $6)))))\n             AND ($7::uuid IS NULL OR m.author_id = $7)\n             AND ($8::timestamptz IS NULL OR (m.state = 'open' AND m.updated_at < $8))\n             AND (NOT $9 OR (m.state = 'open' AND EXISTS (SELECT 1 FROM mr_readiness rr WHERE rr.mr_id = m.id\n                  AND rr.built_generation = rr.generation AND rr.built_format = $11\n                  AND rr.tone = 'done' AND rr.headline = $10)))\n             AND m.state = 'open'\n             AND (r.mr_id IS NULL OR r.built_generation IS DISTINCT FROM r.generation OR r.built_format <> $11)\n           ORDER BY m.number DESC\n           LIMIT $12",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "UuidArray",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Bool",
+        "Text",
+        "Int2",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "10a25b494ccd7d4c438be1cf2bcb5b0aaf21a27450ff94fce1315568576d6c64"
+}

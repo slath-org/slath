@@ -6,6 +6,7 @@
   <form method="get" {% call m::swap_region(ctx, "list-view") %}{% endcall %} action="{{ list_path }}" class="form-layout">
     <input type="hidden" name="state" value="{{ state }}">
     {%- if q.sort_updated() %}<input type="hidden" name="sort" value="updated">{% endif %}
+    {%- if !q.view.is_empty() %}<input type="hidden" name="view" value="{{ q.view }}">{% endif %}
     {%- let labels_hint %}Separate labels with commas; {{ noun }} must have all of them.{% endlet %}
     {%- call f::field("f-labels", "Labels", labels_hint) %}
     <input id="f-labels" name="labels" type="text" value="{{ q.labels }}" autocapitalize="none" spellcheck="false" data-names="labels" autocomplete="off"{% call f::described("f-labels", "x", "") %}{% endcall %}>
@@ -27,7 +28,7 @@
     {%- call f::buttons() %}
       <button type="submit" class="button">Apply filters</button>
       {%- if filtered %}
-      <a class="button button-quiet" href="?state={{ state }}{% if q.sort_updated() %}&amp;sort=updated{% endif %}">Clear filters</a>
+      <a class="button button-quiet" href="?state={{ state }}{% if q.sort_updated() %}&amp;sort=updated{% endif %}{% if !q.view.is_empty() %}&amp;view={{ q.view }}{% endif %}">Clear filters</a>
       {%- endif %}
     {%- endcall %}
   </form>

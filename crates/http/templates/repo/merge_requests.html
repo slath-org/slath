@@ -20,13 +20,18 @@
 {%- call m::view_item("?state=closed" ~ query, "Closed", state == "closed", closed.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=all" ~ query, "All", state == "all", "") %}{% endcall %}
 {%- endcall %}
+{%- call m::view_menu(ctx, "View", view.label(), "list-view") %}
+{%- for v in views %}
+{%- call m::view_item(self.view_href(v), v.label(), *v == view, "") %}{% endcall %}
+{%- endfor %}
+{%- endcall %}
 {% include "repo/list_sort.html" %}
 </div>
 {%- let list_path = base ~ "/merge-requests" %}
 {%- let noun = "merge requests" %}
 {% include "repo/list_filters.html" %}
 {%- if groups.is_empty() %}
-{%- let empty_text %}{% if filtered %}No merge requests match these filters.{% else if state == "merged" %}No merged merge requests.{% else if state == "closed" %}No closed merge requests.{% else if state == "all" %}No merge requests yet.{% else %}No open merge requests.{% endif %}{% endlet %}
+{%- let empty_text %}{% if filtered %}No merge requests match these filters.{% else if view == View::ReviewRequests %}Nobody is waiting for your review here.{% else if view == View::Mine %}No merge requests of yours{% if state == "open" %} are open{% else if state == "all" %} yet{% else %} are {{ state }}{% endif %}.{% else if view == View::Stalled %}No open merge request has gone 14 days without activity.{% else if view == View::Ready %}No merge request is ready to merge.{% else if state == "merged" %}No merged merge requests.{% else if state == "closed" %}No closed merge requests.{% else if state == "all" %}No merge requests yet.{% else %}No open merge requests.{% endif %}{% endlet %}
 {%- call msg::empty(empty_text) %}{% endcall %}
 {%- else %}
 {%- for g in groups %}

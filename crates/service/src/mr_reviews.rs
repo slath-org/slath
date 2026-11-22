@@ -156,6 +156,9 @@ pub(crate) fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> 
     }
 }
 
+/// The readiness headline of a merge request that can be merged.
+pub const READY: &str = "Ready to merge";
+
 /// A merge request's readiness in short, as its readiness card heads it:
 /// the tone (`done`, `waiting`, `blocking`) and the headline. The card,
 /// the list, and the list's snapshot all take it from here.
@@ -167,7 +170,7 @@ pub fn readiness_summary(m: &MergeRequest, mb: &Mergeability) -> (&'static str, 
         _ => {}
     }
     if mb.mergeable {
-        return ("done", "Ready to merge".to_owned());
+        return ("done", READY.to_owned());
     }
     let Some(r) = mb
         .requirements
