@@ -20,9 +20,13 @@
 {%- call m::view_item("?state=closed" ~ query, "Closed", state == "closed", closed.to_string()) %}{% endcall %}
 {%- call m::view_item("?state=all" ~ query, "All", state == "all", "") %}{% endcall %}
 {%- endcall %}
-{%- call m::view_menu(ctx, "View", view.label(), "list-view") %}
+{%- let view_label %}{% if let Some(sv) = current_saved %}{{ sv.name }}{% else %}{{ view.label() }}{% endif %}{% endlet %}
+{%- call m::view_menu(ctx, "View", view_label, "list-view") %}
+{%- for sv in saved %}
+{%- call m::view_item("?" ~ sv.query, sv.name, sv.query == current_query, "") %}{% endcall %}
+{%- endfor %}
 {%- for v in views %}
-{%- call m::view_item(self.view_href(v), v.label(), *v == view, "") %}{% endcall %}
+{%- call m::view_item(self.view_href(v), v.label(), *v == view && current_saved.is_none(), "") %}{% endcall %}
 {%- endfor %}
 {%- endcall %}
 {% include "repo/list_sort.html" %}
@@ -30,6 +34,29 @@
 {%- let list_path = base ~ "/merge-requests" %}
 {%- let noun = "merge requests" %}
 {% include "repo/list_filters.html" %}
+{%- if signed_in %}
+{%- if let Some(sv) = current_saved %}
+<form method="post" action="{{ base }}/merge-requests/views/{{ sv.id }}/delete" class="inline-form">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="query" value="{{ current_query }}">
+  <button type="submit" class="button button-quiet">{% call m::icon(ctx, "trash-2") %}{% endcall %}Delete the saved view <bdi>{{ sv.name }}</bdi></button>
+</form>
+{%- else if current_query != "state=open" %}
+{%- call d::disclosure(ctx, "Save this view", saving.error.is_some()) %}
+  <form method="post" action="{{ base }}/merge-requests/views" class="form-layout">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="query" value="{{ current_query }}">
+    {%- let save_error = saving.error.clone().unwrap_or_default() %}
+    {%- call f::field("view-name", "Name", "Saved views appear in the View menu, only for you. Saving under a name you used replaces that view.", save_error) %}
+    <input id="view-name" name="name" type="text" value="{{ saving.name }}" maxlength="60" required autocomplete="off"{% call f::described("view-name", "x", save_error) %}{% endcall %}>
+    {%- endcall %}
+    {%- call f::buttons() %}
+      <button type="submit" class="button">Save view</button>
+    {%- endcall %}
+  </form>
+{%- endcall %}
+{%- endif %}
+{%- endif %}
 {%- if groups.is_empty() %}
 {%- let empty_text %}{% if filtered %}No merge requests match these filters.{% else if view == View::ReviewRequests %}Nobody is waiting for your review here.{% else if view == View::Mine %}No merge requests of yours{% if state == "open" %} are open{% else if state == "all" %} yet{% else %} are {{ state }}{% endif %}.{% else if view == View::Stalled %}No open merge request has gone 14 days without activity.{% else if view == View::Ready %}No merge request is ready to merge.{% else if state == "merged" %}No merged merge requests.{% else if state == "closed" %}No closed merge requests.{% else if state == "all" %}No merge requests yet.{% else %}No open merge requests.{% endif %}{% endlet %}
 {%- call msg::empty(empty_text) %}{% endcall %}

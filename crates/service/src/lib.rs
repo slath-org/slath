@@ -62,6 +62,7 @@ pub mod references;
 pub mod registration;
 pub mod repos;
 mod review_requirements;
+pub mod saved_views;
 pub mod search;
 pub mod secrets;
 pub mod sensitive_paths;

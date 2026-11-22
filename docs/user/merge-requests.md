@@ -354,6 +354,13 @@ filters:
 Review requests and Mine need you to be signed in. A view only ever shows
 merge requests you can read.
 
+To keep a list you use often, such as your open merge requests with the
+label `bug`, pick its state, filters, view, and order, then open **Save
+this view** below the filters and name it. Saved views are yours alone
+and appear at the top of the View menu. Saving under a name you already
+used replaces that view; a list that is a saved view offers **Delete the
+saved view**. You can keep up to 20 per repository.
+
 When you approve, Slath notes how many files of the revision's diff you
 had marked viewed, counting only files you viewed as they are in that
 revision. The approvals line shows it for each approval, for example

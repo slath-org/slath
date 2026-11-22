@@ -231,6 +231,14 @@ struct ListPage {
     filters: String,
     milestones: Vec<String>,
     filtered: bool,
+    /// The viewer's saved views of this list.
+    saved: Vec<slath_service::saved_views::SavedView>,
+    /// The saved view this list is, if any.
+    current_saved: Option<slath_service::saved_views::SavedView>,
+    /// This list's query string (state, filters, view, order).
+    current_query: String,
+    signed_in: bool,
+    saving: Saving,
     /// The view shown.
     view: View,
     /// The views the viewer can pick.
@@ -266,9 +274,28 @@ async fn list(
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo)): Path<(String, String)>,
-    Query(mut q): Query<ListQuery>,
+    Query(q): Query<ListQuery>,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
+    list_page(&state, ctx, &subject, (&ns, &repo), q, Saving::default()).await
+}
+
+/// The save view form's state after a failed save.
+#[derive(Default)]
+struct Saving {
+    name: String,
+    error: Option<String>,
+}
+
+/// The merge request list for `q`.
+async fn list_page(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &Subject,
+    (ns, repo): (&str, &str),
+    mut q: ListQuery,
+    saving: Saving,
+) -> Result<Response, AppError> {
     let view = View::parse(&q.view);
     q.view = view.key().to_owned();
     let st = match q.state.as_deref() {
@@ -286,16 +313,16 @@ async fn list(
     } = state
         .services
         .mr_list_page(
-            &subject,
-            &ns,
-            &repo,
+            subject,
+            ns,
+            repo,
             &q.input(st),
             view,
             ((page - 1) * PER_PAGE, PER_PAGE + 1),
         )
         .await?;
     let more = items.len() as i64 > PER_PAGE;
-    let (_, ms) = state.services.milestones(&subject, &ns, &repo).await?;
+    let (_, ms) = state.services.milestones(subject, ns, repo).await?;
     let mut items: Vec<_> = items.into_iter().take(PER_PAGE as usize).collect();
     if groups.is_some() {
         slath_service::readiness::group_order(&mut items);
@@ -330,7 +357,20 @@ async fn list(
     let query = format!("{base_query}{in_view}");
     let filters = format!("{}{in_view}", q.filters());
     let signed_in = matches!(subject, Subject::User { .. });
-    Ok(render(&ListPage {
+    let saved = state.services.mr_saved_views(subject, &a).await?;
+    let current_query = format!("state={st}{query}");
+    let current_saved = saved.iter().find(|v| v.query == current_query).cloned();
+    let status = if saving.error.is_some() {
+        StatusCode::UNPROCESSABLE_ENTITY
+    } else {
+        StatusCode::OK
+    };
+    let mut res = render(&ListPage {
+        saved,
+        current_saved,
+        current_query,
+        signed_in,
+        saving,
         milestones: ms.into_iter().map(|m| m.title).collect(),
         filtered,
         filters,
@@ -340,11 +380,11 @@ async fn list(
             .into_iter()
             .filter(|v| signed_in || !v.personal())
             .collect(),
-        header: RepoHeader::load(&state, &a, &subject, TAB)
+        header: RepoHeader::load(state, &a, subject, TAB)
             .await
-            .with_recent_pushes(&state, &a, &subject)
+            .with_recent_pushes(state, &a, subject)
             .await,
-        can_create: a.can(&subject, Action::MrCreate),
+        can_create: a.can(subject, Action::MrCreate),
         grouped: groups.is_some(),
         groups: group_rows(rows, groups.as_deref()),
         state: st.to_owned(),
@@ -355,7 +395,74 @@ async fn list(
         query,
         q,
         ctx,
-    }))
+    });
+    *res.status_mut() = status;
+    Ok(res)
+}
+
+#[derive(Deserialize)]
+struct SaveViewForm {
+    #[serde(default)]
+    name: String,
+    /// The list's query string, as the page wrote it.
+    #[serde(default)]
+    query: String,
+}
+
+/// `POST …/merge-requests/views`: saves the list's view under a name.
+async fn save_view(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<SaveViewForm>,
+) -> Result<Response, AppError> {
+    match state
+        .services
+        .save_mr_view(&s.subject, &ns, &repo, &f.name, &f.query)
+        .await
+    {
+        Ok(v) => {
+            Ok(Redirect::to(&format!("/{ns}/{repo}/merge-requests?{}", v.query)).into_response())
+        }
+        Err(ServiceError::Invalid(errors)) => {
+            // Shown on the list the form was on.
+            let uri: axum::http::Uri = format!("/?{}", f.query)
+                .parse()
+                .unwrap_or_else(|_| axum::http::Uri::from_static("/"));
+            let q = Query::<ListQuery>::try_from_uri(&uri)
+                .map(|Query(q)| q)
+                .unwrap_or_default();
+            let error = errors.into_iter().next().map(|e| e.message);
+            let saving = Saving {
+                name: f.name,
+                error,
+            };
+            list_page(&state, ctx, &s.subject, (&ns, &repo), q, saving).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// `POST …/merge-requests/views/{id}/delete`: deletes a saved view and
+/// shows the list it was.
+async fn delete_view(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+    Form(f): Form<SaveViewForm>,
+) -> Result<Response, AppError> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .delete_mr_view(&s.subject, &ns, &repo, id)
+        .await?;
+    let back = if slath_service::saved_views::is_list_query(&f.query) {
+        format!("/{ns}/{repo}/merge-requests?{}", f.query)
+    } else {
+        format!("/{ns}/{repo}/merge-requests")
+    };
+    Ok(Redirect::to(&back).into_response())
 }
 
 // ---------------------------------------------------------------- compare
@@ -4266,6 +4373,16 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/merge-requests",
             Access::Resource,
             get(list).post(create),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/views",
+            Access::Resource,
+            post(save_view),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/views/{id}/delete",
+            Access::Resource,
+            post(delete_view),
         )
         .route_as("/{ns}/{repo}/compare", Access::Resource, get(compare))
         .route_as(

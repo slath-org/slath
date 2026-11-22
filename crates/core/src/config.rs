@@ -417,6 +417,8 @@ pub struct Limits {
     /// Outdated readiness snapshots one merge request list view computes
     /// before grouping; any more are grouped as not computed yet.
     pub mr_list_readiness_rebuilds: usize,
+    /// Saved merge request list views per user and repository.
+    pub saved_views_per_repo: usize,
     /// Concurrent archive downloads.
     pub archive_max_concurrent: usize,
     /// API requests per hour for an authenticated principal.
@@ -478,6 +480,7 @@ impl Default for Limits {
             status_annotation_max_bytes: Bytes(4096),
             iteration_interdiff_max_bytes: Bytes(1024 * 1024),
             mr_list_readiness_rebuilds: 100,
+            saved_views_per_repo: 20,
             archive_max_concurrent: 4,
             api_requests_per_hour: 5000,
             api_anonymous_requests_per_hour: 300,

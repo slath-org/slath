@@ -25,6 +25,7 @@ pub mod mr_findings;
 pub mod mr_ledger;
 pub mod mr_readiness;
 pub mod mr_reviews;
+pub mod mr_saved_views;
 pub mod mr_threads;
 pub mod notifications;
 pub mod oidc;
@@ -56,7 +57,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 145;
+pub const REQUIRED_SCHEMA: i32 = 146;
 
 /// A stored origin label; the column's check allows only known ones, and
 /// anything else would count as the least trusted.

@@ -59,3 +59,24 @@ test("conf_review_16_views_are_picked_from_the_view_menu", async ({ page }) => {
   await expect(page.getByRole("list", { name: "State" }).getByRole("link", { name: /^Merged/ })).toHaveAttribute("href", /view=mine/);
   await expectAccessible(page);
 });
+
+test("conf_review_16_a_view_is_saved_and_deleted", async ({ page }, testInfo) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests?state=closed&sort=updated");
+  const name = `Closed ${testInfo.project.name}`;
+  await tapOrClick(page, page.locator("summary", { hasText: "Save this view" }));
+  await page.getByLabel("Name").fill(name);
+  await tapOrClick(page, page.getByRole("button", { name: "Save view" }));
+  await expect(page).toHaveURL(/state=closed&sort=updated$/);
+  await tapOrClick(page, page.locator("summary", { hasText: "View:" }));
+  const views = page.getByRole("list", { name: "View" });
+  await expect(views.getByRole("link", { name })).toHaveAttribute("aria-current", "page");
+  await expectAccessible(page);
+  // Another list offers it, and it leads back.
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.locator("summary", { hasText: "View:" }));
+  await tapOrClick(page, views.getByRole("link", { name }));
+  await expect(page).toHaveURL(/state=closed&sort=updated$/);
+  await tapOrClick(page, page.getByRole("button", { name: `Delete the saved view ${name}` }));
+  await expect(page.locator("summary", { hasText: "Save this view" })).toBeVisible();
+});
