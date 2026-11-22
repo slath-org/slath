@@ -110,11 +110,12 @@
 {%- call cat::entry("groups", "List groups", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>A list sorted by one state that decides what to do next, such as open merge requests by readiness: each group says the state once, so the rows don't repeat it.</dd>
-  <dt>Markup</dt><dd><code>section.item-group</code> labelled by its <code>h2.item-group-heading</code> (the state's tone icon in <code>span.item-group-tone</code>, its words, and a <code>span.count</code> of the group on all pages, with the noun for screen readers), then a <code>ul.item-list</code> of list rows. Groups come in the order that puts decisions first; a group continues on the next page.</dd>
+  <dt>Markup</dt><dd><code>section.item-group</code> labelled by its <code>h2.item-group-heading</code> (the state's tone icon in <code>span.item-group-tone</code>, its words, and a <code>span.count</code> of the group on all pages, with the noun for screen readers), then a <code>ul.item-list</code> of list rows. Groups stand in a <code>div.stack</code> (the list's own), so space separates them; they come in the order that puts decisions first, and a group continues on the next page.</dd>
   <dt>Accessibility</dt><dd>Headings make the groups navigable; the tone is an icon with its word, never color alone.</dd>
   <dt>Not for</dt><dd>Lists by a property people filter by (labels, authors): filters, not groups.</dd>
 </dl>
 {%- call cat::example("Open merge requests grouped by readiness.") %}
+<div class="stack">
 <section class="item-group" aria-labelledby="demo-group-1">
 <h2 class="item-group-heading" id="demo-group-1"><span class="item-group-tone tone-done">{% call m::tone_icon(ctx, "done") %}{% endcall %}</span><span>Ready to merge</span> <span class="count">1<span class="visually-hidden"> merge request</span></span></h2>
 <ul class="item-list">
@@ -141,6 +142,7 @@
   </li>
 </ul>
 </section>
+</div>
 {%- endcall %}
 {%- endcall %}
 
