@@ -50,6 +50,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - `git push origin HEAD:refs/for/main` opens a merge request into main without a branch of your own; pushing the same way again updates it.
 - A change pushed with `refs/for/` by Git and with `jj git push --change` by jj lands in the same merge request when it carries a change ID.
 
+### Security
+
+- The URL library is updated to a version whose origin lookup can't overflow the stack on deeply nested `blob:` URLs; Slath doesn't look up such origins itself.
+
 ## [0.3.0] - 2026-11-18
 
 Merge requests and forks for Git and jj alike, webhooks, bots, push protection, and signed prebuilt releases. Later releases update from it; install it fresh (see `docs/admin/upgrading.md`).
