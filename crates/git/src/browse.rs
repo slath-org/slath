@@ -34,31 +34,37 @@ pub struct RefInfo {
     pub subject: String,
 }
 
-/// Lists branches or tags, newest first, at most `limit`.
+/// Lists branches or tags, newest first, at most `limit`. Branches under
+/// `hide` (a branch name prefix the caller validated, or empty for none)
+/// are left out, like fork merge request branches always are.
 pub async fn list_refs(
     runner: &Runner,
     git_dir: &Path,
     kind: RefKind,
     limit: usize,
+    hide: &str,
 ) -> Result<Vec<RefInfo>, GitError> {
     let prefix = match kind {
         RefKind::Branch => "refs/heads/",
         RefKind::Tag => "refs/tags/",
         RefKind::Commit => return Ok(Vec::new()),
     };
-    let out = runner
-        .repo(git_dir)
-        .args([
-            "for-each-ref",
-            "--sort=-creatordate",
-            &format!("--count={limit}"),
-            "--format=%(objectname)%00%(*objectname)%00%(refname)%00%(creatordate:unix)%00%(contents:subject)",
-            // Fork merge request branches aren't the repository's own.
-            "--exclude=refs/heads/mr/",
-            prefix,
-        ])
-        .run()
-        .await?;
+    let mut args = vec![
+        "for-each-ref".to_owned(),
+        "--sort=-creatordate".to_owned(),
+        format!("--count={limit}"),
+        "--format=%(objectname)%00%(*objectname)%00%(refname)%00%(creatordate:unix)%00%(contents:subject)".to_owned(),
+        // Fork merge request branches aren't the repository's own.
+        "--exclude=refs/heads/mr/".to_owned(),
+    ];
+    if kind == RefKind::Branch && !hide.is_empty() {
+        // `*` stops at a slash, so names with more levels need `*/**`.
+        // The prefix has no glob characters (the caller checked it).
+        args.push(format!("--exclude=refs/heads/{hide}*"));
+        args.push(format!("--exclude=refs/heads/{hide}*/**"));
+    }
+    args.push(prefix.to_owned());
+    let out = runner.repo(git_dir).args(args).run().await?;
     let mut refs = Vec::new();
     for line in out.stdout.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
         let f: Vec<&[u8]> = line.splitn(5, |&b| b == 0).collect();

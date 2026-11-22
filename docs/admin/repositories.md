@@ -231,6 +231,20 @@ under a name. A saved view is only the list's query: opening it shows
 what that person can read at the time. Saved views are deleted with the
 account or the repository.
 
+## Change sources
+
+Branches that exist only to carry a merge request, such as the
+`push-<change ID>` bookmarks of `jj git push --change`, are change
+sources. Each repository names them by a prefix, `push-` by default,
+under **Settings → General → Merge requests → Branches that open a merge
+request** or as `change_source_prefix` in the repository API (audited as
+`repo.change_source_prefix`). Branch lists, branch selectors, and the
+"recently pushed" banner leave them out; they stay ordinary branches for
+Git and jj, so anyone who can read the repository can fetch them. An empty
+prefix turns this off. Repositories that already had `push-` branches
+when the instance was upgraded to this version start with it off, so
+nothing they list disappears unasked.
+
 ## Issues
 
 Every repository has issues unless they are turned off. Issues and merge

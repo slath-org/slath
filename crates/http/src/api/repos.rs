@@ -55,6 +55,10 @@ pub struct Repo {
     /// Days without activity after which an open merge request is
     /// stalled (the merge request list's Stalled view).
     pub stalled_after_days: i16,
+    /// The prefix of change sources: branches that open a merge request
+    /// when pushed (such as jj's `push-*` bookmarks) and stay out of
+    /// branch lists. Empty when turned off.
+    pub change_source_prefix: String,
     pub clone_urls: CloneUrls,
     pub created_at: String,
     pub updated_at: String,
@@ -75,6 +79,7 @@ fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
         default_branch: r.default_branch.clone(),
         archived: r.state == RepoState::Archived,
         stalled_after_days: r.stalled_after_days,
+        change_source_prefix: r.change_source_prefix.clone(),
         clone_urls: CloneUrls { https, ssh },
         created_at: ts(r.created_at),
         updated_at: ts(r.updated_at),
@@ -193,6 +198,9 @@ pub struct UpdateRepo {
     pub archived: Option<bool>,
     /// From 1 to 365.
     pub stalled_after_days: Option<i64>,
+    /// Empty turns change sources off; otherwise up to 32 letters, digits,
+    /// and `-_./`, ending in `-`, `_`, or `/`.
+    pub change_source_prefix: Option<String>,
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
@@ -227,6 +235,9 @@ pub async fn update_repo(
     }
     if let Some(days) = u.stalled_after_days {
         svc.set_mr_stalled_after_days(&subject, &a, days).await?;
+    }
+    if let Some(prefix) = &u.change_source_prefix {
+        svc.set_change_source_prefix(&subject, &a, prefix).await?;
     }
     if let Some(v) = &u.visibility {
         svc.set_repo_visibility(&subject, false, &a, visibility(v)?)
@@ -286,6 +297,7 @@ async fn refs(
         &state.services.repo_path(a.repo.id),
         kind,
         5000,
+        &a.repo.change_source_prefix,
     )
     .await
     .map_err(|e| AppError::internal(&e))?;

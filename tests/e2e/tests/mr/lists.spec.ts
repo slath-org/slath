@@ -101,3 +101,21 @@ test("conf_review_16_the_repository_sets_when_merge_requests_are_stalled", async
   const label = before === "1" ? "Stalled (1 day)" : `Stalled (${before} days)`;
   await expect(page.getByRole("list", { name: "View" }).getByRole("link", { name: label })).toBeVisible();
 });
+
+test("conf_jj_13_the_repository_names_its_change_sources", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/settings/general");
+  const prefix = page.getByLabel("Branches that open a merge request");
+  const before = await prefix.inputValue();
+  await prefix.fill("no end");
+  await tapOrClick(page, page.getByRole("button", { name: "Save merge request settings" }));
+  await expect(page.getByLabel("Branches that open a merge request")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#change_source_prefix-error")).toHaveText(
+    "Use letters, digits, and - _ . / only, starting with a letter or digit.",
+  );
+  await expectAccessible(page);
+  await page.getByLabel("Branches that open a merge request").fill(before);
+  await tapOrClick(page, page.getByRole("button", { name: "Save merge request settings" }));
+  await expect(page.getByText("Merge request settings saved.")).toBeVisible();
+  await expect(page.getByLabel("Branches that open a merge request")).toHaveValue(before);
+});

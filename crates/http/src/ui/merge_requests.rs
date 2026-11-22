@@ -599,15 +599,24 @@ struct CompareInput<'a> {
     target: &'a str,
 }
 
-async fn branch_names(state: &AppState, dir: &std::path::Path) -> Result<Vec<String>, AppError> {
-    Ok(
-        slath_git::browse::list_refs(&state.runner, dir, slath_git::browse::RefKind::Branch, 500)
-            .await
-            .map_err(|e| AppError::internal(&e))?
-            .into_iter()
-            .filter_map(|r| String::from_utf8(r.name).ok())
-            .collect(),
+/// The branches of the repository at `dir`, without those under `hide`.
+async fn branch_names(
+    state: &AppState,
+    dir: &std::path::Path,
+    hide: &str,
+) -> Result<Vec<String>, AppError> {
+    Ok(slath_git::browse::list_refs(
+        &state.runner,
+        dir,
+        slath_git::browse::RefKind::Branch,
+        500,
+        hide,
     )
+    .await
+    .map_err(|e| AppError::internal(&e))?
+    .into_iter()
+    .filter_map(|r| String::from_utf8(r.name).ok())
+    .collect())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -666,12 +675,25 @@ async fn compare_page(
         .as_ref()
         .map(|s| format!("{}/{}", s.repo.namespace, s.repo.name))
         .unwrap_or_default();
-    let branches = branch_names(state, &git_dir).await?;
+    // Change sources stay out of the lists; one is offered only when asked
+    // for (the link a push prints).
+    let branches = branch_names(state, &git_dir, &a.repo.change_source_prefix).await?;
     let src_dir = src.as_ref().map(|s| state.services.repo_path(s.repo.id));
-    let source_branches = match &src_dir {
-        Some(d) => branch_names(state, d).await?,
+    let mut source_branches = match &src_dir {
+        Some(d) => branch_names(state, d, "").await?,
         None => branches.clone(),
     };
+    let asked = input.source.trim();
+    if src.is_none()
+        && slath_service::change_sources::is_source(&a.repo.change_source_prefix, asked)
+        && !source_branches.iter().any(|b| b == asked)
+        && branch_names(state, &git_dir, "")
+            .await?
+            .iter()
+            .any(|b| b == asked)
+    {
+        source_branches.insert(0, asked.to_owned());
+    }
     let target = if input.target.trim().is_empty() {
         a.repo.default_branch.clone()
     } else {

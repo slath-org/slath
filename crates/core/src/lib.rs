@@ -8,6 +8,7 @@
 
 pub mod authz;
 pub mod change_identity;
+pub mod change_source;
 pub mod config;
 pub mod credential;
 pub mod ids;

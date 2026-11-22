@@ -468,6 +468,8 @@ struct GeneralSettings<'a> {
     admins_allow: bool,
     /// Days without activity that make a merge request stalled.
     stalled_after_days: i16,
+    /// The prefix of change sources; empty for none.
+    change_source_prefix: String,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -549,6 +551,7 @@ fn general_page<'a>(
         push_protection_minimum: minimum.as_str(),
         admins_allow,
         stalled_after_days: a.repo.stalled_after_days,
+        change_source_prefix: a.repo.change_source_prefix.clone(),
         header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
@@ -647,6 +650,8 @@ async fn save_push_protection(
 struct MergeRequestSettingsForm {
     #[serde(default)]
     stalled_after_days: String,
+    /// Left alone when the form doesn't send it.
+    change_source_prefix: Option<String>,
 }
 
 async fn save_merge_request_settings(
@@ -659,11 +664,15 @@ async fn save_merge_request_settings(
     let a = settings_access(&state, &s.subject, &ns, &repo).await?;
     // Out of range or not a number: the service says what fits.
     let days = f.stalled_after_days.trim().parse::<i64>().unwrap_or(0);
-    match state
-        .services
-        .set_mr_stalled_after_days(&s.subject, &a, days)
-        .await
-    {
+    let svc = &state.services;
+    let saved = match svc.set_mr_stalled_after_days(&s.subject, &a, days).await {
+        Ok(()) => match &f.change_source_prefix {
+            Some(p) => svc.set_change_source_prefix(&s.subject, &a, p).await,
+            None => Ok(()),
+        },
+        Err(e) => Err(e),
+    };
+    match saved {
         Ok(()) => Ok(
             Redirect::to(&repo_url(&a, "/settings/general?status=merge-requests")).into_response(),
         ),

@@ -19,6 +19,7 @@ pub mod bgmigrations;
 pub mod blobs;
 pub mod bot_control;
 pub mod bots;
+pub mod change_sources;
 pub mod cross_refs;
 pub mod deploy_keys;
 pub mod email;

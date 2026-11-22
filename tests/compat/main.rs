@@ -8,6 +8,7 @@ mod auto_merge;
 mod change_identity;
 mod change_outcomes;
 mod change_reviews;
+mod change_sources;
 mod cross_references;
 mod deploy_keys;
 mod diff_highlighting;

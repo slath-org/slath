@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $3\n                OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext",
   "describe": {
     "columns": [
       {
@@ -190,14 +190,33 @@
             "name": "stalled_after_days"
           }
         }
+      },
+      {
+        "ordinal": 18,
+        "name": "change_source_prefix",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "change_source_prefix"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Bool",
-        "Int8"
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        },
+        {
+          "Custom": {
+            "name": "citext",
+            "kind": "Simple"
+          }
+        }
       ]
     },
     "nullable": [
@@ -218,8 +237,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "338b17279d88cedeaf6ecb03c612de097740ea67d047c2bd006565a8a19589d3"
+  "hash": "8f6867d8a50158443eba44392b3847b29130c28702e04712c90da7c6c497ce3e"
 }

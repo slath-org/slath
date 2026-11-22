@@ -13515,6 +13515,7 @@
           "default_branch",
           "archived",
           "stalled_after_days",
+          "change_source_prefix",
           "clone_urls",
           "created_at",
           "updated_at"
@@ -13522,6 +13523,10 @@
         "properties": {
           "archived": {
             "type": "boolean"
+          },
+          "change_source_prefix": {
+            "type": "string",
+            "description": "The prefix of change sources: branches that open a merge request\nwhen pushed (such as jj's `push-*` bookmarks) and stay out of\nbranch lists. Empty when turned off."
           },
           "clone_urls": {
             "$ref": "#/components/schemas/CloneUrls"
@@ -14500,6 +14505,13 @@
               "boolean",
               "null"
             ]
+          },
+          "change_source_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Empty turns change sources off; otherwise up to 32 letters, digits,\nand `-_./`, ending in `-`, `_`, or `/`."
           },
           "default_branch": {
             "type": [

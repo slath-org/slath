@@ -213,6 +213,7 @@ async fn ref_view(state: &AppState, a: &RepoAccess, r: &RefPath, view: &str) -> 
         &state.services.repo_path(a.repo.id),
         RefKind::Branch,
         500,
+        &a.repo.change_source_prefix,
     )
     .await
     .unwrap_or_else(|e| {
@@ -386,7 +387,7 @@ pub async fn repo_home_with_content(
         .map_err(|e| git_err(&e))?;
     if r.is_none() {
         // The default branch doesn't exist (yet): show the newest branch.
-        if let Some(b) = browse::list_refs(&state.runner, &git_dir, RefKind::Branch, 1)
+        if let Some(b) = browse::list_refs(&state.runner, &git_dir, RefKind::Branch, 1, "")
             .await
             .map_err(|e| git_err(&e))?
             .first()
@@ -1171,6 +1172,7 @@ async fn refs(
         &state.services.repo_path(a.repo.id),
         kind,
         500,
+        &a.repo.change_source_prefix,
     )
     .await
     .map_err(|e| git_err(&e))?;

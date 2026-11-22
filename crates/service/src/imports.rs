@@ -295,8 +295,9 @@ impl Services {
 
         // The default branch: keep it if it came along, else main, master,
         // or the first branch.
-        let list =
-            |kind| slath_git::browse::list_refs(&self.runner, &git_dir, kind, i32::MAX as usize);
+        let list = |kind| {
+            slath_git::browse::list_refs(&self.runner, &git_dir, kind, i32::MAX as usize, "")
+        };
         let branches: Vec<String> = list(slath_git::browse::RefKind::Branch)
             .await
             .map_err(|e| internal(&e))?

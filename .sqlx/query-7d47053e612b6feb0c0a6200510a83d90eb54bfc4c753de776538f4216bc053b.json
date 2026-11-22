@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -190,6 +190,17 @@
             "name": "stalled_after_days"
           }
         }
+      },
+      {
+        "ordinal": 18,
+        "name": "change_source_prefix",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "change_source_prefix"
+          }
+        }
       }
     ],
     "parameters": {
@@ -215,8 +226,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "349c6a0f2366a9f358aa60feed0f1db4dfa4e61a68b68bcdee6093b9f6c79376"
+  "hash": "7d47053e612b6feb0c0a6200510a83d90eb54bfc4c753de776538f4216bc053b"
 }

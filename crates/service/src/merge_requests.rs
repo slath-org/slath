@@ -1655,6 +1655,7 @@ impl Services {
             };
             if branch == a.repo.default_branch
                 || name.starts_with(slath_git::refs::MR_BRANCH_PREFIX)
+                || crate::change_sources::is_source(&a.repo.change_source_prefix, branch)
                 || self.branch_head(a.repo.id, &r).await?.is_none()
             {
                 continue;
