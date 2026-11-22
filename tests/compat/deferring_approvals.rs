@@ -200,6 +200,17 @@ fn conf_review_19_a_deferring_approval_never_counts_and_requests_the_named() {
     assert_eq!(u.requirement("changes_requested").0, "met");
     assert!(u.asked("carol"));
 
+    // The page shows it as bob's claim.
+    let page =
+        u.s.login("alice", PASSWORD)
+            .get(&format!("/acme/app/merge-requests/{}", u.n))
+            .body;
+    assert!(
+        page.contains("approved revision 1 and left the decision to carol"),
+        "{page}"
+    );
+    assert!(page.contains("approved, left to carol"), "{page}");
+
     // Carol decides.
     assert_eq!(u.review(&carol, json!({"verdict": "approve"})).status, 201);
     assert_eq!(u.requirement("approvals").0, "met");
@@ -263,4 +274,29 @@ fn conf_review_19_whom_an_approval_may_defer_to() {
     assert_eq!(r.status, 201, "{}", r.body);
     assert!(u.asked("dave"));
     assert_eq!(u.requirement("approvals").0, "unmet");
+}
+
+#[test]
+fn conf_review_19_the_review_form_leaves_the_decision_to_someone() {
+    let u = setup();
+    let mut bob = u.s.login("bob", PASSWORD);
+    let page = format!("/acme/app/merge-requests/{}", u.n);
+    let r = submit(
+        &mut bob,
+        &page,
+        &format!("{page}/reviews"),
+        &[("verdict", "approve"), ("body", ""), ("defer_to", "carol")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(u.asked("carol"));
+    assert_eq!(u.requirement("approvals").0, "unmet");
+    // An error names the field.
+    let r = submit(
+        &mut bob,
+        &page,
+        &format!("{page}/reviews"),
+        &[("verdict", "approve"), ("body", ""), ("defer_to", "eve")],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"review-defer-error\""), "{}", r.body);
 }

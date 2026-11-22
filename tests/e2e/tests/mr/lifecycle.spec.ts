@@ -193,6 +193,24 @@ test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, 
   await expectAccessible(page);
 });
 
+test("conf_review_19_the_review_form_can_leave_the_decision_to_someone", async ({ page }) => {
+  // Not the author: the admin may approve, and so may defer.
+  await signIn(page, USERS.admin);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
+  const field = page.getByLabel("Leave the decision to");
+  await expect(field).toBeVisible();
+  await expectAccessible(page);
+  // Leaving it to the author is refused, next to the field; nothing is
+  // recorded, so the shared fixture stays as it is.
+  await tapOrClick(page, page.getByLabel("Approve"));
+  await field.fill("alice");
+  await tapOrClick(page, page.getByRole("button", { name: "Submit review" }));
+  await expect(page.locator("#review-defer-error")).toHaveText("The author can't decide on their own merge request.");
+  await expect(page.getByLabel("Leave the decision to")).toHaveAttribute("aria-invalid", "true");
+  await expectAccessible(page);
+});
+
 test("conf_a11y_01_threads_in_the_conversation", async ({ page }, testInfo) => {
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");

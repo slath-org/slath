@@ -185,7 +185,7 @@
   {%- when TimelineView::Review with (r) %}
   <li class="timeline-comment timeline-review" id="review-{{ r.id }}">
     <article aria-label="Review by {{ r.reviewer.text() }}">
-      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}{% call p::who(ctx, r.reviewer) %}{% endcall %} {{ r.verdict }} revision {{ r.revision }} <span class="text-secondary"><a href="#review-{{ r.id }}">{% call c::time(r.created) %}{% endcall %}</a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
+      <header class="comment-header">{% call m::icon(ctx, r.icon) %}{% endcall %}{% call p::who(ctx, r.reviewer) %}{% endcall %} {{ r.verdict }} revision {{ r.revision }}{% if let Some(to) = r.deferred %} and left the decision to {{ to }}{% endif %} <span class="text-secondary"><a href="#review-{{ r.id }}">{% call c::time(r.created) %}{% endcall %}</a>{% if r.stale %} · stale: the changes changed since{% endif %}</span></header>
       {%- if !r.body_empty %}
       <div class="markdown" hx-ignore>{{ r.body_html }}</div>
       {%- endif %}
@@ -355,6 +355,11 @@
     {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes") %}{% endcall %}
     {%- endif %}
     {%- endcall %}
+    {%- if can_approve %}
+    {%- call f::field("review-defer", "Leave the decision to", "With Approve: a user or org/team who decides instead. Your approval won't count, and they're asked to review.", self.error("defer_to").unwrap_or_default(), true) %}
+    <input id="review-defer" name="defer_to" type="text" autocomplete="off" spellcheck="false"{% call f::described("review-defer", "With Approve: a user or org/team who decides instead. Your approval won't count, and they're asked to review.", self.error("defer_to").unwrap_or_default()) %}{% endcall %}>
+    {%- endcall %}
+    {%- endif %}
     {%- call f::field("review-body", "Review comment", "", self.error("body").unwrap_or_default(), true) %}
     <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
     <textarea id="review-body" name="body" rows="4" autocomplete="off"{% call f::described("review-body", "", self.error("body").unwrap_or_default()) %}{% endcall %}></textarea>

@@ -982,6 +982,9 @@ struct ReviewItem {
     created: Time,
     /// Made stale by later changes.
     stale: bool,
+    /// An approval leaving the decision to this user or team: the
+    /// reviewer's claim, which never counts.
+    deferred: Option<String>,
 }
 
 /// One line of a thread's code snippet: number, text, part of the anchor.
@@ -2195,6 +2198,7 @@ async fn mr_page_showing(
                     .render_markdown(subject, Some(&rc), &v.review.body)
                     .await?;
                 let (verdict, icon) = match v.review.verdict.as_str() {
+                    "approve" if v.review.deferred => ("approved", "users"),
                     "approve" => ("approved", "circle-check"),
                     "request_changes" => ("requested changes", "circle-x"),
                     _ => ("reviewed", "message-square"),
@@ -2209,6 +2213,12 @@ async fn mr_page_showing(
                     body_html: MarkupHtml::from_markup(body_html),
                     created: v.review.created_at.into(),
                     stale: v.stale,
+                    deferred: v.review.deferred.then(|| {
+                        v.review
+                            .defer_to
+                            .clone()
+                            .unwrap_or_else(|| "someone else".to_owned())
+                    }),
                 }));
             }
             MrTimelineItem::Event(e) => {
@@ -2297,6 +2307,10 @@ async fn mr_page_showing(
         if let TimelineView::Review(r) = t {
             let st = match (r.verdict, r.stale) {
                 ("reviewed", _) => None,
+                _ if r.deferred.is_some() => Some(format!(
+                    "approved, left to {}",
+                    r.deferred.as_deref().unwrap_or_default()
+                )),
                 (_, true) => Some(format!("{}, stale", r.verdict)),
                 (v, false) => Some(v.to_owned()),
             };
@@ -3959,6 +3973,8 @@ struct ReviewForm {
     verdict: String,
     #[serde(default)]
     body: String,
+    #[serde(default)]
+    defer_to: String,
 }
 
 async fn review(
@@ -3976,7 +3992,7 @@ async fn review(
             (&ns, &repo, n),
             &f.verdict,
             &f.body,
-            (None, None),
+            (None, Some(&f.defer_to)),
         )
         .await
     {
