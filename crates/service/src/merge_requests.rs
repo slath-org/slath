@@ -109,6 +109,9 @@ pub struct NewMr {
     /// The author confirms that a less visible source's commits become
     /// readable to the target's readers.
     pub publish_source: bool,
+    /// Opened by pushing a change source: a token's push scope suffices.
+    /// Set only by the push path, never from a request.
+    pub by_push: bool,
 }
 
 fn subject_user(subject: &Subject) -> Option<UserId> {
@@ -433,6 +436,8 @@ impl Services {
         let src = self.mr_source(subject, &a, Some(&m.source_repo)).await?;
         let action = if src.is_some() {
             Action::MrCreateFork
+        } else if m.by_push {
+            Action::MrCreateByPush
         } else {
             Action::MrCreate
         };

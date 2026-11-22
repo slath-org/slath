@@ -182,9 +182,10 @@ push of the target) or closes, unless someone pushed to it since. To
 reopen a closed one, push it again first.
 
 The same holds for any branch whose name starts with `push-`, however it
-was pushed. Over HTTPS, the token you push with needs the `mrs:write`
-scope as well as `repo:write`; without it, the push says so and prints the
-usual link. Repository administrators choose the prefix under **Settings →
+was pushed. Whatever lets you push is enough: an SSH key, or over HTTPS a
+token with `repo:write`, since the push itself asks for the merge request.
+Opening one in the browser or through the API, reviewing, and merging in
+Slath need `mrs:write` as usual. Repository administrators choose the prefix under **Settings →
 General → Merge requests → Branches that open a merge request**, or turn
 all this off by leaving it empty. In forks, such branches are ordinary
 branches, and `refs/for/` opens nothing.

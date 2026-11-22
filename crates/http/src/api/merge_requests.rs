@@ -319,6 +319,7 @@ pub async fn create_mr(
                 labels: b.labels,
                 milestone: b.milestone,
                 delete_source_on_merge: b.delete_source_on_merge,
+                by_push: false,
             },
         )
         .await?;

@@ -75,6 +75,14 @@ Pick the narrowest role and scopes that let the agent do its job:
 | comments on issues and merge requests | read | `repo:read`, `issues:write`, `mrs:write` |
 | reports checks and findings | write | `repo:read`, `statuses:write` |
 | pushes branches and opens merge requests | write | `repo:write`, `mrs:write` |
+| pushes changes and opens their merge requests only by pushing | write | `repo:write` |
+
+Any token that may push can open a merge request by pushing a branch
+named like `push-…` or to `refs/for/<target>` (see
+[Without naming a branch](merge-requests.md#without-naming-a-branch)). To
+keep pushes from opening merge requests in a repository, empty
+**Settings → General → Merge requests → Branches that open a merge
+request**.
 
 Protect the branches that matter (**Settings → Branch protection**): bots
 can't push to or merge into a protected branch unless its rule lists them,

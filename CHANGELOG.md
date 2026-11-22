@@ -49,6 +49,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A change source is deleted when its merge request closes or lands by a push, as on a merge in Slath, so nothing is left behind.
 - `git push origin HEAD:refs/for/main` opens a merge request into main without a branch of your own; pushing the same way again updates it.
 - A change pushed with `refs/for/` by Git and with `jj git push --change` by jj lands in the same merge request when it carries a change ID.
+- Opening a merge request by a push needs only what the push needs: an SSH key, or a token with `repo:write`.
 
 ### Security
 

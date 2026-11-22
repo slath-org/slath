@@ -30,6 +30,8 @@ TABLE = {
     "issue.triage": (N, N, Y, Y, Y),
     "comment.moderate": (N, N, N, Y, Y),
     "mr.create": (N, N, Y, Y, Y),
+    # By pushing a change source: the push itself asks for it.
+    "mr.create_by_push": (N, N, Y, Y, Y),
     # From a fork in the same network; push on the source is checked there.
     "mr.create_fork": (N, Y, Y, Y, Y),
     "mr.comment": (N, Y, Y, Y, Y),
@@ -71,6 +73,8 @@ for a in TABLE:
     if a.startswith("mr."):
         SCOPE[a] = "mrs:write"
 SCOPE["status.write"] = "statuses:write"
+# The push asks for the merge request, so the push scope covers it.
+SCOPE["mr.create_by_push"] = "repo:write"
 SCOPES = ["repo:read", "repo:write", "issues:write", "mrs:write", "statuses:write", "user:read", "user:write", "admin"]
 IMPLIES = {("repo:write", "repo:read"), ("user:write", "user:read")}
 

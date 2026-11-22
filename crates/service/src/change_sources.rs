@@ -187,9 +187,6 @@ impl Services {
                 return failed("try again");
             }
         };
-        if !subject.token_allows(slath_core::authz::Scope::MrsWrite) {
-            return failed("the token you pushed with lacks the mrs:write scope");
-        }
         let (title, description) = title_and_body(&message, branch);
         let new = crate::merge_requests::NewMr {
             source_branch: branch.to_owned(),
@@ -197,6 +194,7 @@ impl Services {
             title,
             description,
             delete_source_on_merge: Some(true),
+            by_push: true,
             ..Default::default()
         };
         match self.create_mr(subject, &r.namespace, &r.name, &new).await {

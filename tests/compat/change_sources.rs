@@ -25,7 +25,6 @@ impl Ctx {
         let s = TestServer::start();
         let mut alice = s.login("alice", PASSWORD);
         let token = slath_tests::http::create_token(&mut alice, "c", &["repo:write", "mrs:write"]);
-        // Pushing opens merge requests only with a token that may.
         Self {
             url: s.url(&DEMO).replace(&s.token, &token),
             s,
@@ -240,7 +239,8 @@ fn conf_jj_13_git_pushes_of_change_sources() {
     );
     assert_eq!(c.mrs().len(), 1);
 
-    // A token without mrs:write pushes but can't open one, and says so.
+    // The push asks for the merge request, so a token that may push opens
+    // it without mrs:write.
     std::fs::write(w.join("c.txt"), "c\n").unwrap();
     c.git.ok(&w, &["add", "-A"]);
     c.git.ok(&w, &["commit", "-q", "-m", "Add c"]);
@@ -252,19 +252,16 @@ fn conf_jj_13_git_pushes_of_change_sources() {
         .unwrap();
     assert!(out.status.success());
     let lines = slath_lines(&out.stderr);
-    assert_eq!(
-        lines[0],
-        "couldn't open a merge request for push-c: the token you pushed with lacks the mrs:write scope",
-        "{lines:?}"
+    assert_eq!(lines[0], "Opened !2 for push-c:", "{lines:?}");
+    assert_eq!(c.mrs().len(), 2);
+    // ...but not through the API: opening one there still needs mrs:write.
+    let r = c.s.client().api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&c.s.token),
+        Some(&json!({"source_branch": "topic-api", "title": "Via the API"})),
     );
-    assert!(
-        lines[2].ends_with("/alice/demo/compare?source=push-c"),
-        "{lines:?}"
-    );
-    assert_eq!(c.mrs().len(), 1);
-    // That link offers the branch, though lists leave it out.
-    let page = c.page("/alice/demo/compare?source=push-c");
-    assert!(page.contains("<option value=\"push-c\" selected"), "{page}");
+    assert_eq!(r.status, 403, "{}", r.body);
 
     // Ordinary branches are untouched.
     let lines = git_push(&c, &w, "HEAD:refs/heads/topic");

@@ -230,6 +230,11 @@ pub enum Action {
     IssueTriage,
     CommentModerate,
     MrCreate,
+    /// Opening a merge request by pushing a change source (a branch
+    /// with the repository's prefix, or `refs/for/<target>`): the same
+    /// role as `MrCreate`, but a token's push scope covers it, since the
+    /// push itself asks for the merge request.
+    MrCreateByPush,
     /// Opening a merge request from a fork in the same network: signed in
     /// and `read` on the target (push on the source is checked there).
     MrCreateFork,
@@ -276,6 +281,7 @@ impl Action {
         Self::IssueTriage,
         Self::CommentModerate,
         Self::MrCreate,
+        Self::MrCreateByPush,
         Self::MrCreateFork,
         Self::MrComment,
         Self::MrReview,
@@ -321,6 +327,7 @@ impl Action {
             Self::IssueTriage => "issue.triage",
             Self::CommentModerate => "comment.moderate",
             Self::MrCreate => "mr.create",
+            Self::MrCreateByPush => "mr.create_by_push",
             Self::MrCreateFork => "mr.create_fork",
             Self::MrComment => "mr.comment",
             Self::MrReview => "mr.review",
@@ -459,6 +466,7 @@ impl Action {
             | A::RepoPushMaintainerEdit
             | A::IssueTriage
             | A::MrCreate
+            | A::MrCreateByPush
             | A::MrTriage
             | A::MrApprove
             | A::MrMerge
