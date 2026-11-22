@@ -66,10 +66,27 @@ pub struct SplitRow {
     pub right: Cell,
 }
 
+/// A link that shows hidden unchanged lines (spec: hidden lines).
+pub struct Expander {
+    /// "Show 12 unchanged lines", "Show 20 more lines".
+    pub label: String,
+    /// Its accessible name, which says where the lines are.
+    pub name: String,
+    /// The new-side ranges to show with it, `a-b,c-d`.
+    pub ranges: String,
+}
+
 pub struct HunkView {
     pub head: String,
     pub lines: Vec<LineView>,
     pub rows: Vec<SplitRow>,
+    /// Links for the hidden lines before it.
+    pub expand: Vec<Expander>,
+    /// Expanded unchanged lines right before and right after it.
+    pub above: Vec<LineView>,
+    pub below: Vec<LineView>,
+    pub above_rows: Vec<SplitRow>,
+    pub below_rows: Vec<SplitRow>,
     /// Its key (spec: viewed hunks).
     pub key: String,
     /// Merge request diffs: the viewer marked it viewed.
@@ -99,6 +116,8 @@ pub struct FileView {
     pub viewed: bool,
     /// The keys of all its hunks, also when they aren't loaded.
     pub hunk_keys: Vec<String>,
+    /// Links for the hidden lines below its last hunk.
+    pub expand_end: Vec<Expander>,
     /// `now`, `scroll` (loads when it comes into view), or `click`.
     pub load: &'static str,
     pub hunks: Vec<HunkView>,
@@ -292,6 +311,19 @@ impl DiffView {
             .is_some_and(|(p, s, n)| p == path && s == side && n == no)
     }
 
+    /// The URL of one file of this diff with the unchanged lines `ranges`
+    /// shown, for htmx (without the fragment).
+    #[must_use]
+    pub fn expand_url(&self, index: &usize, ranges: &str) -> String {
+        format!("{}&expand={ranges}", self.file_href(index))
+    }
+
+    /// The same, at the hunk the lines are next to.
+    #[must_use]
+    pub fn expand_href(&self, index: &usize, ranges: &str, hunk: &usize) -> String {
+        format!("{}#diff-{index}-h{hunk}", self.expand_url(index, ranges))
+    }
+
     /// The URL of one file of this diff.
     #[must_use]
     pub fn file_href(&self, index: &usize) -> String {
@@ -352,6 +384,8 @@ pub struct DiffQuery {
     pub file: Option<usize>,
     /// Open a comment form: `side:line:path`.
     pub comment: Option<String>,
+    /// With `file`: unchanged lines to show, as new-side ranges `a-b,c-d`.
+    pub expand: Option<String>,
 }
 
 impl DiffQuery {
@@ -449,6 +483,177 @@ fn split_rows(lines: &[LineView]) -> Vec<SplitRow> {
         }
     }
     rows
+}
+
+/// Most ranges an expansion link carries, the largest gap shown in one
+/// step, and the lines one step shows of a larger gap.
+const MAX_RANGES: usize = 20;
+const WHOLE_GAP: u32 = 40;
+const STEP: u32 = 20;
+
+/// `a-b,c-d` as sorted, merged ranges within `1..=total`; at most
+/// [`MAX_RANGES`] are read, the rest ignored.
+fn parse_ranges(text: &str, total: u32) -> Vec<(u32, u32)> {
+    let mut out: Vec<(u32, u32)> = text
+        .split(',')
+        .take(MAX_RANGES)
+        .filter_map(|r| {
+            let (a, b) = r.trim().split_once('-')?;
+            let (a, b) = (a.parse::<u32>().ok()?, b.parse::<u32>().ok()?);
+            (a >= 1 && a <= b && a <= total).then(|| (a, b.min(total)))
+        })
+        .collect();
+    out.sort_unstable();
+    let mut merged: Vec<(u32, u32)> = Vec::new();
+    for (a, b) in out {
+        match merged.last_mut() {
+            Some(last) if a <= last.1.saturating_add(1) => last.1 = last.1.max(b),
+            _ => merged.push((a, b)),
+        }
+    }
+    merged
+}
+
+/// `ranges` with `add`, as the `expand` parameter.
+fn with_range(ranges: &[(u32, u32)], add: (u32, u32)) -> String {
+    let text: Vec<String> = ranges
+        .iter()
+        .chain(std::iter::once(&add))
+        .map(|(a, b)| format!("{a}-{b}"))
+        .collect();
+    let all = text.join(",");
+    parse_ranges(&all, u32::MAX)
+        .iter()
+        .map(|(a, b)| format!("{a}-{b}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// A hunk's first and last line on the new side; a hunk without any sits
+/// after `new_start`, as `(new_start + 1, new_start)`.
+fn new_span(h: &slath_git::diff::Hunk) -> (u32, u32) {
+    let mut nos = h.lines.iter().filter_map(|l| l.new_no);
+    match nos.next() {
+        Some(first) => (first, nos.next_back().unwrap_or(first)),
+        None => (h.new_start + 1, h.new_start),
+    }
+}
+
+/// Fills `hunks` (the views of `file`'s hunks) with the shown unchanged
+/// lines around them and the links for the hidden ones, from `new` (the
+/// new side, highlighted) and the `shown` ranges. Returns the links for
+/// the lines below the last hunk, which end up in its `below`.
+fn expand_gaps(
+    file: &slath_git::diff::FileDiff,
+    hunks: &mut [HunkView],
+    new: &[String],
+    shown: &[(u32, u32)],
+) -> Vec<Expander> {
+    let total = u32::try_from(new.len()).unwrap_or(u32::MAX);
+    let is_shown = |n: u32| shown.iter().any(|(a, b)| (*a..=*b).contains(&n));
+    // Old minus new line numbers, before each hunk and at the end.
+    let mut offset: i64 = 0;
+    let mut offsets = Vec::new();
+    for h in &file.hunks {
+        offsets.push(offset);
+        for l in &h.lines {
+            match l.kind {
+                LineKind::Removed => offset += 1,
+                LineKind::Added => offset -= 1,
+                _ => {}
+            }
+        }
+    }
+    let line = |n: u32, off: i64| LineView {
+        kind: "ctx",
+        old_no: (i64::from(n) + off).to_string(),
+        new_no: n.to_string(),
+        text: String::new(),
+        segments: Vec::new(),
+        html: Some(super::MarkupHtml::from_markup(
+            new.get(n as usize - 1).cloned().unwrap_or_default(),
+        )),
+    };
+    let link = |count: u32, name: &str, add: (u32, u32)| Expander {
+        label: if count <= WHOLE_GAP {
+            format!(
+                "Show {count} unchanged line{}",
+                if count == 1 { "" } else { "s" }
+            )
+        } else {
+            format!("Show {STEP} more lines")
+        },
+        name: if count <= WHOLE_GAP {
+            String::new()
+        } else {
+            format!("Show {STEP} more lines {name}")
+        },
+        ranges: with_range(shown, add),
+    };
+    let mut prev_last = 0;
+    for (i, h) in file.hunks.iter().enumerate() {
+        let (first, last) = new_span(h);
+        let (lo, hi) = (prev_last + 1, first.saturating_sub(1).min(total));
+        if lo <= hi {
+            // Shown lines from the top (after the hunk above) and from the
+            // bottom (before this one); the gap above the first hunk only
+            // opens upwards from it.
+            let top = if i == 0 {
+                0
+            } else {
+                (lo..=hi).take_while(|n| is_shown(*n)).count() as u32
+            };
+            let bottom = (lo..=hi).rev().take_while(|n| is_shown(*n)).count() as u32;
+            let size = hi - lo + 1;
+            if top + bottom >= size {
+                hunks[i].above = (lo..=hi).map(|n| line(n, offsets[i])).collect();
+            } else {
+                if top > 0 {
+                    hunks[i - 1].below = (lo..lo + top).map(|n| line(n, offsets[i])).collect();
+                }
+                hunks[i].above = (hi + 1 - bottom..=hi)
+                    .map(|n| line(n, offsets[i]))
+                    .collect();
+                let (from, to) = (lo + top, hi - bottom);
+                let hidden = to - from + 1;
+                if hidden <= WHOLE_GAP {
+                    hunks[i].expand.push(link(hidden, "", (from, to)));
+                } else {
+                    if i > 0 {
+                        hunks[i].expand.push(link(
+                            hidden,
+                            "below the change above",
+                            (from, from + STEP - 1),
+                        ));
+                    }
+                    let name = if i == 0 { "above" } else { "above this change" };
+                    hunks[i]
+                        .expand
+                        .push(link(hidden, name, (to + 1 - STEP, to)));
+                }
+            }
+        }
+        prev_last = last.max(prev_last);
+    }
+    // Below the last hunk: it opens downwards.
+    let (lo, hi) = (prev_last + 1, total);
+    let mut end = Vec::new();
+    if lo <= hi {
+        let top = (lo..=hi).take_while(|n| is_shown(*n)).count() as u32;
+        if let Some(last) = hunks.last_mut() {
+            last.below = (lo..lo + top).map(|n| line(n, offset)).collect();
+        }
+        if lo + top <= hi {
+            let (from, to) = (lo + top, hi);
+            let hidden = to - from + 1;
+            end.push(if hidden <= WHOLE_GAP {
+                link(hidden, "", (from, to))
+            } else {
+                link(hidden, "below", (from, from + STEP - 1))
+            });
+        }
+    }
+    end
 }
 
 /// Marks the changed characters of paired lines in each run of removals
@@ -673,7 +878,9 @@ pub fn sample_highlights(raw: &[u8], limits: &Limits) -> Highlights {
     let diff = slath_git::diff::parse(raw, limits.diff_max_files, limits.diff_max_lines);
     let mut out = Highlights::new();
     for f in &diff.files {
-        let mut sides = [Vec::<String>::new(), Vec::<String>::new()];
+        // Lines the sample doesn't have (between its hunks) read as such
+        // when they're expanded.
+        let mut sides = [Vec::<Option<String>>::new(), Vec::<Option<String>>::new()];
         for l in f.hunks.iter().flat_map(|h| &h.lines) {
             for (slot, no, on_side) in [
                 (0, l.old_no, l.kind != LineKind::Added),
@@ -683,13 +890,19 @@ pub fn sample_highlights(raw: &[u8], limits: &Limits) -> Highlights {
                     let side = &mut sides[slot];
                     let n = n as usize;
                     if side.len() < n {
-                        side.resize(n, String::new());
+                        side.resize(n, None);
                     }
-                    side[n - 1] = lossy(&l.text);
+                    side[n - 1] = Some(lossy(&l.text));
                 }
             }
         }
         let path = lossy(f.path());
+        let sides = sides.map(|lines| {
+            lines
+                .into_iter()
+                .map(|l| l.unwrap_or_else(|| "// …".to_owned()))
+                .collect::<Vec<_>>()
+        });
         let [old, new] = sides.map(|lines| slath_markup::highlight(&path, &lines.join("\n")).lines);
         out.insert(f.path().to_vec(), Sides::Lines { old, new });
     }
@@ -840,6 +1053,11 @@ pub fn view(
                             lines,
                             key: key.clone(),
                             viewed: false,
+                            expand: Vec::new(),
+                            above: Vec::new(),
+                            below: Vec::new(),
+                            above_rows: Vec::new(),
+                            below_rows: Vec::new(),
                         }
                     })
                     .collect()
@@ -851,9 +1069,25 @@ pub fn view(
             let plain_note = highlights
                 .get(f.path())
                 .and_then(|sides| apply_highlights(&mut hunks, sides));
+            // Hidden lines expand where the new side was read (spec:
+            // hidden lines); the ranges hold only for the file shown alone.
+            let mut expand_end = Vec::new();
+            if let (false, Some(Sides::Lines { new, .. })) = (
+                hunks.is_empty() || matches!(f.status, Status::Added | Status::Deleted),
+                highlights.get(f.path()),
+            ) {
+                let total = u32::try_from(new.len()).unwrap_or(u32::MAX);
+                let shown = match (&q.expand, q.file) {
+                    (Some(e), Some(only)) if only == i => parse_ranges(e, total),
+                    _ => Vec::new(),
+                };
+                expand_end = expand_gaps(f, &mut hunks, new, &shown);
+            }
             if split {
                 for h in &mut hunks {
                     h.rows = split_rows(&h.lines);
+                    h.above_rows = split_rows(&h.above);
+                    h.below_rows = split_rows(&h.below);
                 }
             }
             FileView {
@@ -875,6 +1109,7 @@ pub fn view(
                 hunk_keys: keys,
                 load,
                 hunks,
+                expand_end,
                 plain_note,
             }
         })
@@ -996,6 +1231,100 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn conf_review_17_expand_ranges_are_sorted_merged_and_bounded() {
+        assert_eq!(parse_ranges("9-16,1-1,15-20", 40), vec![(1, 1), (9, 20)]);
+        assert_eq!(parse_ranges("30-99,0-3,5-2,x-1,41-45", 40), vec![(30, 40)]);
+        let many: Vec<String> = (0..30).map(|i| format!("{0}-{0}", i * 2 + 1)).collect();
+        assert_eq!(parse_ranges(&many.join(","), 1000).len(), 20);
+        assert_eq!(with_range(&[(9, 12)], (13, 16)), "9-16");
+    }
+
+    /// A 100-line file with changes at lines 5 and 60 (3 lines of context).
+    fn gappy() -> (slath_git::diff::FileDiff, Vec<String>) {
+        let raw = "diff --git a/f b/f\nindex 1111111..2222222 100644\n--- a/f\n+++ b/f\n\
+                   @@ -2,7 +2,7 @@\n 2\n 3\n 4\n-5\n+five\n 6\n 7\n 8\n\
+                   @@ -57,7 +57,8 @@\n 57\n 58\n 59\n-60\n+sixty\n+sixty-one\n 61\n 62\n 63\n";
+        let d = slath_git::diff::parse(raw.as_bytes(), 10, 1000);
+        let new = (1..=101).map(|n| format!("<span>{n}</span>")).collect();
+        (d.files[0].clone(), new)
+    }
+
+    fn views(f: &slath_git::diff::FileDiff) -> Vec<HunkView> {
+        f.hunks.iter().map(|_| hunk(Vec::new())).collect()
+    }
+
+    #[test]
+    fn conf_review_17_gaps_offer_their_lines() {
+        let (f, new) = gappy();
+        let mut h = views(&f);
+        let end = expand_gaps(&f, &mut h, &new, &[]);
+        // Above the first hunk: line 1 alone.
+        let labels = |e: &[Expander]| {
+            e.iter()
+                .map(|x| (x.label.clone(), x.ranges.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            labels(&h[0].expand),
+            vec![("Show 1 unchanged line".into(), "1-1".into())]
+        );
+        // 9..=56: 48 lines, 20 at each end.
+        assert_eq!(
+            labels(&h[1].expand),
+            vec![
+                ("Show 20 more lines".into(), "9-28".into()),
+                ("Show 20 more lines".into(), "37-56".into())
+            ]
+        );
+        assert_eq!(
+            h[1].expand[0].name,
+            "Show 20 more lines below the change above"
+        );
+        // Below the last hunk: 65..=101 (37 lines, the new side has one more).
+        assert_eq!(
+            labels(&end),
+            vec![("Show 37 unchanged lines".into(), "65-101".into())]
+        );
+        assert!(h.iter().all(|x| x.above.is_empty() && x.below.is_empty()));
+    }
+
+    #[test]
+    fn conf_review_17_shown_lines_sit_next_to_their_hunks() {
+        let (f, new) = gappy();
+        let mut h = views(&f);
+        let end = expand_gaps(&f, &mut h, &new, &[(1, 1), (9, 28), (37, 56), (65, 70)]);
+        assert!(h[0].expand.is_empty());
+        assert_eq!(h[0].above.len(), 1);
+        // Both ends of the large gap are shown next to their hunks; the 8
+        // lines between them have one link. No lines moved before them, so
+        // both sides have the same numbers.
+        let nos = |v: &[LineView]| -> Vec<(String, String)> {
+            v.iter()
+                .map(|l| (l.old_no.clone(), l.new_no.clone()))
+                .collect()
+        };
+        assert_eq!(nos(&h[0].below).first(), Some(&("9".into(), "9".into())));
+        assert_eq!(h[0].below.len(), 20);
+        assert_eq!(nos(&h[1].above).last(), Some(&("56".into(), "56".into())));
+        assert_eq!(h[1].above.len(), 20);
+        assert_eq!(h[1].expand.len(), 1);
+        assert_eq!(h[1].expand[0].label, "Show 8 unchanged lines");
+        assert_eq!(h[1].expand[0].ranges, "1-1,9-56,65-70");
+        // Below the last hunk: shown lines, then the rest; old numbers are
+        // one behind (a line was added).
+        assert_eq!(
+            h[1].below
+                .first()
+                .map(|l| (l.old_no.as_str(), l.new_no.as_str())),
+            Some(("64", "65"))
+        );
+        assert_eq!(h[1].below.len(), 6);
+        assert_eq!(end[0].label, "Show 31 unchanged lines");
+        assert_eq!(end[0].ranges, "1-1,9-28,37-56,65-101");
+    }
+
     use super::*;
 
     fn line(kind: &'static str, text: &str) -> LineView {
@@ -1016,6 +1345,11 @@ mod tests {
             rows: Vec::new(),
             key: String::new(),
             viewed: false,
+            expand: Vec::new(),
+            above: Vec::new(),
+            below: Vec::new(),
+            above_rows: Vec::new(),
+            below_rows: Vec::new(),
         }
     }
 
@@ -1175,6 +1509,7 @@ mod tests {
             generated: false,
             viewed: false,
             hunk_keys: Vec::new(),
+            expand_end: Vec::new(),
             load: "now",
             hunks: Vec::new(),
             plain_note: None,

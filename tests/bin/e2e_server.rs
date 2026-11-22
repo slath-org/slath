@@ -49,6 +49,27 @@ fn seed_diffs(git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// Branch `expand`: a commit that edits lines 10 and 50 of a 60-line file,
+/// so hidden lines lie above, between, and below its hunks.
+fn seed_expand(git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "expand", "main"]);
+    let lines = |edit: bool| -> String {
+        (1..=60)
+            .map(|i| match (edit, i) {
+                (true, 10 | 50) => format!("line {i}, edited\n"),
+                _ => format!("line {i}\n"),
+            })
+            .collect()
+    };
+    std::fs::write(w.join("long.txt"), lines(false)).unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Add long.txt"]);
+    std::fs::write(w.join("long.txt"), lines(true)).unwrap();
+    git.ok(w, &["commit", "-qam", "Edit long.txt"]);
+    git.ok(w, &["push", "-q", url, "expand"]);
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// Branches `e2e/<project>` to open merge requests from, the merge request
 /// "Review fixture" from `review` with two revisions, and `pushed`, which
 /// no test opens a merge request from (the "Recently pushed" banner).
@@ -576,6 +597,7 @@ fn main() {
     seed_performance(&server, &git, w, &url);
     seed_merge_requests(&server, &git, w, &url);
     seed_diffs(&git, w, &url);
+    seed_expand(&git, w, &url);
     // After the others, so their merge request numbers stay; the jj-made
     // one before the Git pushes of outcomes, as the viewer's tool follows
     // their latest push.

@@ -135,9 +135,9 @@ Closes #12.</pre>
 
 {%- call cat::entry("diff", "Diff", "Stable") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>Every diff, rendered by the same code: each file in its frame, folded files with their reason, changed characters marked (not by color alone), line numbers fixed while long lines scroll, and links (or n and p while the diff has focus) to the previous and next change. Side by side only where there's room.</dd>
+  <dt>Purpose</dt><dd>Every diff, rendered by the same code: each file in its frame, folded files with their reason, changed characters marked (not by color alone), line numbers fixed while long lines scroll, links (or n and p while the diff has focus) to the previous and next change, and links that show the unchanged lines hidden above, between, and below the changes (in place, or the file alone without JavaScript). On merge requests, each file and each change has a viewed toggle. Side by side only where there's room.</dd>
   <dt>Markup</dt><dd><code>repo/diff_files.html</code> with the page's diff view.</dd>
-  <dt>Variants</dt><dd>Unified; side by side (wide screens); folded; binary; renamed; with threads.</dd>
+  <dt>Variants</dt><dd>Unified; side by side (wide screens); folded; binary; renamed; with threads; with hidden lines shown.</dd>
   <dt>Accessibility</dt><dd>A real table with line numbers as row headers, added and removed lines announced as words, and a "skip to the next file" link per file.</dd>
   <dt>Not for</dt><dd>Code without a change (a code view).</dd>
 </dl>

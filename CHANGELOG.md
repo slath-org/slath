@@ -13,6 +13,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Merge requests merge when their commits reach the target by a push: merge or fast-forward locally, then `git push` or `jj git push` the target branch.
 - Rebased or cherry-picked changes land one by one when the target gains their exact patch; the merge request merges once all have.
 - A pushed commit that carries a change's ID with different content notes that the change possibly landed with modifications.
+- Diffs show the unchanged lines hidden above, between, and below changes on request, in place or, without JavaScript, on the file's own page.
 - An approval's coverage counts the hunks the approver had viewed as well as the files, for example "12 of 15 files and 40 of 52 hunks viewed".
 - Each change of a diff can be marked viewed on its own; after a new revision, only new or changed hunks of a file you viewed open again, also after a rebase.
 - An approval can leave the decision to another user or team: it counts for no requirement, shows as the reviewer's, and asks them to review.

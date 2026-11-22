@@ -401,3 +401,65 @@ fn conf_review_17_hunk_coverage_is_unknown_past_the_limits() {
         .body;
     assert!(page.contains("(r1, 0 of 1 file viewed)"), "{page}");
 }
+
+/// The `expand` link of a page for `ranges` at hunk `h` of the first file.
+fn expand_link(page: &str, ranges: &str, h: usize) -> bool {
+    page.contains(&format!("file=0&#38;expand={ranges}#diff-0-h{h}"))
+        || page.contains(&format!("file=0&expand={ranges}#diff-0-h{h}"))
+}
+
+#[test]
+fn conf_review_17_hidden_lines_expand_without_javascript() {
+    let mut w = World::start();
+    w.push(Tool::Git, &FIRST, true);
+    let r = api(
+        &w.s,
+        &w.alice,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Edit f"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    w.wait(1, 1);
+    let mut alice = w.s.login("alice", PASSWORD);
+    // Hunks cover lines 2-8, 17-23, and 32-38 of 40: the gaps are line 1,
+    // 9-16, 24-31, and 39-40, each with a link to the file alone.
+    let page = alice.get(FILES).body;
+    for (ranges, h) in [("1-1", 0), ("9-16", 1), ("24-31", 2), ("39-40", 2)] {
+        assert!(expand_link(&page, ranges, h), "{ranges}: {page}");
+    }
+    assert!(page.contains("Show 8 unchanged lines"), "{page}");
+    // Following one shows those lines numbered on both sides; the other
+    // links keep them.
+    let page = alice.get(&format!("{FILES}?file=0&expand=9-16")).body;
+    assert!(
+        page.contains(r#"<td class="line-no">12</td><td class="line-no">12</td>"#),
+        "{page}"
+    );
+    assert!(!expand_link(&page, "9-16", 1), "{page}");
+    assert!(expand_link(&page, "9-16,24-31", 2), "{page}");
+    // Shown lines can't be commented on; the hunks' lines still can.
+    assert!(!page.contains("comment=new:12:"), "{page}");
+    assert!(page.contains("comment=new:20:"), "{page}");
+    // Bad ranges are ignored.
+    let page = alice
+        .get(&format!("{FILES}?file=0&expand=0-3,x,50-60"))
+        .body;
+    assert!(expand_link(&page, "1-1", 0), "{page}");
+
+    // Commit pages expand the same way.
+    let head = w
+        .git
+        .ok(&w.git_dir(), &["rev-parse", "topic"])
+        .trim()
+        .to_owned();
+    let page = alice.get(&format!("/alice/demo/commit/{head}")).body;
+    assert!(expand_link(&page, "9-16", 1), "{page}");
+    let page = alice
+        .get(&format!("/alice/demo/commit/{head}?file=0&expand=39-40"))
+        .body;
+    assert!(
+        page.contains(r#"<td class="line-no">40</td><td class="line-no">40</td>"#),
+        "{page}"
+    );
+}

@@ -19,6 +19,24 @@
   <button type="submit" class="button button-quiet" aria-pressed="{% if h.viewed %}true{% else %}false{% endif %}">{% if h.viewed %}{% call m::icon(ctx, "check") %}{% endcall %}Viewed{% else %}Mark viewed{% endif %}<span class="visually-hidden"> {{ h.head }} in {{ f.path }}</span></button>
 </form>
 {%- endmacro -%}
+{#- Links that show hidden unchanged lines next to hunk `i`: without
+    JavaScript the file alone at that hunk, with it the file in place. -#}
+{%- macro expand_row(ctx, diff, f, i, links) -%}
+{%- if !links.is_empty() %}
+      <tr class="diff-expand"><td colspan="4"><span class="diff-expand-links">{% for e in links.iter() %}<a href="{{ diff.expand_href(f.index, e.ranges, i) }}" hx-get="{{ diff.expand_url(f.index, e.ranges) }}" hx-target="closest section" hx-swap="outerHTML" data-expand="{{ f.anchor }}-h{{ i }}"{% if !e.name.is_empty() %} aria-label="{{ e.name }}"{% endif %} {% call m::hx(ctx.nonce) %}{% endcall %}>{{ e.label }}</a>{% endfor %}</span></td></tr>
+{%- endif %}
+{%- endmacro -%}
+{#- Expanded unchanged lines, for reading only. -#}
+{%- macro context_rows(lines) -%}
+{%- for l in lines.iter() %}
+      <tr class="diff-ctx diff-expanded"><td class="line-no">{{ l.old_no }}</td><td class="line-no">{{ l.new_no }}</td><td class="diff-marker"></td><td>{% call m::line_text(l.kind, l.text, l.segments, l.html) %}{% endcall %}</td></tr>
+{%- endfor %}
+{%- endmacro -%}
+{%- macro context_split_rows(rows) -%}
+{%- for r in rows.iter() %}
+      <tr class="diff-expanded"><td class="line-no diff-ctx">{{ r.left.no }}</td><td class="diff-ctx">{% call m::line_text(r.left.kind, r.left.text, r.left.segments, r.left.html) %}{% endcall %}</td><td class="line-no diff-ctx">{{ r.right.no }}</td><td class="diff-ctx">{% call m::line_text(r.right.kind, r.right.text, r.right.segments, r.right.html) %}{% endcall %}</td></tr>
+{%- endfor %}
+{%- endmacro -%}
 <section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title"{% if diff.review.is_some() && !f.viewed && !f.folded %} data-unviewed{% endif %}>
   <header class="diff-file-head">
   <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }} · <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></h3>
@@ -51,11 +69,15 @@
   <p class="diff-placeholder text-secondary">{{ note }}</p>
   {%- endif %}
   {%- for h in f.hunks %}
+  {%- let hi = loop.index0 %}
+  {%- let last_hunk = loop.last %}
   <div class="diff-hunk" id="{{ f.anchor }}-h{{ loop.index0 }}">
   <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, loop.index0, loop.last, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
+    {%- call expand_row(ctx, diff, f, hi, h.expand) %}{% endcall %}
+    {%- call context_rows(h.above) %}{% endcall %}
     {%- for l in h.lines %}
       {%- let href = diff.comment_href(f.path, l.kind, l.old_no, l.new_no) %}
       <tr class="diff-{{ l.kind }}">
@@ -71,14 +93,18 @@
       {%- let cols = 4 %}
       {% include "repo/diff_inline.html" %}
     {%- endfor %}
+    {%- call context_rows(h.below) %}{% endcall %}
+    {%- if last_hunk %}{% call expand_row(ctx, diff, f, hi, f.expand_end) %}{% endcall %}{% endif %}
     </tbody>
   </table>
   </div>
   {%- if diff.split %}
   <div class="code-wrap diff-split" tabindex="0" role="region" aria-label="Changes side by side in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table diff-split-table">
-    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, loop.index0, loop.last, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
+    {%- call expand_row(ctx, diff, f, hi, h.expand) %}{% endcall %}
+    {%- call context_split_rows(h.above_rows) %}{% endcall %}
     {%- for r in h.rows %}
       <tr>
         <td class="line-no diff-{{ r.left.kind }}">{{ r.left.no }}</td>
@@ -102,6 +128,8 @@
       {% include "repo/diff_inline.html" %}
       {%- endif %}
     {%- endfor %}
+    {%- call context_split_rows(h.below_rows) %}{% endcall %}
+    {%- if last_hunk %}{% call expand_row(ctx, diff, f, hi, f.expand_end) %}{% endcall %}{% endif %}
     </tbody>
   </table>
   </div>

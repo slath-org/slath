@@ -822,6 +822,24 @@ main > .repo-context {
 .diff-hunk {
   scroll-margin-top: var(--space-4);
 }
+/* Links that show hidden unchanged lines: a row of their own between the
+   lines, in the UI font, with 24 px targets. */
+.diff-expand td {
+  padding: var(--space-1) var(--space-2);
+  border-block: var(--border-width) solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+.diff-expand-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+.diff-expand-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--space-5);
+}
 /* Line numbers link to a comment form: plain numbers that underline on
    hover and focus, so 2,000 rows don't read as 4,000 links. Each is a
    target of 24 px (the spacing step of that size, not --target-min,

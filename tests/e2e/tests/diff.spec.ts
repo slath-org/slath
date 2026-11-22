@@ -3,7 +3,7 @@
 //
 // Diff views: the file tree, generated files, files that load later,
 // split view on wide screens, and ignoring whitespace. The e2e server seeds
-// branch `diffs` with 26 changed files.
+// branch `diffs` with 26 changed files, and `expand` with hidden lines.
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../fixtures";
 
 async function openCommit(page: import("@playwright/test").Page): Promise<void> {
@@ -112,5 +112,30 @@ test("conf_a11y_04_hunk_navigation_by_link_and_key", async ({ page }) => {
   await page.getByRole("heading", { level: 1 }).click();
   await page.keyboard.press("n");
   await expect(first.locator(".code-wrap.diff-unified")).not.toBeFocused();
+  await expectAccessible(page);
+});
+
+test("conf_review_17_hidden_lines_expand_in_place", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/commits/expand");
+  await tapOrClick(page, page.getByRole("link", { name: "Edit long.txt" }).first());
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Edit long.txt");
+  const file = page.locator("#diff-0");
+  // Lines 10 and 50 changed: 6 hidden lines above, 33 between, 7 below.
+  const links = file.locator(".diff-expand-links a");
+  await expect(links).toHaveText(["Show 6 unchanged lines", "Show 33 unchanged lines", "Show 7 unchanged lines"]);
+  await expect(file.getByText("line 30", { exact: true })).toHaveCount(0);
+  await expectAccessible(page);
+  // In place: the lines between the hunks appear, numbered on both sides,
+  // and focus moves to the hunk below them.
+  await tapOrClick(page, file.getByRole("link", { name: "Show 33 unchanged lines" }));
+  await expect(page.locator("#diff-0").getByText("line 30", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/commit\/[0-9a-f]+$/);
+  await expect(page.locator("#diff-0-h1 .code-wrap:visible")).toBeFocused();
+  await expect(page.locator("#diff-0 .diff-expand-links a")).toHaveText(["Show 6 unchanged lines", "Show 7 unchanged lines"]);
+  // With the keyboard: the next link shows the lines below the last hunk.
+  await page.locator("#diff-0").getByRole("link", { name: "Show 7 unchanged lines" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#diff-0").getByText("line 60", { exact: true })).toBeVisible();
   await expectAccessible(page);
 });

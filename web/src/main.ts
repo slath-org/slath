@@ -24,6 +24,7 @@ import { installReplies } from "./replies";
 import { installCloseButtons } from "./disclosure";
 import { installTooltips } from "./tooltip";
 import { installHunkNavigation } from "./hunknav";
+import { installExpansion } from "./expand";
 import { installChangeKeys } from "./changekeys";
 import { installZoneProposal } from "./timezone";
 
@@ -38,6 +39,7 @@ installReplies();
 installCloseButtons();
 installTooltips();
 installHunkNavigation();
+installExpansion();
 installChangeKeys();
 installZoneProposal();
 installPasskeys();

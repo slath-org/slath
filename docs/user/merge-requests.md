@@ -803,6 +803,12 @@ Diffs look the same on commits, the compare page, and merge requests:
   Slath says how many files are folded and how many are past the file
   limit, so nothing is left out without saying so.
 - Large diffs load as you scroll, and very large files on request.
+- Above, between, and below a file's changes, **Show 12 unchanged lines**
+  shows the lines the diff leaves out (for longer stretches, **Show 20
+  more lines**, from either end). The lines appear in place; without
+  JavaScript, the link opens the file alone with them. They're there to
+  read and can't be commented on. Files too large to highlight, and
+  binary files, don't have these links.
 
 ### As plain text
 
