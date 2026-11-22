@@ -144,6 +144,7 @@ impl Services {
         tx.commit().await.map_err(ServiceError::internal)?;
         self.sync_mr_branch_by_id(m.id).await;
         self.notify_mr(pusher, m, MrActivity::Merged).await;
+        self.remove_change_source(m).await;
         Ok(())
     }
 

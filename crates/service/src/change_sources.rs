@@ -78,6 +78,55 @@ impl Services {
         Ok(is_source(&r.change_source_prefix, &m.source_branch()))
     }
 
+    /// Deletes a merge request's change source once it merged or closed:
+    /// only while the branch is still at the merge request's head, isn't
+    /// protected against deletion, and carries no other open merge request.
+    /// A branch someone moved meanwhile is kept. Never fails the caller.
+    pub(crate) async fn remove_change_source(&self, m: &slath_db::merge_requests::MergeRequest) {
+        if !matches!(self.is_change_source(m).await, Ok(true)) {
+            return;
+        }
+        let (Ok(name), Some(Ok(head))) = (
+            slath_git::args::RefName::parse(m.source_ref.clone()),
+            m.head_oid.as_deref().map(slath_git::ObjectId::parse),
+        ) else {
+            return;
+        };
+        let Some(branch) = m.source_ref.strip_prefix(b"refs/heads/") else {
+            return;
+        };
+        match slath_db::protections::list(&self.pool, m.repo_id).await {
+            Ok(rules) if !crate::protections::effective(&rules, branch).block_deletion => {}
+            _ => return,
+        }
+        match slath_db::merge_requests::open_by_source(&self.pool, m.repo_id, &m.source_ref).await {
+            Ok(open) if open.is_empty() => {}
+            _ => return,
+        }
+        let dir = self.repo_path(m.repo_id);
+        if let Err(e) =
+            slath_git::refs::update_cas(&self.runner, &dir, &name, None, Some(&head)).await
+        {
+            tracing::info!(error = %e, "a change source was kept: it moved or couldn't be deleted");
+            return;
+        }
+        if let Err(e) = self
+            .record_push(
+                m.repo_id,
+                None,
+                "internal",
+                &[slath_git::ipc::RefUpdate {
+                    name: m.source_ref.clone(),
+                    old: head.as_str().to_owned(),
+                    new: "0".repeat(40),
+                }],
+            )
+            .await
+        {
+            tracing::warn!(error = %e, "recording a deleted change source failed");
+        }
+    }
+
     /// After a push created or moved the change source `branch` of `r` to
     /// `tip` and no merge request from it is open: opens one into `target`
     /// (the default branch if `None`) as the pusher, titled by the tip

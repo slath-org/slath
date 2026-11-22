@@ -143,7 +143,9 @@ remote: slath:   https://slath.example/alice/demo/merge-requests/7
 Run the same command after changing the commit to push a new revision.
 The merge request shows its source as **change nxrooqlm** instead of the
 bookmark, branch lists leave these bookmarks out, and Slath deletes the
-bookmark when the merge request merges.
+bookmark when the merge request merges (also by a push of the target) or
+closes, unless someone pushed to it since. To reopen a closed one, push
+the bookmark again first.
 
 The same holds for any branch whose name starts with `push-`, however it
 was pushed. Over HTTPS, the token you push with needs the `mrs:write`

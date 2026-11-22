@@ -363,3 +363,139 @@ fn conf_jj_13_change_sources_stay_out_of_branch_lists() {
     assert_eq!(r.status, 303, "{}", r.body);
     assert_eq!(c.api("GET", "", None).json()["change_source_prefix"], "jj-");
 }
+
+/// Whether the demo repository has `branch`, as Git sees it.
+fn has_branch(c: &Ctx, branch: &str) -> bool {
+    !c.git
+        .ok(
+            &c.s.repo_path(&DEMO),
+            &["for-each-ref", &format!("refs/heads/{branch}")],
+        )
+        .trim()
+        .is_empty()
+}
+
+/// Waits until `branch` is gone from the demo repository.
+fn wait_gone(c: &Ctx, branch: &str) {
+    let start = Instant::now();
+    while has_branch(c, branch) {
+        assert!(
+            start.elapsed() < Duration::from_secs(30),
+            "{branch} is still there\n{}",
+            c.s.log()
+        );
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+#[test]
+fn conf_jj_13_nothing_is_left_after_merge_or_close() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    seed(&c, &w);
+    let commit = |file: &str| {
+        c.git.ok(&w, &["switch", "-q", "--detach", "main"]);
+        std::fs::write(w.join(file), format!("{file}\n")).unwrap();
+        c.git.ok(&w, &["add", "-A"]);
+        c.git
+            .ok(&w, &["commit", "-q", "-m", &format!("Add {file}")]);
+    };
+    let number = |branch: &str| {
+        c.mrs()
+            .iter()
+            .find(|m| m["source_branch"] == branch)
+            .unwrap()["number"]
+            .as_i64()
+            .unwrap()
+    };
+
+    // Closed: the change source goes; reopening asks for it again.
+    commit("a.txt");
+    git_push(&c, &w, "HEAD:refs/heads/push-a");
+    let a = number("push-a");
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{a}"),
+        Some(json!({"state": "closed"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    wait_gone(&c, "push-a");
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{a}"),
+        Some(json!({"state": "open"})),
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("The source branch was deleted"),
+        "{}",
+        r.body
+    );
+
+    // Merged in Slath.
+    commit("b.txt");
+    git_push(&c, &w, "HEAD:refs/heads/push-b");
+    let b = number("push-b");
+    let head = c.api("GET", &format!("/merge-requests/{b}"), None).json()["head_oid"].clone();
+    let r = c.api(
+        "POST",
+        &format!("/merge-requests/{b}/merge"),
+        Some(json!({"strategy": "merge-commit", "expected_head_oid": head})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    wait_gone(&c, "push-b");
+
+    // Merged by pushing its commit to main.
+    c.git.ok(&w, &["fetch", "-q", &c.url, "main"]);
+    c.git.ok(&w, &["switch", "-q", "--detach", "FETCH_HEAD"]);
+    std::fs::write(w.join("c.txt"), "c\n").unwrap();
+    c.git.ok(&w, &["add", "-A"]);
+    c.git.ok(&w, &["commit", "-q", "-m", "Add c"]);
+    git_push(&c, &w, "HEAD:refs/heads/push-c");
+    let n = number("push-c");
+    git_push(&c, &w, "HEAD:refs/heads/main");
+    let start = Instant::now();
+    while c.api("GET", &format!("/merge-requests/{n}"), None).json()["state"] != "merged" {
+        assert!(start.elapsed() < Duration::from_secs(30), "{}", c.s.log());
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    wait_gone(&c, "push-c");
+
+    // A change source that another open merge request still uses stays.
+    git_push(&c, &w, "refs/heads/main:refs/heads/release");
+    commit("d.txt");
+    git_push(&c, &w, "HEAD:refs/heads/push-d");
+    let d1 = number("push-d");
+    let r = c.api(
+        "POST",
+        "/merge-requests",
+        Some(
+            json!({"source_branch": "push-d", "target_branch": "release", "title": "Into release"}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{d1}"),
+        Some(json!({"state": "closed"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(has_branch(&c, "push-d"));
+    // Ordinary branches are never deleted on close.
+    commit("e.txt");
+    git_push(&c, &w, "HEAD:refs/heads/topic-e");
+    let r = c.api(
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic-e", "title": "Add e"})),
+    );
+    let e = r.json()["number"].as_i64().unwrap();
+    let r = c.api(
+        "PATCH",
+        &format!("/merge-requests/{e}"),
+        Some(json!({"state": "closed"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(has_branch(&c, "topic-e"));
+}

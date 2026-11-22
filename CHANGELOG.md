@@ -45,6 +45,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A change's page lists the checks of the shown version with their reporters; an earlier version's checks are marked as no longer counting.
 - Branch lists leave out change sources: branches such as jj's `push-*` bookmarks that exist only for a merge request. Administrators set their prefix or turn it off.
 - `jj git push --change` opens a merge request right away, titled by the commit; so does pushing any branch starting with `push-`. Lists show it as the change, not the bookmark.
+- A change source is deleted when its merge request closes or lands by a push, as on a merge in Slath, so nothing is left behind.
 
 ## [0.3.0] - 2026-11-18
 

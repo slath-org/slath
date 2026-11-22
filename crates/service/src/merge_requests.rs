@@ -995,6 +995,7 @@ impl Services {
         if changed && !open {
             self.end_auto_merge(&m, subject_user(subject), "closed", None)
                 .await?;
+            self.remove_change_source(&m).await;
         }
         if changed {
             self.sync_mr_branch_by_id(m.id).await;

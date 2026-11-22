@@ -241,6 +241,9 @@ request** or as `change_source_prefix` in the repository API (audited as
 `repo.change_source_prefix`). Pushing a change source without an open
 merge request opens one as the pusher, into the default branch, titled by
 the tip commit; pushes over HTTPS need a token with `mrs:write` for that.
+When that merge request merges or closes, Slath deletes the change source,
+unless it moved since, is protected against deletion, or is the source of
+another open merge request.
 Forks' branches are never change sources. Branch lists, branch selectors, and the
 "recently pushed" banner leave them out; they stay ordinary branches for
 Git and jj, so anyone who can read the repository can fetch them. An empty
