@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The user guides' commands work (JJ-05, JJ-11, D-44): every named block
 //! (```` ```sh git <step> ````, ```` ```sh jj <step> ````) in
-//! `docs/user/merge-requests.md` and `docs/user/forks.md` runs here against
-//! a test server, in the guide's order, with Git and with jj, and with no
-//! client configuration beyond the remote URL (with a token) and a name.
+//! `docs/user/merge-requests.md`, `docs/user/stacks.md`, and
+//! `docs/user/forks.md` runs here against a test server, in the guide's
+//! order, with Git, with jj, and with both on one stack, and with no client
+//! configuration beyond the remote URL (with a token) and a name.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ use crate::jj::jj_binaries;
 /// The named blocks of the guides: (tool, step) → commands.
 fn blocks() -> HashMap<(String, String), String> {
     let mut out = HashMap::new();
-    for doc in ["merge-requests.md", "forks.md"] {
+    for doc in ["merge-requests.md", "stacks.md", "forks.md"] {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../docs/user")
             .join(doc);
@@ -449,4 +450,254 @@ fn conf_jj_11_the_fork_guide_runs_with_git_and_jj() {
         });
         assert_ne!(fork_head.trim(), head, "{tool}: the fork moved");
     }
+}
+
+/// The stack of merge request `n`: (change ID, outcome, change state) per
+/// change, bottom first.
+fn stack(s: &TestServer, t: &str, n: i64) -> Vec<(String, String, String)> {
+    let st = api(
+        s,
+        t,
+        "GET",
+        &format!("/alice/demo/merge-requests/{n}/stack"),
+        None,
+    )
+    .json();
+    st["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            (
+                e["change_id"].as_str().unwrap_or_default().to_owned(),
+                e["outcome"].as_str().unwrap_or_default().to_owned(),
+                e["change_state"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// A file of a few lines, as a step of real work has them.
+fn parser(fix: &str) -> String {
+    format!(
+        "fn parse(input) {{\n  let tokens = split(input)\n  check(tokens)\n  // {fix}\n  tree(tokens)\n}}\n"
+    )
+}
+
+/// How the bottom change of merge request `n` was matched.
+fn binding(s: &TestServer, t: &str, n: i64) -> String {
+    let st = api(
+        s,
+        t,
+        "GET",
+        &format!("/alice/demo/merge-requests/{n}/stack"),
+        None,
+    )
+    .json();
+    st["entries"][0]["binding"].as_str().unwrap().to_owned()
+}
+
+fn ids(stack: &[(String, String, String)]) -> Vec<String> {
+    stack.iter().map(|e| e.0.clone()).collect()
+}
+
+/// Opens the merge request for `my-stack` and waits for its first revision.
+fn open_stack(s: &TestServer, t: &str) -> i64 {
+    let r = api(
+        s,
+        t,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_branch": "my-stack", "title": "Parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    eventually(s, "no first revision", || mr(s, t, n)["revisions"] == 1);
+    n
+}
+
+fn head(s: &TestServer, t: &str, n: i64) -> String {
+    mr(s, t, n)["head_oid"].as_str().unwrap().to_owned()
+}
+
+/// jj shows no change twice after following the server's rewrites.
+fn no_divergence(sh: &Shell, dir: &Path) {
+    if sh.tool == "jj" {
+        let out = Command::new(sh.bin.path().join("jj"))
+            .args(["log", "--no-graph", "-r", "divergent()", "-T", "change_id"])
+            .current_dir(dir)
+            .env("HOME", sh.home.path())
+            .env("JJ_CONFIG", sh.home.path().join("jj.toml"))
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            "",
+            "divergent changes"
+        );
+    }
+}
+
+#[test]
+fn conf_jj_11_the_stack_guide_runs_with_git_and_jj() {
+    for (tool, jj) in tools() {
+        let s = TestServer::start();
+        seed(&s);
+        let alice = token(&s, "alice");
+        let sh = Shell::new(tool, &s, jj.as_deref());
+        let root = tempfile::tempdir().unwrap();
+        let demo = root.path().join("demo");
+        sh.run("clone", root.path(), &alice, 0);
+
+        // Two commits, two changes.
+        std::fs::write(demo.join("parser.txt"), parser("first")).unwrap();
+        std::fs::write(demo.join("main.txt"), "main\n").unwrap();
+        sh.run("stack-push", &demo, &alice, 0);
+        let n = open_stack(&s, &alice);
+        let first = ids(&stack(&s, &alice, n));
+        assert_eq!(first.len(), 2, "{tool}: {first:?}");
+
+        // Fixing the bottom: a new version of it, the top only rebased.
+        std::fs::write(demo.join("parser.txt"), parser("fixed")).unwrap();
+        sh.run("stack-fix", &demo, &alice, n);
+        eventually(&s, "no second revision", || {
+            mr(&s, &alice, n)["revisions"] == 2
+        });
+        let st = stack(&s, &alice, n);
+        assert_eq!(ids(&st), first, "{tool}: same changes");
+        assert_eq!(st[0].1, "updated", "{tool}: {st:?}");
+        assert_eq!(st[1].1, "unchanged", "{tool}: {st:?}");
+        // jj's ID confirms it; a Git commit without one is matched by its
+        // similar content.
+        let bound = if tool == "git" {
+            "inferred"
+        } else {
+            "confirmed"
+        };
+        assert_eq!(binding(&s, &alice, n), bound, "{tool}");
+
+        // A third change on top.
+        std::fs::write(demo.join("docs.txt"), "docs\n").unwrap();
+        sh.run("stack-grow", &demo, &alice, n);
+        eventually(&s, "no third revision", || {
+            mr(&s, &alice, n)["revisions"] == 3
+        });
+        let st = stack(&s, &alice, n);
+        assert_eq!(st.len(), 3, "{tool}: {st:?}");
+        assert_eq!(ids(&st)[..2], first[..], "{tool}");
+        assert_eq!(st[2].1, "new", "{tool}: {st:?}");
+        let all = ids(&st);
+
+        // The bottom lands in Slath; the rest is rebased onto it.
+        let r = api(
+            &s,
+            &alice,
+            "POST",
+            &format!("/alice/demo/merge-requests/{n}/merge"),
+            Some(
+                json!({"strategy": "rebase", "expected_head_oid": head(&s, &alice, n), "upto_change": &all[0][..8]}),
+            ),
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+        eventually(&s, "rest not rebased", || stack(&s, &alice, n).len() == 2);
+        sh.run("stack-catch-up", &demo, &alice, n);
+        assert_eq!(
+            sh.rev(&demo, "my-stack"),
+            head(&s, &alice, n),
+            "{tool}: caught up"
+        );
+        no_divergence(&sh, &demo);
+
+        // The next change lands by a push of the target.
+        sh.run("stack-land-next", &demo, &alice, n);
+        eventually(&s, "second change not landed", || {
+            stack(&s, &alice, n)
+                .iter()
+                .any(|e| e.0 == all[1] && e.2 == "merged")
+        });
+        assert_eq!(mr(&s, &alice, n)["state"], "open", "{tool}");
+
+        // The rest by another push: merged.
+        sh.run("stack-land-all", &demo, &alice, n);
+        eventually(&s, "not merged", || mr(&s, &alice, n)["state"] == "merged");
+        let main = GitClient::new().ok(&s.repo_path(&DEMO), &["rev-parse", "main"]);
+        assert_eq!(main.trim(), sh.rev(&demo, "my-stack"), "{tool}");
+
+        // Done: the branch is gone, and work goes on from the target.
+        sh.run("stack-done", &demo, &alice, n);
+        let branches = GitClient::new().ok(&s.repo_path(&DEMO), &["branch", "--list", "my-stack"]);
+        assert_eq!(branches.trim(), "", "{tool}: branch deleted");
+        let at = if tool == "git" { "HEAD" } else { "@-" };
+        assert_eq!(sh.rev(&demo, at), main.trim(), "{tool}: on the target");
+    }
+}
+
+#[test]
+fn conf_jj_11_the_stack_guide_mixes_git_and_jj() {
+    let Some((_, jj)) = jj_binaries().into_iter().last() else {
+        return;
+    };
+    let s = TestServer::start();
+    seed(&s);
+    let alice = token(&s, "alice");
+    let git = Shell::new("git", &s, None);
+    let jj = Shell::new("jj", &s, Some(&jj));
+    let (gr, jr) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (gd, jd) = (gr.path().join("demo"), jr.path().join("demo"));
+
+    // Git pushes the stack.
+    git.run("clone", gr.path(), &alice, 0);
+    std::fs::write(gd.join("parser.txt"), parser("first")).unwrap();
+    std::fs::write(gd.join("main.txt"), "main\n").unwrap();
+    git.run("stack-push", &gd, &alice, 0);
+    let n = open_stack(&s, &alice);
+    let first = ids(&stack(&s, &alice, n));
+    assert_eq!(first.len(), 2, "{first:?}");
+
+    // jj takes it over and fixes the bottom.
+    jj.run("clone", jr.path(), &alice, 0);
+    jj.run("stack-take-over", &jd, &alice, n);
+    std::fs::write(jd.join("parser.txt"), parser("fixed by jj")).unwrap();
+    jj.run("stack-fix", &jd, &alice, n);
+    eventually(&s, "no second revision", || {
+        mr(&s, &alice, n)["revisions"] == 2
+    });
+    let st = stack(&s, &alice, n);
+    assert_eq!(ids(&st), first, "jj kept the changes: {st:?}");
+    assert_eq!((&*st[0].1, &*st[1].1), ("updated", "unchanged"), "{st:?}");
+
+    // Git catches up and fixes the bottom again.
+    git.run("stack-catch-up", &gd, &alice, n);
+    assert_eq!(git.rev(&gd, "HEAD"), head(&s, &alice, n), "git caught up");
+    std::fs::write(gd.join("parser.txt"), parser("fixed by git")).unwrap();
+    git.run("stack-fix", &gd, &alice, n);
+    eventually(&s, "no third revision", || {
+        mr(&s, &alice, n)["revisions"] == 3
+    });
+    let st = stack(&s, &alice, n);
+    assert_eq!(ids(&st), first, "git kept the changes: {st:?}");
+    // Git kept the ID jj wrote into the commit.
+    assert_eq!(binding(&s, &alice, n), "confirmed");
+    assert_eq!((&*st[0].1, &*st[1].1), ("updated", "unchanged"), "{st:?}");
+
+    // jj catches up and adds a change; Git lands the stack.
+    jj.run("stack-catch-up", &jd, &alice, n);
+    assert_eq!(jj.rev(&jd, "my-stack"), head(&s, &alice, n), "jj caught up");
+    no_divergence(&jj, &jd);
+    std::fs::write(jd.join("docs.txt"), "docs\n").unwrap();
+    jj.run("stack-grow", &jd, &alice, n);
+    eventually(&s, "no fourth revision", || {
+        mr(&s, &alice, n)["revisions"] == 4
+    });
+    let st = stack(&s, &alice, n);
+    assert_eq!(ids(&st)[..2], first[..], "{st:?}");
+    assert_eq!(st.len(), 3, "{st:?}");
+    git.run("stack-catch-up", &gd, &alice, n);
+    git.run("stack-land-all", &gd, &alice, n);
+    eventually(&s, "not merged", || mr(&s, &alice, n)["state"] == "merged");
 }

@@ -218,7 +218,8 @@ change with its current commit), and **Files** (the diff of every changed
 file). The Changes tab shows each change's ID. It uses jj's format: for
 commits made with jj, it's the ID `jj log` shows; for commits made with
 Git, it's the ID jj would give that commit. Nobody needs hooks, trailers,
-or any client configuration.
+or any client configuration. [Stacks](stacks.md) walks through working on a
+stack of several changes with Git and jj.
 
 When you push a new revision, Slath matches each commit to a change, in
 this order:
