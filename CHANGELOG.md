@@ -19,6 +19,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The ledger records for each approval of one change whether it carried or went stale, and the timeline names the changes whose approvals went stale.
 - A merge request's Commits and Changes tabs show how many commits and changed files the current revision has, as Conversation shows its comments.
 - A change's page lists its versions with author, age, size, comments, checks, and how each was matched, and compares any two versions picked there.
+- The fork guide shows how to rebase a fork's branch onto the original's latest commits with Git and jj; rebased changes keep their approvals.
 - In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.
 - The readiness card lists a sixth file not viewed by an approver instead of hiding it behind "and 1 more".
 - Unresolved threads on a later change's own diff don't block landing the changes below it; general threads still do.

@@ -380,6 +380,37 @@ fn conf_jj_11_the_fork_guide_runs_with_git_and_jj() {
             mr(&s, &bob, n)["revisions"] == 1
         });
 
+        // The original moves on; Bob rebases his branch onto it, which is
+        // the next revision on the new base, with the same change.
+        let change = |s: &TestServer| {
+            api(
+                s,
+                &bob,
+                "GET",
+                &format!("/alice/demo/merge-requests/{n}/stack"),
+                None,
+            )
+            .json()["entries"][0]["change_id"]
+                .clone()
+        };
+        let before = change(&s);
+        advance_main(&s, "elsewhere.txt");
+        sh.run("fork-rebase", &bob_demo, &bob, 0);
+        eventually(&s, "no revision from the rebase", || {
+            mr(&s, &bob, n)["revisions"] == 2
+        });
+        let main = GitClient::new().ok(&s.repo_path(&DEMO), &["rev-parse", "main"]);
+        let revs = api(
+            &s,
+            &bob,
+            "GET",
+            &format!("/alice/demo/merge-requests/{n}/revisions"),
+            None,
+        )
+        .json();
+        assert_eq!(revs[1]["base_oid"], main.trim(), "{tool}: {revs}");
+        assert_eq!(change(&s), before, "{tool}");
+
         // Alice checks it out as mr/<n> in her clone, edits it, and the
         // fork's branch follows.
         let r = api(

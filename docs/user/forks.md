@@ -53,6 +53,28 @@ with `{"branch": "main"}` does the same; it answers `fast_forwarded`,
 `"discard": true` drops your commits. `GET .../fork` includes `ahead`
 and `behind` for the default branch.
 
+To bring a branch with your own work onto the original's latest
+commits, add the original as a second remote once, then fetch it and
+rebase (here the branch `my-topic` of Bob's fork of `alice/demo`):
+
+```sh git fork-rebase
+git remote add upstream https://slath.example/alice/demo.git
+git fetch upstream
+git rebase upstream/main
+git push --force-with-lease origin my-topic
+```
+
+```sh jj fork-rebase
+jj git remote add upstream https://slath.example/alice/demo.git
+jj git fetch --remote upstream
+jj rebase -b my-topic -d main@upstream
+jj git push --bookmark my-topic
+```
+
+If the branch is the source of a merge request, the push is its next
+revision. Changes that are only rebased keep their approvals, and jj's
+change IDs stay the same.
+
 ## What a fork contains
 
 Only branches and tags. The fork doesn't depend on the original: it keeps
