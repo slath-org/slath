@@ -494,6 +494,15 @@ file's threads and how many are unresolved. **Next unviewed file** and
 below where you are (with the keyboard, **v** and **t** while the diff
 has focus, next to **n** and **p** for the next and previous change).
 
+Each change (hunk) has its own **Mark viewed** button in its header too;
+marking one takes you to the next. Marking a file viewed marks all its
+changes. When a new revision changes a file you viewed, only the changes
+that are new or different open again: the ones you saw, with exactly the
+same added and removed lines, stay marked viewed, even when a rebase moved
+them. Once you've viewed every change of a file, the file counts as
+viewed and collapses. This works the same whether the revisions were made
+with Git or jj.
+
 In the conversation, each thread shows the code it's about, its replies,
 and whether it's outdated or resolved. **Reply…** opens the reply form in
 place, and **Cancel** folds it again. **Send reply** sends the answer right

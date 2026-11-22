@@ -402,3 +402,72 @@ pub async fn set_viewed(
     }
     Ok(())
 }
+
+/// The hunks a user marked viewed, as (path, key).
+pub async fn viewed_hunks(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    user: UserId,
+) -> Result<Vec<(String, String)>, DbError> {
+    let rows = sqlx::query!(
+        "SELECT path, hunk_key FROM mr_viewed_hunks WHERE mr_id = $1 AND user_id = $2",
+        mr.as_uuid(),
+        user.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.path, r.hunk_key)).collect())
+}
+
+/// How many hunks of `path` a user marked viewed.
+pub async fn viewed_hunk_count(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    user: UserId,
+    path: &str,
+) -> Result<i64, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT count(*) AS "n!" FROM mr_viewed_hunks
+           WHERE mr_id = $1 AND user_id = $2 AND path = $3"#,
+        mr.as_uuid(),
+        user.as_uuid(),
+        path
+    )
+    .fetch_one(exec)
+    .await?)
+}
+
+/// Marks the hunks `keys` of `path` viewed, or not viewed.
+pub async fn set_viewed_hunks(
+    exec: impl PgExecutor<'_>,
+    mr: MergeRequestId,
+    user: UserId,
+    path: &str,
+    (keys, viewed): (&[String], bool),
+) -> Result<(), DbError> {
+    if viewed {
+        sqlx::query!(
+            "INSERT INTO mr_viewed_hunks (mr_id, user_id, path, hunk_key)
+             SELECT $1, $2, $3, k FROM unnest($4::text[]) AS k
+             ON CONFLICT DO NOTHING",
+            mr.as_uuid(),
+            user.as_uuid(),
+            path,
+            keys
+        )
+        .execute(exec)
+        .await?;
+    } else {
+        sqlx::query!(
+            "DELETE FROM mr_viewed_hunks
+             WHERE mr_id = $1 AND user_id = $2 AND path = $3 AND hunk_key = ANY ($4)",
+            mr.as_uuid(),
+            user.as_uuid(),
+            path,
+            keys
+        )
+        .execute(exec)
+        .await?;
+    }
+    Ok(())
+}

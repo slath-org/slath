@@ -70,6 +70,10 @@ pub struct HunkView {
     pub head: String,
     pub lines: Vec<LineView>,
     pub rows: Vec<SplitRow>,
+    /// Its key (spec: viewed hunks).
+    pub key: String,
+    /// Merge request diffs: the viewer marked it viewed.
+    pub viewed: bool,
 }
 
 pub struct FileView {
@@ -90,8 +94,11 @@ pub struct FileView {
     pub folded: bool,
     /// There are lines to load.
     pub has_lines: bool,
-    /// The viewer marked it viewed (and it hasn't changed since).
+    /// The viewer marked it viewed (and it hasn't changed since), or
+    /// every hunk of it.
     pub viewed: bool,
+    /// The keys of all its hunks, also when they aren't loaded.
+    pub hunk_keys: Vec<String>,
     /// `now`, `scroll` (loads when it comes into view), or `click`.
     pub load: &'static str,
     pub hunks: Vec<HunkView>,
@@ -799,10 +806,12 @@ pub fn view(
             } else {
                 "now"
             };
+            let keys = slath_git::diff::hunk_keys(f);
             let hunks = if load == "now" {
                 f.hunks
                     .iter()
-                    .map(|h| {
+                    .zip(&keys)
+                    .map(|(h, key)| {
                         let lines: Vec<LineView> = h
                             .lines
                             .iter()
@@ -829,6 +838,8 @@ pub fn view(
                             ),
                             rows: Vec::new(),
                             lines,
+                            key: key.clone(),
+                            viewed: false,
                         }
                     })
                     .collect()
@@ -861,6 +872,7 @@ pub fn view(
                 folded,
                 has_lines: lines > 0,
                 viewed: false,
+                hunk_keys: keys,
                 load,
                 hunks,
                 plain_note,
@@ -1002,6 +1014,8 @@ mod tests {
             head: String::new(),
             lines,
             rows: Vec::new(),
+            key: String::new(),
+            viewed: false,
         }
     }
 
@@ -1160,6 +1174,7 @@ mod tests {
             deletions: 0,
             generated: false,
             viewed: false,
+            hunk_keys: Vec::new(),
             load: "now",
             hunks: Vec::new(),
             plain_note: None,

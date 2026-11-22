@@ -13,6 +13,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Merge requests merge when their commits reach the target by a push: merge or fast-forward locally, then `git push` or `jj git push` the target branch.
 - Rebased or cherry-picked changes land one by one when the target gains their exact patch; the merge request merges once all have.
 - A pushed commit that carries a change's ID with different content notes that the change possibly landed with modifications.
+- Each change of a diff can be marked viewed on its own; after a new revision, only new or changed hunks of a file you viewed open again, also after a rebase.
 - An approval can leave the decision to another user or team: it counts for no requirement, shows as the reviewer's, and asks them to review.
 - The fields for reviewers and for who decides on an approval suggest the organization's teams as well as people while you type.
 - Reviews can target one change of a merge request through the API; such a verdict stays current while that change keeps its patch.

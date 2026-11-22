@@ -6,6 +6,19 @@
 {%- if !last %}<a href="#{{ anchor }}-h{{ i + 1 }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% else if more_files %}<a href="#diff-{{ next_file }}" aria-keyshortcuts="n" title="Next change (n)">Next change</a>{% endif -%}
 </span>{% endif %}
 {%- endmacro -%}
+{#- The viewed toggle of a hunk on a merge request's diff. Marking it
+    moves on to the next hunk, else the next file; unmarking stays. -#}
+{%- macro hunk_viewed(ctx, r, f, h, i, last, more_files) -%}
+<form method="post" action="{{ r.viewed_post }}" class="inline-form viewed-toggle hunk-viewed">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="back" value="{{ r.back }}">
+  <input type="hidden" name="anchor" value="#{% if h.viewed %}{{ f.anchor }}-h{{ i }}{% else if !last %}{{ f.anchor }}-h{{ i + 1 }}{% else if more_files %}diff-{{ f.index + 1 }}{% else %}{{ f.anchor }}{% endif %}">
+  <input type="hidden" name="path" value="{{ f.path }}">
+  <input type="hidden" name="hunk" value="{{ h.key }}">
+  <input type="hidden" name="viewed" value="{% if h.viewed %}false{% else %}true{% endif %}">
+  <button type="submit" class="button button-quiet" aria-pressed="{% if h.viewed %}true{% else %}false{% endif %}">{% if h.viewed %}{% call m::icon(ctx, "check") %}{% endcall %}Viewed{% else %}Mark viewed{% endif %}<span class="visually-hidden"> {{ h.head }} in {{ f.path }}</span></button>
+</form>
+{%- endmacro -%}
 <section class="diff-file" id="{{ f.anchor }}" aria-labelledby="{{ f.anchor }}-title"{% if diff.review.is_some() && !f.viewed && !f.folded %} data-unviewed{% endif %}>
   <header class="diff-file-head">
   <h3 id="{{ f.anchor }}-title" class="diff-file-title"><code>{% if let Some(o) = f.old_path %}{{ o }} → {% endif %}{{ f.path }}</code> <span class="text-secondary">{{ f.status }} · <span class="numeric">+{{ f.additions }} −{{ f.deletions }}</span></span></h3>
@@ -14,6 +27,9 @@
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <input type="hidden" name="back" value="{{ r.back }}">
     <input type="hidden" name="path" value="{{ f.path }}">
+    {%- for k in f.hunk_keys %}
+    <input type="hidden" name="hunks" value="{{ k }}">
+    {%- endfor %}
     <input type="hidden" name="viewed" value="{% if f.viewed %}false{% else %}true{% endif %}">
     <button type="submit" class="button button-quiet" aria-pressed="{% if f.viewed %}true{% else %}false{% endif %}">{% if f.viewed %}{% call m::icon(ctx, "check") %}{% endcall %}Viewed{% else %}Mark viewed{% endif %}<span class="visually-hidden"> {{ f.path }}</span></button>
   </form>
@@ -38,7 +54,7 @@
   <div class="diff-hunk" id="{{ f.anchor }}-h{{ loop.index0 }}">
   <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, loop.index0, loop.last, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
     {%- for l in h.lines %}
       {%- let href = diff.comment_href(f.path, l.kind, l.old_no, l.new_no) %}
@@ -61,7 +77,7 @@
   {%- if diff.split %}
   <div class="code-wrap diff-split" tabindex="0" role="region" aria-label="Changes side by side in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table diff-split-table">
-    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, loop.index0, loop.last, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
     {%- for r in h.rows %}
       <tr>

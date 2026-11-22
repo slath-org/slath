@@ -76,7 +76,7 @@ async function walk(page: Page, kind: string, project: string): Promise<Record<s
   const tree = page.getByRole("navigation", { name: "Changed files" });
   await expect(tree.getByRole("link")).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Next unviewed file" })).toHaveAttribute("href", "#diff-0");
-  await tapOrClick(page, page.locator("#diff-0").getByRole("button", { name: /^Mark viewed/ }));
+  await tapOrClick(page, page.locator("#diff-0 .diff-file-head").getByRole("button", { name: /^Mark viewed/ }));
   await expect(tree).toContainText("viewed");
   await expect(page.getByRole("link", { name: "Next unviewed file" })).toHaveAttribute("href", "#diff-1");
   await tapOrClick(page, page.locator("#diff-1 a[title='Comment on this line']").first());
@@ -96,6 +96,17 @@ async function walk(page: Page, kind: string, project: string): Promise<Record<s
   await expect(page.locator(".diff-thread-row").filter({ hasText: "Later." })).toBeVisible();
   await page.goto(url);
   await expect(page.getByText("You have 1 pending comment")).toBeVisible();
+  // Hunk checkpoints: viewing the only hunk of the second file views the
+  // file, which folds; the page stays at that file.
+  await page.goto(`${url}/files`);
+  const hunk = page.locator("#diff-1 .hunk-viewed").getByRole("button");
+  await expect(hunk).toHaveAttribute("aria-pressed", "false");
+  await expect(hunk).toHaveAccessibleName(/^Mark viewed @@ .* in ux-/);
+  await tapOrClick(page, hunk);
+  await expect(page).toHaveURL(/\/files#diff-1$/);
+  await expect(page.locator("#diff-1")).toContainText("You marked this file viewed");
+  await expect(page.getByRole("link", { name: "Next unviewed file" })).toHaveCount(0);
+  await expectAccessible(page);
   return state;
 }
 

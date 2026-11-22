@@ -806,6 +806,19 @@ main > .repo-context {
   font-family: var(--font-ui);
   font-size: var(--text-sm);
 }
+/* The header's links are 24 px targets, as its viewed toggle sits next
+   to them. */
+.diff-hunk-head .hunk-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--space-5);
+}
+/* A hunk's viewed toggle sits at the header's end, in the UI font. */
+.diff-hunk-head .hunk-viewed {
+  margin-inline-start: var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
 .diff-hunk {
   scroll-margin-top: var(--space-4);
 }

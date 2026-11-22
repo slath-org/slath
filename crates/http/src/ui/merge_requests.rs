@@ -3622,8 +3622,15 @@ async fn attach_review(
             });
     }
     let viewed = state.services.viewed_files(subject, m).await?;
+    let hunks = state.services.viewed_hunks(subject, m).await?;
     for f in &mut diff.files {
-        if viewed.contains(&f.path) {
+        let file_mark = viewed.contains(&f.path);
+        let seen = |k: &String| file_mark || hunks.contains(&(f.path.clone(), k.clone()));
+        for h in &mut f.hunks {
+            h.viewed = seen(&h.key);
+        }
+        // Viewed as a file: marked at its blob, or every hunk viewed.
+        if file_mark || (!f.hunk_keys.is_empty() && f.hunk_keys.iter().all(seen)) {
             f.viewed = true;
             if dq.file != Some(f.index) {
                 f.load = "click";
@@ -3706,28 +3713,57 @@ async fn new_thread(
     }
 }
 
-#[derive(Deserialize)]
-struct ViewedForm {
-    #[serde(default)]
-    path: String,
-    #[serde(default)]
-    viewed: String,
-    #[serde(default)]
-    back: String,
-}
-
+/// Marks a file or one hunk viewed or not: `path`, `viewed`, `back`, and
+/// `hunk` (one hunk's key) or `hunks` (the file's hunk keys, repeated).
 async fn set_viewed(
     State(state): State<AppState>,
     RequireSession(s): RequireSession,
     Path((ns, repo, n)): Path<(String, String, String)>,
-    Form(f): Form<ViewedForm>,
+    body: axum::body::Bytes,
 ) -> Result<Response, AppError> {
+    use slath_service::mr_threads::Viewed;
     let n = number(&n)?;
+    let pairs = crate::auth::form_pairs(&body);
+    let get = |k: &str| {
+        pairs
+            .iter()
+            .find(|(p, _)| p == k)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
+    };
+    let viewed = get("viewed") == "true";
+    let hunk = get("hunk");
+    let hunks: Vec<String> = pairs
+        .iter()
+        .filter(|(p, _)| p == "hunks")
+        .map(|(_, v)| v.clone())
+        .collect();
+    let mark = if hunk.is_empty() {
+        Viewed::File {
+            viewed,
+            hunks: &hunks,
+        }
+    } else {
+        Viewed::Hunk { key: &hunk, viewed }
+    };
     state
         .services
-        .set_file_viewed(&s.subject, (&ns, &repo, n), &f.path, f.viewed == "true")
+        .set_viewed(&s.subject, (&ns, &repo, n), &get("path"), mark)
         .await?;
-    Ok(Redirect::to(&back_to(&ns, &repo, n, &f.back, "")).into_response())
+    // Back to the hunk: `#diff-<file>-h<hunk>` only.
+    let anchor = Some(get("anchor")).filter(|a| {
+        a.strip_prefix("#diff-").is_some_and(|r| {
+            !r.is_empty() && r.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+    });
+    Ok(Redirect::to(&back_to(
+        &ns,
+        &repo,
+        n,
+        &get("back"),
+        anchor.as_deref().unwrap_or_default(),
+    ))
+    .into_response())
 }
 
 /// `/{ns}/{repo}/issues/{n}` of a merge request leads here.

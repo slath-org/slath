@@ -663,6 +663,15 @@ async fn blob_at(s: &Services, m: &MergeRequest, commit: &str, path: &str) -> Re
     })
 }
 
+/// What a viewed mark is for.
+#[derive(Debug, Clone, Copy)]
+pub enum Viewed<'a> {
+    /// A whole file, with the keys of its hunks in the diff shown.
+    File { viewed: bool, hunks: &'a [String] },
+    /// One hunk, by its key.
+    Hunk { key: &'a String, viewed: bool },
+}
+
 impl Services {
     /// The files the viewer marked viewed that are still as they saw them
     /// at the current head (a changed file counts as not viewed).
@@ -683,24 +692,97 @@ impl Services {
         Ok(out)
     }
 
-    /// Marks a file of the current head viewed or not viewed.
-    pub async fn set_file_viewed(
+    /// The hunks the viewer marked viewed, as (path, key).
+    pub async fn viewed_hunks(
+        &self,
+        subject: &Subject,
+        m: &MergeRequest,
+    ) -> Result<std::collections::HashSet<(String, String)>> {
+        let Subject::User { id, .. } = subject else {
+            return Ok(std::collections::HashSet::new());
+        };
+        Ok(db::viewed_hunks(&self.pool, m.id, *id)
+            .await?
+            .into_iter()
+            .collect())
+    }
+
+    /// Marks a file of the current head, or one hunk of it, viewed or not
+    /// viewed (spec: viewed hunks). A file's mark also marks `hunks` (the
+    /// keys of its hunks in the diff shown); unmarking a hunk also clears
+    /// its file's mark.
+    pub async fn set_viewed(
         &self,
         subject: &Subject,
         (ns, repo, number): (&str, &str, i32),
         path: &str,
-        viewed: bool,
+        mark: Viewed<'_>,
     ) -> Result<()> {
         let (_, m) = self.mr(subject, ns, repo, number).await?;
         let user = me(subject)?;
         if path.is_empty() || path.len() > 4096 {
             return Err(ServiceError::invalid("path", "invalid", "Choose a file."));
         }
-        let blob = match (viewed, m.head_oid.as_deref()) {
-            (true, Some(head)) => Some(blob_at(self, &m, head, path).await?),
-            _ => None,
+        let keys = match mark {
+            Viewed::File { hunks, .. } => hunks,
+            Viewed::Hunk { key, .. } => std::slice::from_ref(key),
         };
-        db::set_viewed(&self.pool, m.id, user, path, blob.as_deref()).await?;
+        if keys.iter().any(|k| {
+            k.len() != 64
+                || !k
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        }) {
+            return Err(ServiceError::invalid("hunk", "invalid", "Choose a hunk."));
+        }
+        let marking = matches!(
+            mark,
+            Viewed::File { viewed: true, .. } | Viewed::Hunk { viewed: true, .. }
+        );
+        if marking && !keys.is_empty() {
+            let changed = self.mr_changed_paths(&m).await?;
+            if !changed.iter().any(|p| p == path.as_bytes()) {
+                return Err(ServiceError::invalid(
+                    "path",
+                    "unchanged",
+                    "This merge request doesn't change that file.",
+                ));
+            }
+            let held = db::viewed_hunk_count(&self.pool, m.id, user, path).await?;
+            let max = i64::try_from(self.config.limits.diff_max_lines).unwrap_or(i64::MAX);
+            if held.saturating_add(i64::try_from(keys.len()).unwrap_or(i64::MAX)) > max {
+                return Err(ServiceError::invalid(
+                    "hunk",
+                    "limit",
+                    format!("At most {max} hunks of one file can be marked viewed."),
+                ));
+            }
+        }
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        match mark {
+            Viewed::File { viewed, hunks } => {
+                let blob = match (viewed, m.head_oid.as_deref()) {
+                    (true, Some(head)) => Some(blob_at(self, &m, head, path).await?),
+                    _ => None,
+                };
+                db::set_viewed(&mut *tx, m.id, user, path, blob.as_deref()).await?;
+                db::set_viewed_hunks(&mut *tx, m.id, user, path, (hunks, viewed)).await?;
+            }
+            Viewed::Hunk { key, viewed } => {
+                db::set_viewed_hunks(
+                    &mut *tx,
+                    m.id,
+                    user,
+                    path,
+                    (std::slice::from_ref(key), viewed),
+                )
+                .await?;
+                if !viewed {
+                    db::set_viewed(&mut *tx, m.id, user, path, None).await?;
+                }
+            }
+        }
+        tx.commit().await.map_err(ServiceError::internal)?;
         Ok(())
     }
 }

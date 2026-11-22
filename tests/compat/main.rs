@@ -43,3 +43,4 @@ mod tool_parity;
 mod two_machines;
 mod update_branch;
 mod user_guide;
+mod viewed_hunks;
