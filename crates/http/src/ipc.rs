@@ -38,6 +38,8 @@ pub const HOOK_TOKEN_TTL: Duration = Duration::from_secs(600);
 struct Entry {
     grant: PushGrant,
     expires: Instant,
+    /// The push's `refs/for/…` commands as pre-receive mapped them.
+    agit: Vec<slath_service::agit::AgitUpdate>,
 }
 
 /// In-memory registry of live hook tokens.
@@ -86,6 +88,7 @@ impl HookRegistry {
             Entry {
                 grant,
                 expires: Instant::now() + ttl,
+                agit: Vec::new(),
             },
         );
         Ok(HookToken {
@@ -95,11 +98,24 @@ impl HookRegistry {
     }
 
     fn lookup(&self, token: &str) -> Option<PushGrant> {
+        self.entry(token).map(|e| e.grant)
+    }
+
+    fn entry(&self, token: &str) -> Option<Entry> {
         let grants = self.grants.lock().ok()?;
         grants
             .get(token)
             .filter(|g| g.expires > Instant::now())
-            .map(|e| e.grant.clone())
+            .cloned()
+    }
+
+    /// Keeps what pre-receive mapped for the push's later hooks.
+    fn set_agit(&self, token: &str, agit: Vec<slath_service::agit::AgitUpdate>) {
+        if let Ok(mut grants) = self.grants.lock()
+            && let Some(e) = grants.get_mut(token)
+        {
+            e.agit = agit;
+        }
     }
 }
 
@@ -302,18 +318,33 @@ async fn handle(req: Request, ctx: &IpcContext) -> Response {
                     &format!("reason=\"{}\"", r.as_str()),
                 );
             }
+            let allow = v.denied.is_empty();
+            if allow {
+                ctx.hooks.set_agit(&token, v.agit);
+            }
             Response {
-                allow: v.denied.is_empty(),
+                allow,
                 messages: v.messages,
                 ..Response::allow()
             }
         }
+        Request::ProcReceive { token, updates } => {
+            let Some(e) = ctx.hooks.entry(&token) else {
+                return Response::deny("slath: push rejected: invalid or expired hook token");
+            };
+            Response {
+                results: Some(Box::new(
+                    ctx.services.proc_receive(&e.grant, &e.agit, &updates).await,
+                )),
+                ..Response::allow()
+            }
+        }
         Request::PostReceive { token, updates } => {
-            let Some(grant) = ctx.hooks.lookup(&token) else {
+            let Some(e) = ctx.hooks.entry(&token) else {
                 return Response::deny("slath: invalid or expired hook token");
             };
             Response {
-                messages: ctx.services.post_receive(&grant, &updates).await,
+                messages: ctx.services.post_receive(&e.grant, &updates, &e.agit).await,
                 ..Response::allow()
             }
         }
@@ -464,19 +495,19 @@ async fn client_gone(stream: &UnixStream) {
 
 /// Unknown keys, unknown repositories, and repositories the key may not use
 /// all get the same answer, so SSH can't be used to probe for repositories.
-async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGrant, Response> {
+async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGrant, Box<Response>> {
     let Some(service) = Service::from_name(req.service) else {
-        return Err(Response::deny("slath: unsupported command"));
+        return Err(Box::new(Response::deny("slath: unsupported command")));
     };
     let Ok(key_id) = req.key_id.parse() else {
-        return Err(Response::deny(NOT_FOUND));
+        return Err(Box::new(Response::deny(NOT_FOUND)));
     };
     let subject = match ctx.services.ssh_subject(key_id).await {
         Ok(Some(s)) => s,
-        Ok(None) => return Err(Response::deny(NOT_FOUND)),
+        Ok(None) => return Err(Box::new(Response::deny(NOT_FOUND))),
         Err(e) => {
             tracing::error!(error = %e, "ssh subject lookup failed");
-            return Err(Response::deny("slath: internal error"));
+            return Err(Box::new(Response::deny("slath: internal error")));
         }
     };
     let access = match ctx
@@ -486,11 +517,11 @@ async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGran
     {
         Ok(a) => a,
         Err(slath_service::ServiceError::NotFound | slath_service::ServiceError::Forbidden) => {
-            return Err(Response::deny(NOT_FOUND));
+            return Err(Box::new(Response::deny(NOT_FOUND)));
         }
         Err(e) => {
             tracing::error!(error = %e, "ssh authorization failed");
-            return Err(Response::deny("slath: internal error"));
+            return Err(Box::new(Response::deny("slath: internal error")));
         }
     };
     let shown = ctx
@@ -507,7 +538,7 @@ async fn authorize_ssh(ctx: &IpcContext, req: &SshRequest<'_>) -> Result<SshGran
             Ok(t) => Some(t),
             Err(e) => {
                 tracing::error!(error = %e, "minting hook token failed");
-                return Err(Response::deny("slath: internal error"));
+                return Err(Box::new(Response::deny("slath: internal error")));
             }
         }
     } else {

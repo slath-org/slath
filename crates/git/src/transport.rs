@@ -93,6 +93,11 @@ fn invocation(
     if let Some(p) = git_protocol {
         inv = inv.git_protocol(p);
     }
+    if service == Service::ReceivePack {
+        // Pushes to refs/for/<target> go to the proc-receive hook, which
+        // has the server turn them into merge request branches.
+        inv = inv.config("receive.procReceiveRefs", "refs/for");
+    }
     if let Some(h) = hooks {
         inv = inv.hook_env(h.token, h.ipc_socket);
         if let Some(max) = h.max_input_bytes {

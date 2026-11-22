@@ -78,6 +78,12 @@ pub enum Request {
         token: String,
         updates: Vec<RefUpdate>,
     },
+    /// `proc-receive`: the commands Git hands over instead of updating the
+    /// refs itself (`receive.procReceiveRefs`, pushes to `refs/for/…`).
+    ProcReceive {
+        token: String,
+        updates: Vec<RefUpdate>,
+    },
     /// `AuthorizedKeysCommand`: find the key with this SHA-256 fingerprint.
     LookupKey { fingerprint: String },
     /// SSH forced command: run `service` on the repository for this key, on
@@ -120,6 +126,75 @@ pub struct Response {
     /// Answer to [`Request::Status`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<Box<ServerStatus>>,
+    /// Answer to [`Request::ProcReceive`]: one result per command, in
+    /// their order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub results: Option<Box<Vec<ProcResult>>>,
+}
+
+/// What `proc-receive` reports to Git for one command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcResult {
+    /// The command's ref, as pushed (`refs/for/…`).
+    #[serde(with = "b64")]
+    pub name: Vec<u8>,
+    /// `None`: done; otherwise why it was refused.
+    pub refused: Option<String>,
+    /// The ref actually updated, with its old and new value.
+    #[serde(with = "b64")]
+    pub refname: Vec<u8>,
+    pub old: String,
+    pub new: String,
+    /// Not a fast-forward.
+    pub forced: bool,
+}
+
+impl ProcResult {
+    /// A refusal of the command `name`.
+    #[must_use]
+    pub fn refuse(name: &[u8], why: impl Into<String>) -> Self {
+        Self {
+            name: name.to_vec(),
+            refused: Some(why.into()),
+            refname: Vec::new(),
+            old: String::new(),
+            new: String::new(),
+            forced: false,
+        }
+    }
+
+    /// The pkt-line payloads that report it to Git (protocol of
+    /// githooks(5), "proc-receive").
+    #[must_use]
+    pub fn report(&self) -> Vec<Vec<u8>> {
+        let line = |prefix: &str, rest: &[u8]| {
+            let mut l = prefix.as_bytes().to_vec();
+            l.extend_from_slice(rest);
+            l
+        };
+        match &self.refused {
+            Some(why) => {
+                // One line; Git shows the reason after the ref.
+                let why = why.replace(['\n', '\r'], " ");
+                let mut l = line("ng ", &self.name);
+                l.push(b' ');
+                l.extend_from_slice(why.as_bytes());
+                vec![l]
+            }
+            None => {
+                let mut out = vec![
+                    line("ok ", &self.name),
+                    line("option refname ", &self.refname),
+                    line("option old-oid ", self.old.as_bytes()),
+                    line("option new-oid ", self.new.as_bytes()),
+                ];
+                if self.forced {
+                    out.push(b"option forced-update".to_vec());
+                }
+                out
+            }
+        }
+    }
 }
 
 impl Response {
@@ -131,6 +206,7 @@ impl Response {
             key: None,
             exit_code: None,
             status: None,
+            results: None,
         }
     }
 
@@ -142,6 +218,7 @@ impl Response {
             key: None,
             exit_code: None,
             status: None,
+            results: None,
         }
     }
 }
@@ -311,6 +388,37 @@ mod b64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn proc_receive_reports() {
+        let (z, a) = ("0".repeat(40), "a".repeat(40));
+        let ok = ProcResult {
+            name: b"refs/for/main".to_vec(),
+            refused: None,
+            refname: b"refs/heads/push-x".to_vec(),
+            old: z.clone(),
+            new: a.clone(),
+            forced: true,
+        };
+        let lines: Vec<String> = ok
+            .report()
+            .into_iter()
+            .map(|l| String::from_utf8(l).unwrap())
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "ok refs/for/main".to_owned(),
+                "option refname refs/heads/push-x".to_owned(),
+                format!("option old-oid {z}"),
+                format!("option new-oid {a}"),
+                "option forced-update".to_owned(),
+            ]
+        );
+        // A refusal is one line, whatever its reason holds.
+        let ng = ProcResult::refuse(b"refs/for/x", "no\nbranch");
+        assert_eq!(ng.report(), [b"ng refs/for/x no branch".to_vec()]);
+    }
 
     #[test]
     fn parses_hook_lines() {

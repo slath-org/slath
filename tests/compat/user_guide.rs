@@ -308,6 +308,39 @@ fn conf_jj_11_the_merge_request_guide_runs_with_git_and_jj() {
 }
 
 #[test]
+fn conf_jj_13_the_guides_pushes_without_a_branch_run_with_git_and_jj() {
+    for (tool, jj) in tools() {
+        let s = TestServer::start();
+        seed(&s);
+        let alice = token(&s, "alice");
+        let sh = Shell::new(tool, &s, jj.as_deref());
+        let root = tempfile::tempdir().unwrap();
+        let demo = root.path().join("demo");
+        sh.run("clone", root.path(), &alice, 0);
+        std::fs::write(demo.join("notes.md"), "notes\n").unwrap();
+        let out = sh.run("push-change", &demo, &alice, 0);
+        assert!(out.contains("slath: Opened !1 for "), "{tool}: {out}");
+        eventually(&s, "no first revision", || {
+            mr(&s, &alice, 1)["revisions"] == 1
+        });
+        assert_eq!(mr(&s, &alice, 1)["title"], "Add notes", "{tool}");
+        std::fs::write(demo.join("notes.md"), "notes, reviewed\n").unwrap();
+        sh.run("update-change", &demo, &alice, 1);
+        eventually(&s, "no second revision", || {
+            mr(&s, &alice, 1)["revisions"] == 2
+        });
+        let r = api(
+            &s,
+            &alice,
+            "GET",
+            "/alice/demo/merge-requests?state=all",
+            None,
+        );
+        assert_eq!(r.json()["items"].as_array().unwrap().len(), 1, "{tool}");
+    }
+}
+
+#[test]
 fn conf_jj_11_the_fork_guide_runs_with_git_and_jj() {
     for (tool, jj) in tools() {
         let s = TestServer::start();

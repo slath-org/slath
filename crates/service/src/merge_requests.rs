@@ -1535,6 +1535,7 @@ impl Services {
         repo: RepoId,
         subject: &Subject,
         updates: &[slath_git::ipc::RefUpdate],
+        agit: &[crate::agit::AgitUpdate],
     ) -> Vec<String> {
         let pusher = subject_user(subject);
         let Ok(Some(r)) = slath_db::repos::get(&self.pool, repo).await else {
@@ -1566,6 +1567,14 @@ impl Services {
             let Ok(branch) = std::str::from_utf8(branch) else {
                 continue;
             };
+            let via = agit.iter().find(|a| a.update.name == u.name);
+            if let Some(a) = via {
+                out.push(format!(
+                    "slath: Pushed refs/for/{} to {branch}; push to {} again to update it.",
+                    a.target,
+                    a.again()
+                ));
+            }
             let base = self
                 .config
                 .server
@@ -1622,8 +1631,15 @@ impl Services {
                     };
                     if opens && crate::change_sources::is_source(&r.change_source_prefix, branch) {
                         out.extend(
-                            self.open_change_source(subject, &r, branch, &u.new, None, &link)
-                                .await,
+                            self.open_change_source(
+                                subject,
+                                &r,
+                                branch,
+                                &u.new,
+                                via.map(|a| a.target.as_str()),
+                                &link,
+                            )
+                            .await,
                         );
                         continue;
                     }

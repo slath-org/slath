@@ -74,7 +74,7 @@ pub(crate) fn prepare_dirs(cfg: &Config) -> Result<PathBuf, String> {
         .and_then(std::fs::canonicalize)
         .map_err(|e| format!("cannot locate the slath binary: {e}"))?;
     let hooks = data.join("hooks");
-    for name in ["pre-receive", "post-receive"] {
+    for name in ["pre-receive", "proc-receive", "post-receive"] {
         let link = hooks.join(name);
         let _ = std::fs::remove_file(&link);
         std::os::unix::fs::symlink(&exe, &link)

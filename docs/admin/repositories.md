@@ -241,6 +241,12 @@ request** or as `change_source_prefix` in the repository API (audited as
 `repo.change_source_prefix`). Pushing a change source without an open
 merge request opens one as the pusher, into the default branch, titled by
 the tip commit; pushes over HTTPS need a token with `mrs:write` for that.
+Git users get the same by pushing to `refs/for/<target>[/<topic>]`: Git
+runs receive-pack with `receive.procReceiveRefs=refs/for`, so the managed
+`proc-receive` hook (another link to `slath` in `<data_dir>/hooks`, made
+at startup like the others) has the server write the change source
+instead, after the same checks as a push of that branch; no `refs/for/`
+ref is ever stored. An empty prefix refuses such pushes.
 When that merge request merges or closes, Slath deletes the change source,
 unless it moved since, is protected against deletion, or is the source of
 another open merge request.

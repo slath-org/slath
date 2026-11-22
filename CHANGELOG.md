@@ -46,6 +46,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Branch lists leave out change sources: branches such as jj's `push-*` bookmarks that exist only for a merge request. Administrators set their prefix or turn it off.
 - `jj git push --change` opens a merge request right away, titled by the commit; so does pushing any branch starting with `push-`. Lists show it as the change, not the bookmark.
 - A change source is deleted when its merge request closes or lands by a push, as on a merge in Slath, so nothing is left behind.
+- `git push origin HEAD:refs/for/main` opens a merge request into main without a branch of your own; pushing the same way again updates it.
+- A change pushed with `refs/for/` by Git and with `jj git push --change` by jj lands in the same merge request when it carries a change ID.
 
 ## [0.3.0] - 2026-11-18
 

@@ -91,6 +91,9 @@ impl DenyReason {
 pub struct Verdict {
     pub messages: Vec<String>,
     pub denied: Vec<DenyReason>,
+    /// The push's `refs/for/…` commands and the change sources they map
+    /// to, for proc-receive and post-receive.
+    pub agit: Vec<crate::agit::AgitUpdate>,
 }
 
 fn is_zero(oid: &str) -> bool {
@@ -307,6 +310,41 @@ impl Services {
             }
             _ => Vec::new(),
         };
+        // Pushes to refs/for/<target> are checked as pushes of the change
+        // source each one updates.
+        let mut mapped = Vec::with_capacity(updates.len());
+        for u in updates {
+            if !u.name.starts_with(crate::agit::PREFIX) {
+                mapped.push(u.clone());
+                continue;
+            }
+            let Some(a) = &access else {
+                // Not readable: denied below like any other ref.
+                mapped.push(u.clone());
+                continue;
+            };
+            match self.map_agit(a, u, quarantine).await {
+                Ok(m) if mapped.iter().any(|x: &RefUpdate| x.name == m.update.name) => {
+                    v.denied.push(DenyReason::NotBranchOrTag);
+                    v.messages.push(format!(
+                        "slath: {}: pushed twice in one push",
+                        String::from_utf8_lossy(&m.update.name)
+                    ));
+                }
+                Ok(m) => {
+                    mapped.push(m.update.clone());
+                    v.agit.push(m);
+                }
+                Err(why) => {
+                    v.denied.push(DenyReason::NotBranchOrTag);
+                    v.messages.push(format!(
+                        "slath: {}: {why}",
+                        String::from_utf8_lossy(&u.name)
+                    ));
+                }
+            }
+        }
+        let updates = &mapped[..];
         let mut edits: Vec<serde_json::Value> = Vec::new();
         let mut bypassed: Vec<String> = Vec::new();
         for u in updates {
@@ -680,7 +718,14 @@ impl Services {
     /// Records a completed push in one transaction: the push event, its ref
     /// updates, the ref snapshot, and the `ref.updated` job. Never fails
     /// the push; anything missed here is repaired by the reconciler.
-    pub async fn post_receive(&self, grant: &PushGrant, updates: &[RefUpdate]) -> Vec<String> {
+    /// `agit` are the push's `refs/for/…` commands as pre-receive mapped
+    /// them; Git reports their change sources in `updates`.
+    pub async fn post_receive(
+        &self,
+        grant: &PushGrant,
+        updates: &[RefUpdate],
+        agit: &[crate::agit::AgitUpdate],
+    ) -> Vec<String> {
         let mut messages = Vec::new();
         // Maintainer edits through mr/<n> go on to the fork.
         for u in updates
@@ -706,7 +751,7 @@ impl Services {
             tracing::error!(error = %e, repo = %grant.repo_id, "post-receive bookkeeping failed; the reconciler will repair it");
         }
         messages.extend(
-            self.push_hints(grant.repo_id, &grant.subject, updates)
+            self.push_hints(grant.repo_id, &grant.subject, updates, agit)
                 .await,
         );
         match self.measure_repo(grant.repo_id).await {

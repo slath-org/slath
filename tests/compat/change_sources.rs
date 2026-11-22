@@ -499,3 +499,185 @@ fn conf_jj_13_nothing_is_left_after_merge_or_close() {
     assert_eq!(r.status, 200, "{}", r.body);
     assert!(has_branch(&c, "topic-e"));
 }
+
+/// A Git push expected to fail; its `slath:` lines.
+fn git_push_fails(c: &Ctx, w: &Path, refspec: &str) -> Vec<String> {
+    let out = c
+        .git
+        .cmd(w)
+        .args(["push", &c.url, refspec])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "{refspec} was accepted");
+    slath_lines(&out.stderr)
+}
+
+#[test]
+fn conf_jj_13_git_pushes_to_refs_for_open_and_update() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    seed(&c, &w);
+    std::fs::write(w.join("f.txt"), "f\n").unwrap();
+    c.git.ok(&w, &["add", "-A"]);
+    c.git
+        .ok(&w, &["commit", "-q", "-m", "Add f\n\nWith a reason."]);
+    let oid = c.git.ok(&w, &["rev-parse", "HEAD"]).trim()[..12].to_owned();
+    let out = c
+        .git
+        .cmd(&w)
+        .args(["push", &c.url, "HEAD:refs/for/main"])
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(out.status.success(), "{err}");
+    // Git names the branch it got; Slath says how to push again.
+    assert!(err.contains(&format!("HEAD -> push-{oid}")), "{err}");
+    let lines = slath_lines(&out.stderr);
+    assert_eq!(
+        lines[..2],
+        [
+            format!(
+                "Pushed refs/for/main to push-{oid}; push to refs/for/main/{oid} again to update it."
+            ),
+            format!("Opened !1 for push-{oid}:"),
+        ],
+        "{lines:?}"
+    );
+    let m = &c.mrs()[0];
+    assert_eq!(m["source_branch"], format!("push-{oid}"));
+    assert_eq!(
+        (&m["title"], &m["description"]),
+        (&json!("Add f"), &json!("With a reason."))
+    );
+    assert_eq!(
+        (&m["target_branch"], &m["change_source"]),
+        (&json!("main"), &json!(true))
+    );
+    assert!(!has_branch(&c, "for/main") && !c.branches().iter().any(|b| b.contains("for/")));
+
+    // An amended commit has another ID: the topic the output named finds
+    // the same merge request.
+    std::fs::write(w.join("f.txt"), "f, edited\n").unwrap();
+    c.git
+        .ok(&w, &["commit", "-q", "-a", "--amend", "--no-edit"]);
+    git_push(&c, &w, &format!("HEAD:refs/for/main/{oid}"));
+    c.wait_revisions(1, 2);
+    assert_eq!(c.mrs().len(), 1);
+
+    // A topic of one's own; a target with slashes.
+    git_push(&c, &w, "HEAD~1:refs/heads/release/2.0");
+    let lines = git_push(&c, &w, "HEAD:refs/for/release/2.0/hot-fix");
+    assert_eq!(lines[1], "Opened !2 for push-hot-fix:", "{lines:?}");
+    let m = c
+        .mrs()
+        .into_iter()
+        .find(|m| m["source_branch"] == "push-hot-fix")
+        .unwrap();
+    assert_eq!(m["target_branch"], "release/2.0");
+
+    // Someone who can only read can't open one this way either.
+    c.s.create_user("bob", PASSWORD, false);
+    let r = c.api("PUT", "/collaborators/bob", Some(json!({"role": "read"})));
+    assert!(r.status < 300, "{}", r.body);
+    let mut bob = c.s.login("bob", PASSWORD);
+    let bob_token = slath_tests::http::create_token(&mut bob, "b", &["repo:write", "mrs:write"]);
+    let bob_url = c.url.replace(&c.token, &bob_token);
+    let out = c
+        .git
+        .cmd(&w)
+        .args(["push", &bob_url, "HEAD:refs/for/main/bob"])
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!has_branch(&c, "push-bob"));
+    assert_eq!(c.mrs().len(), 2);
+
+    // What can't be pushed says why and leaves nothing.
+    let lines = git_push_fails(&c, &w, "HEAD:refs/for/nowhere");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("no branch nowhere to open a merge request into")),
+        "{lines:?}"
+    );
+    let lines = git_push_fails(&c, &w, ":refs/for/main");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("refs/for/ can't be deleted")),
+        "{lines:?}"
+    );
+    let r = c.api("PATCH", "", Some(json!({"change_source_prefix": ""})));
+    assert_eq!(r.status, 200, "{}", r.body);
+    let lines = git_push_fails(&c, &w, "HEAD:refs/for/main/other");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("pushes to refs/for/ are turned off in this repository")),
+        "{lines:?}"
+    );
+    assert_eq!(c.mrs().len(), 2);
+    assert!(!has_branch(&c, "push-other"));
+}
+
+#[test]
+fn conf_jj_13_refs_for_and_jj_push_change_meet_in_one_merge_request() {
+    for (version, bin) in jj_binaries() {
+        let c = Ctx::start();
+        let d = tempfile::tempdir().unwrap();
+        seed(&c, &d.path().join("w"));
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(d.path(), &["git", "clone", &c.url, j.to_str().unwrap()]);
+        jj.ok(&j, &["new", "main"]);
+        std::fs::write(j.join("g.txt"), "g\n").unwrap();
+        jj.ok(&j, &["commit", "-m", "Add g"]);
+        let id = jj.show(&j, "@-", "change_id");
+        let oid = jj.show(&j, "@-", "commit_id");
+        // Git pushes jj's commit to refs/for/main: the change source is
+        // named by its change ID, as jj would name it.
+        let store = crate::jj::git_store(&j);
+        let out = c
+            .git
+            .cmd(&store)
+            .args(["push", &c.url, &format!("{oid}:refs/for/main")])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let lines = slath_lines(&out.stderr);
+        assert_eq!(
+            lines[..2],
+            [
+                format!(
+                    "Pushed refs/for/main to push-{}; push to refs/for/main again to update it.",
+                    &id[..12]
+                ),
+                format!("Opened !1 for change {}:", &id[..8]),
+            ],
+            "{version}: {lines:?}"
+        );
+        // jj takes the bookmark over as any other pushed bookmark and
+        // updates the same merge request with its own command.
+        jj.ok(&j, &["git", "fetch"]);
+        jj.ok(
+            &j,
+            &["bookmark", "track", &format!("push-{}@origin", &id[..12])],
+        );
+        std::fs::write(j.join("g.txt"), "g, edited\n").unwrap();
+        jj.ok(&j, &["squash", "--into", "@-"]);
+        jj.ok(&j, &["git", "push", "--change", "@-"]);
+        c.wait_revisions(1, 2);
+        let mrs = c.mrs();
+        assert_eq!(mrs.len(), 1, "{version}");
+        assert_eq!(mrs[0]["source_branch"], format!("push-{}", &id[..12]));
+    }
+}

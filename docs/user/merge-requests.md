@@ -130,30 +130,64 @@ To merge a branch of your fork into the original, see
 
 ### Without naming a branch
 
-With jj, `jj git push --change @-` (or `-c`) pushes a change under a
-bookmark named after it, such as `push-nxrooqlmmsqw`. Slath opens the
-merge request right away, into the default branch, with the commit's
-first line as the title and the rest of its message as the description:
+You can open a merge request straight from a push, without a branch of
+your own. With Git, push to `refs/for/<target>`; with jj, push the change
+with `--change` (`-c`). Slath opens the merge request right away, with
+the commit's first line as the title and the rest of its message as the
+description:
+
+```sh git push-change
+git add -A && git commit -m "Add notes"
+git push origin HEAD:refs/for/main/notes
+```
+
+```sh jj push-change
+jj commit -m "Add notes"
+jj git push --change @-
+```
 
 ```text
 remote: slath: Opened !7 for change nxrooqlm:
 remote: slath:   https://slath.example/alice/demo/merge-requests/7
 ```
 
-Run the same command after changing the commit to push a new revision.
-The merge request shows its source as **change nxrooqlm** instead of the
-bookmark, branch lists leave these bookmarks out, and Slath deletes the
-bookmark when the merge request merges (also by a push of the target) or
-closes, unless someone pushed to it since. To reopen a closed one, push
-the bookmark again first.
+Push the same way again to add a revision:
+
+```sh git update-change
+git add -A && git commit --amend --no-edit
+git push origin HEAD:refs/for/main/notes
+```
+
+```sh jj update-change
+jj squash --into @-
+jj git push --change @-
+```
+
+Behind this is an ordinary branch: jj names it after the change (such as
+`push-nxrooqlmmsqw`), and Git's push names it after what follows the
+target, here `push-notes`. Without such a topic, `git push origin
+HEAD:refs/for/main` names the branch after the commit's change ID if it
+has one (jj's, or a `Change-Id` trailer, see [Changes](#changes)), so
+the next push of the same
+change finds it again, and otherwise after the commit ID; the push says
+what to push next time. A target with slashes works too:
+`refs/for/release/2.0/notes` goes into `release/2.0`. A jj user can take
+over a change a Git user pushed (and the other way round): `jj git fetch`,
+`jj bookmark track push-…@origin`, then push as above.
+
+The merge request shows its source as **change nxrooqlm** where the
+branch is named after a change, branch lists leave these branches out,
+and Slath deletes the branch when the merge request merges (also by a
+push of the target) or closes, unless someone pushed to it since. To
+reopen a closed one, push it again first.
 
 The same holds for any branch whose name starts with `push-`, however it
 was pushed. Over HTTPS, the token you push with needs the `mrs:write`
 scope as well as `repo:write`; without it, the push says so and prints the
 usual link. Repository administrators choose the prefix under **Settings →
 General → Merge requests → Branches that open a merge request**, or turn
-this off by leaving it empty. In forks, such branches are ordinary
-branches.
+all this off by leaving it empty. In forks, such branches are ordinary
+branches, and `refs/for/` opens nothing.
 
 Only one merge request can be open for the same source and target.
 Merge requests share their numbers with issues: `/{namespace}/{repo}/12`
