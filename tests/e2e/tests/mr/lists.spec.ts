@@ -119,3 +119,19 @@ test("conf_jj_13_the_repository_names_its_change_sources", async ({ page }) => {
   await expect(page.getByText("Merge request settings saved.")).toBeVisible();
   await expect(page.getByLabel("Branches that open a merge request")).toHaveValue(before);
 });
+
+// "Change source fixture" was opened by pushing push-kxqzlmnopqrs.
+test("conf_jj_13_a_change_source_shows_as_its_change", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  const row = page.locator(".item-row", { has: page.getByRole("link", { name: "Change source fixture" }) });
+  await expect(row).toContainText("change kxqzlmno into main");
+  await expect(row).not.toContainText("push-");
+  await expectAccessible(page);
+  await tapOrClick(page, row.getByRole("link", { name: "Change source fixture" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Change source fixture");
+  const source = page.locator("code", { hasText: "kxqzlmno" }).first();
+  await expect(source).toHaveAttribute("data-tip", "push-kxqzlmnopqrs");
+  await expect(page.locator("main")).toContainText("of change kxqzlmno into main");
+  await expectAccessible(page);
+});

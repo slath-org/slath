@@ -706,7 +706,7 @@ impl Services {
             tracing::error!(error = %e, repo = %grant.repo_id, "post-receive bookkeeping failed; the reconciler will repair it");
         }
         messages.extend(
-            self.push_hints(grant.repo_id, grant.user_id(), updates)
+            self.push_hints(grant.repo_id, &grant.subject, updates)
                 .await,
         );
         match self.measure_repo(grant.repo_id).await {

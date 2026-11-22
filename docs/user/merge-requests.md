@@ -128,6 +128,31 @@ request**, or open a merge request through the API (`POST
 To merge a branch of your fork into the original, see
 [Merge requests from a fork](forks.md#merge-requests-from-a-fork).
 
+### Without naming a branch
+
+With jj, `jj git push --change @-` (or `-c`) pushes a change under a
+bookmark named after it, such as `push-nxrooqlmmsqw`. Slath opens the
+merge request right away, into the default branch, with the commit's
+first line as the title and the rest of its message as the description:
+
+```text
+remote: slath: Opened !7 for change nxrooqlm:
+remote: slath:   https://slath.example/alice/demo/merge-requests/7
+```
+
+Run the same command after changing the commit to push a new revision.
+The merge request shows its source as **change nxrooqlm** instead of the
+bookmark, branch lists leave these bookmarks out, and Slath deletes the
+bookmark when the merge request merges.
+
+The same holds for any branch whose name starts with `push-`, however it
+was pushed. Over HTTPS, the token you push with needs the `mrs:write`
+scope as well as `repo:write`; without it, the push says so and prints the
+usual link. Repository administrators choose the prefix under **Settings →
+General → Merge requests → Branches that open a merge request**, or turn
+this off by leaving it empty. In forks, such branches are ordinary
+branches.
+
 Only one merge request can be open for the same source and target.
 Merge requests share their numbers with issues: `/{namespace}/{repo}/12`
 leads to issue 12 or merge request 12, whichever it is.

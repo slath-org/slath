@@ -238,7 +238,10 @@ Branches that exist only to carry a merge request, such as the
 sources. Each repository names them by a prefix, `push-` by default,
 under **Settings → General → Merge requests → Branches that open a merge
 request** or as `change_source_prefix` in the repository API (audited as
-`repo.change_source_prefix`). Branch lists, branch selectors, and the
+`repo.change_source_prefix`). Pushing a change source without an open
+merge request opens one as the pusher, into the default branch, titled by
+the tip commit; pushes over HTTPS need a token with `mrs:write` for that.
+Forks' branches are never change sources. Branch lists, branch selectors, and the
 "recently pushed" banner leave them out; they stay ordinary branches for
 Git and jj, so anyone who can read the repository can fetch them. An empty
 prefix turns this off. Repositories that already had `push-` branches

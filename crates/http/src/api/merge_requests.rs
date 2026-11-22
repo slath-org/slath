@@ -50,6 +50,11 @@ pub struct MergeRequest {
     /// its network. `None` once that fork is deleted.
     pub source_repo: Option<String>,
     pub source_branch: String,
+    /// The source is one of the repository's change sources: a branch
+    /// under its change source prefix (such as jj's `push-*` bookmarks)
+    /// that opened this merge request when pushed and is deleted when it
+    /// merges or closes.
+    pub change_source: bool,
     pub target_branch: String,
     /// Fork merge requests: writers of this repository may push to the
     /// source branch while the merge request is open.
@@ -129,10 +134,11 @@ fn held_json(h: slath_service::push_protection::HeldSource) -> HeldSource {
 fn mr_json(
     m: slath_db::merge_requests::MergeRequest,
     html: String,
-    source_repo: Option<String>,
+    (source_repo, change_source): (Option<String>, bool),
     auto_merge: Option<slath_db::merge_requests::AutoMerge>,
 ) -> MergeRequest {
     MergeRequest {
+        change_source,
         untrusted_content: true,
         origin: m.origin.into(),
         auto_merge: auto_merge.map(|a| AutoMergeJson {
@@ -179,8 +185,9 @@ async fn render(
         .render_markdown(s, Some(&ctx), &m.description)
         .await?;
     let source = state.services.mr_source_name(&m).await?;
+    let change_source = state.services.is_change_source(&m).await?;
     let auto_merge = state.services.mr_auto_merge(&m).await?;
-    Ok(mr_json(m, html, source, auto_merge))
+    Ok(mr_json(m, html, (source, change_source), auto_merge))
 }
 
 #[derive(Serialize, ToSchema)]

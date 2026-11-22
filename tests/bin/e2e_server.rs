@@ -446,6 +446,24 @@ fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// "Change source fixture": a merge request that pushing the change
+/// source `push-kxqzlmnopqrs` opened, as `jj git push --change` would.
+fn seed_change_source(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
+    let mut alice = server.login("alice", PASSWORD);
+    let token =
+        slath_tests::http::create_token(&mut alice, "change source", &["repo:write", "mrs:write"]);
+    let url = url.replace(&server.token, &token);
+    git.ok(w, &["switch", "-q", "-c", "change-source", "main"]);
+    std::fs::write(w.join("change-source.md"), "pushed as a change\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Change source fixture"]);
+    git.ok(
+        w,
+        &["push", "-q", &url, "HEAD:refs/heads/push-kxqzlmnopqrs"],
+    );
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// "jj conflict fixture": a merge request of three changes made by jj,
 /// the second with a conflict that the third inherits. jj refuses to push
 /// conflicts, so Git pushes them from jj's store.
@@ -563,6 +581,7 @@ fn main() {
     // their latest push.
     seed_jj_conflict(&server, &git, &url);
     seed_outcomes(&server, &git, w, &url);
+    seed_change_source(&server, &git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");

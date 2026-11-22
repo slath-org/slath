@@ -123,6 +123,8 @@ struct MrRow {
     created: Time,
     comments: i64,
     source: String,
+    /// The change a change source is named by, shown instead of the branch.
+    source_change: Option<String>,
     target: String,
     /// Its readiness as the merge request's readiness card has it (the
     /// tone and headline), with its check and approval states; `None` when
@@ -130,6 +132,17 @@ struct MrRow {
     readiness: Option<slath_service::readiness::Readiness>,
     /// Who is asked to review it, or reviewed it.
     reviewers: Vec<String>,
+}
+
+/// The first 8 characters of the change ID a merge request's source is
+/// named by, when it's one of the repository's change sources (such as a
+/// `push-<change ID>` bookmark of jj).
+fn source_change(repo: &slath_db::repos::Repo, m: &MergeRequest) -> Option<String> {
+    if m.source_repo_id.is_some_and(|s| s != repo.id) {
+        return None;
+    }
+    slath_core::change_source::change_id(&repo.change_source_prefix, &m.source_branch())
+        .map(|id| id[..8].to_owned())
 }
 
 /// A head's checks in one tone (`done`, `waiting`, `blocking`) and words.
@@ -357,6 +370,7 @@ async fn list_page(
             icon,
             state: s,
             state_text: text,
+            source_change: source_change(&a.repo, &m),
             source: m.source_branch(),
             target: m.target_branch.clone(),
             title: m.title,
@@ -675,8 +689,8 @@ async fn compare_page(
         .as_ref()
         .map(|s| format!("{}/{}", s.repo.namespace, s.repo.name))
         .unwrap_or_default();
-    // Change sources stay out of the lists; one is offered only when asked
-    // for (the link a push prints).
+    // Change sources open their merge requests themselves; one is offered
+    // only when asked for (the link a push prints when that failed).
     let branches = branch_names(state, &git_dir, &a.repo.change_source_prefix).await?;
     let src_dir = src.as_ref().map(|s| state.services.repo_path(s.repo.id));
     let mut source_branches = match &src_dir {
@@ -1421,6 +1435,8 @@ fn whole_reason(r: Option<&str>) -> Option<&'static str> {
 struct MrHeading {
     mr: MergeRequest,
     source: String,
+    /// The change a change source is named by, shown instead of the branch.
+    source_change: Option<String>,
     icon: &'static str,
     state: &'static str,
     state_text: &'static str,
@@ -1826,6 +1842,7 @@ async fn heading(
         held,
         card,
         perms,
+        source_change: source_change(&a.repo, &m),
         source: m.source_branch(),
         created: m.created_at.into(),
         icon,

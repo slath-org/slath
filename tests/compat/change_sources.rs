@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Change sources: branches under the repository's prefix (`push-` by
 //! default, as `jj git push --change` names its bookmarks) that exist only
-//! for a merge request. Branch lists leave them out.
+//! for a merge request. Pushing one opens it without naming a branch
+//! anywhere, and branch lists leave them out. The same for Git and jj.
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
+
+use crate::jj::{Jj, jj_binaries};
 
 struct Ctx {
     s: TestServer,
@@ -39,6 +43,13 @@ impl Ctx {
         )
     }
 
+    fn mrs(&self) -> Vec<Value> {
+        self.api("GET", "/merge-requests?state=all", None).json()["items"]
+            .as_array()
+            .unwrap()
+            .clone()
+    }
+
     fn branches(&self) -> Vec<String> {
         self.api("GET", "/branches", None).json()["items"]
             .as_array()
@@ -46,6 +57,22 @@ impl Ctx {
             .iter()
             .map(|b| b["name"].as_str().unwrap().to_owned())
             .collect()
+    }
+
+    fn wait_revisions(&self, n: i64, k: i64) {
+        let start = Instant::now();
+        while self
+            .api("GET", &format!("/merge-requests/{n}"), None)
+            .json()["revisions"]
+            != k
+        {
+            assert!(
+                start.elapsed() < Duration::from_secs(30),
+                "!{n} has no revision {k}\n{}",
+                self.s.log()
+            );
+            std::thread::sleep(Duration::from_millis(200));
+        }
     }
 
     /// The UI pages that list branches, as alice sees them.
@@ -100,6 +127,149 @@ fn git_push(c: &Ctx, w: &Path, refspec: &str) -> Vec<String> {
         String::from_utf8_lossy(&out.stderr)
     );
     slath_lines(&out.stderr)
+}
+
+#[test]
+fn conf_jj_13_jj_push_change_opens_a_merge_request() {
+    for (version, bin) in jj_binaries() {
+        let c = Ctx::start();
+        let d = tempfile::tempdir().unwrap();
+        seed(&c, &d.path().join("w"));
+        let jj = Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(d.path(), &["git", "clone", &c.url, j.to_str().unwrap()]);
+        jj.ok(&j, &["new", "main"]);
+        std::fs::write(j.join("a.txt"), "a\n").unwrap();
+        jj.ok(&j, &["commit", "-m", "Add a\n\nThe first letter."]);
+        let id = jj.show(&j, "@-", "change_id");
+        let out = jj
+            .cmd(&j)
+            .args(["git", "push", "--change", "@-"])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{version}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let lines = slath_lines(&out.stderr);
+        assert_eq!(
+            lines[0],
+            format!("Opened !1 for change {}:", &id[..8]),
+            "{version}: {lines:?}"
+        );
+        assert!(
+            lines[1].ends_with("/alice/demo/merge-requests/1"),
+            "{lines:?}"
+        );
+
+        let mrs = c.mrs();
+        assert_eq!(mrs.len(), 1, "{version}");
+        let m = &mrs[0];
+        let branch = m["source_branch"].as_str().unwrap().to_owned();
+        assert!(
+            branch.starts_with("push-") && id.starts_with(&branch[5..]),
+            "{branch}"
+        );
+        assert_eq!(m["title"], "Add a");
+        assert_eq!(m["description"], "The first letter.");
+        assert_eq!(m["target_branch"], "main");
+        assert_eq!(m["change_source"], true);
+        // Out of branch lists; the merge request names the change.
+        assert!(!c.branches().contains(&branch), "{:?}", c.branches());
+        assert!(!c.branch_pages().contains(&branch));
+        let page = c.page("/alice/demo/merge-requests/1");
+        assert!(
+            page.contains(&format!(
+                "change <code data-tip=\"{branch}\">{}</code>",
+                &id[..8]
+            )),
+            "{page}"
+        );
+        assert!(
+            c.page("/alice/demo/merge-requests")
+                .contains(&format!(">{}</code>", &id[..8]))
+        );
+
+        // Pushing the change again updates the same merge request.
+        std::fs::write(j.join("a.txt"), "a, edited\n").unwrap();
+        jj.ok(&j, &["squash", "--into", "@-"]);
+        jj.ok(&j, &["git", "push", "--bookmark", &branch]);
+        c.wait_revisions(1, 2);
+        assert_eq!(c.mrs().len(), 1, "{version}");
+    }
+}
+
+#[test]
+fn conf_jj_13_git_pushes_of_change_sources() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    seed(&c, &w);
+    // A branch at main has nothing to merge: nothing opens.
+    let lines = git_push(&c, &w, "HEAD:refs/heads/push-empty");
+    assert_eq!(
+        lines,
+        ["push-empty has no commits that aren't on main yet, so no merge request was opened."]
+    );
+    assert!(c.mrs().is_empty());
+
+    // A Git commit pushed as a change source opens its merge request; a
+    // name that isn't a change ID shows as the branch.
+    std::fs::write(w.join("b.txt"), "b\n").unwrap();
+    c.git.ok(&w, &["add", "-A"]);
+    c.git.ok(&w, &["commit", "-q", "-m", "Add b"]);
+    let lines = git_push(&c, &w, "HEAD:refs/heads/push-fix-b");
+    assert_eq!(lines[0], "Opened !1 for push-fix-b:", "{lines:?}");
+    let m = &c.mrs()[0];
+    assert_eq!(
+        (&m["title"], &m["change_source"]),
+        (&json!("Add b"), &json!(true))
+    );
+    assert!(!c.branches().contains(&"push-fix-b".to_owned()));
+    let page = c.page("/alice/demo/merge-requests/1");
+    assert!(page.contains("push-fix-b"), "{page}");
+    // The next push reports on it like on any merge request's branch.
+    std::fs::write(w.join("b.txt"), "b, edited\n").unwrap();
+    c.git
+        .ok(&w, &["commit", "-q", "-a", "--amend", "-m", "Add b"]);
+    let lines = git_push(&c, &w, "HEAD:refs/heads/push-fix-b");
+    assert!(
+        lines.iter().any(|l| l.contains("!1 for push-fix-b")),
+        "{lines:?}"
+    );
+    assert_eq!(c.mrs().len(), 1);
+
+    // A token without mrs:write pushes but can't open one, and says so.
+    std::fs::write(w.join("c.txt"), "c\n").unwrap();
+    c.git.ok(&w, &["add", "-A"]);
+    c.git.ok(&w, &["commit", "-q", "-m", "Add c"]);
+    let out = c
+        .git
+        .cmd(&w)
+        .args(["push", &c.s.url(&DEMO), "HEAD:refs/heads/push-c"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let lines = slath_lines(&out.stderr);
+    assert_eq!(
+        lines[0],
+        "couldn't open a merge request for push-c: the token you pushed with lacks the mrs:write scope",
+        "{lines:?}"
+    );
+    assert!(
+        lines[2].ends_with("/alice/demo/compare?source=push-c"),
+        "{lines:?}"
+    );
+    assert_eq!(c.mrs().len(), 1);
+    // That link offers the branch, though lists leave it out.
+    let page = c.page("/alice/demo/compare?source=push-c");
+    assert!(page.contains("<option value=\"push-c\" selected"), "{page}");
+
+    // Ordinary branches are untouched.
+    let lines = git_push(&c, &w, "HEAD:refs/heads/topic");
+    assert_eq!(lines[0], "Create a merge request for topic:", "{lines:?}");
+    assert!(c.branches().contains(&"topic".to_owned()));
 }
 
 #[test]

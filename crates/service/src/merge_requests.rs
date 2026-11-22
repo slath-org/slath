@@ -238,7 +238,11 @@ impl Services {
             .map(|r| format!("{}/{}", r.namespace, r.name)))
     }
 
-    async fn branch_head(&self, repo: RepoId, name: &RefName) -> Result<Option<ObjectId>> {
+    pub(crate) async fn branch_head(
+        &self,
+        repo: RepoId,
+        name: &RefName,
+    ) -> Result<Option<ObjectId>> {
         slath_git::refs::read(&self.runner, &self.repo_path(repo), name)
             .await
             .map_err(ServiceError::internal)
@@ -1528,9 +1532,10 @@ impl Services {
     pub async fn push_hints(
         &self,
         repo: RepoId,
-        pusher: Option<UserId>,
+        subject: &Subject,
         updates: &[slath_git::ipc::RefUpdate],
     ) -> Vec<String> {
+        let pusher = subject_user(subject);
         let Ok(Some(r)) = slath_db::repos::get(&self.pool, repo).await else {
             return Vec::new();
         };
@@ -1541,6 +1546,11 @@ impl Services {
             return Vec::new();
         }
         let parent = self.fork_mr_target(repo, pusher).await;
+        // Change sources open merge requests in the repository itself only;
+        // a fork's are plain branches.
+        let opens = pusher.is_some()
+            && !r.change_source_prefix.is_empty()
+            && matches!(slath_db::forks::get(&self.pool, repo).await, Ok(None));
         let mut out = Vec::new();
         for u in updates {
             let Some(branch) = u.name.strip_prefix(b"refs/heads/") else {
@@ -1592,20 +1602,32 @@ impl Services {
                 }
                 Ok(_) => {
                     // From a fork, the merge request goes to the parent.
-                    let (target, mut q) = match &parent {
-                        Some(p) => {
-                            let mut q = url::form_urlencoded::Serializer::new(String::new());
-                            q.append_pair("source_repo", &format!("{}/{}", r.namespace, r.name));
-                            (self.config.server.public_url.join(&format!("/{p}")), q)
-                        }
-                        None => (
-                            base.clone(),
-                            url::form_urlencoded::Serializer::new(String::new()),
-                        ),
+                    let link = {
+                        let mut q = url::form_urlencoded::Serializer::new(String::new());
+                        let target = match &parent {
+                            Some(p) => {
+                                q.append_pair(
+                                    "source_repo",
+                                    &format!("{}/{}", r.namespace, r.name),
+                                );
+                                self.config.server.public_url.join(&format!("/{p}"))
+                            }
+                            None => base.clone(),
+                        };
+                        format!(
+                            "{target}/compare?{}",
+                            q.append_pair("source", branch).finish()
+                        )
                     };
-                    let q = q.append_pair("source", branch).finish();
+                    if opens && crate::change_sources::is_source(&r.change_source_prefix, branch) {
+                        out.extend(
+                            self.open_change_source(subject, &r, branch, &u.new, None, &link)
+                                .await,
+                        );
+                        continue;
+                    }
                     out.push(format!("slath: Create a merge request for {branch}:"));
-                    out.push(format!("slath:   {target}/compare?{q}"));
+                    out.push(format!("slath:   {link}"));
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "looking up merge requests for push hints failed")

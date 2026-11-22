@@ -64,7 +64,7 @@
   <input id="stalled_after_days" name="stalled_after_days" type="number" inputmode="numeric" min="1" max="365" value="{{ stalled_after_days }}"{% call f::described("stalled_after_days", "x", stalled_error) %}{% endcall %}>
   {%- endcall %}
   {%- let prefix_error = self.error("change_source_prefix").unwrap_or_default() %}
-  {%- call f::field("change_source_prefix", "Branches that open a merge request", "Branch lists leave out branches whose names start with this. push- matches the branches jj git push --change creates for merge requests. Leave it empty to list every branch.", prefix_error) %}
+  {%- call f::field("change_source_prefix", "Branches that open a merge request", "Pushing a branch whose name starts with this opens a merge request into the default branch, and branch lists leave such branches out. push- matches the branches jj git push --change creates. Leave it empty to treat every branch alike.", prefix_error) %}
   <input id="change_source_prefix" name="change_source_prefix" type="text" maxlength="32" autocomplete="off" spellcheck="false" value="{{ change_source_prefix }}"{% call f::described("change_source_prefix", "x", prefix_error) %}{% endcall %}>
   {%- endcall %}
   {%- call f::buttons() %}<button type="submit" class="button">Save merge request settings</button>{% endcall %}

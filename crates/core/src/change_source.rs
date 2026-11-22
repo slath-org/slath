@@ -48,6 +48,19 @@ pub fn is_source(prefix: &str, branch: &str) -> bool {
     !prefix.is_empty() && branch.len() > prefix.len() && branch.starts_with(prefix)
 }
 
+/// The change ID a change source is named by (the name after the prefix,
+/// when it's 8 to 32 characters of jj's change ID alphabet `k`–`z`, as
+/// jj's `push-<change ID>` bookmarks are), else `None`.
+#[must_use]
+pub fn change_id<'a>(prefix: &str, branch: &'a str) -> Option<&'a str> {
+    if !is_source(prefix, branch) {
+        return None;
+    }
+    let rest = &branch[prefix.len()..];
+    ((8..=32).contains(&rest.len()) && rest.bytes().all(|b| (b'k'..=b'z').contains(&b)))
+        .then_some(rest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -72,5 +85,17 @@ mod tests {
         assert!(!is_source("push-", "push-"));
         assert!(!is_source("push-", "main"));
         assert!(!is_source("", "push-x"));
+    }
+
+    #[test]
+    fn change_ids() {
+        assert_eq!(
+            change_id("push-", "push-kxqzlmnopqrs"),
+            Some("kxqzlmnopqrs")
+        );
+        assert_eq!(change_id("push-", "push-kxqz"), None);
+        assert_eq!(change_id("push-", "push-fix-login"), None);
+        assert_eq!(change_id("push-", "topic-kxqzlmnopqrs"), None);
+        assert_eq!(change_id("", "kxqzlmnopqrs"), None);
     }
 }

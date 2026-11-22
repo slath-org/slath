@@ -12067,6 +12067,7 @@
           "draft",
           "attention",
           "source_branch",
+          "change_source",
           "target_branch",
           "allow_maintainer_edits",
           "revisions",
@@ -12100,6 +12101,10 @@
                 "type": "null"
               }
             ]
+          },
+          "change_source": {
+            "type": "boolean",
+            "description": "The source is one of the repository's change sources: a branch\nunder its change source prefix (such as jj's `push-*` bookmarks)\nthat opened this merge request when pushed and is deleted when it\nmerges or closes."
           },
           "closed_at": {
             "type": [

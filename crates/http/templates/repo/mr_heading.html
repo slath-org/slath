@@ -78,7 +78,7 @@
   </div>
   <p class="page-head-meta">
     <span class="state-label state-{{ h.state }}">{% call m::icon(ctx, h.icon) %}{% endcall %}{{ h.state_text }}</span>
-    <span>{% if let Some(a) = h.mr.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx, "A deleted user") %}{% endcall %}{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of <code>{% if let Some(r) = h.source_repo %}<bdi>{{ r }}</bdi>:{% endif %}{% call c::path(h.source) %}{% endcall %}</code> into <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code> · opened {% call c::time(h.created) %}{% endcall %}</span>
+    <span>{% if let Some(a) = h.mr.author %}{% call p::account(ctx, a) %}{% endcall %}{% else %}{% call p::deleted(ctx, "A deleted user") %}{% endcall %}{% endif %} {% if h.mr.state == "merged" %}merged{% else %}wants to merge{% endif %} {{ h.mr.revisions }} revision{% if h.mr.revisions != 1 %}s{% endif %} of {% if let Some(id) = h.source_change %}change <code data-tip="{{ h.source }}">{{ id }}</code>{% else %}<code>{% if let Some(r) = h.source_repo %}<bdi>{{ r }}</bdi>:{% endif %}{% call c::path(h.source) %}{% endcall %}</code>{% endif %} into <code>{% call c::path(h.mr.target_branch) %}{% endcall %}</code> · opened {% call c::time(h.created) %}{% endcall %}</span>
   </p>
 </header>
 {%- if let Some(held) = h.held %}
