@@ -234,6 +234,29 @@ fn scenario(first: Tool, second: Tool) {
     assert_eq!(r.status, 303, "{}", r.body);
     let states: Vec<bool> = hunks(&mut bob).iter().map(|(_, v)| *v).collect();
     assert_eq!(states, vec![false, true, true]);
+    // An approval records the hunks viewed, whichever tool made them.
+    let bob_token = token(&w.s, "bob");
+    let r = api(
+        &w.s,
+        &bob_token,
+        "POST",
+        "/alice/demo/merge-requests/1/reviews",
+        Some(json!({"verdict": "approve"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let m = api(
+        &w.s,
+        &w.alice,
+        "GET",
+        "/alice/demo/merge-requests/1/mergeability",
+        None,
+    )
+    .json();
+    assert_eq!(
+        m["coverage"]["approvals"],
+        json!([{"reviewer": "bob", "revision": 2, "files_viewed": 0, "files_total": 1,
+                "hunks_viewed": 2, "hunks_total": 3}])
+    );
     // Viewed state is the viewer's own.
     let mut alice = w.s.login("alice", PASSWORD);
     let page = alice.get(FILES).body;
@@ -311,4 +334,70 @@ fn conf_review_17_hunk_marks_are_checked() {
         ],
     );
     assert!(r.header("location").is_some_and(|l| l.ends_with("/files")));
+}
+
+#[test]
+fn conf_review_17_hunk_coverage_is_unknown_past_the_limits() {
+    let s = TestServer::start_full(&[DEMO], "[limits]\ndiff_max_lines = 5\n");
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let r = api(
+        &s,
+        &alice,
+        "PUT",
+        "/alice/demo/collaborators/bob",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let url = s.url(&DEMO);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    write(w, "f.txt", &file(&[]));
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    git.ok(w, &["push", "-q", &url, "main"]);
+    git.ok(w, &["switch", "-q", "-c", "topic"]);
+    write(w, "f.txt", &file(&FIRST));
+    git.ok(w, &["commit", "-qam", "Edit f"]);
+    git.ok(w, &["push", "-q", &url, "topic"]);
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/alice/demo/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Edit f"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    eventually(&s, "no revision", || {
+        api(&s, &alice, "GET", "/alice/demo/merge-requests/1", None).json()["revisions"] == 1
+    });
+    let r = api(
+        &s,
+        &token(&s, "bob"),
+        "POST",
+        "/alice/demo/merge-requests/1/reviews",
+        Some(json!({"verdict": "approve"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let m = api(
+        &s,
+        &alice,
+        "GET",
+        "/alice/demo/merge-requests/1/mergeability",
+        None,
+    )
+    .json();
+    // The diff was cut at 5 lines: the hunks are unknown, not estimated.
+    assert_eq!(
+        m["coverage"]["approvals"],
+        json!([{"reviewer": "bob", "revision": 1, "files_viewed": 0, "files_total": 1,
+                "hunks_viewed": null, "hunks_total": null}])
+    );
+    let page = s
+        .login("alice", PASSWORD)
+        .get("/alice/demo/merge-requests/1")
+        .body;
+    assert!(page.contains("(r1, 0 of 1 file viewed)"), "{page}");
 }

@@ -441,11 +441,13 @@ and appear at the top of the View menu. Saving under a name you already
 used replaces that view; a list that is a saved view offers **Delete the
 saved view**. You can keep up to 20 per repository.
 
-When you approve, Slath notes how many files of the revision's diff you
-had marked viewed, counting only files you viewed as they are in that
-revision. The approvals line shows it for each approval, for example
-"Approved by alice (r3, 12 of 15 files viewed)", and opens to list the
-files no approver had viewed. It's a snapshot: viewing files later
+When you approve, Slath notes how many files and changes (hunks) of the
+diff you approve you had viewed, counting only what you viewed as it is
+in that revision (a file counts when you marked it, or every change of
+it, viewed). The approvals line shows it for each approval, for example
+"Approved by alice (r3, 12 of 15 files and 40 of 52 hunks viewed)", and
+opens to list the files no approver had viewed. When the diff is too
+large to show in full, the hunks are left out rather than guessed. It's a snapshot: viewing files later
 doesn't change it, and an approval kept after a rebase keeps it. Apart
 from this snapshot, which files you marked viewed stays private to you.
 The mergeability API returns the same as `coverage`.

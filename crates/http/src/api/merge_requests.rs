@@ -836,10 +836,15 @@ pub struct ApprovalCoverageBody {
     /// The revision approved; older than the current one when the
     /// approval carried forward.
     pub revision: i32,
-    /// Files of that revision's diff the reviewer had marked viewed, as
-    /// they are in that revision.
+    /// Files of that revision's diff the reviewer had viewed, as they are
+    /// in that revision: marked at their blob, or with every hunk viewed.
     pub files_viewed: usize,
     pub files_total: usize,
+    /// Hunks of the approved diff (the revision's, or the change's own) the
+    /// reviewer had viewed; null when unknown (past the diff limits, or
+    /// recorded before hunks were counted).
+    pub hunks_viewed: Option<usize>,
+    pub hunks_total: Option<usize>,
 }
 
 /// Approval coverage, an observed fact.
@@ -893,6 +898,8 @@ impl From<slath_service::mr_reviews::Mergeability> for MergeabilityBody {
                         revision: a.revision,
                         files_viewed: a.files_viewed,
                         files_total: a.files_total,
+                        hunks_viewed: a.hunks.map(|h| h.0),
+                        hunks_total: a.hunks.map(|h| h.1),
                     })
                     .collect(),
                 unviewed_files: c.unviewed,

@@ -20,6 +20,18 @@ use crate::notifications::MrActivity;
 use crate::protections::Effective;
 use crate::repos::RepoAccess;
 
+/// The largest raw diff read for an approval's hunk coverage (as for the
+/// diff views); past it, the hunks are unknown.
+const COVERAGE_DIFF_BYTES: usize = 64 * 1024 * 1024;
+
+/// An approval's coverage as recorded: the files of the approved diff,
+/// those viewed, and (all, viewed) hunks when known.
+struct Snapshot {
+    files_total: i32,
+    seen: Vec<String>,
+    hunks: Option<(i32, i32)>,
+}
+
 /// What a review says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
@@ -109,6 +121,8 @@ pub struct ApprovalCoverage {
     pub revision: i32,
     pub files_viewed: usize,
     pub files_total: usize,
+    /// Viewed and all hunks of the approved diff; `None` when unknown.
+    pub hunks: Option<(usize, usize)>,
 }
 
 /// The coverage of the counting approvals (spec: approval coverage).
@@ -120,11 +134,15 @@ pub struct Coverage {
 }
 
 impl ApprovalCoverage {
-    /// "r3, 12 of 15 files viewed".
+    /// "r3, 12 of 15 files and 40 of 52 hunks viewed" (without the hunks
+    /// when they're unknown).
     #[must_use]
     pub fn describe(&self) -> String {
+        let hunks = self.hunks.map_or_else(String::new, |(viewed, total)| {
+            format!(" and {viewed} of {}", plural(total, "hunk", "hunks"))
+        });
         format!(
-            "r{}, {} of {} viewed",
+            "r{}, {} of {}{hunks} viewed",
             self.revision,
             self.files_viewed,
             plural(self.files_total, "file", "files")
@@ -513,8 +531,8 @@ impl Services {
             origin,
         )
         .await?;
-        if let Some((total, viewed)) = coverage {
-            db::set_coverage(&mut tx, id, total, &viewed).await?;
+        if let Some(c) = coverage {
+            db::set_coverage(&mut tx, id, (c.files_total, &c.seen), c.hunks).await?;
         }
         // The review publishes the reviewer's pending comments with it,
         // and resolves the threads they say to.
@@ -617,38 +635,98 @@ impl Services {
     }
 
     /// The coverage of `user`'s approval of the current revision, or of
-    /// one change's version: how many files its diff has, and which the
-    /// user viewed as they are in it.
+    /// one change's version: how many files its diff has, which the user
+    /// viewed as they are in it (marked at that blob, or every hunk
+    /// viewed), and its hunks with the viewed ones (`None` past the diff
+    /// limits).
     async fn coverage_snapshot(
         &self,
         m: &MergeRequest,
         user: UserId,
         change: Option<&(uuid::Uuid, Option<ObjectId>, ObjectId)>,
-    ) -> Result<(i32, Vec<String>)> {
-        let files = match change {
-            None => self.revision_files(m, m.revisions).await?,
-            Some((_, parent, commit)) => slath_git::browse::changed_blobs(
-                &self.runner,
-                &self.repo_path(m.repo_id),
-                parent.as_ref(),
-                commit,
-            )
-            .await
-            .map_err(ServiceError::internal)?
-            .into_iter()
-            .map(|(p, o)| (String::from_utf8_lossy(&p).into_owned(), o))
-            .collect(),
+    ) -> Result<Snapshot> {
+        let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
+        let (base, head) = match change {
+            None => {
+                let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+                let r = revs
+                    .iter()
+                    .find(|r| r.seq == m.revisions)
+                    .ok_or(ServiceError::NotFound)?;
+                (
+                    r.merge_base_oid.as_deref().map(parse).transpose()?,
+                    parse(&r.head_oid)?,
+                )
+            }
+            Some((_, parent, commit)) => (parent.clone(), commit.clone()),
         };
+        let dir = self.repo_path(m.repo_id);
+        let files: Vec<(String, String)> =
+            slath_git::browse::changed_blobs(&self.runner, &dir, base.as_ref(), &head)
+                .await
+                .map_err(ServiceError::internal)?
+                .into_iter()
+                .map(|(p, o)| (String::from_utf8_lossy(&p).into_owned(), o))
+                .collect();
         let viewed: HashMap<String, String> = slath_db::mr_threads::viewed(&self.pool, m.id, user)
             .await?
             .into_iter()
             .collect();
+        let marked: std::collections::HashSet<(String, String)> =
+            slath_db::mr_threads::viewed_hunks(&self.pool, m.id, user)
+                .await?
+                .into_iter()
+                .collect();
+        let (raw, cut) = slath_git::browse::diff(
+            &self.runner,
+            &dir,
+            base.as_ref(),
+            &head,
+            slath_git::browse::DiffOptions::default(),
+            COVERAGE_DIFF_BYTES,
+        )
+        .await
+        .map_err(ServiceError::internal)?;
+        let limits = &self.config.limits;
+        let diff = slath_git::diff::parse(&raw, limits.diff_max_files, limits.diff_max_lines);
+        // Each file's hunks: (all, viewed).
+        let mut by_file: HashMap<String, (usize, usize)> = HashMap::new();
+        for f in &diff.files {
+            let path = String::from_utf8_lossy(f.path()).into_owned();
+            let file_mark = files
+                .iter()
+                .any(|(p, o)| *p == path && viewed.get(p) == Some(o));
+            let keys = slath_git::diff::hunk_keys(f);
+            let seen = keys
+                .iter()
+                .filter(|k| file_mark || marked.contains(&(path.clone(), (*k).clone())))
+                .count();
+            by_file.insert(path, (keys.len(), seen));
+        }
         let seen = files
             .iter()
-            .filter(|(p, o)| viewed.get(p) == Some(o))
+            .filter(|(p, o)| {
+                viewed.get(p) == Some(o)
+                    || by_file
+                        .get(p)
+                        .is_some_and(|(all, seen)| *all > 0 && all == seen)
+            })
             .map(|(p, _)| p.clone())
             .collect();
-        Ok((i32::try_from(files.len()).unwrap_or(i32::MAX), seen))
+        let hunks = (!cut && !diff.truncated).then(|| {
+            let (all, seen) = by_file
+                .values()
+                .fold((0, 0), |(a, s), (fa, fs)| (a + fa, s + fs));
+            (
+                i32::try_from(all).unwrap_or(i32::MAX),
+                i32::try_from(seen).unwrap_or(i32::MAX),
+            )
+        });
+        Ok(Snapshot {
+            files_total: i32::try_from(files.len()).unwrap_or(i32::MAX),
+            seen,
+            hunks,
+        })
     }
 
     /// The coverage of the counting approvals `approvals` (review, name).
@@ -674,6 +752,12 @@ impl Services {
                 revision: r.revision_seq,
                 files_viewed: c.viewed.len(),
                 files_total: usize::try_from(c.files_total).unwrap_or(0),
+                hunks: c.hunks.map(|(total, viewed)| {
+                    (
+                        usize::try_from(viewed).unwrap_or(0),
+                        usize::try_from(total).unwrap_or(0),
+                    )
+                }),
             });
         }
         out.unviewed = self

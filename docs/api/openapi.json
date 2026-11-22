@@ -10396,7 +10396,22 @@
           },
           "files_viewed": {
             "type": "integer",
-            "description": "Files of that revision's diff the reviewer had marked viewed, as\nthey are in that revision.",
+            "description": "Files of that revision's diff the reviewer had viewed, as they are\nin that revision: marked at their blob, or with every hunk viewed.",
+            "minimum": 0
+          },
+          "hunks_total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "hunks_viewed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Hunks of the approved diff (the revision's, or the change's own) the\nreviewer had viewed; null when unknown (past the diff limits, or\nrecorded before hunks were counted).",
             "minimum": 0
           },
           "reviewer": {

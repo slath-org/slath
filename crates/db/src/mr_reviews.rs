@@ -85,13 +85,15 @@ pub async fn insert(
 pub async fn set_coverage(
     conn: &mut sqlx::PgConnection,
     review: uuid::Uuid,
-    files_total: i32,
-    viewed: &[String],
+    (files_total, viewed): (i32, &[String]),
+    hunks: Option<(i32, i32)>,
 ) -> Result<(), DbError> {
     sqlx::query!(
-        "UPDATE mr_reviews SET files_total = $2 WHERE id = $1",
+        "UPDATE mr_reviews SET files_total = $2, hunks_total = $3, hunks_viewed = $4 WHERE id = $1",
         review,
-        files_total
+        files_total,
+        hunks.map(|h| h.0),
+        hunks.map(|h| h.1)
     )
     .execute(&mut *conn)
     .await?;
@@ -112,6 +114,8 @@ pub async fn set_coverage(
 pub struct Coverage {
     pub files_total: i32,
     pub viewed: Vec<String>,
+    /// (total, viewed) hunks; `None` when unknown.
+    pub hunks: Option<(i32, i32)>,
 }
 
 /// The coverage of each of `reviews` that has one.
@@ -120,13 +124,13 @@ pub async fn coverage(
     reviews: &[uuid::Uuid],
 ) -> Result<std::collections::HashMap<uuid::Uuid, Coverage>, DbError> {
     let rows = sqlx::query!(
-        r#"SELECT r.id, r.files_total AS "files_total!",
+        r#"SELECT r.id, r.files_total AS "files_total!", r.hunks_total, r.hunks_viewed,
                   COALESCE(array_agg(v.path ORDER BY v.path) FILTER (WHERE v.path IS NOT NULL),
                            '{}') AS "viewed!"
            FROM mr_reviews r
            LEFT JOIN mr_review_viewed_files v ON v.review_id = r.id
            WHERE r.id = ANY($1) AND r.files_total IS NOT NULL
-           GROUP BY r.id, r.files_total"#,
+           GROUP BY r.id, r.files_total, r.hunks_total, r.hunks_viewed"#,
         reviews
     )
     .fetch_all(exec)
@@ -139,6 +143,7 @@ pub async fn coverage(
                 Coverage {
                     files_total: r.files_total,
                     viewed: r.viewed,
+                    hunks: r.hunks_total.zip(r.hunks_viewed),
                 },
             )
         })

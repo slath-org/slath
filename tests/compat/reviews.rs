@@ -182,7 +182,7 @@ fn conf_review_01_approvals_rebases_and_requirements() {
         requirement(&u, n, "approvals"),
         (
             "met".into(),
-            "Approved by bob (r1, 0 of 1 file viewed).".into()
+            "Approved by bob (r1, 0 of 1 file and 0 of 1 hunk viewed).".into()
         )
     );
     let m = api(
@@ -856,7 +856,8 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
     );
     assert_eq!(r.status, 201, "{}", r.body);
     let expected = json!({
-        "approvals": [{"reviewer": "bob", "revision": 2, "files_viewed": 3, "files_total": 4}],
+        "approvals": [{"reviewer": "bob", "revision": 2, "files_viewed": 3, "files_total": 4,
+                       "hunks_viewed": 3, "hunks_total": 4}],
         "unviewed_files": ["c.txt"],
     });
     assert_eq!(coverage(&u.alice), expected);
@@ -864,7 +865,7 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
         requirement(&u, n, "approvals"),
         (
             "met".into(),
-            "Approved by bob (r2, 3 of 4 files viewed).".into()
+            "Approved by bob (r2, 3 of 4 files and 3 of 4 hunks viewed).".into()
         )
     );
 
@@ -893,7 +894,7 @@ fn conf_review_14_approval_coverage_is_a_snapshot() {
         .get(&format!("/alice/demo/merge-requests/{n}"))
         .body;
     assert!(
-        page.contains("Approved by bob (r2, 3 of 4 files viewed).")
+        page.contains("Approved by bob (r2, 3 of 4 files and 3 of 4 hunks viewed).")
             && page.contains("Not viewed by an approver when approving")
             && page.contains("<li><code>c.txt</code></li>"),
         "{page}"
