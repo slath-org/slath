@@ -7,7 +7,7 @@
 {% include "repo/mr_heading.html" %}
 {% include "repo/mr_nav.html" %}
 <div data-change-keys>
-<div class="{% if !stack.is_empty() %}detail{% else %}stack-groups{% endif %}">
+<div class="detail">
 <div class="stack-groups">
 <section class="section" aria-labelledby="change-heading">
 <h2 id="change-heading">Change <code data-tip="{{ change.display_id }}">{{ change.display_id[..8] }}</code>{% if change.state == "removed" %} <span class="badge">Removed</span>{% endif %}</h2>
@@ -157,8 +157,19 @@
 {% include "repo/diff_files.html" %}
 {%- endif %}
 </div>
-{%- if !stack.is_empty() %}
-<aside class="details-column" aria-label="Stack of this merge request">
+<aside class="details-column" aria-label="Details of this change">
+  <section class="details-section" aria-labelledby="change-checks">
+    <h2 id="change-checks" class="details-heading">Checks</h2>
+    {%- if !shown_current %}
+    <p class="hint">{% if change.state == "removed" %}On version {{ shown.number }}. This change isn't in the current revision, so they don't count.{% else %}On version {{ shown.number }}, not the current version {{ change.versions.len() }}, so they don't count.{% endif %}</p>
+    {%- endif %}
+    {%- if statuses.is_empty() %}
+    {%- call msg::empty("No statuses reported for version " ~ shown.number ~ ".") %}{% endcall %}
+    {%- else %}
+    {% include "repo/statuses.html" %}
+    {%- endif %}
+  </section>
+  {%- if !stack.is_empty() %}
   <section class="details-section" aria-labelledby="stack-heading">
     <h2 id="stack-heading" class="details-heading">Stack</h2>
     <p class="text-secondary">Bottom first: each change builds on the one before.</p>
@@ -199,8 +210,8 @@
     </ul>
   </section>
   {%- endif %}
+  {%- endif %}
 </aside>
-{%- endif %}
 </div>
 </div>
 </div>

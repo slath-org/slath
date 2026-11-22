@@ -2810,6 +2810,12 @@ struct ChangePage {
     conflict: Option<ConflictView>,
     /// "Land up to here", when the changes up to this one can land.
     land: Option<LandForm>,
+    /// The latest statuses of the shown version's commit.
+    statuses: Vec<super::StatusRow>,
+    /// The shown version is the change's current one: the latest, of a
+    /// change still in the stack. Statuses of any other version are
+    /// history and must not read as the change's checks now.
+    shown_current: bool,
 }
 
 /// Landing the changes of a stack up to the shown one.
@@ -3088,10 +3094,26 @@ async fn change(
             (e.created_at.into(), format!("{rev}{text}"))
         })
         .collect();
+    let statuses = state
+        .services
+        .statuses_of_commits(&m, std::slice::from_ref(&shown.commit_oid))
+        .await?
+        .remove(&shown.commit_oid)
+        .unwrap_or_default()
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    let shown_current = change.state != "removed"
+        && change
+            .versions
+            .last()
+            .is_some_and(|v| v.revision == shown.revision);
     let page = ChangePage {
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
         rows,
+        statuses,
+        shown_current,
         stack,
         removed,
         removed_in,

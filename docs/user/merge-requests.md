@@ -226,6 +226,11 @@ two versions:
   patches are compared, so the rebase itself doesn't show. **Tree diff,
   including the rebase** shows everything that's different.
 
+Beside the change (below it on narrow screens), **Checks** lists the
+statuses reported for the shown version's commit, each with who reported
+it. Statuses belong to one commit: a new version starts with none, and an
+earlier version's page says its checks don't count any more.
+
 In a stack of more than one change, the change's page shows the whole
 stack beside it (below it on narrow screens), bottom first: each change's
 subject and ID, whether it landed or is new or returned in this revision, who approves

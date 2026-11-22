@@ -20,7 +20,7 @@ async function open(page: Page, project: string): Promise<string> {
   return new URL(page.url()).pathname;
 }
 
-const stack = (page: Page) => page.getByRole("complementary", { name: "Stack of this merge request" });
+const stack = (page: Page) => page.getByRole("region", { name: "Stack", exact: true });
 
 /** The shown change's subject, as the stack marks it. */
 async function shown(page: Page): Promise<string> {

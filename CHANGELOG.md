@@ -42,6 +42,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A change that comes back after a push without it is reported as "returned" in push output and the timeline, not as new; it keeps its history.
 - The Changes tab says what the latest push did to each change: new, updated, unchanged (same patch), or returned; removed changes show the revision that removed them.
 - The stack API gives each change's outcome in the current revision (new, unchanged, updated, returned, unresolved) and the revision that removed each removed change.
+- A change's page lists the checks of the shown version with their reporters; an earlier version's checks are marked as no longer counting.
 
 ## [0.3.0] - 2026-11-18
 

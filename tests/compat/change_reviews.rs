@@ -34,7 +34,7 @@ fn lines(tag: &str, edit: Option<usize>) -> String {
 
 fn token(s: &TestServer, user: &str) -> String {
     let mut c = s.login(user, PASSWORD);
-    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
+    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write", "statuses:write"])
 }
 
 impl World {
@@ -535,6 +535,86 @@ fn conf_jj_04_the_stack_column_needs_more_than_one_change() {
     assert_eq!(r.status, 200);
     assert!(!r.body.contains("stack-heading"), "{}", r.body);
     assert!(!r.body.contains("data-key="), "{}", r.body);
+}
+
+/// The text of a change page's Checks section, tags removed.
+fn checks_section(body: &str) -> String {
+    let tags = regex::Regex::new(r"<[^>]*>").unwrap();
+    let start = body.find("id=\"change-checks\"").expect("checks section");
+    let end = body[start..].find("</section>").unwrap() + start;
+    tags.replace_all(&body[start..end], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[test]
+fn conf_review_04_change_pages_show_checks_per_version() {
+    let (w, n) = World::start(json!({"pattern": "main", "required_approvals": 1}));
+    let stack = w
+        .api(&w.alice, "GET", &format!("/merge-requests/{n}/stack"), None)
+        .json();
+    let id = stack["entries"][0]["change_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let first = stack["entries"][0]["commit_oid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = w.api(
+        &w.alice,
+        "POST",
+        &format!("/statuses/{first}"),
+        Some(json!({"state": "success", "context": "ci/build",
+                    "target_url": "https://ci.example.org/1"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let mut ui = w.s.login("alice", PASSWORD);
+    let page = |ui: &mut slath_tests::http::Client, q: &str| {
+        let r = ui.get(&format!("/alice/demo/merge-requests/{n}/changes/{id}{q}"));
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.body
+    };
+    // The current version's checks, in the stack and in their own section.
+    let now = page(&mut ui, "");
+    assert!(stack_column(&now)[0].contains("The check passed"), "{now}");
+    let checks = checks_section(&now);
+    assert!(checks.contains("ci/build : success"), "{checks}");
+    assert!(checks.contains("Reported by alice"), "{checks}");
+    assert!(!checks.contains("don't count"), "{checks}");
+
+    // A new version of the change: its checks are its own, none yet.
+    let p = w.w.path();
+    w.git.ok(p, &["reset", "-q", "--hard", "HEAD~2"]);
+    w.commit("a.txt", &lines("a", Some(3)), "Add a");
+    w.commit("b.txt", &lines("b", None), "Add b");
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    assert_eq!(w.changes(n)[0], id);
+    let now = page(&mut ui, "");
+    let rows = stack_column(&now);
+    assert!(!rows[0].contains("passed"), "{}", rows[0]);
+    let checks = checks_section(&now);
+    assert!(
+        checks.contains("No statuses reported for version 2."),
+        "{checks}"
+    );
+    assert!(!checks.contains("ci/build"), "{checks}");
+    // The old version keeps its status in the list of versions and on its
+    // own page, marked as not counting.
+    let list = &now[now.find("aria-label=\"Versions\"").unwrap()..];
+    let v1 = &list[..list.find("</li>").unwrap()];
+    assert!(
+        v1.contains("Version 1") && v1.contains("The check passed"),
+        "{v1}"
+    );
+    let old = checks_section(&page(&mut ui, "?rev=1"));
+    assert!(old.contains("ci/build : success"), "{old}");
+    assert!(
+        old.contains("On version 1, not the current version 2, so they don't count."),
+        "{old}"
+    );
 }
 
 #[test]
