@@ -123,7 +123,11 @@ test("conf_review_17_hidden_lines_expand_in_place", async ({ page }) => {
   const file = page.locator("#diff-0");
   // Lines 10 and 50 changed: 6 hidden lines above, 33 between, 7 below.
   const links = file.locator(".diff-expand-links a");
-  await expect(links).toHaveText(["Show 6 unchanged lines", "Show 33 unchanged lines", "Show 7 unchanged lines"]);
+  await expect(links).toHaveText(["6 unchanged lines", "33 unchanged lines", "7 unchanged lines"]);
+  // Each has the expand icon, and says what it does to assistive technology.
+  const icons = await links.locator("use").evaluateAll((us) => us.map((u) => u.getAttribute("href")?.split("#")[1]));
+  expect(icons).toEqual(["unfold-vertical", "unfold-vertical", "unfold-vertical"]);
+  await expect(links.first()).toHaveAccessibleName("Show 6 unchanged lines");
   await expect(file.getByText("line 30", { exact: true })).toHaveCount(0);
   await expectAccessible(page);
   // In place: the lines between the hunks appear, numbered on both sides,
@@ -132,7 +136,7 @@ test("conf_review_17_hidden_lines_expand_in_place", async ({ page }) => {
   await expect(page.locator("#diff-0").getByText("line 30", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/commit\/[0-9a-f]+$/);
   await expect(page.locator("#diff-0-h1 .code-wrap:visible")).toBeFocused();
-  await expect(page.locator("#diff-0 .diff-expand-links a")).toHaveText(["Show 6 unchanged lines", "Show 7 unchanged lines"]);
+  await expect(page.locator("#diff-0 .diff-expand-links a")).toHaveText(["6 unchanged lines", "7 unchanged lines"]);
   // With the keyboard: the next link shows the lines below the last hunk.
   await page.locator("#diff-0").getByRole("link", { name: "Show 7 unchanged lines" }).focus();
   await page.keyboard.press("Enter");

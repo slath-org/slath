@@ -68,10 +68,14 @@ pub struct SplitRow {
 
 /// A link that shows hidden unchanged lines (spec: hidden lines).
 pub struct Expander {
-    /// "Show 12 unchanged lines", "Show 20 more lines".
+    /// "12 unchanged lines", "20 more lines".
     pub label: String,
-    /// Its accessible name, which says where the lines are.
+    /// Its accessible name, with the label in it: "Show 12 unchanged
+    /// lines", "Show 20 more lines above this change".
     pub name: String,
+    /// `unfold-vertical` for a whole gap, else the direction it opens in
+    /// (`chevron-up`, `chevron-down`).
+    pub icon: &'static str,
     /// The new-side ranges to show with it, `a-b,c-d`.
     pub ranges: String,
 }
@@ -574,21 +578,30 @@ fn expand_gaps(
             new.get(n as usize - 1).cloned().unwrap_or_default(),
         )),
     };
-    let link = |count: u32, name: &str, add: (u32, u32)| Expander {
-        label: if count <= WHOLE_GAP {
+    // `where_` says where the lines are when a step shows only some of
+    // them ("above this change"), and so the direction it opens in.
+    let link = |count: u32, where_: &str, add: (u32, u32)| {
+        let label = if count <= WHOLE_GAP {
             format!(
-                "Show {count} unchanged line{}",
+                "{count} unchanged line{}",
                 if count == 1 { "" } else { "s" }
             )
         } else {
-            format!("Show {STEP} more lines")
-        },
-        name: if count <= WHOLE_GAP {
-            String::new()
+            format!("{STEP} more lines")
+        };
+        let (name, icon) = if count <= WHOLE_GAP {
+            (format!("Show {label}"), "unfold-vertical")
+        } else if where_.starts_with("above") {
+            (format!("Show {label} {where_}"), "chevron-up")
         } else {
-            format!("Show {STEP} more lines {name}")
-        },
-        ranges: with_range(shown, add),
+            (format!("Show {label} {where_}"), "chevron-down")
+        };
+        Expander {
+            label,
+            name,
+            icon,
+            ranges: with_range(shown, add),
+        }
     };
     let mut prev_last = 0;
     for (i, h) in file.hunks.iter().enumerate() {
@@ -1268,24 +1281,29 @@ mod tests {
         };
         assert_eq!(
             labels(&h[0].expand),
-            vec![("Show 1 unchanged line".into(), "1-1".into())]
+            vec![("1 unchanged line".into(), "1-1".into())]
         );
         // 9..=56: 48 lines, 20 at each end.
         assert_eq!(
             labels(&h[1].expand),
             vec![
-                ("Show 20 more lines".into(), "9-28".into()),
-                ("Show 20 more lines".into(), "37-56".into())
+                ("20 more lines".into(), "9-28".into()),
+                ("20 more lines".into(), "37-56".into())
             ]
         );
         assert_eq!(
             h[1].expand[0].name,
             "Show 20 more lines below the change above"
         );
+        assert_eq!(
+            (h[1].expand[0].icon, h[1].expand[1].icon),
+            ("chevron-down", "chevron-up")
+        );
+        assert_eq!(h[1].expand[1].name, "Show 20 more lines above this change");
         // Below the last hunk: 65..=101 (37 lines, the new side has one more).
         assert_eq!(
             labels(&end),
-            vec![("Show 37 unchanged lines".into(), "65-101".into())]
+            vec![("37 unchanged lines".into(), "65-101".into())]
         );
         assert!(h.iter().all(|x| x.above.is_empty() && x.below.is_empty()));
     }
@@ -1310,7 +1328,9 @@ mod tests {
         assert_eq!(nos(&h[1].above).last(), Some(&("56".into(), "56".into())));
         assert_eq!(h[1].above.len(), 20);
         assert_eq!(h[1].expand.len(), 1);
-        assert_eq!(h[1].expand[0].label, "Show 8 unchanged lines");
+        assert_eq!(h[1].expand[0].label, "8 unchanged lines");
+        assert_eq!(h[1].expand[0].name, "Show 8 unchanged lines");
+        assert_eq!(h[1].expand[0].icon, "unfold-vertical");
         assert_eq!(h[1].expand[0].ranges, "1-1,9-56,65-70");
         // Below the last hunk: shown lines, then the rest; old numbers are
         // one behind (a line was added).
@@ -1321,7 +1341,7 @@ mod tests {
             Some(("64", "65"))
         );
         assert_eq!(h[1].below.len(), 6);
-        assert_eq!(end[0].label, "Show 31 unchanged lines");
+        assert_eq!(end[0].label, "31 unchanged lines");
         assert_eq!(end[0].ranges, "1-1,9-28,37-56,65-101");
     }
 

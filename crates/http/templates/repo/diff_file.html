@@ -23,7 +23,7 @@
     JavaScript the file alone at that hunk, with it the file in place. -#}
 {%- macro expand_row(ctx, diff, f, i, links) -%}
 {%- if !links.is_empty() %}
-      <tr class="diff-expand"><td colspan="4"><span class="diff-expand-links">{% for e in links.iter() %}<a href="{{ diff.expand_href(f.index, e.ranges, i) }}" hx-get="{{ diff.expand_url(f.index, e.ranges) }}" hx-target="closest section" hx-swap="outerHTML" data-expand="{{ f.anchor }}-h{{ i }}"{% if !e.name.is_empty() %} aria-label="{{ e.name }}"{% endif %} {% call m::hx(ctx.nonce) %}{% endcall %}>{{ e.label }}</a>{% endfor %}</span></td></tr>
+      <tr class="diff-expand"><td colspan="4"><span class="diff-expand-links">{% for e in links.iter() %}<a href="{{ diff.expand_href(f.index, e.ranges, i) }}" hx-get="{{ diff.expand_url(f.index, e.ranges) }}" hx-target="closest section" hx-swap="outerHTML" data-expand="{{ f.anchor }}-h{{ i }}" aria-label="{{ e.name }}" {% call m::hx(ctx.nonce) %}{% endcall %}>{% call m::icon(ctx, e.icon) %}{% endcall %}{{ e.label }}</a>{% endfor %}</span></td></tr>
 {%- endif %}
 {%- endmacro -%}
 {#- Expanded unchanged lines, for reading only. -#}

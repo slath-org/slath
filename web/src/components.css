@@ -838,6 +838,7 @@ main > .repo-context {
 .diff-expand-links a {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
   min-block-size: var(--space-5);
 }
 /* Line numbers link to a comment form: plain numbers that underline on
