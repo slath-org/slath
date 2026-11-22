@@ -339,27 +339,35 @@ fn conf_review_08_the_ledger_records_each_change_approval() {
         .ok(w.w.path(), &["commit", "-qa", "--amend", "--no-edit"]);
     w.push("topic");
     w.wait_revisions(n, 2);
-    let ledger = w
-        .api(
-            &w.alice,
-            "GET",
-            &format!("/merge-requests/{n}/ledger"),
-            None,
-        )
-        .json();
-    let approvals: Vec<(String, String, String)> = ledger
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|e| e["kind"].as_str().unwrap().starts_with("approval_") && e["revision"] == 2)
-        .map(|e| {
-            (
-                e["kind"].as_str().unwrap().to_owned(),
-                e["change_id"].as_str().unwrap_or("").to_owned(),
-                e["reason"].as_str().unwrap().to_owned(),
+    // The revision's ledger entries are written right after the revision.
+    let start = std::time::Instant::now();
+    let approvals = loop {
+        let ledger = w
+            .api(
+                &w.alice,
+                "GET",
+                &format!("/merge-requests/{n}/ledger"),
+                None,
             )
-        })
-        .collect();
+            .json();
+        let approvals: Vec<(String, String, String)> = ledger
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["kind"].as_str().unwrap().starts_with("approval_") && e["revision"] == 2)
+            .map(|e| {
+                (
+                    e["kind"].as_str().unwrap().to_owned(),
+                    e["change_id"].as_str().unwrap_or("").to_owned(),
+                    e["reason"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect();
+        if approvals.len() >= 2 || start.elapsed().as_secs() >= 30 {
+            break approvals;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    };
     assert_eq!(
         approvals,
         vec![
