@@ -99,9 +99,11 @@
 {%- endif %}
 {% block content %}{% endblock %}
 </main>
-<footer class="site-footer">
+<footer class="site-footer cluster">
   <a hx-boost="false" {% call m::hx(ctx.nonce) %}{% endcall %} href="/-/docs/">Help</a>
+  <button type="button" class="button button-quiet" data-dialog aria-controls="shortcuts" aria-keyshortcuts="?" hidden>Keyboard shortcuts</button>
 </footer>
+{%- include "shortcuts.html" %}
 </div>
 </div>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>

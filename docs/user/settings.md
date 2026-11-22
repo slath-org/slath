@@ -42,13 +42,16 @@ With a zone chosen:
 
 ## Keyboard shortcuts
 
-Some shortcuts are a single key, such as **j** for the next change of a
+Press **?** on any page, or choose **Keyboard shortcuts** at the foot of
+the page, for the list of all shortcuts by where they work. Some are a
+single key, such as **j** for the next change of a
 stack or **n** for the next change in a diff. They act only where they're
 listed, never while you type in a field, and every one of them has a
 button that does the same.
 
 If you use speech input, or keys get pressed by mistake, choose **Only
-with Ctrl or ⌘** under **Keyboard shortcuts**: single keys then do
+with Ctrl or ⌘** under **Keyboard shortcuts**, or **Turn off single-key
+shortcuts** at the end of the list: single keys then do
 nothing, and shortcuts with Ctrl or ⌘, such as Ctrl+Enter to send a
 comment, keep working. Without an account, the choice is kept in a cookie
 of your browser.

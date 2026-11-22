@@ -64,7 +64,7 @@ ENTRY_MARKERS = {
     "account": r"p::account\(", "avatar-upload": r'class="profile-avatar"', "git-identity": r"p::git_identity\(", "avatar-group": r"p::avatar_group\(",
     "links": r"c::external\(", "tooltip": r"data-tip=", "time": r"c::time\(", "hash": r"c::hash\(",
     "cut": r"c::cut\(", "popover": r"c::popover\(", "password": r'type="password"', "count": r"maxlength=",
-    "names": r"data-names", "name-field": r"data-suggest-single", "sort": r"m::view_menu\(ctx, \"Sort\"", "switches": r'type="checkbox"',
+    "names": r"data-names", "name-field": r"data-suggest-single", "sort": r"m::view_menu\(ctx, \"Sort\"", "switches": r'type="checkbox"', "dialog": "*", "shortcuts": "*",
     "status-line": r"m::tone_icon\(|m::status_line\(|m::status_text\(", "readiness": r"readiness_card", "timeline": r'class="timeline"',
     "thread": r"timeline-thread", "chips": r'class="badge',
     "code-toolbar": r"repo/ref_line\.html", "file-list": r"table file-list", "code-view": r"code-table",

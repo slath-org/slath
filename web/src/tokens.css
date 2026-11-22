@@ -39,6 +39,7 @@
   --border-width: 1px;
   --focus-width: 2px;
   --shadow-overlay: 0 4px 16px color-mix(in srgb, var(--shadow-color) 18%, transparent), 0 1px 3px color-mix(in srgb, var(--shadow-color) 12%, transparent);
+  --backdrop: color-mix(in srgb, var(--shadow-color) 40%, transparent);
   --motion-fast: 100ms;
   --motion-normal: 200ms;
   --row-height: 2.5rem;

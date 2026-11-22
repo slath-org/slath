@@ -49,3 +49,17 @@
   </div>
 </details>
 {%- endmacro -%}
+
+{#- A modal dialog: a titled panel over the page, opened by a script
+    (`showModal()`) from a button that stays on the page; Escape or the
+    close button closes it, and focus goes back to the button. The body is
+    the dialog's content. -#}
+{%- macro dialog(ctx, id, title) -%}
+<dialog class="dialog" id="{{ id }}" aria-labelledby="{{ id }}-title">
+  <div class="dialog-head">
+    <h2 id="{{ id }}-title">{{ title }}</h2>
+    <form method="dialog">{% call icon_button(ctx, "x", "Close", "submit") %}{% endcall %}</form>
+  </div>
+{{ caller() }}
+</dialog>
+{%- endmacro -%}

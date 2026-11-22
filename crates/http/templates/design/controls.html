@@ -190,5 +190,37 @@
 </form>
 {%- endcall %}
 {%- endcall %}
+
+{%- call cat::entry("dialog", "Dialog", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Something to read or choose over the page without leaving it, such as the list of keyboard shortcuts. A button on the page opens it; it holds no step that only it offers.</dd>
+  <dt>Markup</dt><dd><code>c::dialog(ctx, id, title)</code> with the content as its body, and a <code>button[data-dialog]</code> whose <code>aria-controls</code> names it. Dialogs need scripts: a button that only opens one is <code>hidden</code> until they run.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>A modal <code>dialog</code> named by its heading: focus moves into it and stays there, Escape and the close button close it, and focus goes back to the button that opened it.</dd>
+  <dt>Not for</dt><dd>Forms that are a page's task (a page), confirmations (the danger section), or help for one setting (a popover).</dd>
+</dl>
+{%- call cat::example("A dialog, opened by its button.") %}
+<button type="button" class="button" data-dialog aria-controls="demo-dialog">Open the dialog</button>
+{%- call c::dialog(ctx, "demo-dialog", "Keyboard shortcuts") %}
+<dl class="facts">
+  <dt><kbd>j</kbd></dt><dd>Next change of the stack</dd>
+  <dt><kbd>k</kbd></dt><dd>Previous change of the stack</dd>
+</dl>
+{%- endcall %}
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("shortcuts", "Keyboard shortcuts", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Faster ways to do what buttons and links already do. Every shortcut follows a control on the page and never does more than it; the list of shortcuts names them all, by where they work.</dd>
+  <dt>Markup</dt><dd><code>aria-keyshortcuts</code> on the control, and its key in its tooltip ("Next change (n)"); a single-key shortcut that follows a link marks it with <code>data-key</code>. Scripts check <code>singleKey(e)</code> (<code>web/src/keys.ts</code>) before acting on a key without Ctrl or ⌘. Each shortcut is listed in <code>shortcuts.html</code>, opened by <kbd>?</kbd> and the footer's "Keyboard shortcuts" button.</dd>
+  <dt>Variants</dt><dd>Single keys (<kbd>j</kbd>, <kbd>n</kbd>, <kbd>?</kbd>): only while focus is in their component, or, for <kbd>?</kbd>, anywhere outside fields. With Ctrl or ⌘ (<kbd>Ctrl+Enter</kbd>): where they're listed.</dd>
+  <dt>Accessibility</dt><dd>Single keys never act while focus is in a field, and each person can turn them off (Settings → Appearance, or the list's own button), as WCAG 2.1.4 asks; shortcuts with Ctrl or ⌘ stay. Each one has a button or link that does the same.</dd>
+  <dt>Not for</dt><dd>Actions without a control on the page; keys the browser or screen readers use (arrows outside composite widgets, Alt+letters).</dd>
+</dl>
+{%- call cat::example("The footer's button opens the list of this page.") %}
+<button type="button" class="button button-quiet" data-dialog aria-controls="shortcuts" aria-keyshortcuts="?">Keyboard shortcuts</button>
+{%- endcall %}
+{%- endcall %}
 </div>
 {% endblock %}

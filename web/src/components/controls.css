@@ -172,3 +172,34 @@ input[type="date"] {
 .field:has([data-suggest-users]) {
   position: relative;
 }
+
+/* A modal dialog: a panel over the page, as wide as its content allows
+   and never wider than the screen; its own content scrolls. */
+.dialog {
+  width: min(36rem, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.dialog::backdrop {
+  background: var(--backdrop);
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-inline);
+  margin-block-end: var(--gap-items);
+}
+.dialog-head h2 {
+  margin: 0;
+}
+.dialog-head form {
+  display: contents;
+}

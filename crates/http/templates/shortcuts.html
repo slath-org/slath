@@ -1,0 +1,63 @@
+{#- The list of keyboard shortcuts, for every page: `?` or the footer's
+    button opens it (scripts only; without them there are no shortcuts).
+    Every shortcut of the interface is listed here, by where it works, and
+    the switch for single-key shortcuts is at its end. -#}
+{%- call c::dialog(ctx, "shortcuts", "Keyboard shortcuts") %}
+<div class="stack">
+  <p class="hint">Single keys act only where they're listed, never while you type in a field. On a Mac, use ⌘ for Ctrl.</p>
+  <section class="subsection" aria-labelledby="shortcuts-everywhere">
+    <h3 id="shortcuts-everywhere">Everywhere</h3>
+    <dl class="facts">
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+    </dl>
+  </section>
+  <section class="subsection" aria-labelledby="shortcuts-change">
+    <h3 id="shortcuts-change">On a change of a merge request</h3>
+    <dl class="facts">
+      <dt><kbd>j</kbd></dt><dd>Next change of the stack</dd>
+      <dt><kbd>k</kbd></dt><dd>Previous change of the stack</dd>
+      <dt><kbd>]</kbd></dt><dd>Next version of the change</dd>
+      <dt><kbd>[</kbd></dt><dd>Previous version of the change</dd>
+    </dl>
+  </section>
+  <section class="subsection" aria-labelledby="shortcuts-diff">
+    <h3 id="shortcuts-diff">In a diff</h3>
+    <dl class="facts">
+      <dt><kbd>n</kbd></dt><dd>Next change</dd>
+      <dt><kbd>p</kbd></dt><dd>Previous change</dd>
+      <dt><kbd>v</kbd></dt><dd>Next file not marked viewed</dd>
+      <dt><kbd>t</kbd></dt><dd>Next unresolved thread</dd>
+    </dl>
+  </section>
+  <section class="subsection" aria-labelledby="shortcuts-editor">
+    <h3 id="shortcuts-editor">In the editor</h3>
+    <dl class="facts">
+      <dt><kbd>Ctrl+Enter</kbd></dt><dd>Send</dd>
+      <dt><kbd>Ctrl+Shift+Enter</kbd></dt><dd>The form's second action, such as Comment and close</dd>
+      <dt><kbd>Ctrl+B</kbd></dt><dd>Bold</dd>
+      <dt><kbd>Ctrl+I</kbd></dt><dd>Italic</dd>
+      <dt><kbd>Ctrl+E</kbd></dt><dd>Inline code</dd>
+      <dt><kbd>Ctrl+K</kbd></dt><dd>Link</dd>
+      <dt><kbd>Ctrl+Alt+2</kbd></dt><dd>Heading</dd>
+      <dt><kbd>Ctrl+Shift+9</kbd></dt><dd>Quote</dd>
+      <dt><kbd>Ctrl+Shift+8</kbd></dt><dd>Bulleted list</dd>
+      <dt><kbd>Ctrl+Shift+7</kbd></dt><dd>Numbered list</dd>
+      <dt><kbd>Ctrl+Shift+X</kbd></dt><dd>Task list</dd>
+      <dt><kbd>Ctrl+Alt+C</kbd></dt><dd>Code block</dd>
+      <dt><kbd>Ctrl+Alt+T</kbd></dt><dd>Table</dd>
+      <dt><kbd>Tab</kbd></dt><dd>Leave the editor</dd>
+    </dl>
+  </section>
+  <form method="post" action="/-/shortcuts" class="cluster">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="next" value="{{ ctx.here }}">
+    {%- if ctx.single_keys %}
+    <button type="submit" name="single_keys" value="off" class="button">Turn off single-key shortcuts</button>
+    <span class="hint">For speech input, or if keys get pressed by mistake.</span>
+    {%- else %}
+    <button type="submit" name="single_keys" value="on" class="button">Turn on single-key shortcuts</button>
+    <span class="hint">They're off: only shortcuts with Ctrl work.</span>
+    {%- endif %}
+  </form>
+</div>
+{%- endcall %}

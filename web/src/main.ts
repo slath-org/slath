@@ -26,6 +26,8 @@ import { installTooltips } from "./tooltip";
 import { installHunkNavigation } from "./hunknav";
 import { installExpansion } from "./expand";
 import { installChangeKeys } from "./changekeys";
+import { installDialogs } from "./dialog";
+import { installShortcutList } from "./shortcuts";
 import { installZoneProposal } from "./timezone";
 
 installCsrf();
@@ -41,6 +43,8 @@ installTooltips();
 installHunkNavigation();
 installExpansion();
 installChangeKeys();
+installDialogs();
+installShortcutList();
 installZoneProposal();
 installPasskeys();
 installEditors();
