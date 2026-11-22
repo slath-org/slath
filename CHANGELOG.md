@@ -29,7 +29,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The merge request list shows one icon per open merge request: ready, waiting, or where someone must act, with the readiness headline as its tooltip.
 - The list of open merge requests is grouped by readiness: ready to merge first, then what needs action, then what is waiting, each group with its count.
 - Save a merge request list's state, filters, view, and order under a name; saved views are yours alone and appear in the View menu.
-- The merge request list has views: Review requests, Mine, Stalled (no activity for 14 days), and Ready to merge, combined with the filters.
+- The merge request list has views: Review requests, Mine, Stalled, and Ready to merge, combined with the filters.
+- Repository administrators set after how many days without activity a merge request counts as stalled (14 by default), in the settings or the API.
 - Each open merge request in the list shows its checks and approvals in words, such as "1 of 3 checks failed" and "Approval required".
 - Merge request lists load faster: each row's readiness is stored and computed again only after something it depends on changes.
 - `slath fsck` reports stored list readiness that differs from a fresh computation, and `--reconcile` rebuilds it.

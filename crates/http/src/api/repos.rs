@@ -52,6 +52,9 @@ pub struct Repo {
     pub visibility: String,
     pub default_branch: String,
     pub archived: bool,
+    /// Days without activity after which an open merge request is
+    /// stalled (the merge request list's Stalled view).
+    pub stalled_after_days: i16,
     pub clone_urls: CloneUrls,
     pub created_at: String,
     pub updated_at: String,
@@ -71,6 +74,7 @@ fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
         visibility: slath_db::repos::visibility_str(r.visibility).to_owned(),
         default_branch: r.default_branch.clone(),
         archived: r.state == RepoState::Archived,
+        stalled_after_days: r.stalled_after_days,
         clone_urls: CloneUrls { https, ssh },
         created_at: ts(r.created_at),
         updated_at: ts(r.updated_at),
@@ -187,6 +191,8 @@ pub struct UpdateRepo {
     /// A new name; the old one keeps redirecting readers.
     pub name: Option<String>,
     pub archived: Option<bool>,
+    /// From 1 to 365.
+    pub stalled_after_days: Option<i64>,
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
@@ -218,6 +224,9 @@ pub async fn update_repo(
             .default_branch
             .unwrap_or_else(|| a.repo.default_branch.clone());
         svc.update_repo_settings(&subject, &a, &d, &b).await?;
+    }
+    if let Some(days) = u.stalled_after_days {
+        svc.set_mr_stalled_after_days(&subject, &a, days).await?;
     }
     if let Some(v) = &u.visibility {
         svc.set_repo_visibility(&subject, false, &a, visibility(v)?)

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $3\n                OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $2::uuid))\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           WHERE r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $2\n                OR (r.visibility = 'internal' AND $1::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $1::uuid))\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4",
   "describe": {
     "columns": [
       {
@@ -179,13 +179,24 @@
             "name": "issues_enabled"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "stalled_after_days",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "stalled_after_days"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
         "Bool",
+        "Int8",
         "Int8"
       ]
     },
@@ -206,8 +217,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "4587d392a4a384ec7ce3440cd04d851fa3e2d9856e0bac04eb2317071ec0cb98"
+  "hash": "4ee88202b68cbe3bed16a927f91b5cff5bf521d526a61ae03170c714c5378378"
 }

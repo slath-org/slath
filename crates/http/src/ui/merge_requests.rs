@@ -243,11 +243,29 @@ struct ListPage {
     view: View,
     /// The views the viewer can pick.
     views: Vec<View>,
+    /// The repository's stalled time in days.
+    stalled_days: i16,
     /// The filter and order without the view.
     base_query: String,
 }
 
 impl ListPage {
+    /// A view's name in the menu; Stalled with the repository's time.
+    fn view_label(&self, v: &View) -> String {
+        match v {
+            View::Stalled => format!(
+                "Stalled ({} {})",
+                self.stalled_days,
+                if self.stalled_days == 1 {
+                    "day"
+                } else {
+                    "days"
+                }
+            ),
+            v => v.label().to_owned(),
+        }
+    }
+
     /// The list in view `v`, with the same state, filters, and order.
     fn view_href(&self, v: &View) -> String {
         let key = v.key();
@@ -358,6 +376,7 @@ async fn list_page(
     let filters = format!("{}{in_view}", q.filters());
     let signed_in = matches!(subject, Subject::User { .. });
     let saved = state.services.mr_saved_views(subject, &a).await?;
+    let stalled_days = a.repo.stalled_after_days;
     let current_query = format!("state={st}{query}");
     let current_saved = saved.iter().find(|v| v.query == current_query).cloned();
     let status = if saving.error.is_some() {
@@ -375,6 +394,7 @@ async fn list_page(
         filtered,
         filters,
         base_query,
+        stalled_days,
         view,
         views: View::ALL
             .into_iter()

@@ -27,6 +27,8 @@ pub struct Repo {
     pub allow_forking: bool,
     pub size_bytes: i64,
     pub issues_enabled: bool,
+    /// Days without activity that make an open merge request stalled.
+    pub stalled_after_days: i16,
     pub pushed_at: Option<OffsetDateTime>,
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
@@ -85,6 +87,7 @@ macro_rules! to_repo {
             allow_forking: $r.allow_forking,
             size_bytes: $r.size_bytes,
             issues_enabled: $r.issues_enabled,
+            stalled_after_days: $r.stalled_after_days,
             pushed_at: $r.pushed_at,
             deleted_at: $r.deleted_at,
             created_at: $r.created_at,
@@ -96,7 +99,7 @@ macro_rules! to_repo {
 pub async fn get(exec: impl PgExecutor<'_>, id: RepoId) -> Result<Option<Repo>, DbError> {
     let r = sqlx::query!(r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.id = $1"#, id.as_uuid())
         .fetch_optional(exec)
         .await?;
@@ -112,7 +115,7 @@ pub async fn find(
     let r = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext"#,
         namespace,
         name
@@ -231,7 +234,7 @@ pub async fn list_visible_in_namespace(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $3
                 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
@@ -252,7 +255,7 @@ pub async fn list_public(exec: impl PgExecutor<'_>, limit: i64) -> Result<Vec<Re
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'
              ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1"#,
         limit
@@ -475,7 +478,7 @@ pub async fn purge(exec: impl PgExecutor<'_>, id: RepoId) -> Result<(), DbError>
 pub async fn list_deleted(exec: impl PgExecutor<'_>, limit: i64) -> Result<Vec<Repo>, DbError> {
     let rows = sqlx::query!(r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1"#, limit)
         .fetch_all(exec)
         .await?;
@@ -547,7 +550,7 @@ pub async fn list_visible(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            WHERE r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $2
@@ -573,7 +576,7 @@ pub async fn list_all(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2"#,
         offset,
@@ -785,6 +788,23 @@ pub async fn mr_settings(exec: impl PgExecutor<'_>, id: RepoId) -> Result<(bool,
     Ok(r.map_or((false, false), |r| {
         (r.merge_requests_enabled, r.delete_source_branch_default)
     }))
+}
+
+/// Sets how many days without activity make an open merge request
+/// stalled.
+pub async fn set_stalled_after_days(
+    exec: impl PgExecutor<'_>,
+    id: RepoId,
+    days: i16,
+) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE repositories SET stalled_after_days = $2, updated_at = now() WHERE id = $1",
+        id.as_uuid(),
+        days
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
 }
 
 /// The merge strategies a repository allows, and its default.

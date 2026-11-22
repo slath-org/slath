@@ -45,9 +45,10 @@ test("conf_review_16_views_are_picked_from_the_view_menu", async ({ page }) => {
   await expect(menu).toHaveText(/View: All/);
   await tapOrClick(page, menu);
   const views = page.getByRole("list", { name: "View" });
-  for (const name of ["All", "Review requests", "Mine", "Stalled", "Ready to merge"]) {
+  for (const name of ["All", "Review requests", "Mine", "Ready to merge"]) {
     await expect(views.getByRole("link", { name, exact: true })).toBeVisible();
   }
+  await expect(views.getByRole("link", { name: /^Stalled \(\d+ days?\)$/ })).toBeVisible();
   await tapOrClick(page, views.getByRole("link", { name: "Mine", exact: true }));
   await expect(page).toHaveURL(/view=mine/);
   await expect(page.locator("summary", { hasText: "View:" })).toHaveText(/View: Mine/);
@@ -79,4 +80,24 @@ test("conf_review_16_a_view_is_saved_and_deleted", async ({ page }, testInfo) =>
   await expect(page).toHaveURL(/state=closed&sort=updated$/);
   await tapOrClick(page, page.getByRole("button", { name: `Delete the saved view ${name}` }));
   await expect(page.locator("summary", { hasText: "Save this view" })).toBeVisible();
+});
+
+test("conf_review_16_the_repository_sets_when_merge_requests_are_stalled", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/settings/general");
+  const days = page.getByLabel("Stalled after (days)");
+  await expect(days).toHaveValue(/^\d+$/);
+  const before = await days.inputValue();
+  await days.fill("0");
+  await tapOrClick(page, page.getByRole("button", { name: "Save merge request settings" }));
+  await expect(page.getByLabel("Stalled after (days)")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#stalled_after_days-error")).toHaveText("Enter a number of days from 1 to 365.");
+  await expectAccessible(page);
+  await page.getByLabel("Stalled after (days)").fill(before);
+  await tapOrClick(page, page.getByRole("button", { name: "Save merge request settings" }));
+  await expect(page.getByText("Merge request settings saved.")).toBeVisible();
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.locator("summary", { hasText: "View:" }));
+  const label = before === "1" ? "Stalled (1 day)" : `Stalled (${before} days)`;
+  await expect(page.getByRole("list", { name: "View" }).getByRole("link", { name: label })).toBeVisible();
 });

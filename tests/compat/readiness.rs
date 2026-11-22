@@ -436,6 +436,55 @@ fn conf_review_16_views_list_exactly_the_readable_matching_merge_requests() {
     ] {
         assert_eq!(numbers_in(&list(&mut alice, query)), want, "{query}");
     }
+    // The repository sets how long stalled is; the menu says it.
+    assert!(list(&mut alice, "").contains(">Stalled (14 days)<"));
+    for days in [0, 366] {
+        let r = c.api("PATCH", "", Some(&json!({"stalled_after_days": days})));
+        assert_eq!(r.status, 422, "{days}: {}", r.body);
+    }
+    let r = c.api("PATCH", "", Some(&json!({"stalled_after_days": 30})));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["stalled_after_days"], 30, "{}", r.body);
+    let page = list(&mut alice, "?view=stalled");
+    assert!(numbers_in(&page).is_empty(), "{page}");
+    assert!(page.contains("Stalled (30 days)"), "{page}");
+    assert!(
+        page.contains("No open merge request has gone 30 days without activity."),
+        "{page}"
+    );
+    // From the settings page, as administrators.
+    let r = slath_tests::http::submit(
+        &mut alice,
+        "/alice/demo/settings/general",
+        "/alice/demo/settings/merge-requests",
+        &[("stalled_after_days", "19")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(numbers_in(&list(&mut alice, "?view=stalled")), vec![old]);
+    let r = slath_tests::http::submit(
+        &mut alice,
+        "/alice/demo/settings/general",
+        "/alice/demo/settings/merge-requests",
+        &[("stalled_after_days", "a week")],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("Enter a number of days from 1 to 365."),
+        "{}",
+        r.body
+    );
+    let r = slath_tests::http::submit(
+        &mut c.s.login("bob", PASSWORD),
+        "/alice/demo/merge-requests",
+        "/alice/demo/settings/merge-requests",
+        &[("stalled_after_days", "1")],
+    );
+    assert_eq!(r.status, 404, "{}", r.body);
+    assert_eq!(
+        c.s.db
+            .query_one("SELECT stalled_after_days::text FROM repositories"),
+        "19"
+    );
     // The state menu counts the view's merge requests, and links keep it.
     let page = list(&mut alice, "?view=mine");
     assert!(

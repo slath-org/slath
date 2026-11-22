@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -179,10 +179,22 @@
             "name": "issues_enabled"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "stalled_after_days",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "stalled_after_days"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Int8"
       ]
     },
@@ -203,8 +215,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "d2e797ec0147ff2ad3da8cfc4f744a436cbd34d8b0cf308c5a319776118fc713"
+  "hash": "9db589bec657df01ad96a9966a59573e8f6959a20bd778e1381f56f98c05fb17"
 }

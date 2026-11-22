@@ -13514,6 +13514,7 @@
           "visibility",
           "default_branch",
           "archived",
+          "stalled_after_days",
           "clone_urls",
           "created_at",
           "updated_at"
@@ -13559,6 +13560,11 @@
               "string",
               "null"
             ]
+          },
+          "stalled_after_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days without activity after which an open merge request is\nstalled (the merge request list's Stalled view)."
           },
           "untrusted_content": {
             "type": "boolean",
@@ -14513,6 +14519,14 @@
               "null"
             ],
             "description": "A new name; the old one keeps redirecting readers."
+          },
+          "stalled_after_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "From 1 to 365."
           },
           "visibility": {
             "type": [

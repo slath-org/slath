@@ -466,6 +466,8 @@ struct GeneralSettings<'a> {
     push_protection_minimum: &'static str,
     /// Only administrators may allow findings.
     admins_allow: bool,
+    /// Days without activity that make a merge request stalled.
+    stalled_after_days: i16,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -495,6 +497,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "visibility" => "Visibility changed.",
         "renamed" => "Repository renamed. The old name redirects here.",
         "push-protection" => "Push protection changed.",
+        "merge-requests" => "Merge request settings saved.",
         "archived" => "Repository archived. It's read-only now.",
         "unarchived" => "Repository unarchived.",
         "collaborator-saved" => "Collaborator saved.",
@@ -545,6 +548,7 @@ fn general_page<'a>(
         push_protection: mode.as_str(),
         push_protection_minimum: minimum.as_str(),
         admins_allow,
+        stalled_after_days: a.repo.stalled_after_days,
         header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
@@ -567,14 +571,15 @@ async fn settings_general(
     let subject = session.subject();
     let a = settings_access(&state, &subject, &ns, &repo).await?;
     let modes = push_protection_modes(&state, &a).await?;
-    Ok(render(&general_page(
+    let page = general_page(
         RepoHeader::load(&state, &a, &subject, "settings").await,
         &a,
         ctx,
         modes,
         status_message(q.status.as_deref()),
         Vec::new(),
-    )))
+    );
+    Ok(render(&page))
 }
 
 /// The repository's own push protection mode and the site's minimum.
@@ -638,6 +643,34 @@ async fn save_push_protection(
     }
 }
 
+#[derive(Deserialize)]
+struct MergeRequestSettingsForm {
+    #[serde(default)]
+    stalled_after_days: String,
+}
+
+async fn save_merge_request_settings(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<MergeRequestSettingsForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    // Out of range or not a number: the service says what fits.
+    let days = f.stalled_after_days.trim().parse::<i64>().unwrap_or(0);
+    match state
+        .services
+        .set_mr_stalled_after_days(&s.subject, &a, days)
+        .await
+    {
+        Ok(()) => Ok(
+            Redirect::to(&repo_url(&a, "/settings/general?status=merge-requests")).into_response(),
+        ),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
+    }
+}
+
 fn repo_url(a: &RepoAccess, rest: &str) -> String {
     format!("/{}/{}{rest}", a.repo.namespace, a.repo.name)
 }
@@ -653,7 +686,8 @@ async fn invalid_page(
         ServiceError::Invalid(errors) => {
             let header = RepoHeader::load(state, a, subject, "settings").await;
             let modes = push_protection_modes(state, a).await?;
-            let mut res = render(&general_page(header, a, ctx, modes, None, errors));
+            let page = general_page(header, a, ctx, modes, None, errors);
+            let mut res = render(&page);
             *res.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
             Ok(res)
         }
@@ -1475,6 +1509,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/push-protection",
             Access::Resource,
             post(save_push_protection),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/merge-requests",
+            Access::Resource,
+            post(save_merge_request_settings),
         )
         .route_as(
             "/{ns}/{repo}/settings/rename",

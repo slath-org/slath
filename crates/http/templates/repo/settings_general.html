@@ -55,6 +55,17 @@
   {%- call f::buttons() %}<button type="submit" class="button">Save push protection</button>{% endcall %}
 </form>
 </section>
+<section class="section" aria-labelledby="mr-settings-heading">
+<h2 id="mr-settings-heading">Merge requests</h2>
+<form method="post" action="{{ base }}/merge-requests" class="form-layout" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let stalled_error = self.error("stalled_after_days").unwrap_or_default() %}
+  {%- call f::field("stalled_after_days", "Stalled after (days)", "An open merge request without a push, comment, review, or edit for this many days shows under Stalled in the list. From 1 to 365.", stalled_error) %}
+  <input id="stalled_after_days" name="stalled_after_days" type="number" inputmode="numeric" min="1" max="365" value="{{ stalled_after_days }}"{% call f::described("stalled_after_days", "x", stalled_error) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Save merge request settings</button>{% endcall %}
+</form>
+</section>
 <section class="section" aria-labelledby="rename-heading">
 <h2 id="rename-heading">Rename</h2>
 <form method="post" action="{{ base }}/rename" class="form-layout" novalidate>

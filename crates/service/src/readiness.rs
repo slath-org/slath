@@ -113,15 +113,14 @@ pub enum View {
     ReviewRequests,
     /// The viewer wrote it.
     Mine,
-    /// Open without activity for [`STALLED_AFTER`].
+    /// Open without activity for the repository's stalled time.
     Stalled,
     /// Ready to merge, from the snapshot.
     Ready,
 }
 
-/// How long an open merge request goes without activity (anything that
-/// updates it: a push, comment, review, or edit) before it's stalled.
-pub const STALLED_AFTER: time::Duration = time::Duration::days(14);
+/// The longest stalled time a repository can set, in days.
+pub const STALLED_AFTER_MAX: i16 = 365;
 
 impl View {
     pub const ALL: [View; 5] = [
@@ -170,9 +169,13 @@ impl View {
         matches!(self, View::ReviewRequests | View::Mine)
     }
 
-    /// The list options it adds for `subject`; personal views need a
-    /// signed-in user.
-    fn options(self, subject: &Subject) -> Result<slath_db::merge_requests::ListOptions> {
+    /// The list options it adds for `subject`, with the repository's
+    /// stalled time in days; personal views need a signed-in user.
+    fn options(
+        self,
+        subject: &Subject,
+        stalled_days: i16,
+    ) -> Result<slath_db::merge_requests::ListOptions> {
         let mut o = slath_db::merge_requests::ListOptions::default();
         let user = || match subject {
             Subject::User { id, .. } => Ok(*id),
@@ -183,7 +186,9 @@ impl View {
             View::ReviewRequests => o.reviewer = Some(user()?),
             View::Mine => o.mine = Some(user()?),
             View::Stalled => {
-                o.stalled_before = Some(time::OffsetDateTime::now_utc() - STALLED_AFTER);
+                o.stalled_before = Some(
+                    time::OffsetDateTime::now_utc() - time::Duration::days(stalled_days.into()),
+                );
             }
             View::Ready => o.ready = Some(crate::mr_reviews::READY),
         }
@@ -231,7 +236,7 @@ impl Services {
     ) -> Result<ListPage> {
         use slath_db::merge_requests as mrs;
         let (a, f) = self.mr_list_filter(subject, ns, repo, filter).await?;
-        let mut o = view.options(subject)?;
+        let mut o = view.options(subject, a.repo.stalled_after_days)?;
         o.grouped = f.state.as_deref() == Some("open");
         if o.grouped || o.ready.is_some() {
             self.refresh_readiness(&a, &f, &o).await?;
@@ -251,6 +256,35 @@ impl Services {
             counts,
             groups,
         })
+    }
+
+    /// Sets the repository's stalled time (administrators).
+    pub async fn set_mr_stalled_after_days(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        days: i64,
+    ) -> Result<()> {
+        self.authorize(subject, a, Action::RepoSettings)?;
+        let days = i16::try_from(days)
+            .ok()
+            .filter(|d| (1..=STALLED_AFTER_MAX).contains(d))
+            .ok_or_else(|| {
+                ServiceError::invalid(
+                    "stalled_after_days",
+                    "range",
+                    format!("Enter a number of days from 1 to {STALLED_AFTER_MAX}."),
+                )
+            })?;
+        slath_db::repos::set_stalled_after_days(&self.pool, a.repo.id, days).await?;
+        self.audit(
+            subject,
+            "repo.stalled_after",
+            crate::audit::Target::repo(*a.repo.id.as_uuid()),
+            serde_json::json!({ "days": days }),
+        )
+        .await;
+        Ok(())
     }
 
     /// Computes the outdated snapshots of the open merge requests matching

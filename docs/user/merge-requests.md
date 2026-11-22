@@ -347,7 +347,9 @@ filters:
   to notifications lists them for all repositories).
 - **Mine**: merge requests you opened.
 - **Stalled**: open merge requests without activity (a push, comment,
-  review, or edit) for 14 days.
+  review, or edit) for the repository's stalled time, 14 days unless its
+  administrators set another under **Settings → General → Merge
+  requests**. The menu shows the number of days.
 - **Ready to merge**: open merge requests whose card says they can be
   merged.
 

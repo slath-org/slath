@@ -66,7 +66,7 @@ fn conf_review_16_saved_views_are_per_user_and_bounded() {
             "All",
             "Review requests",
             "Mine",
-            "Stalled",
+            "Stalled (14 days)",
             "Ready to merge"
         ]
     );
