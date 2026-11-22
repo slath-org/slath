@@ -56,3 +56,25 @@ test("conf_design_03_buttons_keep_their_width_and_errors_link", async ({ page })
   await expect(input).toHaveAttribute("aria-invalid", "true");
   await expect(input).toHaveAttribute("aria-describedby", "demo-name-2-hint demo-name-2-error");
 });
+
+test("conf_design_03_option_follow_up_lines_up_with_its_option", async ({ page }) => {
+  await page.goto("/-/design/forms");
+  const field = page.locator("#demo-defer");
+  await expect(field).toBeHidden();
+  await page.locator("#demo-verdict-3").check();
+  await expect(field).toBeVisible();
+  // No line at its start: the follow-up lines up with its option's name.
+  const m = await page.locator("#demo-verdict-3-follow-up").evaluate((el) => {
+    const label = document.querySelector("label[for=demo-verdict-3]")!;
+    return {
+      border: getComputedStyle(el).borderInlineStartWidth,
+      left: Math.round(el.getBoundingClientRect().left),
+      labelLeft: Math.round(label.getBoundingClientRect().left),
+      fieldLeft: Math.round(document.querySelector("#demo-defer")!.getBoundingClientRect().left),
+    };
+  });
+  expect(m.border).toBe("0px");
+  expect(m.left).toBe(m.labelLeft);
+  expect(m.fieldLeft).toBe(m.labelLeft);
+  await expectAccessible(page);
+});
