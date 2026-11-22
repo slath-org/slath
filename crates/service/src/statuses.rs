@@ -307,6 +307,13 @@ impl Services {
                 "origin": origin.as_str(),
                 "target_url": target_url,
                 "annotations": annotations.iter().map(annotation_json).collect::<Vec<_>>(),
+                "api_url": format!(
+                    "{}/api/v1/repos/{}/{}/commits/{}/statuses",
+                    self.config.server.public_url.origin().trim_end_matches('/'),
+                    a.repo.namespace,
+                    a.repo.name,
+                    oid.as_str()
+                ),
             }}),
         )
         .await;

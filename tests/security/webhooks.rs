@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Webhooks (API-02): deliveries are signed with a timestamp, retried with
-//! a stable delivery ID, bounded, checked against the address policy at
-//! every attempt, and only carry what the webhook's principal can read.
+//! Webhooks (API-02, API-07): deliveries are signed with a timestamp,
+//! retried with a stable delivery ID, bounded, checked against the address
+//! policy at every attempt, and only carry what the webhook's principal can
+//! read; set to IDs only, they carry no text at all.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
@@ -539,7 +540,7 @@ fn sample(marker: &str) -> String {
     ))
     .unwrap();
     let start = doc
-        .find(marker)
+        .find(&format!("{marker}\n"))
         .unwrap_or_else(|| panic!("no {marker} block"));
     let rest = &doc[start + marker.len()..];
     let code = &rest[rest.find('\n').unwrap() + 1..];
@@ -914,4 +915,384 @@ fn conf_sec_04_ssrf_webhook_redirects_not_followed() {
     assert_eq!(tries[0]["status"], 302, "{tries:?}");
     std::thread::sleep(Duration::from_secs(1));
     assert_eq!(*hits.lock().unwrap(), 0, "the redirect was followed");
+}
+
+/// Placed in every text field of the API-07 fixture.
+const MARK: &str = "zqmarkerqz";
+
+/// Every `api_url` in `v`, at any depth.
+fn api_urls(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::Object(o) => {
+            for (k, x) in o {
+                match (k.as_str(), x) {
+                    ("api_url", Value::String(u)) => out.push(u.clone()),
+                    _ => api_urls(x, out),
+                }
+            }
+        }
+        Value::Array(a) => a.iter().for_each(|x| api_urls(x, out)),
+        _ => {}
+    }
+}
+
+#[test]
+fn conf_api_07_ids_only_deliveries_carry_no_text_for_any_event() {
+    let s = TestServer::start_full(&[DEMO], LOCAL);
+    s.create_user("eve", PASSWORD, false);
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(
+        &mut alice,
+        "all",
+        &["repo:write", "issues:write", "mrs:write", "statuses:write"],
+    );
+    let (port, got) = receiver(vec![200]);
+    let secret = "a shared secret of some length";
+    let events = [
+        "push",
+        "merge_request",
+        "merge_request_comment",
+        "merge_request_review",
+        "fork",
+        "issue",
+        "issue_comment",
+        "status",
+        "repo",
+    ];
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(json!({
+            "url": format!("http://127.0.0.1:{port}/"), "events": events,
+            "secret": secret, "payload": "ids",
+        })),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["payload"], "ids");
+    let hook = r.json()["id"].as_str().unwrap().to_owned();
+    // A control with full payloads shows the fixture's text reaches them.
+    let (full_port, full) = receiver(vec![200]);
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(json!({"url": format!("http://127.0.0.1:{full_port}/"), "events": events})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(
+            json!({"url": format!("http://127.0.0.1:{port}/"), "events": ["push"], "payload": "most"}),
+        ),
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("payload"), "{}", r.body);
+
+    // Text with the marker everywhere a user can put it.
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let who = format!("Author {MARK}");
+    let mail = format!("{MARK}@example.org");
+    let (name, email) = (format!("user.name={who}"), format!("user.email={mail}"));
+    let as_marked = |args: &[&str]| {
+        let mut v: Vec<&str> = vec!["-c", &name, "-c", &email];
+        v.extend_from_slice(args);
+        git.ok(w, &v);
+    };
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README"), "hello\n").unwrap();
+    as_marked(&["add", "."]);
+    as_marked(&[
+        "commit",
+        "-q",
+        "-m",
+        &format!("First {MARK}\n\nbody {MARK}"),
+    ]);
+    as_marked(&["push", "-q", &s.url(&DEMO), "main"]);
+    as_marked(&["switch", "-q", "-c", "topic"]);
+    std::fs::write(w.join("notes"), "notes\n").unwrap();
+    as_marked(&["add", "."]);
+    as_marked(&["commit", "-q", "-m", &format!("Notes {MARK}")]);
+    as_marked(&["push", "-q", &s.url(&DEMO), "topic"]);
+    let head = git.ok(w, &["rev-parse", "HEAD"]).trim().to_owned();
+    let post = |path: &str, body: Value| {
+        let r = api(
+            &s,
+            &token,
+            "POST",
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(body),
+        );
+        assert!(r.status < 300, "{path}: {}", r.body);
+        r.json()
+    };
+    post(
+        "/issues",
+        json!({"title": format!("Issue {MARK}"), "body": format!("Body {MARK}")}),
+    );
+    post(
+        "/issues/1/comments",
+        json!({"body": format!("Comment {MARK}")}),
+    );
+    let mr = post(
+        "/merge-requests",
+        json!({"source_branch": "topic", "title": format!("MR {MARK}"), "description": format!("Desc {MARK}")}),
+    );
+    let n = mr["number"].as_i64().unwrap();
+    wait_for("no revision", &s, || {
+        api(
+            &s,
+            &token,
+            "GET",
+            &format!("/api/v1/repos/alice/demo/merge-requests/{n}"),
+            None,
+        )
+        .json()["revisions"]
+            == 1
+    });
+    post(
+        &format!("/merge-requests/{n}/comments"),
+        json!({"body": format!("MR comment {MARK}")}),
+    );
+    post(
+        &format!("/merge-requests/{n}/threads"),
+        json!({"body": format!("Thread {MARK}")}),
+    );
+    post(
+        &format!("/merge-requests/{n}/reviews"),
+        json!({"verdict": "comment", "body": format!("Review {MARK}")}),
+    );
+    post(
+        &format!("/statuses/{head}"),
+        json!({
+            "state": "failure", "context": "ci/build",
+            "description": format!("Failed {MARK}"),
+            "target_url": format!("https://ci.example.org/{MARK}"),
+            "annotations": [{"path": "notes", "line_start": 1, "severity": "warning", "message": format!("Finding {MARK}")}],
+        }),
+    );
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/forks",
+        Some(json!({"namespace": "alice", "name": "demo-fork"})),
+    );
+    assert_eq!(r.status, 202, "{}", r.body);
+
+    // Every event arrived, signed, with no marker in it.
+    let want = [
+        "push",
+        "issue",
+        "issue_comment",
+        "merge_request",
+        "merge_request_comment",
+        "merge_request_review",
+        "status",
+        "fork",
+    ];
+    wait_for("not every event arrived", &s, || {
+        let g = got.lock().unwrap();
+        want.iter()
+            .all(|e| g.iter().any(|x| x.header("X-Slath-Event") == *e))
+            && g.iter()
+                .filter(|x| x.header("X-Slath-Event") == "merge_request_comment")
+                .count()
+                == 2
+    });
+    let mut urls = Vec::new();
+    for g in got.lock().unwrap().iter() {
+        let text = String::from_utf8_lossy(&g.body);
+        assert!(
+            !text.contains(MARK),
+            "{}: {text}",
+            g.header("X-Slath-Event")
+        );
+        assert_eq!(
+            g.header("X-Slath-Signature-256"),
+            expected_signature(secret, g.header("X-Slath-Timestamp"), &g.body)
+        );
+        assert!(!g.header("X-Slath-Delivery").is_empty());
+        let p = g.json();
+        assert_eq!(p["event"], g.header("X-Slath-Event"), "{p}");
+        api_urls(&p, &mut urls);
+        // Each object says where to read it.
+        for key in [
+            "push",
+            "issue",
+            "merge_request",
+            "comment",
+            "review",
+            "status",
+            "fork",
+        ] {
+            if let Some(o) = p.get(key) {
+                assert!(o["api_url"].is_string(), "{key} without api_url: {p}");
+            }
+        }
+    }
+    wait_for("not every full delivery arrived", &s, || {
+        full.lock().unwrap().len() >= got.lock().unwrap().len()
+    });
+    for e in &want[..7] {
+        let f = full.lock().unwrap();
+        let marked = f
+            .iter()
+            .filter(|x| x.header("X-Slath-Event") == *e)
+            .all(|x| String::from_utf8_lossy(&x.body).contains(MARK));
+        assert!(marked, "the full {e} payload has no marker");
+    }
+    let p = got
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|g| g.header("X-Slath-Event") == "merge_request")
+        .unwrap()
+        .json();
+    assert_eq!(p["merge_request"]["number"], n, "{p}");
+    assert_eq!(p["merge_request"]["source_branch"], "topic", "{p}");
+    assert!(p["merge_request"].get("title").is_none(), "{p}");
+
+    // The stored deliveries have no text either.
+    for dl in deliveries(&s, &token, &hook) {
+        let did = dl["id"].as_str().unwrap();
+        let body = api(
+            &s,
+            &token,
+            "GET",
+            &format!("/api/v1/repos/alice/demo/webhooks/{hook}/deliveries/{did}"),
+            None,
+        )
+        .body;
+        assert!(!body.contains(MARK), "{body}");
+    }
+
+    // The URLs answer the receiver's own token, and nobody else.
+    let mut eve = s.login("eve", PASSWORD);
+    let outsider = slath_tests::http::create_token(&mut eve, "e", &["repo:read"]);
+    let mut reader = s.login("alice", PASSWORD);
+    let receiver_token = slath_tests::http::create_token(&mut reader, "r", &["repo:read"]);
+    urls.sort();
+    urls.dedup();
+    assert!(urls.len() >= 8, "{urls:?}");
+    let mut client = s.client();
+    for u in &urls {
+        let path = u
+            .strip_prefix(s.base().trim_end_matches('/'))
+            .unwrap_or_else(|| panic!("{u}"));
+        let r = client.api("GET", path, Some(&receiver_token), None);
+        assert_eq!(r.status, 200, "{path}: {}", r.body);
+        let r = client.api("GET", path, Some(&outsider), None);
+        assert_eq!(r.status, 404, "{path} for an outsider: {}", r.body);
+        let r = client.api("GET", path, None, None);
+        assert_eq!(r.status, 404, "{path} anonymously: {}", r.body);
+    }
+
+    // The repository event last, as it changes who can read the URLs; and
+    // a ping.
+    let r = api(
+        &s,
+        &token,
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(json!({"visibility": "internal"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        &format!("/api/v1/repos/alice/demo/webhooks/{hook}/ping"),
+        None,
+    );
+    assert_eq!(r.status, 202, "{}", r.body);
+    wait_for("no repo event or ping", &s, || {
+        let g = got.lock().unwrap();
+        ["repo", "ping"]
+            .iter()
+            .all(|e| g.iter().any(|x| x.header("X-Slath-Event") == *e))
+    });
+    let g = got.lock().unwrap();
+    let repo = g
+        .iter()
+        .find(|x| x.header("X-Slath-Event") == "repo")
+        .unwrap()
+        .json();
+    assert_eq!(repo["change"]["visibility"]["to"], "internal", "{repo}");
+    let ping = g
+        .iter()
+        .find(|x| x.header("X-Slath-Event") == "ping")
+        .unwrap()
+        .json();
+    assert_eq!(ping["webhook"]["id"], hook.as_str(), "{ping}");
+}
+
+#[test]
+fn conf_api_07_a_switch_to_ids_only_also_thins_redeliveries() {
+    let s = TestServer::start_full(&[DEMO], LOCAL);
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "t", &["repo:write", "issues:write"]);
+    let (port, got) = receiver(vec![200]);
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/webhooks",
+        Some(json!({"url": format!("http://127.0.0.1:{port}/"), "events": ["issue"]})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["payload"], "full", "full by default");
+    let hook = r.json()["id"].as_str().unwrap().to_owned();
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        "/api/v1/repos/alice/demo/issues",
+        Some(json!({"title": format!("Issue {MARK}")})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    wait_for("no delivery", &s, || got.lock().unwrap().len() == 1);
+    assert!(String::from_utf8_lossy(&got.lock().unwrap()[0].body).contains(MARK));
+
+    // Switched: a redelivery of the full one goes out without text, and
+    // the other fields stay as they were.
+    let r = api(
+        &s,
+        &token,
+        "PATCH",
+        &format!("/api/v1/repos/alice/demo/webhooks/{hook}"),
+        Some(json!({"payload": "ids"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(
+        (r.json()["payload"].as_str(), r.json()["events"][0].as_str()),
+        (Some("ids"), Some("issue"))
+    );
+    let did = deliveries(&s, &token, &hook)[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = api(
+        &s,
+        &token,
+        "POST",
+        &format!("/api/v1/repos/alice/demo/webhooks/{hook}/deliveries/{did}/redeliver"),
+        None,
+    );
+    assert_eq!(r.status, 202, "{}", r.body);
+    wait_for("no redelivery", &s, || got.lock().unwrap().len() == 2);
+    let again = got.lock().unwrap()[1].clone();
+    assert!(!String::from_utf8_lossy(&again.body).contains(MARK));
+    assert_eq!(again.json()["issue"]["number"], 1);
+    assert_eq!(
+        s.db.query_one("SELECT count(*)::text FROM audit_events WHERE action = 'webhook.update' AND data->>'payload' = 'ids'"),
+        "1"
+    );
 }

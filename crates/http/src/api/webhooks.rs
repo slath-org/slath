@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use slath_core::authz::{Action, Subject};
 use slath_core::ids::OrgId;
 use slath_db::orgs::NamespaceKind;
-use slath_service::webhooks::{WebhookInput, WebhookOwner};
+use slath_service::webhooks::{Payload, WebhookInput, WebhookOwner};
 use utoipa::ToSchema;
 
 use super::ApiUser;
@@ -29,6 +29,9 @@ pub struct Webhook {
     /// The events it receives.
     pub events: Vec<String>,
     pub active: bool,
+    /// `full`, or `ids`: only the event, IDs, names, and API URLs, no
+    /// titles, descriptions, comments, or commit messages.
+    pub payload: String,
     /// Why Slath switched it off, if it did.
     pub disabled_reason: Option<String>,
     /// Failed attempts in a row (50 switch it off).
@@ -47,6 +50,7 @@ impl From<slath_db::webhooks::Webhook> for Webhook {
             url: w.url,
             events: w.events,
             active: w.active,
+            payload: w.payload,
             disabled_reason: w.disabled_reason,
             consecutive_failures: w.consecutive_failures,
             secret: None,
@@ -69,6 +73,9 @@ pub struct WebhookBody {
     /// Default for new webhooks: true.
     #[serde(default)]
     pub active: Option<bool>,
+    /// `full` (default for new webhooks) or `ids`.
+    #[serde(default)]
+    pub payload: Option<String>,
     /// 16 to 256 characters. Omitted on create: Slath generates one and
     /// returns it once. Omitted on update: unchanged.
     #[serde(default)]
@@ -188,8 +195,17 @@ fn id(s: &str) -> Result<uuid::Uuid, AppError> {
     s.parse().map_err(|_| AppError::not_found())
 }
 
-fn input(b: WebhookBody, current: Option<&slath_db::webhooks::Webhook>) -> WebhookInput {
-    WebhookInput {
+fn input(
+    b: WebhookBody,
+    current: Option<&slath_db::webhooks::Webhook>,
+) -> Result<WebhookInput, AppError> {
+    let payload = match b.payload.as_deref().or(current.map(|w| w.payload.as_str())) {
+        None => Payload::Full,
+        Some(p) => Payload::parse(p).ok_or_else(|| {
+            slath_service::ServiceError::invalid("payload", "invalid", "Choose full or ids.")
+        })?,
+    };
+    Ok(WebhookInput {
         url: b
             .url
             .or_else(|| current.map(|w| w.url.clone()))
@@ -200,7 +216,8 @@ fn input(b: WebhookBody, current: Option<&slath_db::webhooks::Webhook>) -> Webho
             .unwrap_or_default(),
         active: b.active.or(current.map(|w| w.active)).unwrap_or(true),
         secret: b.secret,
-    }
+        payload,
+    })
 }
 
 async fn list(state: &AppState, s: &Subject, o: &Owner) -> Result<Json<Vec<Webhook>>, AppError> {
@@ -216,7 +233,7 @@ async fn create(
 ) -> Result<Response, AppError> {
     let (w, secret) = state
         .services
-        .create_webhook(s, o.get(), &input(b, None))
+        .create_webhook(s, o.get(), &input(b, None)?)
         .await?;
     let mut body = Webhook::from(w);
     body.secret = secret;
@@ -240,7 +257,7 @@ async fn update(
     let current = state.services.webhook(s, o.get(), w).await?;
     let updated = state
         .services
-        .update_webhook(s, o.get(), w, &input(b, Some(&current)))
+        .update_webhook(s, o.get(), w, &input(b, Some(&current))?)
         .await?;
     Ok(Json(updated.into()))
 }

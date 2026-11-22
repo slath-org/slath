@@ -678,6 +678,7 @@ impl Services {
                 "full_name": format!("{}/{}", repo.namespace, repo.name),
                 "visibility": repo.visibility,
                 "html_url": format!("{base}/{}/{}", repo.namespace, repo.name),
+                "api_url": format!("{base}/api/v1/repos/{}/{}", repo.namespace, repo.name),
             }}),
         )
         .await;

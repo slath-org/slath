@@ -96,6 +96,37 @@ pub struct WebhookInput {
     pub events: Vec<String>,
     pub active: bool,
     pub secret: Option<String>,
+    pub payload: Payload,
+}
+
+/// What a webhook's deliveries carry.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Payload {
+    /// Everything the event has, with texts cut to size.
+    #[default]
+    Full,
+    /// The event, IDs, names, and API URLs: no titles, bodies, messages.
+    Ids,
+}
+
+impl Payload {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Ids => "ids",
+        }
+    }
+
+    /// The setting named `s`; unknown names are `None`.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "full" => Some(Self::Full),
+            "ids" => Some(Self::Ids),
+            _ => None,
+        }
+    }
 }
 
 /// A text cut to [`TEXT_MAX`] bytes, marked if it was cut.
@@ -108,6 +139,102 @@ fn text(s: &str) -> serde_json::Value {
         end -= 1;
     }
     format!("{}… (cut)", &s[..end]).into()
+}
+
+/// The fields an IDs-only payload keeps (`a.b` nests, `a[].b` is in
+/// each element of array `a`). Everything else is dropped, so a field
+/// added later stays out until it's listed here.
+const IDS_ONLY: &[&str] = &[
+    "event",
+    "action",
+    "repository.id",
+    "repository.full_name",
+    "repository.html_url",
+    "repository.api_url",
+    "sender.username",
+    "sender.kind",
+    "push.ref",
+    "push.before",
+    "push.after",
+    "push.forced",
+    "push.commits[].id",
+    "push.api_url",
+    "merge_request.number",
+    "merge_request.state",
+    "merge_request.draft",
+    "merge_request.head_oid",
+    "merge_request.revisions",
+    "merge_request.source_branch",
+    "merge_request.target_branch",
+    "merge_request.html_url",
+    "merge_request.api_url",
+    "issue.number",
+    "issue.state",
+    "issue.html_url",
+    "issue.api_url",
+    "comment.id",
+    "comment.thread_id",
+    "comment.api_url",
+    "review.id",
+    "review.verdict",
+    "review.revision",
+    "review.api_url",
+    "status.commit",
+    "status.context",
+    "status.state",
+    "status.api_url",
+    "fork.full_name",
+    "fork.visibility",
+    "fork.html_url",
+    "fork.api_url",
+    "change",
+    "zen",
+    "webhook.id",
+    "webhook.events",
+];
+
+/// `payload` as a webhook set to `kind` receives it.
+#[must_use]
+pub fn shaped(payload: &serde_json::Value, kind: Payload) -> serde_json::Value {
+    match kind {
+        Payload::Full => payload.clone(),
+        Payload::Ids => {
+            let paths: Vec<Vec<&str>> = IDS_ONLY.iter().map(|p| p.split('.').collect()).collect();
+            let paths: Vec<&[&str]> = paths.iter().map(Vec::as_slice).collect();
+            pick(payload, &paths).unwrap_or_else(|| serde_json::json!({}))
+        }
+    }
+}
+
+/// The parts of `v` that `paths` (relative to `v`) name.
+fn pick(v: &serde_json::Value, paths: &[&[&str]]) -> Option<serde_json::Value> {
+    if paths.iter().any(|p| p.is_empty()) {
+        return Some(v.clone());
+    }
+    let serde_json::Value::Object(o) = v else {
+        return None;
+    };
+    let mut out = serde_json::Map::new();
+    let mut heads: Vec<&str> = paths.iter().map(|p| p[0]).collect();
+    heads.dedup();
+    for head in heads {
+        let rest: Vec<&[&str]> = paths
+            .iter()
+            .filter(|p| p[0] == head)
+            .map(|p| &p[1..])
+            .collect();
+        if let Some(key) = head.strip_suffix("[]") {
+            if let Some(serde_json::Value::Array(items)) = o.get(key) {
+                let kept = items.iter().filter_map(|i| pick(i, &rest)).collect();
+                out.insert(key.to_owned(), serde_json::Value::Array(kept));
+            }
+        } else if let Some(child) = o.get(head)
+            && let Some(kept) = pick(child, &rest)
+        {
+            out.insert(head.to_owned(), kept);
+        }
+    }
+    Some(serde_json::Value::Object(out))
 }
 
 /// The wait before attempt `next` (2 and up): 1 minute, doubling, at most
@@ -284,6 +411,7 @@ impl Services {
                 url: &url,
                 events: &events,
                 active: input.active,
+                payload: input.payload.as_str(),
                 secret: Some((&sealed.ciphertext, &sealed.key_id)),
                 principal: me,
             },
@@ -293,7 +421,7 @@ impl Services {
             subject,
             "webhook.create",
             owner.audit_target(),
-            serde_json::json!({"webhook": id, "url": url, "events": events}),
+            serde_json::json!({"webhook": id, "url": url, "events": events, "payload": input.payload.as_str()}),
         )
         .await;
         let w = db::get(&self.pool, id)
@@ -329,6 +457,7 @@ impl Services {
                 url: &url,
                 events: &events,
                 active: input.active,
+                payload: input.payload.as_str(),
                 secret: sealed
                     .as_ref()
                     .map(|s| (s.ciphertext.as_slice(), s.key_id.as_str())),
@@ -342,7 +471,7 @@ impl Services {
             owner.audit_target(),
             serde_json::json!({
                 "webhook": id, "url": url, "events": events, "active": input.active,
-                "secret_changed": sealed.is_some(),
+                "payload": input.payload.as_str(), "secret_changed": sealed.is_some(),
             }),
         )
         .await;
@@ -407,7 +536,9 @@ impl Services {
         let (d, _) = self
             .webhook_delivery(subject, owner, (id, delivery))
             .await?;
-        self.queue_delivery(id, (&d.event, d.action.as_deref()), &d.payload, Some(d.id))
+        // Shaped again: after a switch to IDs only, no text goes out.
+        let w = self.owned_webhook(owner, id).await?;
+        self.queue_delivery(&w, (&d.event, d.action.as_deref()), &d.payload, Some(d.id))
             .await
     }
 
@@ -424,19 +555,24 @@ impl Services {
             "zen": "Small changes, reviewed well.",
             "webhook": {"id": w.id, "events": w.events},
         });
-        self.queue_delivery(id, ("ping", None), &payload, None)
+        self.queue_delivery(&w, ("ping", None), &payload, None)
             .await
     }
 
+    /// Stores a delivery of `payload` as `webhook` wants it and queues
+    /// its first attempt.
     async fn queue_delivery(
         &self,
-        webhook: uuid::Uuid,
+        webhook: &Webhook,
         event: (&str, Option<&str>),
         payload: &serde_json::Value,
         redelivery_of: Option<uuid::Uuid>,
     ) -> Result<uuid::Uuid> {
         let id = uuid::Uuid::now_v7();
-        db::insert_delivery(&self.pool, id, webhook, event, payload, redelivery_of).await?;
+        // Unknown settings get the least.
+        let kind = Payload::parse(&webhook.payload).unwrap_or(Payload::Ids);
+        let payload = shaped(payload, kind);
+        db::insert_delivery(&self.pool, id, webhook.id, event, &payload, redelivery_of).await?;
         self.queue_attempt(id, None).await?;
         Ok(id)
     }
@@ -535,7 +671,7 @@ impl Services {
             if !readable {
                 continue;
             }
-            self.queue_delivery(w.id, (event, action), &payload, None)
+            self.queue_delivery(&w, (event, action), &payload, None)
                 .await?;
         }
         Ok(())
@@ -793,6 +929,15 @@ impl Services {
             return;
         }
         let dir = self.repo_path(repo);
+        let api = match slath_db::repos::get(&self.pool, repo).await {
+            Ok(Some(r)) => format!(
+                "{}/api/v1/repos/{}/{}",
+                self.web_base(),
+                r.namespace,
+                r.name
+            ),
+            _ => return,
+        };
         for u in updates {
             let old = (u.old != ZERO)
                 .then(|| slath_git::ObjectId::parse(&u.old).ok())
@@ -831,7 +976,7 @@ impl Services {
                 (_, None) => "deleted",
                 _ => "updated",
             };
-            let payload = serde_json::json!({
+            let mut payload = serde_json::json!({
                 "push": {
                     "ref": String::from_utf8_lossy(&u.name),
                     "before": u.old,
@@ -840,6 +985,9 @@ impl Services {
                     "commits": commits,
                 },
             });
+            if new.is_some() {
+                payload["push"]["api_url"] = format!("{api}/commits/{}", u.new).into();
+            }
             self.emit_webhook(repo, pusher, ("push", Some(action)), Needs::Repo, payload)
                 .await;
         }
@@ -872,7 +1020,18 @@ impl Services {
             A::Closed => ("issue", "closed", None),
             A::Reopened => ("issue", "reopened", None),
             A::Assigned(_) => ("issue", "assigned", None),
-            A::Commented(c) => ("issue_comment", "created", self.comment_object(*c).await),
+            A::Commented(c) => (
+                "issue_comment",
+                "created",
+                self.comment_object(
+                    *c,
+                    &format!(
+                        "{base}/api/v1/repos/{ns}/{name}/issues/{}/comments",
+                        issue.number
+                    ),
+                )
+                .await,
+            ),
         };
         let mut payload = serde_json::json!({"issue": object});
         if let Some(c) = extra {
@@ -888,7 +1047,8 @@ impl Services {
         .await;
     }
 
-    async fn comment_object(&self, id: uuid::Uuid) -> Option<serde_json::Value> {
+    /// Comment `id` of an issue or merge request, found at `api_url`.
+    async fn comment_object(&self, id: uuid::Uuid, api_url: &str) -> Option<serde_json::Value> {
         let c = slath_db::issues::comment(&self.pool, id)
             .await
             .ok()
@@ -900,6 +1060,7 @@ impl Services {
             "origin": c.origin.as_str(),
             "author": c.author,
             "created_at": c.created_at.format(&time::format_description::well_known::Rfc3339).ok(),
+            "api_url": api_url,
         }))
     }
 
@@ -916,6 +1077,10 @@ impl Services {
         };
         let (ns, name) = (&r.namespace, &r.name);
         let base = self.web_base();
+        let mr_api = format!(
+            "{base}/api/v1/repos/{ns}/{name}/merge-requests/{}",
+            m.number
+        );
         let object = serde_json::json!({
             "number": m.number,
             "title": text(&m.title),
@@ -931,7 +1096,7 @@ impl Services {
             "head_oid": m.head_oid,
             "revisions": m.revisions,
             "html_url": format!("{base}/{ns}/{name}/merge-requests/{}", m.number),
-            "api_url": format!("{base}/api/v1/repos/{ns}/{name}/merge-requests/{}", m.number),
+            "api_url": mr_api,
         });
         let mut payload = serde_json::json!({"merge_request": object});
         let (event, action) = match what {
@@ -942,7 +1107,7 @@ impl Services {
             A::Ready => ("merge_request", "ready"),
             A::Revision(_) => ("merge_request", "updated"),
             A::Commented(c) => {
-                if let Some(c) = self.comment_object(*c).await {
+                if let Some(c) = self.comment_object(*c, &format!("{mr_api}/comments")).await {
                     payload["comment"] = c;
                 }
                 ("merge_request_comment", "created")
@@ -960,6 +1125,8 @@ impl Services {
                         "untrusted_content": true,
                         "origin": c.origin.as_str(),
                         "author": c.author,
+                        // Threads are read as a list; `thread_id` picks this one.
+                        "api_url": format!("{mr_api}/threads"),
                     });
                 }
                 ("merge_request_comment", "created")
@@ -978,6 +1145,7 @@ impl Services {
                         "origin": v.origin.as_str(),
                         "revision": v.revision_seq,
                         "reviewer": v.reviewer,
+                        "api_url": format!("{mr_api}/reviews"),
                     });
                 }
                 ("merge_request_review", "submitted")
@@ -1004,6 +1172,30 @@ mod tests {
         let mins: Vec<i64> = (2..=8).map(|n| backoff(n).whole_minutes()).collect();
         assert_eq!(mins, [1, 2, 4, 8, 16, 32, 64]);
         assert_eq!(backoff(20).whole_minutes(), 360);
+    }
+
+    #[test]
+    fn ids_only_keeps_listed_fields_and_drops_the_rest() {
+        let full = serde_json::json!({
+            "event": "push",
+            "repository": {"id": "r", "full_name": "a/b", "description": "text"},
+            "push": {
+                "ref": "refs/heads/main",
+                "commits": [{"id": "c1", "message": "text"}, {"id": "c2", "author": {"name": "text"}}],
+                "added_later": "text",
+            },
+            "unknown": {"api_url": "x"},
+        });
+        let thin = shaped(&full, Payload::Ids);
+        assert_eq!(
+            thin,
+            serde_json::json!({
+                "event": "push",
+                "repository": {"id": "r", "full_name": "a/b"},
+                "push": {"ref": "refs/heads/main", "commits": [{"id": "c1"}, {"id": "c2"}]},
+            })
+        );
+        assert_eq!(shaped(&full, Payload::Full), full);
     }
 
     #[test]

@@ -14611,6 +14611,7 @@
           "url",
           "events",
           "active",
+          "payload",
           "consecutive_failures",
           "created_at",
           "updated_at"
@@ -14643,6 +14644,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "payload": {
+            "type": "string",
+            "description": "`full`, or `ids`: only the event, IDs, names, and API URLs, no\ntitles, descriptions, comments, or commit messages."
           },
           "secret": {
             "type": [
@@ -14679,6 +14684,13 @@
               "type": "string"
             },
             "description": "One or more of `push`, `merge_request`, `merge_request_comment`,\n`merge_request_review`, `fork`, `issue`, `issue_comment`, `status`,\n`repo`."
+          },
+          "payload": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`full` (default for new webhooks) or `ids`."
           },
           "secret": {
             "type": [

@@ -22,6 +22,8 @@ the organization.
   in internal networks (loopback, private ranges, link-local, and the
   like) are refused unless the site administrator allowed them.
 - **Events:** one or more of the events below.
+- **Payload:** **Everything**, or **IDs and API links only** (see
+  [Payloads without text](#payloads-without-text)).
 - **Secret:** 16 to 256 characters that you and the receiver share. Leave
   it empty and Slath generates one; it's shown once, so copy it then.
   Slath stores it encrypted and never shows it again.
@@ -57,6 +59,36 @@ Every payload is JSON with `event`, `action` (where the event has one),
 end in "… (cut)". Issues, merge requests, comments, reviews, and statuses
 carry `untrusted_content` and the `origin` of their text, as in the API
 (see [who wrote what](agents.md#surfaces-for-programs)).
+Each object also has the `api_url` to read it again: the commit of a
+push, the issue or merge request, the issue's or merge request's
+comments (or its review threads, with `thread_id`), the merge request's reviews, the
+commit's statuses, the fork.
+
+### Payloads without text
+
+A receiver's logs are often kept longer, and read by more people, than
+the repository. If the receiver only needs to know that something
+happened, set **Payload** to **IDs and API links only** (`"payload":
+"ids"` in the API). Each delivery then carries the event, IDs, names
+(of the repository, branches, users, and status contexts), states, and
+the `api_url`s, but no titles, descriptions, comments, review texts,
+commit messages or authors, or status descriptions:
+
+```json
+{
+  "event": "merge_request",
+  "action": "opened",
+  "repository": {"id": "…", "full_name": "alice/demo", "html_url": "https://slath.example/alice/demo", "api_url": "https://slath.example/api/v1/repos/alice/demo"},
+  "sender": {"username": "bob", "kind": "user"},
+  "merge_request": {"number": 12, "state": "open", "draft": false, "head_oid": "…", "revisions": 1, "source_branch": "my-topic", "target_branch": "main", "html_url": "…", "api_url": "https://slath.example/api/v1/repos/alice/demo/merge-requests/12"}
+}
+```
+
+The receiver fetches the rest from `api_url` with a token of its own,
+such as a [bot's](bots.md) with read scopes: it gets only what that
+token may read, and a 404 for anything else. The deliveries Slath keeps,
+and redeliveries of earlier ones, have no text either. Signatures,
+retries, and delivery IDs work as for full payloads.
 
 A webhook acts for the person who created it or last changed its URL or
 secret. It sends an event only if that person can read the repository (and

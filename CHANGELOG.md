@@ -19,6 +19,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The ledger records for each approval of one change whether it carried or went stale, and the timeline names the changes whose approvals went stale.
 - A merge request's Commits and Changes tabs show how many commits and changed files the current revision has, as Conversation shows its comments.
 - A change's page lists its versions with author, age, size, comments, checks, and how each was matched, and compares any two versions picked there.
+- Webhooks can send payloads with only IDs, names, and API links, so no titles, descriptions, comments, or commit messages reach the receiver's logs.
+- Every webhook payload object carries the `api_url` it can be read at again, also for pushes, comments, reviews, statuses, and forks.
 - A stack guide shows, for Git and jj side by side, how to push a stack, change a commit in the middle, hand it between both tools, and land it in parts.
 - The fork guide shows how to rebase a fork's branch onto the original's latest commits with Git and jj; rebased changes keep their approvals.
 - In a stack, a change's page shows the whole stack beside it, with each change's state, approvals, and checks, and buttons to the previous and next change and version.

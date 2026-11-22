@@ -13,7 +13,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use slath_core::authz::{Action, Subject};
 use slath_db::orgs::NamespaceKind;
 use slath_service::repos::RepoAccess;
-use slath_service::webhooks::{WebhookInput, WebhookOwner};
+use slath_service::webhooks::{Payload, WebhookInput, WebhookOwner};
 use slath_service::{FieldError, ServiceError};
 
 use super::repos::RepoHeader;
@@ -444,6 +444,7 @@ fn form_input(body: &[u8]) -> WebhookInput {
             .collect(),
         active: get("active").is_some(),
         secret: get("secret").filter(|s| !s.is_empty()),
+        payload: Payload::default(),
     }
 }
 

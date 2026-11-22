@@ -20,6 +20,8 @@ pub struct Webhook {
     pub key_id: String,
     pub events: Vec<String>,
     pub active: bool,
+    /// `full`, or `ids` for payloads without text.
+    pub payload: String,
     pub disabled_reason: Option<String>,
     pub consecutive_failures: i32,
     pub principal_id: Option<UserId>,
@@ -49,6 +51,8 @@ pub struct Fields<'a> {
     pub url: &'a str,
     pub events: &'a [String],
     pub active: bool,
+    /// `full` or `ids`.
+    pub payload: &'a str,
     /// A new sealed secret and its key, if it changes.
     pub secret: Option<(&'a [u8], &'a str)>,
     pub principal: UserId,
@@ -65,6 +69,7 @@ macro_rules! webhook_from {
             key_id: $r.key_id,
             events: $r.events,
             active: $r.active,
+            payload: $r.payload,
             disabled_reason: $r.disabled_reason,
             consecutive_failures: $r.consecutive_failures,
             principal_id: $r.principal_id.map(UserId::from_uuid),
@@ -84,8 +89,8 @@ pub async fn insert(
     let (repo, org) = owner.ids();
     let (secret, key) = f.secret.ok_or(DbError::Invalid("secret"))?;
     sqlx::query!(
-        "INSERT INTO webhooks (id, repo_id, org_id, url, secret_enc, key_id, events, active, principal_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        "INSERT INTO webhooks (id, repo_id, org_id, url, secret_enc, key_id, events, active, principal_id, payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         id,
         repo,
         org,
@@ -94,7 +99,8 @@ pub async fn insert(
         key,
         f.events,
         f.active,
-        f.principal.as_uuid()
+        f.principal.as_uuid(),
+        f.payload
     )
     .execute(exec)
     .await?;
@@ -112,7 +118,7 @@ pub async fn update(
     sqlx::query!(
         "UPDATE webhooks SET url = $2, events = $3, active = $4,
                 secret_enc = COALESCE($5, secret_enc), key_id = COALESCE($6, key_id),
-                principal_id = $7,
+                principal_id = $7, payload = $8,
                 disabled_reason = CASE WHEN $4 THEN NULL ELSE disabled_reason END,
                 consecutive_failures = CASE WHEN $4 AND NOT active THEN 0 ELSE consecutive_failures END,
                 updated_at = now()
@@ -123,7 +129,8 @@ pub async fn update(
         f.active,
         secret,
         key,
-        f.principal.as_uuid()
+        f.principal.as_uuid(),
+        f.payload
     )
     .execute(exec)
     .await?;

@@ -145,6 +145,17 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "ordinal": 13,
+        "name": "payload",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhooks",
+            "name": "payload"
+          }
+        }
       }
     ],
     "parameters": {
@@ -165,6 +176,7 @@
       true,
       false,
       true,
+      false,
       false,
       false
     ]
