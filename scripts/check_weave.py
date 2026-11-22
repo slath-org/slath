@@ -54,7 +54,7 @@ ENTRY_MARKERS = {
     "notice": r"msg::notice\(|class=\"notice", "saved": r"msg::saved\(|success-summary",
     "error-summary": r"msg::error_summary\(|error-summary", "notice-line": r"msg::notice_line\(|notice-line",
     "empty": r"msg::empty\(|empty-state", "busy": "*", "toast": "*",
-    "form": r"form-layout", "field": r"f::field\(|class=\"field", "question": r"f::question\(|class=\"question",
+    "form": r"form-layout", "field": r"f::field\(|class=\"field", "question": r"f::question\(|class=\"question", "option-follow-up": r"f::option_follow_up\(",
     "field-group": r"f::field_group\(|field-group", "form-buttons": r"f::buttons\(|form-buttons",
     "copy-value": r"f::copy_value\(|m::copy_field\(", "danger": r"f::danger\(",
     "disclosure": r"d::disclosure\(|details class=\"disclosure", "menu": r'class="menu[ "]|d::menu\(',

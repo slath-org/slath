@@ -348,21 +348,22 @@
     {%- call msg::notice() %}<p>You have {{ pending }} pending comment{% if pending != 1 %}s{% endif %}; submitting the review sends {% if pending == 1 %}it{% else %}them{% endif %} along.</p>{% endcall %}
     {%- endif %}
     {%- let verdict_legend %}Review revision {{ h.mr.revisions }}{% endlet %}
+    {%- let (verdict, defer_to, review_body) = review_form %}
     {%- call f::question("verdict", verdict_legend) %}
-    {%- call f::option("radio", "verdict-comment", "verdict", "comment", "Comment", true) %}{% endcall %}
+    {%- call f::option("radio", "verdict-comment", "verdict", "comment", "Comment", verdict.as_str() != "approve" && verdict.as_str() != "defer" && verdict.as_str() != "request_changes") %}{% endcall %}
     {%- if can_approve %}
-    {%- call f::option("radio", "verdict-approve", "verdict", "approve", "Approve") %}{% endcall %}
-    {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes") %}{% endcall %}
+    {%- call f::option("radio", "verdict-approve", "verdict", "approve", "Approve", verdict.as_str() == "approve") %}{% endcall %}
+    {%- call f::option_follow_up("radio", "verdict-defer", "verdict", "defer", "Approve, but let someone else decide", verdict.as_str() == "defer") %}
+    {%- call f::field("review-defer", "Who decides", "A user or org/team. Your approval won't count; they're asked to review.", self.error("defer_to").unwrap_or_default()) %}
+    <input id="review-defer" name="defer_to" type="text" value="{{ defer_to }}" autocomplete="off" spellcheck="false"{% call f::described("review-defer", "A user or org/team. Your approval won't count; they're asked to review.", self.error("defer_to").unwrap_or_default()) %}{% endcall %}>
+    {%- endcall %}
+    {%- endcall %}
+    {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes", verdict.as_str() == "request_changes") %}{% endcall %}
     {%- endif %}
     {%- endcall %}
-    {%- if can_approve %}
-    {%- call f::field("review-defer", "Leave the decision to", "With Approve: a user or org/team who decides instead. Your approval won't count, and they're asked to review.", self.error("defer_to").unwrap_or_default(), true) %}
-    <input id="review-defer" name="defer_to" type="text" autocomplete="off" spellcheck="false"{% call f::described("review-defer", "With Approve: a user or org/team who decides instead. Your approval won't count, and they're asked to review.", self.error("defer_to").unwrap_or_default()) %}{% endcall %}>
-    {%- endcall %}
-    {%- endif %}
     {%- call f::field("review-body", "Review comment", "", self.error("body").unwrap_or_default(), true) %}
     <slath-editor data-repo="{{ header.namespace }}/{{ header.name }}" data-upload="/{{ header.namespace }}/{{ header.name }}/-/attachments" data-mode="{{ ctx.editor_mode }}" data-icons="{{ ctx.icons_url }}" data-external-images="{{ ctx.external_images }}" data-item="{{ h.mr.number }}">
-    <textarea id="review-body" name="body" rows="4" autocomplete="off"{% call f::described("review-body", "", self.error("body").unwrap_or_default()) %}{% endcall %}></textarea>
+    <textarea id="review-body" name="body" rows="4" autocomplete="off"{% call f::described("review-body", "", self.error("body").unwrap_or_default()) %}{% endcall %}>{{ review_body }}</textarea>
     </slath-editor>
     {%- endcall %}
     {%- call f::buttons() %}<button type="submit" class="button">Submit review</button>{% endcall %}

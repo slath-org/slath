@@ -1882,6 +1882,9 @@ struct MrPage {
     /// The viewer may review, and approve (not the author).
     can_review: bool,
     can_approve: bool,
+    /// The review form's verdict, "who decides", and comment: as sent
+    /// after a failed submit, else empty with Comment chosen.
+    review_form: (String, String, String),
     /// The viewer may change who's asked to review.
     can_request: bool,
     /// The viewer last reviewed this earlier revision.
@@ -2129,7 +2132,16 @@ async fn mr_page(
     message: Option<&'static str>,
     errors: Vec<FieldError>,
 ) -> Result<Response, AppError> {
-    mr_page_showing(state, ctx, subject, mr, message, errors, ("all", false)).await
+    mr_page_showing(
+        state,
+        ctx,
+        subject,
+        mr,
+        message,
+        (errors, None),
+        ("all", false),
+    )
+    .await
 }
 
 /// The conversation, narrowed by `show` (`all`, `unresolved`, `mine`); with
@@ -2140,7 +2152,8 @@ async fn mr_page_showing(
     subject: &Subject,
     (ns, repo, number): (&str, &str, i32),
     message: Option<&'static str>,
-    errors: Vec<FieldError>,
+    // A failed submit's errors, and the review form as it was sent.
+    (errors, sent): (Vec<FieldError>, Option<&ReviewForm>),
     (show, all_unviewed): (&'static str, bool),
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(subject, ns, repo, number).await?;
@@ -2422,6 +2435,10 @@ async fn mr_page_showing(
         pending,
         can_review,
         can_approve,
+        review_form: sent.map_or_else(
+            || ("comment".to_owned(), String::new(), String::new()),
+            |f| (f.verdict.clone(), f.defer_to.clone(), f.body.clone()),
+        ),
         since_review,
         statuses,
         merge_form,
@@ -2487,7 +2504,7 @@ async fn view(
         &session.subject(),
         (&ns, &repo, number(&n)?),
         message,
-        Vec::new(),
+        (Vec::new(), None),
         (show, q.files.as_deref() == Some("unviewed")),
     )
     .await
@@ -3985,22 +4002,42 @@ async fn review(
     Form(f): Form<ReviewForm>,
 ) -> Result<Response, AppError> {
     let n = number(&n)?;
-    match state
-        .services
-        .submit_review(
-            &s.subject,
-            (&ns, &repo, n),
-            &f.verdict,
-            &f.body,
-            (None, Some(&f.defer_to)),
-        )
-        .await
-    {
+    // "Approve, but let someone else decide" is an approval naming who
+    // decides; the other options ignore that field, which is hidden then.
+    let defer = f.verdict == "defer";
+    let result = if defer && f.defer_to.trim().is_empty() {
+        Err(ServiceError::invalid(
+            "defer_to",
+            "required",
+            "Name a user or a team who decides.",
+        ))
+    } else {
+        state
+            .services
+            .submit_review(
+                &s.subject,
+                (&ns, &repo, n),
+                if defer { "approve" } else { &f.verdict },
+                &f.body,
+                (None, defer.then_some(f.defer_to.as_str())),
+            )
+            .await
+    };
+    match result {
         Ok(r) => {
             Ok(Redirect::to(&mr_url(&ns, &repo, n, &format!("#review-{}", r.id))).into_response())
         }
         Err(ServiceError::Invalid(errors)) => {
-            mr_page(&state, ctx, &s.subject, (&ns, &repo, n), None, errors).await
+            mr_page_showing(
+                &state,
+                ctx,
+                &s.subject,
+                (&ns, &repo, n),
+                None,
+                (errors, Some(&f)),
+                ("all", false),
+            )
+            .await
         }
         Err(e) => Err(e.into()),
     }

@@ -281,22 +281,47 @@ fn conf_review_19_the_review_form_leaves_the_decision_to_someone() {
     let u = setup();
     let mut bob = u.s.login("bob", PASSWORD);
     let page = format!("/acme/app/merge-requests/{}", u.n);
-    let r = submit(
-        &mut bob,
-        &page,
-        &format!("{page}/reviews"),
-        &[("verdict", "approve"), ("body", ""), ("defer_to", "carol")],
+    let action = format!("{page}/reviews");
+    let mut send = |fields: &[(&str, &str)]| submit(&mut bob, &page, &action, fields);
+    // The other options ignore "Who decides", which is hidden for them.
+    let r = send(&[
+        ("verdict", "comment"),
+        ("body", "Hm."),
+        ("defer_to", "carol"),
+    ]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(!u.asked("carol"));
+    // The option needs a name; an error keeps the option, the name, and
+    // the comment, and names the field.
+    let r = send(&[
+        ("verdict", "defer"),
+        ("body", "Over to you."),
+        ("defer_to", " "),
+    ]);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("Name a user or a team who decides."),
+        "{}",
+        r.body
     );
+    let r = send(&[
+        ("verdict", "defer"),
+        ("body", "Over to you."),
+        ("defer_to", "eve"),
+    ]);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"review-defer-error\""), "{}", r.body);
+    assert!(
+        r.body
+            .contains(r#"id="verdict-defer" type="radio" name="verdict" value="defer" checked"#),
+        "{}",
+        r.body
+    );
+    assert!(r.body.contains(r#"value="eve""#), "{}", r.body);
+    assert!(r.body.contains(">Over to you.</textarea>"), "{}", r.body);
+    // Chosen with a name, it records a deferring approval.
+    let r = send(&[("verdict", "defer"), ("body", ""), ("defer_to", "carol")]);
     assert_eq!(r.status, 303, "{}", r.body);
     assert!(u.asked("carol"));
     assert_eq!(u.requirement("approvals").0, "unmet");
-    // An error names the field.
-    let r = submit(
-        &mut bob,
-        &page,
-        &format!("{page}/reviews"),
-        &[("verdict", "approve"), ("body", ""), ("defer_to", "eve")],
-    );
-    assert_eq!(r.status, 422, "{}", r.body);
-    assert!(r.body.contains("id=\"review-defer-error\""), "{}", r.body);
 }

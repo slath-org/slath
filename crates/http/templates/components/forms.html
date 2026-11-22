@@ -50,6 +50,19 @@
 </div>
 {%- endmacro -%}
 
+{#- An option with a follow-up: fields (the body) that apply only while
+    it's chosen, under its name. They're hidden while it isn't (with
+    `:has()`; without it they show, still under their option). -#}
+{%- macro option_follow_up(kind, id, name, value, label, checked = false, hint = "") -%}
+<div class="option">
+  <input id="{{ id }}" type="{{ kind }}" name="{{ name }}" value="{{ value }}"{% if checked %} checked{% endif %}>
+  <label for="{{ id }}">{{ label }}{% if !hint.is_empty() %}<span class="option-hint">{{ hint }}</span>{% endif %}</label>
+  <div class="option-follow-up" id="{{ id }}-follow-up">
+{{ caller() }}
+  </div>
+</div>
+{%- endmacro -%}
+
 {#- A group of fields with a legend in the subsection heading's style. -#}
 {%- macro field_group(legend) -%}
 <fieldset class="field-group">

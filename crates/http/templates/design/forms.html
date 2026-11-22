@@ -87,6 +87,29 @@
 {%- endcall %}
 {%- endcall %}
 
+{%- call cat::entry("option-follow-up", "Option with a follow-up", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>An option of a question whose fields apply only while it's chosen, such as whom an approval leaves the decision to. They sit under the option's name, marked by a line at their start, and are hidden while another option is chosen.</dd>
+  <dt>Markup</dt><dd><code>f::option_follow_up(kind, id, name, value, label, checked, hint)</code> around <code>f::field</code> calls, among the question's <code>f::option</code> calls.</dd>
+  <dt>Variants</dt><dd>Chosen (fields shown) or not (hidden); fields with errors. Without <code>:has()</code>, the fields always show, under their option.</dd>
+  <dt>Accessibility</dt><dd>The fields follow their option in reading and tab order and have their own labels; hidden fields are out of the tab order. Choosing the option needs no script.</dd>
+  <dt>Not for</dt><dd>Alternatives that each show their own content (the choice component); fields that apply to every option (put them after the question).</dd>
+</dl>
+{%- call cat::example("The follow-up shows once its option is chosen.") %}
+<div class="form-layout">
+  {%- call f::question("demo-verdict", "Review revision 2") %}
+  {%- call f::option("radio", "demo-verdict-1", "verdict", "comment", "Comment", true) %}{% endcall %}
+  {%- call f::option("radio", "demo-verdict-2", "verdict", "approve", "Approve") %}{% endcall %}
+  {%- call f::option_follow_up("radio", "demo-verdict-3", "verdict", "defer", "Approve, but let someone else decide") %}
+  {%- call f::field("demo-defer", "Who decides", "A user or org/team.") %}
+  <input id="demo-defer" name="defer_to" type="text"{% call f::described("demo-defer", "x", "") %}{% endcall %}>
+  {%- endcall %}
+  {%- endcall %}
+  {%- endcall %}
+</div>
+{%- endcall %}
+{%- endcall %}
+
 {%- call cat::entry("field-group", "Group of fields", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Two or more fields that belong together, under a legend in the subsection heading's style; its fields keep the items distance, and the group is the groups distance from what's around it.</dd>

@@ -198,16 +198,30 @@ test("conf_review_19_the_review_form_can_leave_the_decision_to_someone", async (
   await signIn(page, USERS.admin);
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Review fixture" }));
-  const field = page.getByLabel("Leave the decision to");
+  const option = page.getByLabel("Approve, but let someone else decide");
+  const field = page.getByLabel("Who decides");
+  // "Who decides" shows only while its option is chosen.
+  await expect(field).toBeHidden();
+  await tapOrClick(page, option);
   await expect(field).toBeVisible();
   await expectAccessible(page);
-  // Leaving it to the author is refused, next to the field; nothing is
-  // recorded, so the shared fixture stays as it is.
-  await tapOrClick(page, page.getByLabel("Approve"));
+  await tapOrClick(page, page.getByLabel("Approve", { exact: true }));
+  await expect(field).toBeHidden();
+  // Keyboard only: arrow keys move through the radios to the option, and
+  // Tab then reaches the field.
+  await page.getByLabel("Approve", { exact: true }).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(option).toBeChecked();
+  await page.keyboard.press("Tab");
+  await expect(field).toBeFocused();
+  // Leaving it to the author is refused next to the field, which stays
+  // shown with the name; nothing is recorded, so the shared fixture stays.
   await field.fill("alice");
   await tapOrClick(page, page.getByRole("button", { name: "Submit review" }));
   await expect(page.locator("#review-defer-error")).toHaveText("The author can't decide on their own merge request.");
-  await expect(page.getByLabel("Leave the decision to")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel("Approve, but let someone else decide")).toBeChecked();
+  await expect(page.getByLabel("Who decides")).toHaveValue("alice");
+  await expect(page.getByLabel("Who decides")).toHaveAttribute("aria-invalid", "true");
   await expectAccessible(page);
 });
 

@@ -362,13 +362,13 @@ reviews**, by username or as `organization/team`. Requested reviewers find
 the merge request under **Review requests** (the icon next to
 notifications) until they review it.
 
-If you'd approve but someone else should decide, name them under **Leave
-the decision to** (a username or `organization/team`) and approve. Your
-approval is shown as yours, "approved and left the decision to bob", but
-counts for no requirement, and they're asked to review. It replaces your
-earlier approval or request for changes, like any later review of yours.
-The readiness card says who left the decision to whom while approvals are
-missing. The API takes `{"verdict": "approve", "defer_to": "bob"}`.
+If you'd approve but someone else should decide, choose **Approve, but
+let someone else decide** and name them under **Who decides** (a username
+or `organization/team`). Your approval is shown as yours, "approved and
+left the decision to bob", but counts for no requirement, and they're
+asked to review. It replaces your earlier approval or request for
+changes, like any later review of yours. The readiness card says who left
+the decision to whom while approvals are missing. The API takes `{"verdict": "approve", "defer_to": "bob"}`.
 
 When you review again later, the merge request offers the changes since
 your last review.
