@@ -1,4 +1,4 @@
-{#- The webhook form's fields; `url`, `events`, `active`, and `secret_hint` are set by the page. -#}
+{#- The webhook form's fields; `url`, `events`, `ids_only`, `active`, and `secret_hint` are set by the page. -#}
   <div class="field">
     <label for="url">Payload URL</label>
     <input id="url" name="url" type="url" value="{{ url }}" required maxlength="2048" autocapitalize="none" spellcheck="false"{% call f::described("url", "x", self.error("url").unwrap_or_default()) %}{% endcall %}>
@@ -12,6 +12,10 @@
   {%- let ev_id = "event-" ~ ev.name %}
   {%- call f::option("checkbox", ev_id, "events", ev.name, ev.name, ev.checked, ev.label) %}{% endcall %}
   {%- endfor %}
+  {%- endcall %}
+  {%- call f::question("payload", "Payload") %}
+  {%- call f::option("radio", "payload-full", "payload", "full", "Everything", !ids_only, "Titles, descriptions, comments, and commit messages, as far as they fit.") %}{% endcall %}
+  {%- call f::option("radio", "payload-ids", "payload", "ids", "IDs and API links only", ids_only, "No text leaves Slath: the receiver fetches what it needs with its own token.") %}{% endcall %}
   {%- endcall %}
   {%- call f::field("secret", "Secret", secret_hint, self.error("secret").unwrap_or_default(), true) %}
   <input id="secret" name="secret" type="password" value="" minlength="16" maxlength="256" autocomplete="new-password" spellcheck="false"{% call f::described("secret", "x", self.error("secret").unwrap_or_default()) %}{% endcall %}>

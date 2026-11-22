@@ -183,6 +183,8 @@ pub struct ListView {
     pub url: String,
     pub events: Vec<EventChoice>,
     pub active: bool,
+    /// Deliveries carry only IDs and links.
+    pub ids_only: bool,
     pub max: usize,
 }
 
@@ -195,6 +197,7 @@ pub struct HookView {
     pub disabled_reason: Option<String>,
     pub failures: i32,
     pub events: Vec<EventChoice>,
+    pub ids_only: bool,
     /// The secret Slath just generated, shown this once.
     pub new_secret: Option<String>,
     pub message: Option<&'static str>,
@@ -319,6 +322,7 @@ async fn render_list(
         url: form.url,
         events: choices(&form.events),
         active: form.active,
+        ids_only: form.payload == Payload::Ids,
         max: state.config.limits.webhooks_per_owner,
     };
     let mut res = match place {
@@ -361,6 +365,7 @@ async fn render_hook(
         disabled_reason: w.disabled_reason,
         failures: w.consecutive_failures,
         events: choices(&w.events),
+        ids_only: w.payload == "ids",
         new_secret,
         message: msg,
         errors,
@@ -431,7 +436,7 @@ async fn render_delivery(
     })
 }
 
-/// The form's fields: URL, events (repeated), secret, active.
+/// The form's fields: URL, events (repeated), payload, secret, active.
 fn form_input(body: &[u8]) -> WebhookInput {
     let pairs = crate::auth::form_pairs(body);
     let get = |k: &str| pairs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
@@ -444,7 +449,9 @@ fn form_input(body: &[u8]) -> WebhookInput {
             .collect(),
         active: get("active").is_some(),
         secret: get("secret").filter(|s| !s.is_empty()),
-        payload: Payload::default(),
+        payload: get("payload")
+            .and_then(|p| Payload::parse(&p))
+            .unwrap_or_default(),
     }
 }
 

@@ -42,3 +42,28 @@ test("conf_a11y_01_webhook_settings", async ({ page }, info) => {
   await expectConfirmed(page);
   await expect(page.getByRole("link", { name: url })).toHaveCount(0);
 });
+
+test("conf_api_07_webhook_payload_without_text", async ({ page }, info) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/settings/webhooks");
+  // New webhooks send everything unless told otherwise.
+  await expect(page.getByRole("radio", { name: /^Everything/ })).toBeChecked();
+  const url = `http://127.0.0.1:9/ids-${info.project.name}`;
+  await page.getByLabel("Payload URL").fill(url);
+  await page.getByRole("checkbox", { name: /^issue\b/ }).check();
+  await tapOrClick(page, page.getByRole("radio", { name: /^IDs and API links only/ }));
+  await tapOrClick(page, page.getByRole("button", { name: "Add webhook" }));
+  await expect(page.getByText("Copy its secret to the receiver now")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /^IDs and API links only/ })).toBeChecked();
+  await expectAccessible(page);
+
+  // Back to everything, and saved.
+  await tapOrClick(page, page.getByRole("radio", { name: /^Everything/ }));
+  await tapOrClick(page, page.getByRole("button", { name: "Save webhook" }));
+  await expect(page.getByText("Webhook saved.")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /^Everything/ })).toBeChecked();
+
+  await tapOrClick(page, page.getByRole("button", { name: "Delete webhook" }));
+  await expectConfirmed(page);
+  await expect(page.getByRole("link", { name: url })).toHaveCount(0);
+});

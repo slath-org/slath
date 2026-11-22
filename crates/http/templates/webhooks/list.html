@@ -40,6 +40,7 @@
   {%- let url = v.url.clone() %}
   {%- let events = &v.events %}
   {%- let active = v.active %}
+  {%- let ids_only = v.ids_only %}
   {%- let secret_hint = "16 to 256 characters. Leave it empty to have one generated; it's shown once." %}
   {% include "webhooks/fields.html" %}
   {%- call f::buttons() %}<button type="submit" class="button button-primary">Add webhook</button>{% endcall %}
