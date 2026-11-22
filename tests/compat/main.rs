@@ -39,5 +39,6 @@ mod saved_views;
 mod suggestions;
 mod threads;
 mod tool_parity;
+mod two_machines;
 mod update_branch;
 mod user_guide;

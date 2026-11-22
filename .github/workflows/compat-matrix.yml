@@ -7,8 +7,9 @@
 # new jj release is tested before anyone pins it. It covers the predicted
 # jj IDs against each real jj binary, a jj run without change-id headers,
 # mixed Git/jj teams, every merge request flow for Git-made, jj-made, and
-# mixed stacks, forks, and tag pushes. No run installs client hooks or
-# configuration. Nightly, and on changes to the pins or the change
+# mixed stacks, forks, tag pushes, and a stack worked on from three
+# machines (two jj, one Git, one through a fork). No run installs client
+# hooks or configuration. Nightly, and on changes to the pins or the change
 # identity code. A red nightly or manual run opens or annotates a tracking
 # issue, and the newest one on main blocks the next release until it's green.
 name: Git/jj matrix
