@@ -214,6 +214,30 @@ test("conf_review_19_the_review_form_can_leave_the_decision_to_someone", async (
   await expect(option).toBeChecked();
   await page.keyboard.press("Tab");
   await expect(field).toBeFocused();
+  // It suggests people and the organization's teams; choosing one puts
+  // just that name in the field. (The fixture's repository belongs to a
+  // person, so the team comes from a stand-in answer.)
+  let teamQuery: string | null = null;
+  await page.route("**/-/ui/references?*kind=team*", async (route) => {
+    teamQuery = new URL(route.request().url()).searchParams.get("q");
+    await route.fulfill({
+      json: { items: [{ kind: "team", value: "@acme/leads", label: "acme/leads", detail: null, color: null, avatar: null }] },
+    });
+  });
+  await field.fill("al");
+  const list = page.getByRole("listbox", { name: "People and teams" });
+  await expect(list.getByRole("option").filter({ hasText: "alice" })).toBeVisible();
+  await expect(list.getByRole("option").filter({ hasText: "acme/leads" })).toBeVisible();
+  expect(teamQuery).toBe("al");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(field).toHaveValue("acme/leads");
+  await expect(list).toBeHidden();
+  await field.fill("acme/le");
+  await expect(list.getByRole("option").filter({ hasText: "acme/leads" })).toBeVisible();
+  expect(teamQuery).toBe("le");
+  await page.keyboard.press("Escape");
+  await page.unroute("**/-/ui/references?*kind=team*");
   // Leaving it to the author is refused next to the field, which stays
   // shown with the name; nothing is recorded, so the shared fixture stays.
   await field.fill("alice");

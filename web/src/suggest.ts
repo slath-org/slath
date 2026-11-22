@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Suggestions for comma-separated username fields (assignees): an ARIA
-// combobox on the input with a listbox below it. As the person types, the
-// last name in the list is completed from /-/ui/references (people who can
-// be mentioned in the repository). Up/Down choose, Enter or Tab accept,
-// Escape closes. Without JavaScript the field is a plain text box.
+// Suggestions for username fields: an ARIA combobox on the input with a
+// listbox below it. As the person types, the last name of a
+// comma-separated list (or, with `data-suggest-single`, the field's one
+// name) is completed from /-/ui/references: people who can be mentioned in
+// the repository, and with `data-suggest-teams` also teams of its
+// organization (`org/team`). Up/Down choose, Enter or Tab accept, Escape
+// closes. Without JavaScript the field is a plain text box.
 
 interface Suggestion {
   value: string;
@@ -20,12 +22,14 @@ let seq = 0;
 function attach(input: HTMLInputElement): void {
   const repo = input.dataset.suggestUsers ?? "";
   const item = input.dataset.suggestItem ?? "";
+  const single = input.dataset.suggestSingle !== undefined;
+  const teams = input.dataset.suggestTeams !== undefined;
   const id = `user-suggestions-${++seq}`;
   const list = document.createElement("ul");
   list.id = id;
   list.className = "ac-list suggest-list";
   list.setAttribute("role", "listbox");
-  list.setAttribute("aria-label", "People");
+  list.setAttribute("aria-label", teams ? "People and teams" : "People");
   list.hidden = true;
   input.after(list);
   input.setAttribute("role", "combobox");
@@ -47,6 +51,7 @@ function attach(input: HTMLInputElement): void {
 
   /** The names before the last one, and the last (partial) one. */
   const split = () => {
+    if (single) return { done: [] as string[], last: input.value.trim() };
     const parts = input.value.split(",");
     const last = parts.pop() ?? "";
     return { done: parts.map((p) => p.trim()).filter(Boolean), last: last.trim() };
@@ -57,7 +62,7 @@ function attach(input: HTMLInputElement): void {
     if (!it) return;
     const { done } = split();
     const name = it.value.replace(/^@/, "");
-    input.value = [...done.filter((d) => d !== name), name].join(", ") + ", ";
+    input.value = single ? name : [...done.filter((d) => d !== name), name].join(", ") + ", ";
     close();
     input.focus();
     // A field for several names turns it into a chip (names.ts).
@@ -98,13 +103,21 @@ function attach(input: HTMLInputElement): void {
     const mine = ++request;
     timer = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ repo, kind: "user", q: last });
-        if (item) params.set("item", item);
-        const r = await fetch(`/-/ui/references?${params}`, {
-          credentials: "same-origin",
-          headers: { accept: "application/json" },
-        });
-        const found = r.ok ? ((await r.json()) as { items: Suggestion[] }).items : [];
+        const ask = async (kind: string, q: string): Promise<Suggestion[]> => {
+          const params = new URLSearchParams({ repo, kind, q });
+          if (item) params.set("item", item);
+          const r = await fetch(`/-/ui/references?${params}`, {
+            credentials: "same-origin",
+            headers: { accept: "application/json" },
+          });
+          return r.ok ? ((await r.json()) as { items: Suggestion[] }).items : [];
+        };
+        // Teams match by their name, after the organization's.
+        const [people, teamHits] = await Promise.all([
+          last.includes("/") ? Promise.resolve([]) : ask("user", last),
+          teams ? ask("team", last.slice(last.indexOf("/") + 1)) : Promise.resolve([]),
+        ]);
+        const found = [...people, ...teamHits.map((t) => ({ ...t, detail: t.detail ?? "Team" }))];
         if (mine !== request) return;
         items = found.filter((f) => !done.includes(f.value.replace(/^@/, ""))).slice(0, 10);
       } catch {

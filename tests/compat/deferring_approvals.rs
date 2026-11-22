@@ -325,3 +325,39 @@ fn conf_review_19_the_review_form_leaves_the_decision_to_someone() {
     assert!(u.asked("carol"));
     assert_eq!(u.requirement("approvals").0, "unmet");
 }
+
+#[test]
+fn conf_review_19_who_decides_suggests_people_and_teams() {
+    let u = setup();
+    let mut bob = u.s.login("bob", PASSWORD);
+    // The page asks for people and the organization's teams in one field.
+    let page = bob.get(&format!("/acme/app/merge-requests/{}", u.n)).body;
+    assert!(
+        page.contains(r#"data-suggest-users="acme/app" data-suggest-single data-suggest-teams"#),
+        "{page}"
+    );
+    let values = |c: &mut Client, kind: &str, q: &str| -> Vec<String> {
+        let r = c.get(&format!("/-/ui/references?repo=acme/app&kind={kind}&q={q}"));
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.json()["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["value"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(values(&mut bob, "user", "ca"), vec!["@carol".to_owned()]);
+    // Teams match by their name, as org members see them.
+    assert_eq!(
+        values(&mut bob, "team", "le"),
+        vec!["@acme/leads".to_owned()]
+    );
+    assert!(values(&mut bob, "team", "x").is_empty());
+    // Someone who can't read the repository gets nothing.
+    let mut eve = u.s.login("eve", PASSWORD);
+    assert_eq!(
+        eve.get("/-/ui/references?repo=acme/app&kind=team&q=")
+            .status,
+        404
+    );
+}

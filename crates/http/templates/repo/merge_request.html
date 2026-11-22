@@ -355,7 +355,7 @@
     {%- call f::option("radio", "verdict-approve", "verdict", "approve", "Approve", verdict.as_str() == "approve") %}{% endcall %}
     {%- call f::option_follow_up("radio", "verdict-defer", "verdict", "defer", "Approve, but let someone else decide", verdict.as_str() == "defer") %}
     {%- call f::field("review-defer", "Who decides", "A user or org/team. Your approval won't count; they're asked to review.", self.error("defer_to").unwrap_or_default()) %}
-    <input id="review-defer" name="defer_to" type="text" value="{{ defer_to }}" autocomplete="off" spellcheck="false"{% call f::described("review-defer", "A user or org/team. Your approval won't count; they're asked to review.", self.error("defer_to").unwrap_or_default()) %}{% endcall %}>
+    <input id="review-defer" name="defer_to" type="text" value="{{ defer_to }}" autocapitalize="none" autocomplete="off" spellcheck="false" data-suggest-users="{{ header.namespace }}/{{ header.name }}" data-suggest-single data-suggest-teams{% call f::described("review-defer", "A user or org/team. Your approval won't count; they're asked to review.", self.error("defer_to").unwrap_or_default()) %}{% endcall %}>
     {%- endcall %}
     {%- endcall %}
     {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes", verdict.as_str() == "request_changes") %}{% endcall %}
@@ -422,7 +422,7 @@
     <form method="post" action="{{ here }}/reviewers" class="form-layout" novalidate>
       <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
       {%- call f::field("reviewers", "Ask for reviews", "Usernames, or organization/team, separated by commas.", self.error("reviewers").unwrap_or_default()) %}
-      <input id="reviewers" name="reviewers" type="text" value="{% for (u, st) in reviewers %}{% if st == "requested" %}{{ u }}, {% endif %}{% endfor %}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("reviewers", "x", self.error("reviewers").unwrap_or_default()) %}{% endcall %}>
+      <input id="reviewers" name="reviewers" type="text" value="{% for (u, st) in reviewers %}{% if st == "requested" %}{{ u }}, {% endif %}{% endfor %}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}" data-suggest-teams{% call f::described("reviewers", "x", self.error("reviewers").unwrap_or_default()) %}{% endcall %}>
       {%- endcall %}
       {%- call f::buttons() %}<button type="submit" class="button">Save reviewers</button>{% endcall %}
     </form>

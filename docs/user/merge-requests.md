@@ -358,13 +358,15 @@ missing an approval. Revisions reviewed as a whole
 (with merge commits, for example) have no changes to review this way.
 
 The author and people who can triage ask for reviews under **Ask for
-reviews**, by username or as `organization/team`. Requested reviewers find
+reviews**, by username or as `organization/team`; the field suggests
+people and the organization's teams as you type. Requested reviewers find
 the merge request under **Review requests** (the icon next to
 notifications) until they review it.
 
 If you'd approve but someone else should decide, choose **Approve, but
 let someone else decide** and name them under **Who decides** (a username
-or `organization/team`). Your approval is shown as yours, "approved and
+or `organization/team`; it suggests people and the organization's teams as
+you type). Your approval is shown as yours, "approved and
 left the decision to bob", but counts for no requirement, and they're
 asked to review. It replaces your earlier approval or request for
 changes, like any later review of yours. The readiness card says who left

@@ -131,14 +131,29 @@
 {%- call cat::entry("names", "Field for several names", "New") %}
 <dl class="contract">
   <dt>Purpose</dt><dd>Several people, teams, or labels in one field (reviewers, assignees, labels): suggestions while typing, and each chosen name as a removable chip with its avatar.</dd>
-  <dt>Markup</dt><dd>A field whose input has <code>data-names</code> (<code>data-names="labels"</code> for labels, without avatars) and, for people, <code>data-suggest-users="owner/repo"</code>. Without scripts it's plain text, names separated by commas.</dd>
+  <dt>Markup</dt><dd>A field whose input has <code>data-names</code> (<code>data-names="labels"</code> for labels, without avatars) and, for people, <code>data-suggest-users="owner/repo"</code>, with <code>data-suggest-teams</code> where teams of the organization fit too (reviewers). Without scripts it's plain text, names separated by commas.</dd>
   <dt>Variants</dt><dd>Empty; with chips; suggesting.</dd>
   <dt>Accessibility</dt><dd>The chips are a list named "Chosen"; each remove button is named ("Remove bob"); Backspace in the empty box removes the last chip.</dd>
-  <dt>Not for</dt><dd>One name (a field with suggestions).</dd>
+  <dt>Not for</dt><dd>One name (a field for one name).</dd>
 </dl>
 {%- call cat::example("Two reviewers chosen; type another and a comma.") %}
 <form class="form-layout" action="#names">
   {%- call f::field("demo-reviewers", "Reviewers", "Usernames, or organization/team, separated by commas.") %}<input id="demo-reviewers" name="reviewers" type="text" value="alice, bob" data-names autocomplete="off"{% call f::described("demo-reviewers", "hint", "") %}{% endcall %}>{% endcall %}
+</form>
+{%- endcall %}
+{%- endcall %}
+
+{%- call cat::entry("name-field", "Field for one name", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>One person, or one person or team, in a text field (who decides on an approval): suggestions while typing, and choosing one puts its name in the field.</dd>
+  <dt>Markup</dt><dd>A field whose input has <code>data-suggest-users="owner/repo"</code> and <code>data-suggest-single</code>, with <code>data-suggest-teams</code> where a team of the organization fits too (suggested as <code>org/team</code>, after the people). Without scripts it's a plain text field.</dd>
+  <dt>Variants</dt><dd>Empty; suggesting; with an error.</dd>
+  <dt>Accessibility</dt><dd>A combobox with a listbox named "People" or "People and teams"; Up and Down choose, Enter or Tab accept, Escape closes.</dd>
+  <dt>Not for</dt><dd>Several names (a field for several names).</dd>
+</dl>
+{%- call cat::example("A person or team. On a page, suggestions open while typing.") %}
+<form class="form-layout" action="#name-field">
+  {%- call f::field("demo-decides", "Who decides", "A user or org/team.") %}<input id="demo-decides" name="defer_to" type="text" autocapitalize="none" autocomplete="off" spellcheck="false" data-suggest-single data-suggest-teams{% call f::described("demo-decides", "hint", "") %}{% endcall %}>{% endcall %}
 </form>
 {%- endcall %}
 {%- endcall %}
