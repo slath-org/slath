@@ -27,6 +27,19 @@ pub struct Review {
     pub change_id: Option<uuid::Uuid>,
     /// That change's display ID.
     pub change: Option<String>,
+    /// An approval that leaves the decision to someone else: it never
+    /// counts.
+    pub deferred: bool,
+    /// Whom it leaves the decision to: a user's name or `org/team`;
+    /// `None` once they're deleted.
+    pub defer_to: Option<String>,
+}
+
+/// Whom a deferring approval leaves the decision to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeferTo {
+    User(UserId),
+    Team(uuid::Uuid),
 }
 
 pub async fn insert(
@@ -35,14 +48,21 @@ pub async fn insert(
     // The revision, and the change of it reviewed (`None`: all of it).
     (revision_seq, change): (i32, Option<uuid::Uuid>),
     reviewer: UserId,
-    verdict: &str,
+    // The verdict, and for a deferring approval whom it defers to.
+    (verdict, defer): (&str, Option<DeferTo>),
     body: &str,
     origin: Origin,
 ) -> Result<uuid::Uuid, DbError> {
     let id = uuid::Uuid::now_v7();
+    let (user, team) = match defer {
+        Some(DeferTo::User(u)) => (Some(*u.as_uuid()), None),
+        Some(DeferTo::Team(t)) => (None, Some(t)),
+        None => (None, None),
+    };
     sqlx::query!(
-        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body, origin, change_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "INSERT INTO mr_reviews (id, mr_id, revision_seq, reviewer_id, verdict, body, origin, change_id,
+                                 deferred, defer_user_id, defer_team_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         id,
         mr.as_uuid(),
         revision_seq,
@@ -50,7 +70,10 @@ pub async fn insert(
         verdict,
         body,
         origin.as_str(),
-        change
+        change,
+        defer.is_some(),
+        user,
+        team
     )
     .execute(exec)
     .await?;
@@ -126,11 +149,17 @@ pub async fn coverage(
 pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<Review>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,
-                  r.origin, r.created_at, r.change_id, c.display_id AS "change?"
+                  r.origin, r.created_at, r.change_id, c.display_id AS "change?", r.deferred,
+                  COALESCE(dn.name::text, tn.name::text || '/' || t.name::text) AS defer_to
            FROM mr_reviews r
            LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'
            LEFT JOIN namespaces n ON n.id = u.namespace_id
            LEFT JOIN mr_changes c ON c.id = r.change_id
+           LEFT JOIN users du ON du.id = r.defer_user_id AND du.state <> 'deleted'
+           LEFT JOIN namespaces dn ON dn.id = du.namespace_id
+           LEFT JOIN teams t ON t.id = r.defer_team_id
+           LEFT JOIN organizations o ON o.id = t.org_id
+           LEFT JOIN namespaces tn ON tn.id = o.namespace_id
            WHERE r.mr_id = $1 ORDER BY r.created_at, r.id"#,
         mr.as_uuid()
     )
@@ -149,6 +178,8 @@ pub async fn list(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<R
             created_at: r.created_at,
             change_id: r.change_id,
             change: r.change,
+            deferred: r.deferred,
+            defer_to: r.defer_to,
         })
         .collect())
 }

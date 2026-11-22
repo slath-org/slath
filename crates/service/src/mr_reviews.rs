@@ -339,8 +339,12 @@ pub fn counting(reviews: &[Review], h: &History) -> Vec<ReviewView> {
     reviews
         .iter()
         .map(|r| {
-            let decisive =
-                r.verdict != "comment" && r.reviewer_id.is_some() && latest(r) == Some(r.id);
+            // A deferring approval replaces the reviewer's earlier verdicts
+            // and never counts itself, so it's never stale either.
+            let decisive = r.verdict != "comment"
+                && !r.deferred
+                && r.reviewer_id.is_some()
+                && latest(r) == Some(r.id);
             let current = decisive && h.counts(r);
             ReviewView {
                 review: r.clone(),
@@ -389,7 +393,10 @@ pub fn standings(reviews: &[Review], h: &History, order: &[uuid::Uuid]) -> Vec<S
                 approvals: Vec::new(),
                 blockers: Vec::new(),
             };
-            for (u, r) in latest.into_iter().filter(|(_, r)| h.counts(r)) {
+            for (u, r) in latest
+                .into_iter()
+                .filter(|(_, r)| !r.deferred && h.counts(r))
+            {
                 if r.verdict == "approve" {
                     out.approvals.push((u, r.id));
                 } else {
@@ -424,13 +431,15 @@ impl Services {
     /// Submits a review of the current revision, or with `change` (its
     /// display ID, or at least its first 8 characters) of that change's
     /// version in it. The author may only comment; a comment needs a body.
+    /// An approval with `defer_to` (a user name or `org/team`) leaves the
+    /// decision to them: it never counts, and asks them for a review.
     pub async fn submit_review(
         &self,
         subject: &Subject,
         (ns, repo, number): (&str, &str, i32),
         verdict: &str,
         body: &str,
-        change: Option<&str>,
+        (change, defer_to): (Option<&str>, Option<&str>),
     ) -> Result<Review> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
         if !a.can(subject, Action::MrReview) {
@@ -470,9 +479,21 @@ impl Services {
             Some(c) => Some(self.review_target(&m, c).await?),
             None => None,
         };
+        let defer = match defer_to.map(str::trim).filter(|d| !d.is_empty()) {
+            Some(_) if verdict != Verdict::Approve => {
+                return Err(ServiceError::invalid(
+                    "defer_to",
+                    "verdict",
+                    "Only an approval can leave the decision to someone else.",
+                ));
+            }
+            Some(d) => Some(self.defer_target(&a, &m, *me, d).await?),
+            None => None,
+        };
         // An approval's coverage: the files of the revision's (or the
-        // change's) diff the approver viewed, as they are in it.
-        let coverage = if verdict == Verdict::Approve {
+        // change's) diff the approver viewed, as they are in it. A
+        // deferring approval counts for nothing, so it takes none.
+        let coverage = if verdict == Verdict::Approve && defer.is_none() {
             Some(self.coverage_snapshot(&m, *me, change.as_ref()).await?)
         } else {
             None
@@ -487,7 +508,7 @@ impl Services {
             m.id,
             (m.revisions, change.as_ref().map(|v| v.0)),
             *me,
-            verdict.as_str(),
+            (verdict.as_str(), defer.as_ref().map(|d| d.0)),
             body.trim(),
             origin,
         )
@@ -507,6 +528,15 @@ impl Services {
             }
         }
         db::mark_reviewed(&mut *tx, m.id, *me).await?;
+        // After the reviewer's own requests are done, so a team they're
+        // in stays asked.
+        let asked = match &defer {
+            Some((to, name)) => {
+                self.request_deferred(&mut tx, (&a, &m), *me, (*to, name))
+                    .await?
+            }
+            None => Vec::new(),
+        };
         slath_db::merge_requests::touch(&mut *tx, m.id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
         let review = db::list(&self.pool, m.id)
@@ -515,6 +545,10 @@ impl Services {
             .ok_or(ServiceError::NotFound)?;
         self.notify_mr(Some(*me), &m, MrActivity::Reviewed(review.id))
             .await;
+        if !asked.is_empty() {
+            self.notify_mr(Some(*me), &m, MrActivity::ReviewRequested(asked))
+                .await;
+        }
         self.queue_auto_merge(m.id).await;
         Ok(review)
     }
@@ -740,6 +774,115 @@ impl Services {
     /// Sets the requested reviewers (users, or `org/team` for teams of the
     /// repository's organization). The author or triagers; on the
     /// timeline.
+    /// The team `org/team` of the repository's organization.
+    async fn repo_team(&self, a: &RepoAccess, field: &str, name: &str) -> Result<uuid::Uuid> {
+        let found = match name.split_once('/') {
+            Some((org, team)) if org.eq_ignore_ascii_case(&a.repo.namespace) => {
+                match slath_db::orgs::resolve_namespace(&self.pool, org).await? {
+                    Some((_, _, slath_db::orgs::NamespaceKind::Org(o))) => {
+                        slath_db::teams::find(&self.pool, o, team).await?
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        found.map(|t| t.id).ok_or_else(|| {
+            ServiceError::invalid(
+                field,
+                "unknown",
+                format!(
+                    "{name} isn't a team of the organization {}.",
+                    a.repo.namespace
+                ),
+            )
+        })
+    }
+
+    /// Whom a deferring approval by `me` leaves the decision to: a reader
+    /// other than `me` and the author, or a team of the repository's
+    /// organization.
+    async fn defer_target(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        me: UserId,
+        name: &str,
+    ) -> Result<(db::DeferTo, String)> {
+        let name = name.trim().trim_start_matches('@');
+        if name.contains('/') {
+            let t = self.repo_team(a, "defer_to", name).await?;
+            return Ok((db::DeferTo::Team(t), name.to_owned()));
+        }
+        let users = self.readers(a, "defer_to", &[name.to_owned()]).await?;
+        match users.first() {
+            Some(u) if *u == me => Err(ServiceError::invalid(
+                "defer_to",
+                "self",
+                "Name someone else to leave the decision to.",
+            )),
+            Some(u) if m.author_id == Some(*u) => Err(ServiceError::invalid(
+                "defer_to",
+                "author",
+                "The author can't decide on their own merge request.",
+            )),
+            Some(u) => Ok((db::DeferTo::User(*u), name.to_owned())),
+            None => Err(ServiceError::invalid(
+                "defer_to",
+                "required",
+                "Name a user or a team.",
+            )),
+        }
+    }
+
+    /// Asks the user or team a deferring approval names for a review,
+    /// unless they're already asked; returns the users to notify.
+    async fn request_deferred(
+        &self,
+        tx: &mut sqlx::PgConnection,
+        (a, m): (&RepoAccess, &MergeRequest),
+        me: UserId,
+        (to, name): (db::DeferTo, &str),
+    ) -> Result<Vec<UserId>> {
+        let before = db::requested(&mut *tx, m.id).await?;
+        let asked = before.iter().any(|b| {
+            b.state == "requested"
+                && match to {
+                    db::DeferTo::User(u) => b.user == Some(u),
+                    db::DeferTo::Team(t) => b.team == Some(t),
+                }
+        });
+        if asked {
+            return Ok(Vec::new());
+        }
+        let notify = match to {
+            db::DeferTo::User(u) => {
+                slath_db::merge_requests::add_reviewer(&mut *tx, m.id, u, me).await?;
+                vec![u]
+            }
+            db::DeferTo::Team(t) => {
+                db::request_team(&mut *tx, m.id, t, me).await?;
+                slath_db::teams::members(&mut *tx, t)
+                    .await?
+                    .into_iter()
+                    .map(|(u, _)| u)
+                    .filter(|u| m.author_id != Some(*u) && *u != me)
+                    .collect()
+            }
+        };
+        slath_db::issues::insert_event(
+            &mut *tx,
+            a.repo.id,
+            "merge_request",
+            *m.id.as_uuid(),
+            Some(me),
+            "review_requested",
+            &serde_json::json!({"user": name}),
+        )
+        .await?;
+        Ok(notify)
+    }
+
     pub async fn set_mr_reviewers(
         &self,
         subject: &Subject,
@@ -766,25 +909,7 @@ impl Services {
             .collect();
         let mut teams = Vec::new();
         for t in &team_names {
-            let found = match t.split_once('/') {
-                Some((org, team)) if org.eq_ignore_ascii_case(&a.repo.namespace) => {
-                    match slath_db::orgs::resolve_namespace(&self.pool, org).await? {
-                        Some((_, _, slath_db::orgs::NamespaceKind::Org(o))) => {
-                            slath_db::teams::find(&self.pool, o, team).await?
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
-            };
-            let team = found.ok_or_else(|| {
-                ServiceError::invalid(
-                    "reviewers",
-                    "unknown",
-                    format!("{t} isn't a team of the organization {}.", a.repo.namespace),
-                )
-            })?;
-            teams.push((team.id, t.clone()));
+            teams.push((self.repo_team(&a, "reviewers", t).await?, t.clone()));
         }
         let before = db::requested(&self.pool, m.id).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
@@ -1350,7 +1475,56 @@ mod tests {
             created_at: time::OffsetDateTime::UNIX_EPOCH,
             change_id: None,
             change: None,
+            deferred: false,
+            defer_to: None,
         }
+    }
+
+    fn deferring(n: u128, user: u128, seq: i32) -> Review {
+        Review {
+            deferred: true,
+            defer_to: Some("bob".to_owned()),
+            ..review(n, user, seq, "approve")
+        }
+    }
+
+    #[test]
+    fn conf_review_19_a_deferring_approval_never_counts() {
+        let h = history(1, &[], true, false);
+        let alone = [deferring(1, 7, 1)];
+        assert_eq!(counted(&counting(&alone, &h)), vec![(1, false, false)]);
+        assert_eq!(
+            standings(&alone, &h, &[]),
+            vec![Standing {
+                change: None,
+                approvals: vec![],
+                blockers: vec![],
+            }]
+        );
+        // It replaces the reviewer's earlier approval and request for
+        // changes, of the whole and of a change.
+        let k = uuid::Uuid::from_u128(100);
+        let later = [
+            review(1, 7, 1, "approve"),
+            on(2, 7, 1, "request_changes", 100),
+            deferring(3, 7, 1),
+        ];
+        assert_eq!(
+            counted(&counting(&later, &h)),
+            vec![(1, false, false), (2, false, false), (3, false, false)]
+        );
+        let h = History {
+            patches: HashMap::from([(1, HashMap::from([(k, Some("p".to_owned()))]))]),
+            ..h
+        };
+        let got = standings(&later, &h, &[k]);
+        assert!(got[0].approvals.is_empty() && got[0].blockers.is_empty());
+        // A later ordinary approval counts again.
+        let again = [deferring(1, 7, 1), review(2, 7, 1, "approve")];
+        assert_eq!(
+            counted(&counting(&again, &h)),
+            vec![(1, false, false), (2, true, false)]
+        );
     }
 
     fn history(current: i32, same: &[(i32, bool)], dismiss_stale: bool, strict: bool) -> History {

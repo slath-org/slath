@@ -12400,7 +12400,8 @@
           "body",
           "created_at",
           "counts",
-          "stale"
+          "stale",
+          "deferred"
         ],
         "properties": {
           "body": {
@@ -12419,6 +12420,17 @@
           },
           "created_at": {
             "type": "string"
+          },
+          "defer_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An approval that leaves the decision to this user or team (`org/team`):\nthe reviewer's claim, which never counts. Null for other reviews, and\nonce the user or team is deleted."
+          },
+          "deferred": {
+            "type": "boolean",
+            "description": "Whether it's such a deferring approval (also after its user or team was\ndeleted)."
           },
           "id": {
             "type": "string"
@@ -12794,6 +12806,13 @@
               "null"
             ],
             "description": "Review one change: its ID (at least the first 8 characters). Its\nversion in the current revision is reviewed, and an approval counts\nfor that change only, while it keeps its patch. Omitted: the whole\nrevision."
+          },
+          "defer_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `approve`: leave the decision to this user or team (`org/team`). The\napproval never counts, and they're asked to review. The user needs read access and\ncan't be the reviewer or the author; a team must belong to the repository's\norganization."
           },
           "verdict": {
             "type": "string",

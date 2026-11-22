@@ -108,6 +108,29 @@ pub(crate) fn approvals_requirement(
     }
 }
 
+/// The reviewers whose latest verdict is a deferring approval, as their
+/// claim: "alice approved and left the decision to bob."
+pub(crate) fn deferrals(reviews: &[Review]) -> Vec<String> {
+    let mut latest: Vec<&Review> = Vec::new();
+    for r in reviews.iter().filter(|r| r.verdict != "comment") {
+        match latest.iter_mut().find(|o| o.reviewer_id == r.reviewer_id) {
+            Some(o) => *o = r,
+            None => latest.push(r),
+        }
+    }
+    latest
+        .into_iter()
+        .filter(|r| r.deferred)
+        .filter_map(|r| {
+            let to = r.defer_to.as_deref().unwrap_or("someone else");
+            Some(format!(
+                "{} approved and left the decision to {to}.",
+                r.reviewer.as_deref()?
+            ))
+        })
+        .collect()
+}
+
 /// The `changes_requested` requirement over `js`.
 pub(crate) fn blockers_requirement(js: &[Judged]) -> Requirement {
     let mut order: Vec<&String> = Vec::new();
@@ -345,8 +368,15 @@ impl Services {
                 }
             }
         }
+        let mut approvals = approvals_requirement(&judged, needed, &named, &stale_note);
+        if approvals.state != "met" {
+            for d in deferrals(&reviews) {
+                approvals.reason.push(' ');
+                approvals.reason.push_str(&d);
+            }
+        }
         Ok(ReviewRequirements {
-            approvals: approvals_requirement(&judged, needed, &named, &stale_note),
+            approvals,
             changes_requested: blockers_requirement(&judged),
             maintainers,
             coverage,

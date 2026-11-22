@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,\n                  r.origin, r.created_at, r.change_id, c.display_id AS \"change?\"\n           FROM mr_reviews r\n           LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           LEFT JOIN mr_changes c ON c.id = r.change_id\n           WHERE r.mr_id = $1 ORDER BY r.created_at, r.id",
+  "query": "SELECT r.id, r.revision_seq, r.reviewer_id, n.name::text AS reviewer, r.verdict, r.body,\n                  r.origin, r.created_at, r.change_id, c.display_id AS \"change?\", r.deferred,\n                  COALESCE(dn.name::text, tn.name::text || '/' || t.name::text) AS defer_to\n           FROM mr_reviews r\n           LEFT JOIN users u ON u.id = r.reviewer_id AND u.state <> 'deleted'\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           LEFT JOIN mr_changes c ON c.id = r.change_id\n           LEFT JOIN users du ON du.id = r.defer_user_id AND du.state <> 'deleted'\n           LEFT JOIN namespaces dn ON dn.id = du.namespace_id\n           LEFT JOIN teams t ON t.id = r.defer_team_id\n           LEFT JOIN organizations o ON o.id = t.org_id\n           LEFT JOIN namespaces tn ON tn.id = o.namespace_id\n           WHERE r.mr_id = $1 ORDER BY r.created_at, r.id",
   "describe": {
     "columns": [
       {
@@ -107,6 +107,23 @@
             "name": "display_id"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "deferred",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "mr_reviews",
+            "name": "deferred"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "defer_to",
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -124,8 +141,10 @@
       false,
       false,
       true,
-      false
+      false,
+      false,
+      null
     ]
   },
-  "hash": "80c2a7deb5b13b7b367312b0d5d214f4c4c610c2bfb4c2b76d9be6bdec1c7c50"
+  "hash": "5242f36c8d8b9c16ae52e6cdf739bc73a036b7e724ac503e53d944cef716d6ba"
 }

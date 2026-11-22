@@ -676,6 +676,13 @@ pub struct MrReview {
     /// The change it reviews (its version in `revision`); null for a
     /// review of the whole revision.
     pub change_id: Option<String>,
+    /// An approval that leaves the decision to this user or team (`org/team`):
+    /// the reviewer's claim, which never counts. Null for other reviews, and
+    /// once the user or team is deleted.
+    pub defer_to: Option<String>,
+    /// Whether it's such a deferring approval (also after its user or team was
+    /// deleted).
+    pub deferred: bool,
 }
 
 impl From<slath_service::mr_reviews::ReviewView> for MrReview {
@@ -692,6 +699,8 @@ impl From<slath_service::mr_reviews::ReviewView> for MrReview {
             counts: v.counts,
             stale: v.stale,
             change_id: v.review.change,
+            defer_to: v.review.defer_to,
+            deferred: v.review.deferred,
         }
     }
 }
@@ -722,6 +731,12 @@ pub struct NewReview {
     /// revision.
     #[serde(default)]
     pub change: Option<String>,
+    /// With `approve`: leave the decision to this user or team (`org/team`). The
+    /// approval never counts, and they're asked to review. The user needs read access and
+    /// can't be the reviewer or the author; a team must belong to the repository's
+    /// organization.
+    #[serde(default)]
+    pub defer_to: Option<String>,
 }
 
 fn comment() -> String {
@@ -745,7 +760,7 @@ pub async fn create_review(
             (&ns, &repo, number),
             &b.verdict,
             &b.body,
-            b.change.as_deref(),
+            (b.change.as_deref(), b.defer_to.as_deref()),
         )
         .await?;
     let (_, m) = state.services.mr(&s, &ns, &repo, number).await?;

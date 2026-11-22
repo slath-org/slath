@@ -10,6 +10,7 @@ mod change_outcomes;
 mod change_reviews;
 mod change_sources;
 mod cross_references;
+mod deferring_approvals;
 mod deploy_keys;
 mod diff_highlighting;
 mod findings;

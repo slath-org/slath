@@ -362,6 +362,13 @@ reviews**, by username or as `organization/team`. Requested reviewers find
 the merge request under **Review requests** (the icon next to
 notifications) until they review it.
 
+If you'd approve but someone else should decide, approve through the
+API with `{"verdict": "approve", "defer_to": "bob"}` (a username or
+`organization/team`). Your approval counts for no requirement, and they're
+asked to review. It replaces your earlier approval or request for
+changes, like any later review of yours. The readiness card says who left
+the decision to whom while approvals are missing.
+
 When you review again later, the merge request offers the changes since
 your last review.
 
