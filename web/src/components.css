@@ -23,6 +23,10 @@
   cursor: pointer;
   transition: background-color var(--motion-fast), border-color var(--motion-fast);
 }
+/* A button that needs scripts starts hidden, and stays so without them. */
+.button[hidden] {
+  display: none;
+}
 .button:hover {
   background: var(--surface-subtle);
 }

@@ -18,6 +18,7 @@ circle-dot
 circle-x
 clock
 code
+command
 copy
 download
 external-link

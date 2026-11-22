@@ -43,7 +43,15 @@ With a zone chosen:
 ## Keyboard shortcuts
 
 Press **?** on any page, or choose **Keyboard shortcuts** at the foot of
-the page, for the list of all shortcuts by where they work. Some are a
+the page, for the list of all shortcuts by where they work.
+
+Press **Ctrl+K** (**⌘K** on a Mac), or the command button in the bar at
+the top, to find any of the page's actions by name: the links and buttons
+of the top bar, the side menu, the tabs, the page heading, and the foot
+of the page, and every control with a shortcut, with its keys. Type part
+of a name to narrow the list, choose with the arrow keys, and press Enter.
+It does exactly what that link or button does. In the Markdown editor,
+Ctrl+K still adds a link. Some are a
 single key, such as **j** for the next change of a
 stack or **n** for the next change in a diff. They act only where they're
 listed, never while you type in a field, and every one of them has a

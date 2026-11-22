@@ -28,6 +28,7 @@ import { installExpansion } from "./expand";
 import { installChangeKeys } from "./changekeys";
 import { installDialogs } from "./dialog";
 import { installShortcutList } from "./shortcuts";
+import { installPalette } from "./palette";
 import { installZoneProposal } from "./timezone";
 
 installCsrf();
@@ -45,6 +46,7 @@ installExpansion();
 installChangeKeys();
 installDialogs();
 installShortcutList();
+installPalette();
 installZoneProposal();
 installPasskeys();
 installEditors();

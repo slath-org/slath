@@ -222,5 +222,18 @@
 <button type="button" class="button button-quiet" data-dialog aria-controls="shortcuts" aria-keyshortcuts="?">Keyboard shortcuts</button>
 {%- endcall %}
 {%- endcall %}
+
+{%- call cat::entry("palette", "Command palette", "New") %}
+<dl class="contract">
+  <dt>Purpose</dt><dd>Reaching any of the page's actions by name from the keyboard: the links and buttons of the global bar, the side menu, the tabs, the page heading's actions, and the footer, and every control with a shortcut, each with where it is and its keys. Taking one follows that link or presses that button.</dd>
+  <dt>Markup</dt><dd>Drawn by the frame (<code>palette.html</code>, a dialog) and filled from the page when it opens; nothing to add to a page. An action shows up when it's in one of those places or has <code>aria-keyshortcuts</code>; menu items, links within the page that aren't shortcuts, and disabled controls don't.</dd>
+  <dt>Variants</dt><dd>None.</dd>
+  <dt>Accessibility</dt><dd>Opened by <kbd>Ctrl+K</kbd> (<kbd>⌘K</kbd>) or the global bar's button. A combobox field with a listbox: typing filters, <kbd>↑</kbd> and <kbd>↓</kbd> choose, <kbd>Enter</kbd>, a click, or a tap takes one, <kbd>Escape</kbd> closes; the number of matching actions is announced. In the editor, <kbd>Ctrl+K</kbd> stays the link shortcut.</dd>
+  <dt>Not for</dt><dd>Search (the search page), or actions the page doesn't offer.</dd>
+</dl>
+{%- call cat::example("The global bar's button opens the palette of this page.") %}
+<button type="button" class="button button-quiet button-icon" data-dialog aria-controls="palette" aria-keyshortcuts="Control+K" data-tip="Actions (Ctrl+K)">{% call m::icon(ctx, "command") %}{% endcall %}<span class="visually-hidden">Actions on this page</span></button>
+{%- endcall %}
+{%- endcall %}
 </div>
 {% endblock %}

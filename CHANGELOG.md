@@ -27,6 +27,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Webhooks can send payloads with only IDs, names, and API links, so no titles, descriptions, comments, or commit messages reach the receiver's logs.
 - Every webhook payload object carries the `api_url` it can be read at again, also for pushes, comments, reviews, statuses, and forks.
 - A stack guide shows, for Git and jj side by side, how to push a stack, change a commit in the middle, hand it between both tools, and land it in parts.
+- Ctrl+K (⌘K) or the command button in the top bar finds any of the page's actions by name, with its shortcut, and does what its link or button does.
 - Press ? on any page, or choose Keyboard shortcuts at its foot, for the list of all keyboard shortcuts by where they work.
 - Single-key shortcuts, such as j and n, can be turned off under Settings → Appearance; shortcuts with Ctrl or ⌘ keep working.
 - The fork guide shows how to rebase a fork's branch onto the original's latest commits with Git and jj; rebased changes keep their approvals.

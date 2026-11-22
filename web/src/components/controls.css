@@ -203,3 +203,37 @@ input[type="date"] {
 .dialog-head form {
   display: contents;
 }
+
+/* The command palette: a field, and below it the page's actions, each
+   with where it is and its keys. */
+.palette input {
+  inline-size: 100%;
+}
+.palette-list {
+  max-block-size: min(24rem, 60dvh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.palette-list [role="option"] {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-inline);
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.palette-list [role="option"][aria-selected="true"] {
+  background: var(--selection);
+}
+.palette-label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.palette-where {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

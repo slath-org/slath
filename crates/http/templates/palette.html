@@ -1,0 +1,13 @@
+{#- The command palette, for every page: Ctrl+K (⌘K) or the global bar's
+    button opens it (scripts only). It lists the page's own actions: the
+    links and buttons of the global bar, the side menu, the tabs, the page
+    heading's actions, the footer, and every control with a shortcut, with
+    their keys. Choosing one follows that link or presses that button, so
+    the palette never offers what the page doesn't. -#}
+{%- call c::dialog(ctx, "palette", "Actions on this page") %}
+<div class="stack palette">
+  <input id="palette-input" type="text" role="combobox" aria-label="Find an action" aria-autocomplete="list" aria-expanded="true" aria-controls="palette-list" autocomplete="off" spellcheck="false" placeholder="Find an action">
+  <ul id="palette-list" class="palette-list" role="listbox" aria-label="Actions"></ul>
+  <p class="hint" id="palette-status" role="status"></p>
+</div>
+{%- endcall %}

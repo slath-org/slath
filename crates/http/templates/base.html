@@ -33,6 +33,7 @@
     <a class="site-name" href="/"><img class="logo logo-light" src="{{ ctx.logo.light_url }}" alt="" width="24" height="24"><img class="logo logo-dark" src="{{ ctx.logo.dark_url }}" alt="" width="24" height="24">Slath</a>
     {% block nav %}{% endblock %}
     <div class="nav-end">
+      <button type="button" class="button button-quiet button-icon" data-dialog aria-controls="palette" aria-keyshortcuts="Control+K" data-tip="Actions (Ctrl+K)" hidden>{% call m::icon(ctx, "command") %}{% endcall %}<span class="visually-hidden">Actions on this page</span></button>
       <a class="nav-icon" href="/-/search" data-tip="Search">{% call m::icon(ctx, "search") %}{% endcall %}<span class="visually-hidden">Search</span></a>
       <div class="nav-wide{% if ctx.user.is_some() %} nav-wide-user{% endif %}">
       <details class="menu" id="appearance-menu">
@@ -104,6 +105,7 @@
   <button type="button" class="button button-quiet" data-dialog aria-controls="shortcuts" aria-keyshortcuts="?" hidden>Keyboard shortcuts</button>
 </footer>
 {%- include "shortcuts.html" %}
+{%- include "palette.html" %}
 </div>
 </div>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
