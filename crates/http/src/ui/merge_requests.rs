@@ -1192,6 +1192,10 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
             "git-merge",
             format!("merged this by pushing to {}", str_of("target")),
         ),
+        "merged" if str_of("policy") == "one_maintainer" => (
+            "git-merge",
+            "merged this under the one-maintainer policy".to_owned(),
+        ),
         "merged" => ("git-merge", "merged this".to_owned()),
         "changes_landed" => {
             let ids: Vec<String> = e
@@ -1216,8 +1220,13 @@ fn event_view(e: slath_db::issues::Event) -> Option<EventView> {
                 // Landed in Slath, with a strategy; else by a push.
                 match e.data.get("strategy").and_then(serde_json::Value::as_str) {
                     Some(how) => format!(
-                        "landed {what} into {target} ({}); the rest is still open",
-                        strategy_label(how).to_lowercase()
+                        "landed {what} into {target} ({}{}); the rest is still open",
+                        strategy_label(how).to_lowercase(),
+                        if str_of("policy") == "one_maintainer" {
+                            ", under the one-maintainer policy"
+                        } else {
+                            ""
+                        }
                     ),
                     None => format!("pushed {what} to {target}; the rest is still open"),
                 },
@@ -1468,6 +1477,9 @@ struct MrHeading {
     /// (empty before the first revision).
     commits: String,
     files: String,
+    /// The viewer is the repository's one maintainer, the policy applies,
+    /// and it's their own merge request: they may review it themselves.
+    alone: bool,
 }
 
 /// The viewer's tool for command blocks: preselected when known (setting
@@ -1722,16 +1734,24 @@ async fn heading(
             .await?
             .iter()
             .any(|r| r.counts && r.review.reviewer_id == me);
+    let mb = state.services.mr_mergeability(a, &m).await?;
+    // Under the one-maintainer policy, the maintainer reviews their own.
+    let alone = m.state == "open"
+        && me.is_some()
+        && m.author_id == me
+        && mb
+            .one_maintainer
+            .as_ref()
+            .is_some_and(|o| o.applies && o.maintainer.as_ref().map(|(u, _)| *u) == me);
     let viewer = Viewer {
         author: me.is_some() && m.author_id == me,
         edit: perms.edit,
         merge: a.can(subject, Action::MrMerge),
-        review: me.is_some() && a.can(subject, Action::MrReview) && m.author_id != me,
+        review: (me.is_some() && a.can(subject, Action::MrReview) && m.author_id != me) || alone,
         push: a.can(subject, Action::RepoPush),
         update: state.services.may_update_branch(subject, a, &m).await,
         reviewed,
     };
-    let mb = state.services.mr_mergeability(a, &m).await?;
     let since = state
         .services
         .since_last_review(subject, a, &m)
@@ -1841,6 +1861,7 @@ async fn heading(
         None => (String::new(), String::new()),
     };
     Ok(MrHeading {
+        alone,
         commits,
         files,
         checkout_form,
@@ -2227,6 +2248,7 @@ async fn mr_page_showing(
                     "approve" if v.review.deferred => ("approved", "users"),
                     "approve" => ("approved", "circle-check"),
                     "request_changes" => ("requested changes", "circle-x"),
+                    "accountable_review" => ("reviewed as the only maintainer", "shield"),
                     _ => ("reviewed", "message-square"),
                 };
                 timeline.push(TimelineView::Review(ReviewItem {

@@ -393,6 +393,18 @@ fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
             git.ok(w, &["commit", "-q", "-m", &format!("Part {i}")]);
         }
         git.ok(w, &["push", "-q", url, &format!("land/{p}")]);
+        // A target and a branch for merging alone under the one-maintainer
+        // policy, which protects only that target.
+        git.ok(
+            w,
+            &["switch", "-q", "-c", &format!("solo/{p}/main"), "main"],
+        );
+        git.ok(w, &["push", "-q", url, &format!("solo/{p}/main")]);
+        git.ok(w, &["switch", "-q", "-c", &format!("solo/{p}/topic")]);
+        std::fs::write(w.join(format!("solo-{p}.md")), "alone\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(w, &["commit", "-q", "-m", "Change it alone"]);
+        git.ok(w, &["push", "-q", url, &format!("solo/{p}/topic")]);
         // Two branches for merge requests that are linked to land together.
         for part in ["lib", "app", "keys-lib", "keys-app"] {
             let branch = format!("linked/{p}/{part}");

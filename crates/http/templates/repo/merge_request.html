@@ -377,7 +377,7 @@
     {%- let verdict_legend %}Review revision {{ h.mr.revisions }}{% endlet %}
     {%- let (verdict, defer_to, review_body) = review_form %}
     {%- call f::question("verdict", verdict_legend) %}
-    {%- call f::option("radio", "verdict-comment", "verdict", "comment", "Comment", verdict.as_str() != "approve" && verdict.as_str() != "defer" && verdict.as_str() != "request_changes") %}{% endcall %}
+    {%- call f::option("radio", "verdict-comment", "verdict", "comment", "Comment", verdict.as_str() != "approve" && verdict.as_str() != "defer" && verdict.as_str() != "request_changes" && verdict.as_str() != "accountable_review") %}{% endcall %}
     {%- if can_approve %}
     {%- call f::option("radio", "verdict-approve", "verdict", "approve", "Approve", verdict.as_str() == "approve") %}{% endcall %}
     {%- call f::option_follow_up("radio", "verdict-defer", "verdict", "defer", "Approve, but let someone else decide", verdict.as_str() == "defer") %}
@@ -386,6 +386,9 @@
     {%- endcall %}
     {%- endcall %}
     {%- call f::option("radio", "verdict-request_changes", "verdict", "request_changes", "Request changes", verdict.as_str() == "request_changes") %}{% endcall %}
+    {%- endif %}
+    {%- if h.alone %}
+    {%- call f::option("radio", "verdict-accountable_review", "verdict", "accountable_review", "Review as the only maintainer", verdict.as_str() == "accountable_review", "You're this repository's only maintainer, so your review of this revision counts in place of approvals. It isn't an approval. For sensitive paths, mark every file viewed first.") %}{% endcall %}
     {%- endif %}
     {%- endcall %}
     {%- call f::field("review-body", "Review comment", "", self.error("body").unwrap_or_default(), true) %}

@@ -405,14 +405,16 @@ one maintainer: their own review counts** in the branch protection rule
 access, you then review your own merge request and that review counts in
 place of approvals.
 
-Review the changes, then record your review with
-`POST …/merge-requests/{n}/reviews` and `{"verdict": "accountable_review"}`. It counts
+Review the changes, then choose **Review as the only maintainer** in the
+review form and submit it; the readiness card's **Review** leads there.
+The API takes `{"verdict": "accountable_review"}`. It counts
 for the revision you reviewed: after a new push, even a plain rebase,
 review again. For a change to a sensitive path it counts once you've
 marked every file viewed before submitting it. Required checks still need
 a status from someone other than you or your bots, and bots still can't
 push sensitive paths. Your review never shows or counts as an approval;
-the timeline and the ledger record that the merge happened under the
+the timeline shows it as "reviewed as the only maintainer", and the
+timeline and the ledger record that the merge happened under the
 one-maintainer policy.
 
 Once a second person has write access, for example a collaborator or a
