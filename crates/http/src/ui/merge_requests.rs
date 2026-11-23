@@ -1588,6 +1588,10 @@ struct Viewer {
     update: bool,
     /// The viewer's approval or request for changes counts now.
     reviewed: bool,
+    /// Approvals nobody can give, and the viewer may turn on the
+    /// one-maintainer policy that would let the author's review count:
+    /// the protection settings page.
+    enable_policy: Option<String>,
 }
 
 fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, base: &str) -> Card {
@@ -1680,6 +1684,12 @@ fn card(m: &MergeRequest, mb: Mergeability, v: &Viewer, since: Option<usize>, ba
         "approvals" | "changes_requested" | "sensitive_paths" if v.review && !v.reviewed => {
             link("Review", "eye", "#review-form")
         }
+        "approvals" if v.enable_policy.is_some() => Some(NextAction {
+            label: "Turn on the one-maintainer policy",
+            icon: "settings",
+            href: v.enable_policy.clone(),
+            form: None,
+        }),
         "approvals" | "sensitive_paths" if v.edit => link("Ask for review", "users", "#reviewers"),
         "conflicts" if v.push || v.author => link("Resolve conflicts", "terminal", "#conflicts"),
         "identity" if v.push || v.author => {
@@ -1751,6 +1761,14 @@ async fn heading(
         push: a.can(subject, Action::RepoPush),
         update: state.services.may_update_branch(subject, a, &m).await,
         reviewed,
+        enable_policy: (mb.approvals_stuck.is_some_and(|x| x.policy_helps)
+            && a.can(subject, Action::ProtectionManage))
+        .then(|| {
+            format!(
+                "/{}/{}/settings/protections#single_maintainer",
+                a.repo.namespace, a.repo.name
+            )
+        }),
     };
     let since = state
         .services

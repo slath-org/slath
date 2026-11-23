@@ -505,6 +505,12 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "collaborator-saved" => "Collaborator saved.",
         "collaborator-removed" => "Collaborator removed.",
         "team-saved" => "Team access saved.",
+        "collaborator-saved-policy-ended" => {
+            "Collaborator saved. The one-maintainer policy no longer applies: open merge requests need approvals from someone other than their author again."
+        }
+        "team-saved-policy-ended" => {
+            "Team access saved. The one-maintainer policy no longer applies: open merge requests need approvals from someone other than their author again."
+        }
         "rule-saved" => "Protection rule saved.",
         "rule-removed" => "Protection rule removed.",
         "sensitive-saved" => "Sensitive paths saved.",
@@ -939,15 +945,23 @@ async fn add_collaborator(
         .iter()
         .find(|(n, _)| *n == f.role)
         .map_or(Role::Read, |(_, r)| *r);
+    let alone = state.services.one_maintainer_in_effect(&a).await?;
     match state
         .services
         .set_collaborator(&s.subject, &a, &f.username, role)
         .await
     {
-        Ok(()) => Ok(
-            Redirect::to(&repo_url(&a, "/settings/access?status=collaborator-saved"))
-                .into_response(),
-        ),
+        Ok(()) => {
+            let status = if alone && !state.services.one_maintainer_in_effect(&a).await? {
+                "collaborator-saved-policy-ended"
+            } else {
+                "collaborator-saved"
+            };
+            Ok(
+                Redirect::to(&repo_url(&a, &format!("/settings/access?status={status}")))
+                    .into_response(),
+            )
+        }
         Err(ServiceError::Invalid(errors)) => {
             access_page(&state, ctx, &s.subject, &a, None, errors, f.username).await
         }
@@ -1142,6 +1156,11 @@ struct ProtectionsSettings<'a> {
     sensitive_instance: Vec<String>,
     /// The repository's own, one per line.
     sensitive_paths: String,
+    /// The only person with write access, if there's exactly one.
+    alone: Option<String>,
+    /// What the rules require that can never be met on that person's
+    /// merge requests.
+    dead_ends: Vec<String>,
 }
 
 impl ProtectionsSettings<'_> {
@@ -1191,7 +1210,10 @@ async fn protections_page(
                 .join("; "),
         );
     }
+    let (alone, dead_ends) = state.services.protection_dead_ends(a, &rules).await?;
     let mut res = render(&ProtectionsSettings {
+        alone,
+        dead_ends,
         ctx,
         header: RepoHeader::load(state, a, subject, "settings").await,
         checks,
@@ -1406,6 +1428,7 @@ async fn set_team(
         .iter()
         .find(|(n, _)| *n == f.role)
         .map_or(Role::Read, |(_, r)| *r);
+    let alone = state.services.one_maintainer_in_effect(&a).await?;
     match state
         .services
         .set_repo_team(
@@ -1418,7 +1441,15 @@ async fn set_team(
         .await
     {
         Ok(()) => {
-            Ok(Redirect::to(&repo_url(&a, "/settings/access?status=team-saved")).into_response())
+            let status = if alone && !state.services.one_maintainer_in_effect(&a).await? {
+                "team-saved-policy-ended"
+            } else {
+                "team-saved"
+            };
+            Ok(
+                Redirect::to(&repo_url(&a, &format!("/settings/access?status={status}")))
+                    .into_response(),
+            )
         }
         Err(ServiceError::Invalid(errors)) => {
             access_page(&state, ctx, &s.subject, &a, None, errors, String::new()).await

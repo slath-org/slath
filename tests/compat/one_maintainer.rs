@@ -667,3 +667,67 @@ fn conf_review_32_stuck_requirements_say_why_and_what_helps() {
         "{fix}"
     );
 }
+
+#[test]
+fn conf_review_32_settings_warn_about_requirements_nobody_can_meet() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let mut ui = s.login("alice", PASSWORD);
+    let page = "/alice/demo/settings/protections";
+    // The form says it before a rule exists.
+    let body = ui.get(page).body;
+    assert!(
+        body.contains("Only alice has write access, so nobody else can approve"),
+        "{body}"
+    );
+    assert!(!body.contains("can never be met"), "{body}");
+    // A rule that needs approvals nobody can give, and a check only alice
+    // may report.
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1,
+                    "required_status_contexts": ["ci"], "status_reporters": {"ci": ["alice"]}})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let body = ui.get(page).body;
+    assert!(
+        body.contains("main: only alice has write access, so nobody else can approve alice&#39;s merge requests"),
+        "{body}"
+    );
+    assert!(body.contains("only alice and alice"), "{body}");
+    // With the policy on, only the check is left.
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1, "single_maintainer": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let body = ui.get(page).body;
+    assert!(!body.contains("main: only alice"), "{body}");
+    // Giving bob write access ends the policy, and the page says so.
+    let r = slath_tests::http::submit(
+        &mut ui,
+        "/alice/demo/settings/access",
+        "/alice/demo/settings/access",
+        &[("username", "bob"), ("role", "write")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let to = r.header("location").unwrap_or_default().to_owned();
+    assert!(
+        to.ends_with("status=collaborator-saved-policy-ended"),
+        "{to}"
+    );
+    let body = ui.get(&to).body;
+    assert!(
+        body.contains("The one-maintainer policy no longer applies"),
+        "{body}"
+    );
+    // Without one maintainer, the protection page warns about nothing.
+    assert!(!ui.get(page).body.contains("only alice"));
+}

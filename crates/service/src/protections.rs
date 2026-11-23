@@ -78,7 +78,7 @@ pub const BOT_DENIED: &str =
     "bots can merge into or push to this protected branch only if its protection lists them";
 
 /// The reporter lists of a rule: context -> user IDs.
-fn reporters_of(p: &Protection) -> std::collections::HashMap<String, Vec<UserId>> {
+pub(crate) fn reporters_of(p: &Protection) -> std::collections::HashMap<String, Vec<UserId>> {
     let mut out = std::collections::HashMap::new();
     if let Some(map) = p.status_reporters.as_object() {
         for (ctx, ids) in map {

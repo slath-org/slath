@@ -421,8 +421,14 @@ Once a second person has write access, for example a collaborator or a
 team, the normal rules apply again at once: open merge requests need
 their approval as before.
 
-A merge request stuck on approvals nobody can give says so: "Nobody
-else with write access can approve it.", with what helps.
+Slath tells you where this matters. While you're the only person with
+write access, the branch protection page says when a rule needs
+approvals nobody else could give, or a required check only you or your
+bots report (those statuses never count on your own merge requests). A
+merge request stuck on approvals says "Nobody else with write access can
+approve it." and, for repository admins, its readiness card leads to
+the setting. Giving someone write access on the Access page says when
+that ends the one-maintainer policy.
 
 Every merge request page opens with a **readiness card**: one headline
 (such as "Ready to merge", "Approval required", or "Conflicts with

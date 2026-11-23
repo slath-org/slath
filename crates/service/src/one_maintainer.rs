@@ -359,4 +359,56 @@ impl Services {
         });
         Ok(Some(Stuck { policy_helps }))
     }
+
+    /// Whether a protection rule of the repository has the one-maintainer
+    /// policy and it applies now (exactly one person has write access).
+    pub async fn one_maintainer_in_effect(&self, a: &RepoAccess) -> Result<bool> {
+        let rules = slath_db::protections::list(&self.pool, a.repo.id).await?;
+        Ok(rules.iter().any(|r| r.single_maintainer)
+            && self.sole_maintainer(&a.repo).await?.is_some())
+    }
+
+    /// The only person with write access by name, and what in the rules
+    /// can never be met on their merge requests: approvals nobody else can
+    /// give, and required checks only they (or their bots) may report.
+    pub async fn protection_dead_ends(
+        &self,
+        a: &RepoAccess,
+        rules: &[slath_db::protections::Protection],
+    ) -> Result<(Option<String>, Vec<String>)> {
+        let Some(u) = self.sole_maintainer(&a.repo).await? else {
+            return Ok((None, Vec::new()));
+        };
+        let name = slath_db::users::get(&self.pool, u)
+            .await?
+            .map(|x| x.name)
+            .unwrap_or_default();
+        let mut out = Vec::new();
+        for r in rules {
+            if r.required_approvals > 0 && !r.single_maintainer && !r.bots_count_as_approvers {
+                out.push(format!(
+                    "{}: only {name} has write access, so nobody else can approve {name}'s merge requests. Turn on \u{201c}Only one maintainer: their own review counts\u{201d} for this rule, or set its approvals to 0.",
+                    r.pattern
+                ));
+            }
+            let lists = crate::protections::reporters_of(r);
+            for ctx in &r.required_status_contexts {
+                let Some(ids) = lists.get(ctx).filter(|l| !l.is_empty()) else {
+                    continue;
+                };
+                let mut own = true;
+                for id in ids {
+                    own &= *id == u
+                        || slath_db::users::bot_owner_user(&self.pool, *id).await? == Some(u);
+                }
+                if own {
+                    out.push(format!(
+                        "{}: only {name} and {name}'s bots may report {ctx}, and their statuses never count on {name}'s own merge requests. Add a reporter that isn't {name}'s, or don't require {ctx}.",
+                        r.pattern
+                    ));
+                }
+            }
+        }
+        Ok((Some(name), out))
+    }
 }

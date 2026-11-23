@@ -17,6 +17,16 @@
 <section class="section" aria-labelledby="rules-heading">
 <h2 id="rules-heading">Rules</h2>
 <div class="stack-groups">
+{%- if !dead_ends.is_empty() %}
+{%- call msg::notice("warning") %}
+<p>Some requirements can never be met on merge requests of the only person with write access:</p>
+<ul>
+  {%- for w in dead_ends %}
+  <li>{{ w }}</li>
+  {%- endfor %}
+</ul>
+{%- endcall %}
+{%- endif %}
 {%- if rules.is_empty() %}
 {%- call msg::empty("No branches are protected.") %}{% endcall %}
 {%- else %}
@@ -69,6 +79,9 @@
   {%- call f::option("checkbox", "block_deletion", "block_deletion", "1", "Block deletion", true) %}{% endcall %}
   {%- call f::option("checkbox", "require_mr", "require_mr", "1", "Require merge requests", false, "Direct pushes are refused; admins may still push, and each such push is recorded in the audit log.") %}{% endcall %}
   {%- call f::field_group("Merging merge requests") %}
+  {%- if let Some(name) = alone %}
+  {%- call msg::notice() %}<p>Only {{ name }} has write access, so nobody else can approve {{ name }}'s merge requests. With approvals needed, turn on <strong>Only one maintainer: their own review counts</strong> below, or set approvals to 0.</p>{% endcall %}
+  {%- endif %}
   {%- call f::field("required_approvals", "Approvals needed", "From people with write access, other than the author.", self.error("required_approvals").unwrap_or_default()) %}
   <input id="required_approvals" name="required_approvals" type="number" min="0" max="20" value="1" inputmode="numeric"{% call f::described("required_approvals", "x", self.error("required_approvals").unwrap_or_default()) %}{% endcall %}>
   {%- endcall %}
