@@ -661,3 +661,70 @@ fn conf_agent_16_context_refs_are_refused_with_a_hint() {
     assert!(no);
     assert!(err.contains("import/entire"), "{err}");
 }
+
+#[test]
+fn conf_agent_05_a_records_page_pages_its_transcript_for_those_who_may_see_it() {
+    let (w, n) = World::start();
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"context_detail": "full"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let long: String = (0..60).map(|i| format!("line {i}\n")).collect();
+    let mut entries: Vec<Value> = (1..=250)
+        .map(|i| json!({"kind": "response", "text": format!("Entry text {i}")}))
+        .collect();
+    entries[0] = json!({"kind": "prompt", "text": "Do the thing"});
+    entries[1] = json!({"kind": "tool_result", "text": long, "tool": "shell"});
+    let mut rec = record("Paged", json!({"merge_request": n}));
+    rec["transcript"] = json!(entries);
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let page = format!("/alice/demo/-/context/{id}");
+
+    let mut bob = w.s.login("bob", PASSWORD);
+    let first = bob.get(&page);
+    assert_eq!(first.status, 200, "{}", first.body);
+    assert!(
+        first.body.contains("Entries 1–200 of 250."),
+        "{}",
+        first.body
+    );
+    assert!(first.body.contains("Do the thing"));
+    assert!(first.body.contains("Entry text 200"));
+    assert!(!first.body.contains("Entry text 201"));
+    // A long entry shows its first lines; the rest folds away.
+    assert!(first.body.contains("Show 40 more lines"), "{}", first.body);
+    assert!(first.body.contains(&format!("{page}?page=2")));
+    let second = bob.get(&format!("{page}?page=2"));
+    assert!(
+        second.body.contains("Entries 201–250 of 250."),
+        "{}",
+        second.body
+    );
+    assert!(second.body.contains("Entry text 250"));
+    // The panel shows the prompt and links here, not the transcript.
+    let mr = bob.get(&format!("/alice/demo/merge-requests/{n}"));
+    assert!(
+        mr.body.contains("Asked: <bdi>Do the thing</bdi>"),
+        "{}",
+        mr.body
+    );
+    assert!(mr.body.contains("Read the transcript (250 entries)"));
+    assert!(!mr.body.contains("Entry text 2"));
+
+    // A reader the record doesn't name, and anonymous visitors, get 404.
+    let mut carol = w.s.login("carol", PASSWORD);
+    assert_eq!(carol.get(&page).status, 404);
+    assert!(
+        !carol
+            .get(&format!("/alice/demo/merge-requests/{n}"))
+            .body
+            .contains("side-context")
+    );
+    assert_eq!(w.s.client().get(&page).status, 404);
+    assert_eq!(bob.get("/alice/demo/-/context/not-a-uuid").status, 404);
+}

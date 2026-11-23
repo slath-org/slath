@@ -19,17 +19,17 @@
         {%- for item in r.open_items %}
         {% call m::status_line(ctx, "waiting", "Open: " ~ item) %}{% endcall %}
         {%- endfor %}
-        {%- if !r.transcript.is_empty() %}
-        {%- let summary = format!("Transcript, {} entries", r.transcript.len()) %}
-        {% call d::disclosure(ctx, summary) %}
-          {%- for e in r.transcript %}
-          <p class="text-secondary">{{ e.label }}{% if let Some(t) = e.tool %} · <bdi>{{ t }}</bdi>{% endif %}</p>
-          <pre class="commit-body">{{ e.text }}</pre>
-          {%- endfor %}
-        {% endcall %}
+        {%- if let Some(x) = r.excerpt %}
+        <p class="text-secondary">Asked: <bdi>{{ x }}</bdi></p>
+        {%- endif %}
+        {%- if r.entries > 0 %}
+        <p><a href="{{ r.href }}">Read the transcript ({{ r.entries }} {% if r.entries == 1 %}entry{% else %}entries{% endif %})</a></p>
+        {%- else %}
+        <p><a href="{{ r.href }}">Open the record</a></p>
         {%- endif %}
       </div>
     </li>
   {%- endfor %}
+  </ul>
 </section>
 {%- endif %}

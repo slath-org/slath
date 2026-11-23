@@ -730,6 +730,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(diff::router())
         .merge(labels::router())
         .merge(secret_scan::router())
+        .merge(context_records::router())
         .merge(notifications::router())
         .merge(search::router())
         .merge(import::router())

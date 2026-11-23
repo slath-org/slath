@@ -1,0 +1,79 @@
+{% extends "repo/layout.html" %}
+{% block title %}Context record · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+<div class="page">
+{% include "repo/header.html" %}
+<header class="page-head">
+  <div class="page-head-row"><h1>Context record</h1></div>
+  <p class="page-head-meta">{% call p::who(ctx, uploader) %}{% endcall %} {% call m::evidence("Agent's account") %}{% endcall %} · {% call c::time(created) %}{% endcall %} · <bdi>{{ agent }}</bdi>{% if let Some(who) = initiated_by %} · for {% call p::account(ctx, who) %}{% endcall %}{% endif %}</p>
+  <p class="page-head-intro">What an agent says about how it made a change. Slath doesn't check it.</p>
+</header>
+{%- match binding %}
+{%- when BindingView::Bound with ((mr, mr_href), change) %}
+<p>About <a href="{{ mr_href }}">{{ mr }}</a>{% if let Some((short, href)) = change %}, change <a href="{{ href }}"><code>{{ short }}</code></a>{% endif %}.</p>
+{%- when BindingView::Unlinked %}
+{% call m::status_line(ctx, "waiting", "Not linked: the merge request it names wasn't found, or its uploader can't update it.") %}{% endcall %}
+{%- when BindingView::None %}
+{%- endmatch %}
+<section class="section" aria-labelledby="record-summary">
+  <h2 id="record-summary">Summary</h2>
+  <pre class="commit-body">{{ intent }}</pre>
+  {%- if let Some(o) = outcome %}
+  <pre class="commit-body">{{ o }}</pre>
+  {%- endif %}
+  {%- for item in open_items %}
+  {% call m::status_line(ctx, "waiting", "Open: " ~ item) %}{% endcall %}
+  {%- endfor %}
+</section>
+{%- if !artifacts.is_empty() %}
+<section class="section" aria-labelledby="record-artifacts">
+  <h2 id="record-artifacts">Artifacts</h2>
+  <ul class="plain-list">
+  {%- for (name, sha) in artifacts %}
+    <li><bdi>{{ name }}</bdi> <code data-tip="{{ sha }}">{{ sha[..12] }}</code></li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+{%- if !redactions.is_empty() %}
+<section class="section" aria-labelledby="record-redactions">
+  <h2 id="record-redactions">Redactions</h2>
+  <p class="text-secondary">What the agent removed before uploading, by rule. Counts only.</p>
+  <ul class="plain-list">
+  {%- for (rule, count) in redactions %}
+    <li><bdi>{{ rule }}</bdi>: {{ count }}</li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- endif %}
+<section class="section" aria-labelledby="record-transcript">
+  <h2 id="record-transcript">Transcript</h2>
+  {%- if total == 0 %}
+  {%- if detail == "full" %}
+  {%- call msg::empty("The agent sent no transcript.") %}{% endcall %}
+  {%- else %}
+  {%- call msg::empty("This repository keeps summaries only.") %}{% endcall %}
+  {%- endif %}
+  {%- else %}
+  {%- if let Some(r) = range %}
+  <p class="text-secondary">{{ r }}</p>
+  {%- endif %}
+  <div class="stack">
+  {%- for e in entries %}
+    <div class="stack-inside" id="entry-{{ e.number }}">
+      <p class="text-secondary">{{ e.number }}. {{ e.label }}{% if let Some(t) = e.tool %} · <bdi>{{ t }}</bdi>{% endif %}{% if let Some(at) = e.at %} · <bdi>{{ at }}</bdi>{% endif %}</p>
+      <pre class="commit-body">{{ e.head }}</pre>
+      {%- if let Some((n, rest)) = e.rest %}
+      {%- let summary = format!("Show {} more lines", n) %}
+      {% call d::disclosure(ctx, summary) %}
+        <pre class="commit-body">{{ rest }}</pre>
+      {% endcall %}
+      {%- endif %}
+    </div>
+  {%- endfor %}
+  </div>
+  {% call l::pager(prev, next, "Earlier entries", "Later entries") %}{% endcall %}
+  {%- endif %}
+</section>
+</div>
+{% endblock %}

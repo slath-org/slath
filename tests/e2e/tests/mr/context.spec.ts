@@ -3,8 +3,9 @@
 //
 // The Context panel: the e2e-agent bot's record of how it made the agent
 // fixture's change, on the merge request's page and on the change's page,
-// with its transcript behind a disclosure, by taps or clicks and with the
-// keyboard. Who may see a record is tested through the API.
+// with the start of its transcript and a link to the record's page, by taps
+// or clicks and with the keyboard. Who may see a record is tested
+// through the API and the page's HTML.
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
@@ -26,13 +27,9 @@ test("conf_agent_05_the_context_panel_shows_an_agents_record", async ({ page }) 
   await expect(p).toContainText("fixture-agent · demo-model · demo-cli");
   await expect(p).toContainText("Write the agent notes.");
   await expect(p).toContainText("Ask alice about the second case");
-  await expectAccessible(page);
-  // The transcript opens in place.
-  const transcript = p.locator("details.disclosure").filter({ hasText: "Transcript, 3 entries" });
-  await expect(transcript.locator(".disclosure-indicator")).toBeVisible();
-  await tapOrClick(page, transcript.locator("summary"));
-  await expect(transcript).toContainText("Write notes for the agent fixture.");
-  await expect(transcript).toContainText("Tool call · editor");
+  // The panel shows what was asked; the transcript is on the record's page.
+  await expect(p).toContainText("Asked: Write notes for the agent fixture.");
+  await expect(p).not.toContainText("Done after three tries.");
   await expectAccessible(page);
   // The change it's about has the same record, without the change link.
   await tapOrClick(page, p.getByRole("link", { name: /^[k-z]{8}$/ }));
@@ -40,13 +37,21 @@ test("conf_agent_05_the_context_panel_shows_an_agents_record", async ({ page }) 
   await expect(panel(page)).toContainText("Write the agent notes.");
   await expect(panel(page).getByRole("link", { name: /^[k-z]{8}$/ })).toHaveCount(0);
   await expectAccessible(page);
+  // The record's page has the whole transcript.
+  await tapOrClick(page, panel(page).getByRole("link", { name: "Read the transcript (3 entries)" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Context record");
+  const transcript = page.getByRole("region", { name: "Transcript" });
+  await expect(transcript).toContainText("1. Prompt");
+  await expect(transcript).toContainText("2. Tool call · editor");
+  await expect(transcript).toContainText("Done after three tries.");
+  await expect(page.getByRole("link", { name: /^![0-9]+$/ })).toBeVisible();
+  await expectAccessible(page);
 });
 
-test("conf_agent_05_the_transcript_opens_with_the_keyboard", async ({ page }) => {
+test("conf_agent_05_the_record_page_opens_with_the_keyboard", async ({ page }) => {
   await signIn(page, USERS.alice);
   await openFixture(page);
-  const summary = panel(page).locator("details.disclosure summary").filter({ hasText: "Transcript, 3 entries" });
-  await summary.focus();
+  await panel(page).getByRole("link", { name: "Read the transcript (3 entries)" }).focus();
   await page.keyboard.press("Enter");
-  await expect(panel(page)).toContainText("Done after three tries.");
+  await expect(page.getByRole("region", { name: "Transcript" })).toContainText("Write notes for the agent fixture.");
 });
