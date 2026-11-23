@@ -22,6 +22,7 @@ mod keys;
 mod logos;
 mod m2_surfaces;
 mod m3_surfaces;
+mod mcp;
 mod mfa;
 mod notifications;
 mod oidc;
