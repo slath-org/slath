@@ -1,0 +1,442 @@
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Agent context records through the API: they bind to a merge request's
+//! change and stay with it when the change is rewritten, bind only for
+//! uploaders who may update the merge request, honor the repository's
+//! detail level, refuse secrets without keeping anything, are seen only
+//! by writers, the person who asked, and the bot's owner, and never enter
+//! the repository's Git objects.
+
+use std::path::Path;
+
+use serde_json::{Value, json};
+use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
+
+struct World {
+    s: TestServer,
+    alice: String,
+    bob: String,
+    carol: String,
+    bot: String,
+    git: GitClient,
+    url: String,
+    w: tempfile::TempDir,
+}
+
+fn token(s: &TestServer, user: &str) -> String {
+    let mut c = s.login(user, PASSWORD);
+    slath_tests::http::create_token(&mut c, user, &["repo:write", "mrs:write"])
+}
+
+fn lines(tag: &str, edit: bool) -> String {
+    (0..20)
+        .map(|i| {
+            if edit && i == 3 {
+                format!("{tag} {i}, edited\n")
+            } else {
+                format!("{tag} {i}\n")
+            }
+        })
+        .collect()
+}
+
+impl World {
+    /// alice/demo with bob a writer, carol a reader, alice's bot alice-ci
+    /// a writer, and an MR by alice of the stack "Add a", "Add b".
+    fn start() -> (Self, i64) {
+        let s = TestServer::start();
+        s.create_user("bob", PASSWORD, false);
+        s.create_user("carol", PASSWORD, false);
+        let (ok, out, err) = s.slath(
+            &[
+                "admin",
+                "create-bot",
+                "--owner",
+                "alice",
+                "--name",
+                "alice-ci",
+                "--token-scopes",
+                "repo:write",
+                "--repo",
+                "alice/demo",
+                "--output",
+                "json",
+            ],
+            None,
+        );
+        assert!(ok, "{out}{err}");
+        let bot = serde_json::from_str::<Value>(&out).unwrap()["token"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let world = Self {
+            alice: token(&s, "alice"),
+            bob: token(&s, "bob"),
+            carol: token(&s, "carol"),
+            bot,
+            url: s.url(&DEMO),
+            s,
+            git: GitClient::new(),
+            w: tempfile::tempdir().unwrap(),
+        };
+        for (who, role) in [("bob", "write"), ("carol", "read"), ("alice-ci", "write")] {
+            let r = world.api(
+                &world.alice,
+                "PUT",
+                &format!("/collaborators/{who}"),
+                Some(json!({"role": role})),
+            );
+            assert!(r.status < 300, "{}", r.body);
+        }
+        let w = world.w.path();
+        world.git.ok(w, &["init", "-q", "-b", "main"]);
+        world.commit("README", "demo\n", "init");
+        world.push("main");
+        world.git.ok(w, &["switch", "-q", "-c", "topic"]);
+        world.commit("a.txt", &lines("a", false), "Add a");
+        world.commit("b.txt", &lines("b", false), "Add b");
+        world.push("topic");
+        let r = world.api(
+            &world.alice,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_branch": "topic", "title": "Add a and b"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        world.wait_revisions(n, 1);
+        (world, n)
+    }
+
+    fn api(
+        &self,
+        token: &str,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> slath_tests::http::Resp {
+        self.s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(token),
+            body.as_ref(),
+        )
+    }
+
+    fn commit(&self, file: &str, text: &str, msg: &str) {
+        let w: &Path = self.w.path();
+        std::fs::write(w.join(file), text).unwrap();
+        self.git.ok(w, &["add", "-A"]);
+        self.git.ok(w, &["commit", "-q", "-m", msg]);
+    }
+
+    fn push(&self, branch: &str) {
+        self.git
+            .ok(self.w.path(), &["push", "-q", "--force", &self.url, branch]);
+    }
+
+    fn wait_revisions(&self, n: i64, k: i64) {
+        let start = std::time::Instant::now();
+        while self
+            .api(&self.alice, "GET", &format!("/merge-requests/{n}"), None)
+            .json()["revisions"]
+            != k
+        {
+            assert!(
+                start.elapsed().as_secs() < 30,
+                "no revision {k}\n{}",
+                self.s.log()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
+
+    /// The display IDs of the current revision's changes, bottom first.
+    fn changes(&self, n: i64) -> Vec<String> {
+        self.api(
+            &self.alice,
+            "GET",
+            &format!("/merge-requests/{n}/stack"),
+            None,
+        )
+        .json()["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["change_id"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    fn upload(&self, token: &str, record: &Value) -> slath_tests::http::Resp {
+        self.api(token, "POST", "/context-records", Some(record.clone()))
+    }
+
+    fn ids(&self, token: &str, query: &str) -> Vec<String> {
+        let r = self.api(token, "GET", &format!("/context-records{query}"), None);
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.json()["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    /// Every object in the repository, as `git cat-file` lists them.
+    fn objects(&self) -> String {
+        self.git.ok(
+            &self.s.repo_path(&DEMO),
+            &["cat-file", "--batch-all-objects", "--batch-check"],
+        )
+    }
+}
+
+fn record(summary: &str, binding: Value) -> Value {
+    json!({
+        "schema": "slath-context/1",
+        "agent": {"name": "coder", "model": "some-model", "tool": "cli"},
+        "initiated_by": "alice",
+        "summary": {"intent": summary, "outcome": "Done", "open_items": ["Docs"]},
+        "artifacts": [{"name": "report.txt", "sha256": "a".repeat(64)}],
+        "redactions": [{"rule": "github-pat", "count": 2}],
+        "binding": binding,
+    })
+}
+
+#[test]
+fn conf_agent_05_records_bind_to_changes_and_survive_rewrites() {
+    let (w, n) = World::start();
+    let before = w.objects();
+    let changes = w.changes(n);
+    let r = w.upload(
+        &w.bot,
+        &record(
+            "Add a, carefully",
+            json!({"merge_request": n, "change": changes[0]}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    slath_tests::contract::check("POST", "/api/v1/repos/{ns}/{repo}/context-records", &r);
+    let v = r.json();
+    let id = v["id"].as_str().unwrap().to_owned();
+    assert_eq!(v["uploader"], "alice-ci");
+    assert_eq!(v["uploader_is_bot"], true);
+    assert_eq!(v["initiated_by"], "alice");
+    assert_eq!(v["agent"]["model"], "some-model");
+    assert_eq!(v["binding"]["state"], "bound");
+    assert_eq!(v["binding"]["merge_request"], n);
+    assert_eq!(v["binding"]["change"], changes[0].as_str());
+    assert_eq!(v["untrusted_content"], true);
+    assert_eq!(v["origin"], "bot");
+    assert_eq!(v["summary"]["intent"], "Add a, carefully");
+    assert_eq!(v["redactions"][0]["count"], 2);
+
+    // A commit binding finds the change of that commit.
+    let head = w
+        .git
+        .ok(w.w.path(), &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    let r = w.upload(&w.bot, &record("Add b", json!({"commit": head})));
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["binding"]["change"], changes[1].as_str());
+    // A merge request that doesn't exist leaves the record unlinked.
+    let r = w.upload(&w.bot, &record("Elsewhere", json!({"merge_request": 99})));
+    assert_eq!(r.json()["binding"]["state"], "unlinked");
+    let unlinked = r.json()["id"].as_str().unwrap().to_owned();
+
+    // Nothing of it is in the repository's Git objects.
+    assert_eq!(w.objects(), before);
+
+    // Rewriting "Add a" keeps the change, and the record stays with it.
+    let wd = w.w.path();
+    w.git.ok(wd, &["switch", "-q", "--detach", "main"]);
+    std::fs::write(wd.join("a.txt"), lines("a", true)).unwrap();
+    w.git.ok(wd, &["add", "-A"]);
+    w.git.ok(wd, &["commit", "-q", "-m", "Add a"]);
+    std::fs::write(wd.join("b.txt"), lines("b", false)).unwrap();
+    w.git.ok(wd, &["add", "-A"]);
+    w.git.ok(wd, &["commit", "-q", "-m", "Add b"]);
+    w.git.ok(wd, &["branch", "-q", "-f", "topic"]);
+    w.git.ok(wd, &["switch", "-q", "topic"]);
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    assert_eq!(w.changes(n), changes);
+    assert_eq!(
+        w.ids(
+            &w.alice,
+            &format!("?merge_request={n}&change={}", changes[0])
+        ),
+        std::slice::from_ref(&id)
+    );
+    let mut all = w.ids(&w.alice, &format!("?merge_request={n}"));
+    all.sort();
+    assert_eq!(all.len(), 2);
+    assert_eq!(w.ids(&w.alice, "?unlinked=true"), [unlinked]);
+    let r = w.api(&w.alice, "GET", &format!("/context-records/{id}"), None);
+    assert_eq!(r.status, 200, "{}", r.body);
+    slath_tests::contract::check("GET", "/api/v1/repos/{ns}/{repo}/context-records/{id}", &r);
+    assert_eq!(r.json()["summary"]["open_items"][0], "Docs");
+}
+
+#[test]
+fn conf_agent_05_only_writers_the_asker_and_the_owner_see_records() {
+    let (w, n) = World::start();
+    let mut rec = record("Private plan", json!({"merge_request": n}));
+    rec["initiated_by"] = json!("carol");
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let other = w.upload(&w.bot, &record("Plan", json!({"merge_request": n})));
+    let other = other.json()["id"].as_str().unwrap().to_owned();
+    // bob (a writer) and alice (the bot's owner) see both.
+    for t in [&w.alice, &w.bob] {
+        assert_eq!(w.ids(t, "").len(), 2);
+        assert_eq!(
+            w.api(t, "GET", &format!("/context-records/{other}"), None)
+                .status,
+            200
+        );
+    }
+    // carol, a reader, sees only the one naming her.
+    assert_eq!(w.ids(&w.carol, ""), std::slice::from_ref(&id));
+    assert_eq!(
+        w.api(&w.carol, "GET", &format!("/context-records/{id}"), None)
+            .status,
+        200
+    );
+    let r = w.api(&w.carol, "GET", &format!("/context-records/{other}"), None);
+    assert_eq!(r.status, 404, "{}", r.body);
+    // Readers can't upload, and anonymous clients see nothing.
+    assert_eq!(
+        w.upload(&w.carol, &record("x", json!({"merge_request": n})))
+            .status,
+        403
+    );
+    let r = w.s.client().api(
+        "GET",
+        "/api/v1/repos/alice/demo/context-records",
+        None,
+        None,
+    );
+    assert_eq!(r.status, 404, "{}", r.body);
+    // Naming someone who can't read the repository is refused.
+    w.s.create_user("dave", PASSWORD, false);
+    let mut rec = record("x", json!({"merge_request": n}));
+    rec["initiated_by"] = json!("dave");
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/initiated_by"), "{}", r.body);
+}
+
+#[test]
+fn conf_agent_05_detail_level_limits_and_schema() {
+    let (w, n) = World::start();
+    let mut rec = record("With transcript", json!({"merge_request": n}));
+    rec["transcript"] = json!([
+        {"kind": "prompt", "text": "Fix the bug"},
+        {"kind": "tool_call", "text": "cargo test", "tool": "shell"}
+    ]);
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/transcript"), "{}", r.body);
+    assert!(r.body.contains("summaries only"), "{}", r.body);
+    // Only repository admins change the detail level.
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.bob),
+        Some(&json!({"context_detail": "full"})),
+    );
+    assert_eq!(r.status, 403, "{}", r.body);
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"context_detail": "full"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["context_detail"], "full");
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let v = r.json();
+    assert_eq!(v["detail"], "full");
+    assert_eq!(v["transcript_entries"], 2);
+    assert_eq!(v["transcript"][1]["tool"], "shell");
+
+    // Unknown schemas and keys, and redaction values, are refused.
+    let mut bad = record("x", json!({"merge_request": n}));
+    bad["schema"] = json!("slath-context/2");
+    let r = w.upload(&w.bot, &bad);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/schema"), "{}", r.body);
+    let mut bad = record("x", json!({"merge_request": n}));
+    bad["redactions"] = json!([{"rule": "r", "count": 1, "value": "hunter2"}]);
+    assert_eq!(w.upload(&w.bot, &bad).status, 422);
+    // A record over the size limit is refused.
+    let big = record(&"x".repeat(2 * 1024 * 1024), json!({"merge_request": n}));
+    let r = w.upload(&w.bot, &big);
+    assert!(matches!(r.status, 413 | 422), "{} {}", r.status, r.body);
+    assert_eq!(w.ids(&w.alice, "").len(), 1);
+}
+
+#[test]
+fn conf_agent_06_a_record_with_a_secret_is_refused_with_its_location() {
+    let (w, n) = World::start();
+    let token = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
+    let mut rec = record("Deploy", json!({"merge_request": n}));
+    rec["summary"]["outcome"] = json!(format!("Used\nthe token {token} to deploy"));
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/summary/outcome"), "{}", r.body);
+    assert!(r.body.contains("\"secret\""), "{}", r.body);
+    assert!(r.body.contains("Line 2"), "{}", r.body);
+    assert!(!r.body.contains(&token), "{}", r.body);
+    assert!(w.ids(&w.alice, "").is_empty());
+    // The redacted retry is accepted.
+    rec["summary"]["outcome"] = json!("Used the token [redacted] to deploy");
+    assert_eq!(w.upload(&w.bot, &rec).status, 201);
+}
+
+/// The published JSON Schema accepts what the server accepts and refuses
+/// what it refuses, for the shapes these tests upload.
+#[test]
+fn context_record_schema_matches_the_server() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../../docs/api/context-record.schema.json")).unwrap();
+    let v = jsonschema::draft202012::new(&schema).unwrap();
+    let mut full = record("x", json!({"merge_request": 1, "change": "k".repeat(32)}));
+    full["transcript"] =
+        json!([{"kind": "tool_call", "text": "ls", "tool": "shell", "at": "2026-11-23T10:00:00Z"}]);
+    for ok in [
+        full,
+        record("x", json!({"commit": "a".repeat(40)})),
+        json!({"schema": "slath-context/1", "agent": {"name": "a"}, "summary": {"intent": "i"}}),
+    ] {
+        let errors: Vec<String> = v.iter_errors(&ok).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "{errors:?}\n{ok}");
+    }
+    let mut bad = Vec::new();
+    for (pointer, value) in [
+        ("/schema", json!("slath-context/2")),
+        ("/extra", json!(1)),
+        (
+            "/redactions",
+            json!([{"rule": "r", "count": 1, "value": "x"}]),
+        ),
+        (
+            "/binding",
+            json!({"merge_request": 1, "commit": "a".repeat(40)}),
+        ),
+        ("/binding", json!({"change": "k".repeat(32)})),
+        ("/summary", json!({"intent": ""})),
+    ] {
+        let mut r = record("x", json!({"merge_request": 1}));
+        let key = pointer.trim_start_matches('/');
+        r[key] = value;
+        bad.push(r);
+    }
+    for b in bad {
+        assert!(!v.is_valid(&b), "{b}");
+    }
+}

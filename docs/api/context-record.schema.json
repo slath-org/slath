@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slath.org/schemas/api/context-record.schema.json",
+  "title": "Agent context record (slath-context/1)",
+  "description": "What an agent uploads with POST /api/v1/repos/{ns}/{repo}/context-records. Every value is the uploader's claim and is shown as untrusted text. The server also enforces the limits [limits] context_record_max_bytes (whole body) and context_transcript_entries.",
+  "type": "object",
+  "required": ["schema", "agent", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "slath-context/1"},
+    "agent": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 200},
+        "model": {"type": "string", "maxLength": 200},
+        "tool": {"type": "string", "maxLength": 200}
+      }
+    },
+    "initiated_by": {
+      "type": "string",
+      "description": "Username of the person who asked for the work; they must be able to read the repository."
+    },
+    "summary": {
+      "type": "object",
+      "required": ["intent"],
+      "additionalProperties": false,
+      "properties": {
+        "intent": {"type": "string", "minLength": 1, "maxLength": 16384},
+        "outcome": {"type": "string", "maxLength": 16384},
+        "open_items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {"type": "string", "minLength": 1, "maxLength": 16384}
+        }
+      }
+    },
+    "transcript": {
+      "type": "array",
+      "description": "Accepted only when the repository's context_detail is full.",
+      "items": {
+        "type": "object",
+        "required": ["kind", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {"enum": ["prompt", "response", "tool_call", "tool_result"]},
+          "text": {"type": "string"},
+          "tool": {"type": "string", "maxLength": 200},
+          "at": {"type": "string", "maxLength": 200, "description": "When it happened (RFC 3339), as the agent says."}
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["name", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 200},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "redactions": {
+      "type": "array",
+      "description": "How often each redaction rule matched; never the values.",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["rule", "count"],
+        "additionalProperties": false,
+        "properties": {
+          "rule": {"type": "string", "minLength": 1, "maxLength": 200},
+          "count": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+        }
+      }
+    },
+    "binding": {
+      "description": "A merge request (and optionally one of its changes by display ID), or a commit of an open merge request.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["merge_request"],
+          "additionalProperties": false,
+          "properties": {
+            "merge_request": {"type": "integer", "minimum": 1},
+            "change": {"type": "string", "pattern": "^[k-z]{32}$"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["commit"],
+          "additionalProperties": false,
+          "properties": {
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+          }
+        }
+      ]
+    }
+  }
+}

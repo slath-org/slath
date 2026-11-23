@@ -26,6 +26,7 @@ use crate::routes::{Access, RouteExt};
 #[include = "cli/*.json"]
 #[include = "dev/*.md"]
 #[include = "api/openapi.json"]
+#[include = "api/*.schema.json"]
 #[include = "theme/page.html"]
 #[include = "theme/docs.css"]
 #[include = "theme/docs.js"]

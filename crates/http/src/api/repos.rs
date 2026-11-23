@@ -59,6 +59,9 @@ pub struct Repo {
     /// when pushed (such as jj's `push-*` bookmarks) and stay out of
     /// branch lists. Empty when turned off.
     pub change_source_prefix: String,
+    /// What agent context records keep: `summary` (default) or `full`
+    /// (transcripts too).
+    pub context_detail: String,
     pub clone_urls: CloneUrls,
     pub created_at: String,
     pub updated_at: String,
@@ -80,6 +83,7 @@ fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
         archived: r.state == RepoState::Archived,
         stalled_after_days: r.stalled_after_days,
         change_source_prefix: r.change_source_prefix.clone(),
+        context_detail: r.context_detail.clone(),
         clone_urls: CloneUrls { https, ssh },
         created_at: ts(r.created_at),
         updated_at: ts(r.updated_at),
@@ -201,6 +205,9 @@ pub struct UpdateRepo {
     /// Empty turns change sources off; otherwise up to 32 letters, digits,
     /// and `-_./`, ending in `-`, `_`, or `/`.
     pub change_source_prefix: Option<String>,
+    /// `summary` or `full`: whether agent context records may carry
+    /// transcripts. Applies to new uploads.
+    pub context_detail: Option<String>,
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
@@ -238,6 +245,10 @@ pub async fn update_repo(
     }
     if let Some(prefix) = &u.change_source_prefix {
         svc.set_change_source_prefix(&subject, &a, prefix).await?;
+    }
+    if let Some(d) = &u.context_detail {
+        svc.set_context_settings(&subject, &a, Some(d), None)
+            .await?;
     }
     if let Some(v) = &u.visibility {
         svc.set_repo_visibility(&subject, false, &a, visibility(v)?)

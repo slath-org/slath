@@ -3624,6 +3624,268 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/context-records": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Records you may see, newest first, without their payloads.",
+        "operationId": "list_records",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merge_request",
+            "in": "query",
+            "description": "Records bound to this merge request.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "change",
+            "in": "query",
+            "description": "With `merge_request`: records bound to this change (display ID).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unlinked",
+            "in": "query",
+            "description": "Only records whose binding was refused (`true`).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRecordPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Uploads a record in the `slath-context/1` schema (push permission).\nSecrets are refused with each finding's JSON pointer and line, and\nnothing of the request is kept.",
+        "operationId": "create_record",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "A record in the slath-context/1 schema",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRecordBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/context-records/{id}": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "One record with its summary and, at the `full` detail level, its\ntranscript.",
+        "operationId": "get_record",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRecordBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/fork": {
       "get": {
         "tags": [
@@ -10645,6 +10907,30 @@
   },
   "components": {
     "schemas": {
+      "AgentBody": {
+        "type": "object",
+        "description": "The agent as the record claims it.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ApplySuggestionsBody": {
         "type": "object",
         "description": "Every field is optional in the JSON so that authorization runs first.",
@@ -10838,6 +11124,53 @@
               "null"
             ],
             "description": "The change to continue (its ID), or null for a new change."
+          }
+        }
+      },
+      "BindingBody": {
+        "type": "object",
+        "description": "What a record is bound to.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "change": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change's display ID (jj's format)."
+          },
+          "merge_request": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "requested_change": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_commit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_merge_request": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "What the upload asked for."
+          },
+          "state": {
+            "type": "string",
+            "description": "`none` (nothing asked), `bound`, or `unlinked`: a binding was asked\nfor, but the merge request or change wasn't found or the uploader\ncan't update that merge request."
           }
         }
       },
@@ -11391,6 +11724,124 @@
           "untrusted_content": {
             "type": "boolean",
             "description": "Always `true`: this object's text is user-generated."
+          }
+        }
+      },
+      "ContextRecordBody": {
+        "type": "object",
+        "description": "A record. `summary`, `transcript`, `artifacts`, and `redactions` come\nonly with a single record.",
+        "required": [
+          "id",
+          "schema",
+          "uploader_is_bot",
+          "agent",
+          "detail",
+          "binding",
+          "transcript_entries",
+          "created_at",
+          "untrusted_content",
+          "origin"
+        ],
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/AgentBody"
+          },
+          "artifacts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "binding": {
+            "$ref": "#/components/schemas/BindingBody"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string",
+            "description": "The repository's detail level when it was uploaded."
+          },
+          "id": {
+            "type": "string"
+          },
+          "initiated_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The person the record names as having asked for the work."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin"
+          },
+          "redactions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "schema": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "transcript": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "transcript_entries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Everything but `id`, `uploader`, and `created_at` is claimed by the\nuploader: user-generated text, never instructions."
+          },
+          "uploader": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who uploaded it (observed by the server)."
+          },
+          "uploader_is_bot": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ContextRecordPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextRecordBody"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -14117,6 +14568,7 @@
           "archived",
           "stalled_after_days",
           "change_source_prefix",
+          "context_detail",
           "clone_urls",
           "created_at",
           "updated_at"
@@ -14131,6 +14583,10 @@
           },
           "clone_urls": {
             "$ref": "#/components/schemas/CloneUrls"
+          },
+          "context_detail": {
+            "type": "string",
+            "description": "What agent context records keep: `summary` (default) or `full`\n(transcripts too)."
           },
           "created_at": {
             "type": "string"
@@ -15113,6 +15569,13 @@
               "null"
             ],
             "description": "Empty turns change sources off; otherwise up to 32 letters, digits,\nand `-_./`, ending in `-`, `_`, or `/`."
+          },
+          "context_detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`summary` or `full`: whether agent context records may carry\ntranscripts. Applies to new uploads."
           },
           "default_branch": {
             "type": [

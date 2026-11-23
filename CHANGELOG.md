@@ -10,6 +10,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Agents can upload a record of how they made a change (summary, and transcript where a repository allows it) that stays with the change through rebases.
+- Context records are encrypted, never written into the repository, refused when they contain a secret, and shown only to writers, the person who asked, and the bot's owner.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.
