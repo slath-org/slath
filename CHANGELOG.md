@@ -64,6 +64,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A change pushed with `refs/for/` by Git and with `jj git push --change` by jj lands in the same merge request when it carries a change ID.
 - Opening a merge request by a push needs only what the push needs: an SSH key, or a token with `repo:write`.
 
+### Fixed
+
+- Merging in Slath no longer counts as your push, so the branch it merged into doesn't show as "You pushed to … recently".
+
 ### Security
 
 - The URL library is updated to a version whose origin lookup can't overflow the stack on deeply nested `blob:` URLs; Slath doesn't look up such origins itself.

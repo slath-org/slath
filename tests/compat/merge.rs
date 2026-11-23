@@ -500,3 +500,51 @@ fn conf_sec_08_intentional_secrets_a_squash_message_quoting_an_allowlisted_finge
     let log = c.server(&["log", "-1", "--format=%B", "refs/heads/main"]);
     assert!(log.contains("The docs use"), "{log}");
 }
+
+/// A merge in Slath isn't the merger's push: the "Recently pushed" banner
+/// doesn't offer a merge request for the branch it merged into.
+#[test]
+fn ux_mr_01_a_merge_in_slath_is_no_recent_push() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    c.s.create_user("bob", PASSWORD, false);
+    let r = c.api("PUT", "/collaborators/bob", Some(json!({"role": "write"})));
+    assert!(r.status < 300, "{}", r.body);
+    // bob pushes the target, alice the branch she merges into it.
+    let mut bob = c.s.login("bob", PASSWORD);
+    let bob_token = slath_tests::http::create_token(&mut bob, "b", &["repo:write"]);
+    let bob_url = c.url.replace(&c.s.token, &bob_token);
+    c.git.ok(&w, &["switch", "-q", "-c", "release", "main"]);
+    c.git.ok(&w, &["push", "-q", &bob_url, "release"]);
+    c.git.ok(&w, &["switch", "-q", "-c", "fix", "release"]);
+    commit(&c.git, &w, "fix.txt", "fix\n", "Fix it");
+    c.push(&w, "fix");
+    let r = c.api(
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "fix", "target_branch": "release", "title": "Fix"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let head = c.head(n, 1);
+    let r = c.api(
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"strategy": "rebase", "expected_head_oid": head, "delete_source": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let mut alice = c.s.login("alice", PASSWORD);
+    let page = alice.get("/alice/demo/branches");
+    assert!(!page.body.contains("You pushed to"), "{}", page.body);
+    // Pushing it herself does offer one.
+    c.git.ok(&w, &["switch", "-q", "-c", "next", "main"]);
+    commit(&c.git, &w, "next.txt", "next\n", "Next");
+    c.push(&w, "next");
+    assert!(
+        alice
+            .get("/alice/demo/branches")
+            .body
+            .contains("You pushed to")
+    );
+}

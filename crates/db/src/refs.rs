@@ -135,7 +135,8 @@ pub async fn push_updates(
     )))
 }
 
-/// Branches `pusher` pushed to `repo` since `since`, newest first.
+/// Branches `pusher` pushed to `repo` over Git (HTTP or SSH) since `since`,
+/// newest first; merges and other updates Slath made for them aren't pushes.
 pub async fn recent_branch_pushes(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
@@ -146,6 +147,7 @@ pub async fn recent_branch_pushes(
         r#"SELECT u.name AS "name!", max(p.created_at) AS "at!"
            FROM push_events p JOIN ref_updates u ON u.push_id = p.id
            WHERE p.repo_id = $1 AND p.pusher_id = $2 AND p.created_at > $3
+             AND p.transport IN ('http', 'ssh')
              AND u.new_oid IS NOT NULL AND u.name LIKE 'refs/heads/%'
            GROUP BY u.name ORDER BY 2 DESC LIMIT 20"#,
         repo.as_uuid(),

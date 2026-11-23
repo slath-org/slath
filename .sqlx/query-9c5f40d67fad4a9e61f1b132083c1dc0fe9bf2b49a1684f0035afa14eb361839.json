@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.name AS \"name!\", max(p.created_at) AS \"at!\"\n           FROM push_events p JOIN ref_updates u ON u.push_id = p.id\n           WHERE p.repo_id = $1 AND p.pusher_id = $2 AND p.created_at > $3\n             AND u.new_oid IS NOT NULL AND u.name LIKE 'refs/heads/%'\n           GROUP BY u.name ORDER BY 2 DESC LIMIT 20",
+  "query": "SELECT u.name AS \"name!\", max(p.created_at) AS \"at!\"\n           FROM push_events p JOIN ref_updates u ON u.push_id = p.id\n           WHERE p.repo_id = $1 AND p.pusher_id = $2 AND p.created_at > $3\n             AND p.transport IN ('http', 'ssh')\n             AND u.new_oid IS NOT NULL AND u.name LIKE 'refs/heads/%'\n           GROUP BY u.name ORDER BY 2 DESC LIMIT 20",
   "describe": {
     "columns": [
       {
@@ -33,5 +33,5 @@
       null
     ]
   },
-  "hash": "6fb7ccfc0788345810d1a9b0e41a8861f83df316972ce0cfdc7758020a53a003"
+  "hash": "9c5f40d67fad4a9e61f1b132083c1dc0fe9bf2b49a1684f0035afa14eb361839"
 }
