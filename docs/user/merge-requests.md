@@ -684,6 +684,16 @@ and a member can also be given by its URL. `GET` on the same path shows
 the group and `DELETE` unlinks `n`; a group left with one member
 dissolves. A group holds at most 10 merge requests by default.
 
+`POST …/merge-requests/{n}/group/merge` merges the group. It names every
+open member in the group's order with the head you looked at, and
+optionally a strategy for each (otherwise its repository's default):
+`{"members": [{"merge_request": "acme/lib!4", "expected_head_oid": "…"},
+{"merge_request": "acme/app!7", "expected_head_oid": "…"}]}`. You need
+the right to merge every member. When any member isn't ready, nothing
+merges and the answer lists each one with its reasons. Otherwise the
+answer lists what `merged`, what is `remaining`, and the `failure` that
+stopped it, if any.
+
 ## Merge when ready
 
 While a requirement is still missing (an approval, a check, a resolved

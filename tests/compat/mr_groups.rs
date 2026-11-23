@@ -307,3 +307,161 @@ fn conf_agent_07_linked_merge_requests_merge_only_with_their_group() {
     );
     assert_eq!(r.status, 200, "{}", r.body);
 }
+
+impl Ctx {
+    fn main_of(&self, repo: &TestRepo) -> String {
+        self.git
+            .ok(&self.s.repo_path(repo), &["rev-parse", "main"])
+            .trim()
+            .to_owned()
+    }
+
+    /// The group merge request for the open members, in this order.
+    fn merge_body(&self, members: &[&str]) -> Value {
+        let members: Vec<Value> = members
+            .iter()
+            .map(|r| {
+                let (repo, n) = r.split_once('!').unwrap();
+                json!({"merge_request": r, "expected_head_oid": self.head(repo, n.parse().unwrap())})
+            })
+            .collect();
+        json!({ "members": members })
+    }
+
+    fn merge_group(&self, token: &str, members: &[&str]) -> slath_tests::http::Resp {
+        let body = self.merge_body(members);
+        self.api(
+            token,
+            "POST",
+            "alice/app/merge-requests/1/group/merge",
+            Some(body),
+        )
+    }
+
+    fn merged_at(&self, repo: &str) -> String {
+        self.api(
+            &self.alice,
+            "GET",
+            &format!("{repo}/merge-requests/1"),
+            None,
+        )
+        .json()["merged_at"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+}
+
+#[test]
+fn conf_agent_07_a_group_merges_only_when_every_member_is_mergeable() {
+    let c = Ctx::start();
+    c.link();
+    let both = ["alice/lib!1", "alice/app!1"];
+    let (lib, app) = (c.main_of(&LIB), c.main_of(&APP));
+    // alice/app needs an approval: nothing merges, and the refusal says why.
+    let r = c.api(
+        &c.alice,
+        "POST",
+        "alice/app/protections",
+        Some(json!({"pattern": "main", "required_approvals": 1})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let rule = r.json()["id"].as_str().unwrap().to_owned();
+    let r = c.merge_group(&c.alice, &both);
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(r.body.contains("alice/app!1"), "{}", r.body);
+    assert!(
+        !r.body.contains("alice/lib!1:"),
+        "lib is mergeable: {}",
+        r.body
+    );
+    assert_eq!(
+        (c.main_of(&LIB), c.main_of(&APP)),
+        (lib.clone(), app.clone())
+    );
+    assert_eq!(c.state("alice/lib", 1), "open");
+    let g = c
+        .api(&c.alice, "GET", "alice/lib/merge-requests/1/group", None)
+        .json();
+    assert_eq!(
+        (g["ready"].as_bool(), g["state"].as_str()),
+        (Some(false), Some("open"))
+    );
+    // The request must name every open member in order with its head.
+    let r = c.merge_group(&c.alice, &["alice/app!1", "alice/lib!1"]);
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(r.body.contains("changed since you looked"), "{}", r.body);
+    let r = c.api(
+        &c.alice,
+        "DELETE",
+        &format!("alice/app/protections/{rule}"),
+        None,
+    );
+    assert!(r.status < 300, "{}", r.body);
+    // Someone who can't read every member can't merge it.
+    let r = c.merge_group(&c.bob, &["alice/app!1"]);
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(r.body.contains("every merge request in it"), "{}", r.body);
+    assert!(!r.body.contains("lib"), "{}", r.body);
+    // Ready: both merge, in the group's order.
+    let r = c.merge_group(&c.alice, &both);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let o = r.json();
+    assert_eq!(o["merged"], json!(both));
+    assert_eq!(o["remaining"], json!([]));
+    assert_eq!(o["failure"], Value::Null);
+    assert_eq!(o["group"]["state"], "merged");
+    assert_ne!((c.main_of(&LIB), c.main_of(&APP)), (lib, app));
+    assert!(c.merged_at("alice/lib") <= c.merged_at("alice/app"));
+}
+
+#[test]
+fn conf_agent_07_a_failure_after_the_first_merge_leaves_the_group_partially_landed() {
+    let c = Ctx::start();
+    c.link();
+    let lib = c.main_of(&LIB);
+    let app = c.main_of(&APP);
+    // A held ref lock makes the second merge's target update fail after
+    // its checks passed.
+    let lock = c.s.repo_path(&APP).join("refs/heads/main.lock");
+    std::fs::write(&lock, "").unwrap();
+    let r = c.merge_group(&c.alice, &["alice/lib!1", "alice/app!1"]);
+    std::fs::remove_file(&lock).unwrap();
+    assert_eq!(r.status, 200, "{}", r.body);
+    let o = r.json();
+    assert_eq!(o["merged"], json!(["alice/lib!1"]));
+    assert_eq!(o["remaining"], json!(["alice/app!1"]));
+    assert!(o["failure"].as_str().is_some_and(|f| !f.is_empty()), "{o}");
+    assert_eq!(o["group"]["state"], "partially_landed");
+    assert_ne!(c.main_of(&LIB), lib);
+    assert_eq!(c.main_of(&APP), app);
+    assert_eq!(c.state("alice/app", 1), "open");
+    // The group says where it stopped; bob sees the reason only for what
+    // he can read, and no more.
+    let g = c
+        .api(&c.alice, "GET", "alice/lib/merge-requests/1/group", None)
+        .json();
+    assert_eq!(g["state"], "partially_landed");
+    assert_eq!(g["last_failure"]["merge_request"], "alice/app!1");
+    let g = c
+        .api(&c.bob, "GET", "alice/app/merge-requests/1/group", None)
+        .json();
+    assert_eq!(g["last_failure"]["merge_request"], "alice/app!1");
+    assert!(!g.to_string().contains("lib"), "{g}");
+    // The remaining member still merges only with the group; merging the
+    // group again continues with it.
+    let head = c.head("alice/app", 1);
+    let r = c.api(
+        &c.alice,
+        "POST",
+        "alice/app/merge-requests/1/merge",
+        Some(json!({"expected_head_oid": head})),
+    );
+    assert_eq!(r.status, 409, "{}", r.body);
+    let r = c.merge_group(&c.alice, &["alice/app!1"]);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let o = r.json();
+    assert_eq!(o["merged"], json!(["alice/app!1"]));
+    assert_eq!(o["group"]["state"], "merged");
+    assert_eq!(o["group"]["last_failure"], Value::Null);
+}

@@ -14,6 +14,7 @@ use slath_db::merge_requests::MergeRequest;
 
 use crate::Services;
 use crate::error::{Result, ServiceError};
+use crate::merge::MergeInput;
 use crate::repos::RepoAccess;
 
 /// Refusal of a linked merge request's own merge or merge when ready.
@@ -463,6 +464,237 @@ impl Services {
         )
         .await;
         Ok(())
+    }
+}
+
+impl Services {
+    /// Merges the group of the merge request `n`: checks every open member
+    /// first (nothing merges unless all are mergeable), then merges them
+    /// in order, each as a single merge with its own requirements. A
+    /// failure after the first merge stops and leaves the group partially
+    /// landed; a failure before it is that merge's error.
+    pub async fn merge_mr_group(
+        &self,
+        subject: &Subject,
+        (ns, repo, number): (&str, &str, i32),
+        input: &GroupMergeInput,
+    ) -> Result<GroupMergeOutcome> {
+        let (_, m) = self.mr(subject, ns, repo, number).await?;
+        let user = subject_user(subject).ok_or(ServiceError::Unauthenticated)?;
+        let g = {
+            let mut c = self.pool.acquire().await.map_err(ServiceError::internal)?;
+            slath_db::mr_groups::of(&mut c, m.id)
+                .await?
+                .ok_or(ServiceError::NotFound)?
+        };
+        // Every member must be readable and mergeable by the subject.
+        let mut open: Vec<(RepoAccess, MergeRequest)> = Vec::new();
+        for id in &g.members {
+            let Some((a, x)) = self.member(subject, *id).await? else {
+                return Err(ServiceError::Conflict(NOT_ALL.into()));
+            };
+            if x.state == "open" {
+                if !a.can(subject, Action::MrMerge) {
+                    return Err(ServiceError::Conflict(NOT_ALL.into()));
+                }
+                open.push((a, x));
+            }
+        }
+        let name = member_name;
+        // The request names every open member, in order.
+        let named: Vec<Option<(String, String, i32)>> = input
+            .members
+            .iter()
+            .map(|r| parse_reference(&r.merge_request))
+            .collect();
+        let same = named.len() == open.len()
+            && named.iter().zip(&open).all(|(n, (a, x))| {
+                n.as_ref().is_some_and(|(rns, rrepo, rn)| {
+                    *rns == a.repo.namespace && *rrepo == a.repo.name && *rn == x.number
+                })
+            });
+        if !same || open.is_empty() {
+            return Err(ServiceError::Conflict(
+                "The group changed since you looked; reload it.".into(),
+            ));
+        }
+        if !slath_db::mr_groups::claim(&self.pool, g.id).await? {
+            return Err(ServiceError::Conflict(
+                "The group is merging already; wait for it to finish.".into(),
+            ));
+        }
+        let outcome = self.merge_claimed(subject, &open, input).await;
+        let failure = match &outcome {
+            Ok((_, Some((id, reason)))) | Err((Some((id, reason)), _)) => Some(serde_json::json!({
+                "mr_id": id.as_uuid(),
+                "reason": reason,
+                "at": time::OffsetDateTime::now_utc()
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+                "actor": user.as_uuid(),
+            })),
+            Ok((_, None)) => None,
+            // Refused before merging: the earlier failure still holds.
+            Err((None, _)) => g.last_failure.clone(),
+        };
+        slath_db::mr_groups::finish(&self.pool, g.id, failure.as_ref()).await?;
+        let (merged, failure) = match outcome {
+            Ok((merged, f)) => (merged, f.map(|(_, r)| r)),
+            Err((_, e)) => return Err(e),
+        };
+        let remaining: Vec<String> = open
+            .iter()
+            .filter(|p| !merged.contains(&name(p)))
+            .map(name)
+            .collect();
+        self.audit(
+            subject,
+            "mr.group.merge",
+            crate::audit::Target::new("merge_request", Some(*m.id.as_uuid())),
+            serde_json::json!({
+                "group": g.id,
+                "merged": merged,
+                "remaining": remaining,
+                "failure": failure,
+            }),
+        )
+        .await;
+        Ok(GroupMergeOutcome {
+            group: self
+                .group_view(subject, m.id)
+                .await?
+                .ok_or(ServiceError::NotFound)?,
+            merged,
+            remaining,
+            failure,
+        })
+    }
+
+    /// Checks, then merges the open members of a claimed group. `Ok` with
+    /// what merged and, when it stopped after a merge, at which member and
+    /// why; `Err` when nothing merged (with the member that failed, if it
+    /// came to merging).
+    #[allow(clippy::type_complexity)]
+    async fn merge_claimed(
+        &self,
+        subject: &Subject,
+        open: &[(RepoAccess, MergeRequest)],
+        input: &GroupMergeInput,
+    ) -> std::result::Result<
+        (Vec<String>, Option<(MergeRequestId, String)>),
+        (Option<(MergeRequestId, String)>, ServiceError),
+    > {
+        let name = member_name;
+        // 1. Check every member; collect every reason.
+        let mut refusals: Vec<String> = Vec::new();
+        let mut inputs: Vec<MergeInput> = Vec::new();
+        for (p, req) in open.iter().zip(&input.members) {
+            let (a, x) = p;
+            match self.merge_precheck(subject, a, x, req).await {
+                Ok(i) => inputs.push(MergeInput {
+                    delete_source: input.delete_source,
+                    ..i
+                }),
+                Err(why) => refusals.push(format!("{}: {why}", name(p))),
+            }
+        }
+        if !refusals.is_empty() {
+            return Err((
+                None,
+                ServiceError::Conflict(format!(
+                    "The group can't be merged yet. {}",
+                    refusals.join(" ")
+                )),
+            ));
+        }
+        // 2. Merge in order; stop at the first failure.
+        let mut merged = Vec::new();
+        for (p, i) in open.iter().zip(inputs) {
+            let (a, x) = p;
+            match self.merge_one(subject, (a.clone(), x.clone()), &i).await {
+                Ok(_) => merged.push(name(p)),
+                Err(e) => {
+                    let why = failure_text(&e);
+                    if merged.is_empty() {
+                        return Err((Some((x.id, why)), e));
+                    }
+                    return Ok((merged, Some((x.id, why))));
+                }
+            }
+        }
+        Ok((merged, None))
+    }
+
+    /// Whether one member could merge now, as a single merge checks it,
+    /// without writing anything: the merge's input, or why not.
+    async fn merge_precheck(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        x: &MergeRequest,
+        req: &MergeMember,
+    ) -> std::result::Result<MergeInput, String> {
+        let text = |e: ServiceError| failure_text(&e);
+        self.check_bot_merge(subject, a, &x.target_branch)
+            .await
+            .map_err(text)?;
+        if x.head_oid.as_deref() != Some(req.expected_head_oid.as_str()) {
+            return Err(format!(
+                "It changed since you looked: it's at revision {} now.",
+                x.revisions
+            ));
+        }
+        let (allowed, default) = slath_db::repos::merge_settings(&self.pool, a.repo.id)
+            .await
+            .map_err(|e| text(e.into()))?;
+        let strategy = req
+            .strategy
+            .clone()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(default);
+        if !allowed.contains(&strategy) {
+            return Err(format!(
+                "Its repository doesn't allow {strategy}; use {}.",
+                allowed.join(", ")
+            ));
+        }
+        if strategy == "merge-commit" || strategy == "squash" {
+            self.scan_message(a, x, &strategy, None)
+                .await
+                .map_err(text)?;
+        }
+        let mb = self.mr_mergeability(a, x).await.map_err(text)?;
+        if !mb.mergeable {
+            let why: Vec<String> = mb
+                .requirements
+                .iter()
+                .filter(|r| r.state != "met")
+                .map(|r| r.reason.clone())
+                .collect();
+            return Err(why.join(" "));
+        }
+        Ok(MergeInput {
+            strategy: Some(strategy),
+            expected_head_oid: req.expected_head_oid.clone(),
+            ..MergeInput::default()
+        })
+    }
+}
+
+fn member_name((a, x): &(RepoAccess, MergeRequest)) -> String {
+    format!("{}/{}!{}", a.repo.namespace, a.repo.name, x.number)
+}
+
+fn failure_text(e: &ServiceError) -> String {
+    match e {
+        ServiceError::Conflict(w) => w.clone(),
+        ServiceError::Invalid(errs) => errs
+            .iter()
+            .map(|f| f.message.clone())
+            .collect::<Vec<_>>()
+            .join(" "),
+        ServiceError::Forbidden | ServiceError::NotFound => NOT_ALL.to_owned(),
+        _ => "The merge failed; try again.".to_owned(),
     }
 }
 

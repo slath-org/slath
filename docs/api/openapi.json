@@ -6240,6 +6240,97 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group/merge": {
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Merges the group: checks every open member first (each mergeable with\nits own requirements, by you), then merges them in order. 409 when any\nisn't, and nothing merges. When a merge fails after others landed, it\nstops: 200 with the group partially landed, what merged, what remains,\nand why.",
+        "operationId": "merge_group",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMergeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMergeResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/interdiff": {
       "get": {
         "tags": [
@@ -11746,6 +11837,61 @@
           }
         }
       },
+      "GroupMergeBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "delete_source": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Default: each merge request's own setting."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MergeMemberBody"
+            },
+            "description": "Every open member, in the group's order."
+          }
+        }
+      },
+      "GroupMergeResult": {
+        "type": "object",
+        "description": "What a group merge did.",
+        "required": [
+          "group",
+          "merged",
+          "remaining"
+        ],
+        "properties": {
+          "failure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it stopped after merging some; `null` when all merged."
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupBody"
+          },
+          "merged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Merged now, in order."
+          },
+          "remaining": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Still open."
+          }
+        }
+      },
       "HeldFinding": {
         "type": "object",
         "description": "A possible secret, redacted: the excerpt keeps four characters of it.",
@@ -12461,6 +12607,27 @@
               "null"
             ],
             "description": "Land only the stack's changes up to this one (its change ID, or at\nleast 8 of its first characters); the merge request stays open with\nthe rest as a new revision."
+          }
+        }
+      },
+      "MergeMemberBody": {
+        "type": "object",
+        "description": "One member of a group merge.",
+        "properties": {
+          "expected_head_oid": {
+            "type": "string",
+            "description": "The head you saw; if it moved on, nothing merges (409)."
+          },
+          "merge_request": {
+            "type": "string",
+            "description": "`ns/repo!n`."
+          },
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Default: its repository's default strategy."
           }
         }
       },

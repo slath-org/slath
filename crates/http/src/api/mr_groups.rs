@@ -158,12 +158,92 @@ pub async fn delete_group(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// One member of a group merge.
+#[derive(Deserialize, ToSchema)]
+pub struct MergeMemberBody {
+    /// `ns/repo!n`.
+    #[serde(default)]
+    pub merge_request: String,
+    /// The head you saw; if it moved on, nothing merges (409).
+    #[serde(default)]
+    pub expected_head_oid: String,
+    /// Default: its repository's default strategy.
+    #[serde(default)]
+    pub strategy: Option<String>,
+}
+
+/// Every field is optional in the JSON so that authorization runs first.
+#[derive(Deserialize, ToSchema)]
+pub struct GroupMergeBody {
+    /// Every open member, in the group's order.
+    #[serde(default)]
+    pub members: Vec<MergeMemberBody>,
+    /// Default: each merge request's own setting.
+    #[serde(default)]
+    pub delete_source: Option<bool>,
+}
+
+/// What a group merge did.
+#[derive(Serialize, ToSchema)]
+pub struct GroupMergeResult {
+    pub group: GroupBody,
+    /// Merged now, in order.
+    pub merged: Vec<String>,
+    /// Still open.
+    pub remaining: Vec<String>,
+    /// Why it stopped after merging some; `null` when all merged.
+    pub failure: Option<String>,
+}
+
+/// Merges the group: checks every open member first (each mergeable with
+/// its own requirements, by you), then merges them in order. 409 when any
+/// isn't, and nothing merges. When a merge fails after others landed, it
+/// stops: 200 with the group partially landed, what merged, what remains,
+/// and why.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group/merge", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = GroupMergeBody,
+    responses((status = 200, body = GroupMergeResult), (status = 401, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
+pub async fn merge_group(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Json(b): Json<GroupMergeBody>,
+) -> Result<Json<GroupMergeResult>, AppError> {
+    let input = slath_service::mr_groups::GroupMergeInput {
+        members: b
+            .members
+            .into_iter()
+            .map(|m| slath_service::mr_groups::MergeMember {
+                merge_request: m.merge_request,
+                expected_head_oid: m.expected_head_oid,
+                strategy: m.strategy,
+            })
+            .collect(),
+        delete_source: b.delete_source,
+    };
+    let o = state
+        .services
+        .merge_mr_group(&s, (&ns, &repo, number), &input)
+        .await?;
+    Ok(Json(GroupMergeResult {
+        group: o.group.into(),
+        merged: o.merged,
+        remaining: o.remaining,
+        failure: o.failure,
+    }))
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route_as(
-        "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group",
-        Access::Resource,
-        axum::routing::get(get_group)
-            .put(put_group)
-            .delete(delete_group),
-    )
+    Router::new()
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group",
+            Access::Resource,
+            axum::routing::get(get_group)
+                .put(put_group)
+                .delete(delete_group),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group/merge",
+            Access::Resource,
+            axum::routing::post(merge_group),
+        )
 }
