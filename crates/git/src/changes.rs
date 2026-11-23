@@ -19,6 +19,9 @@ pub struct StackCommit {
     pub change_id: Option<String>,
     /// The value of the last `Change-Id` trailer.
     pub trailer: Option<String>,
+    /// The value of the last `Agent-Session` trailer: an agent context
+    /// record the commit names.
+    pub agent_session: Option<String>,
     /// `git patch-id --stable`; `None` for an empty commit or when the
     /// patches were too large to read.
     pub patch_id: Option<String>,
@@ -29,11 +32,18 @@ pub struct StackCommit {
     pub conflicted: bool,
 }
 
-/// The value of the last `Change-Id` trailer of a commit message: in the
-/// message's last paragraph, which must consist of trailer lines
-/// (`Token: value`, with indented continuation lines), as Git reads them.
+/// The value of the last `Change-Id` trailer of a commit message.
 #[must_use]
 pub fn change_id_trailer(message: &[u8]) -> Option<String> {
+    trailer(message, "change-id")
+}
+
+/// The value of the last trailer `key` (any case) of a commit message: in
+/// the message's last paragraph, which must consist of trailer lines
+/// (`Token: value`, with indented continuation lines), as Git reads them.
+#[must_use]
+pub fn trailer(message: &[u8], key: &str) -> Option<String> {
+    let wanted = key;
     let text = String::from_utf8_lossy(message);
     let body = text.trim_end();
     let last = body.rsplit("\n\n").next()?;
@@ -50,7 +60,7 @@ pub fn change_id_trailer(message: &[u8]) -> Option<String> {
         if key.is_empty() || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
             return None;
         }
-        if key.eq_ignore_ascii_case("change-id") {
+        if key.eq_ignore_ascii_case(wanted) {
             found = Some(value.trim().to_owned());
         }
     }
@@ -85,6 +95,7 @@ pub async fn stack(
             parent: c.parents().next().and_then(|p| ObjectId::parse(p).ok()),
             change_id,
             trailer: change_id_trailer(&c.message),
+            agent_session: trailer(&c.message, "agent-session"),
             patch_id: None,
             patch: Vec::new(),
             conflicted,
@@ -153,7 +164,21 @@ pub async fn stack(
 
 #[cfg(test)]
 mod tests {
-    use super::change_id_trailer;
+    use super::{change_id_trailer, trailer};
+
+    #[test]
+    fn agent_session_trailers_are_read_like_change_ids() {
+        let m = b"Fix it\n\nBody.\n\nAgent-Session: 0190d3a4-0000-7000-8000-000000000001\nSigned-off-by: A <a@x>\n";
+        assert_eq!(
+            trailer(m, "agent-session").as_deref(),
+            Some("0190d3a4-0000-7000-8000-000000000001")
+        );
+        assert_eq!(trailer(b"Agent-Session: x\n", "agent-session"), None);
+        assert_eq!(
+            trailer(b"S\n\nagent-session: y\n", "agent-session").as_deref(),
+            Some("y")
+        );
+    }
 
     #[test]
     fn trailers() {

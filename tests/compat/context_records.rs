@@ -167,6 +167,12 @@ impl World {
             .collect()
     }
 
+    /// A token of alice's that may manage her bots.
+    fn alice_user_token(&self) -> String {
+        let mut c = self.s.login("alice", PASSWORD);
+        slath_tests::http::create_token(&mut c, "bots", &["user:write"])
+    }
+
     fn upload(&self, token: &str, record: &Value) -> slath_tests::http::Resp {
         self.api(token, "POST", "/context-records", Some(record.clone()))
     }
@@ -191,8 +197,9 @@ impl World {
     }
 }
 
+/// A record; a `null` binding is left out.
 fn record(summary: &str, binding: Value) -> Value {
-    json!({
+    let mut r = json!({
         "schema": "slath-context/1",
         "agent": {"name": "coder", "model": "some-model", "tool": "cli"},
         "initiated_by": "alice",
@@ -200,7 +207,11 @@ fn record(summary: &str, binding: Value) -> Value {
         "artifacts": [{"name": "report.txt", "sha256": "a".repeat(64)}],
         "redactions": [{"rule": "github-pat", "count": 2}],
         "binding": binding,
-    })
+    });
+    if r["binding"].is_null() {
+        r.as_object_mut().unwrap().remove("binding");
+    }
+    r
 }
 
 #[test]
@@ -439,4 +450,63 @@ fn context_record_schema_matches_the_server() {
     for b in bad {
         assert!(!v.is_valid(&b), "{b}");
     }
+}
+
+#[test]
+fn conf_agent_05_an_agent_session_trailer_binds_a_record_to_its_change() {
+    let (w, n) = World::start();
+    let r = w.upload(&w.bot, &record("Add c", json!(null)));
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["binding"]["state"], "none");
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    // A second record whose uploader is stopped before the push.
+    let r = w.upload(&w.bot, &record("Add d", json!(null)));
+    let stopped = r.json()["id"].as_str().unwrap().to_owned();
+
+    let wd = w.w.path();
+    std::fs::write(wd.join("c.txt"), lines("c", false)).unwrap();
+    w.git.ok(wd, &["add", "-A"]);
+    w.git.ok(
+        wd,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            &format!("Add c\n\nAgent-Session: {id}"),
+        ],
+    );
+    w.push("topic");
+    w.wait_revisions(n, 2);
+    let c = w.changes(n)[2].clone();
+    let r = w.api(&w.alice, "GET", &format!("/context-records/{id}"), None);
+    assert_eq!(r.json()["binding"]["state"], "bound", "{}", r.body);
+    assert_eq!(r.json()["binding"]["change"], c.as_str());
+
+    let s = w.s.client().api(
+        "POST",
+        "/api/v1/bots/alice-ci/stop",
+        Some(&w.alice_user_token()),
+        None,
+    );
+    assert_eq!(s.status, 200, "{}", s.body);
+    std::fs::write(wd.join("d.txt"), lines("d", false)).unwrap();
+    w.git.ok(wd, &["add", "-A"]);
+    w.git.ok(
+        wd,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            &format!("Add d\n\nAgent-Session: {stopped}"),
+        ],
+    );
+    w.push("topic");
+    w.wait_revisions(n, 3);
+    let r = w.api(
+        &w.alice,
+        "GET",
+        &format!("/context-records/{stopped}"),
+        None,
+    );
+    assert_eq!(r.json()["binding"]["state"], "none", "{}", r.body);
 }

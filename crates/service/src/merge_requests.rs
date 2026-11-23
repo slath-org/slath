@@ -1283,12 +1283,16 @@ impl Services {
             return Ok(None);
         }
         let revision = r?;
-        if let Some(plan) = plan {
-            self.apply_changes(&mut tx, id, (revision, seq), pusher, plan)
-                .await?;
-        }
+        let sessions = match plan {
+            Some(plan) => {
+                self.apply_changes(&mut tx, id, (revision, seq), pusher, plan)
+                    .await?
+            }
+            None => Vec::new(),
+        };
         slath_db::merge_requests::touch(&mut *tx, id).await?;
         tx.commit().await.map_err(ServiceError::internal)?;
+        self.bind_agent_sessions(&m, sessions).await;
         let number = u32::try_from(m.number).map_err(ServiceError::internal)?;
         slath_git::refs::set(&self.runner, &dir, &slath_git::refs::mr_head(number), &head)
             .await

@@ -340,7 +340,9 @@ impl Services {
 
     /// Records the planned versions of revision `seq` (inside its
     /// transaction): new changes, versions, alias bindings, and which
-    /// changes are removed.
+    /// changes are removed. Returns the `Agent-Session` trailers of the
+    /// commits with each commit's change, to bind those records after the
+    /// transaction.
     pub(crate) async fn apply_changes(
         &self,
         tx: &mut sqlx::PgConnection,
@@ -348,7 +350,8 @@ impl Services {
         (revision, seq): (uuid::Uuid, i32),
         pusher: Option<UserId>,
         mut plan: Plan,
-    ) -> Result<()> {
+    ) -> Result<Vec<(String, Option<uuid::Uuid>)>> {
+        let mut sessions = Vec::new();
         let mut matched: HashSet<uuid::Uuid> = HashSet::new();
         let mut display: HashMap<uuid::Uuid, String> = db::changes(&mut *tx, mr)
             .await?
@@ -380,6 +383,9 @@ impl Services {
                 }
                 b => b.change().copied(),
             };
+            if let Some(s) = &c.agent_session {
+                sessions.push((s.clone(), change));
+            }
             if let Some(k) = change {
                 matched.insert(k);
                 db::set_change_state(&mut *tx, k, "active").await?;
@@ -424,7 +430,7 @@ impl Services {
         for k in plan.previous.iter().filter(|k| !matched.contains(k)) {
             db::set_change_state(&mut *tx, *k, "removed").await?;
         }
-        Ok(())
+        Ok(sessions)
     }
 
     /// The current revision's stack.

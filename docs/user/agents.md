@@ -200,6 +200,18 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   finds. Without the right to update that merge request (being its author,
   or allowed to push its source branch), the record is kept but **not
   linked**, and the API's `binding.state` says `unlinked`.
+- **Or name it in the commit:** upload the record first, without a
+  binding, and put its ID in a trailer of the commit's message:
+
+  ```text
+  Fix the redirect after login
+
+  Agent-Session: 0190d3a4-8c2e-7a51-9f00-3b4c5d6e7f80
+  ```
+
+  When that commit becomes part of a merge request, the record binds to
+  its change, under the same rule. The trailer is ordinary text in the
+  message, so `git commit` and `jj describe` both write it.
 - **Who asked:** `initiated_by` names the person the work was for. They
   must be able to read the repository.
 - **Transcripts:** `transcript` lists entries such as

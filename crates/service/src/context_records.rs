@@ -523,6 +523,64 @@ impl Services {
         Ok(out)
     }
 
+    /// Binds the records that commits of a new revision name in an
+    /// `Agent-Session` trailer to the commits' changes (or to the merge
+    /// request, for a commit without a resolved change): only records of
+    /// the same repository that aren't bound yet, and only if their
+    /// uploader may update the merge request now. Failures are logged; a
+    /// revision is never refused over a trailer.
+    pub(crate) async fn bind_agent_sessions(
+        &self,
+        m: &slath_db::merge_requests::MergeRequest,
+        sessions: Vec<(String, Option<uuid::Uuid>)>,
+    ) {
+        for (value, change) in sessions {
+            let Ok(id) = value.trim().parse::<uuid::Uuid>() else {
+                continue;
+            };
+            if let Err(e) = self.bind_agent_session(m, id, change).await {
+                tracing::warn!(error = %e, mr = %m.id, "binding an agent session trailer failed");
+            }
+        }
+    }
+
+    async fn bind_agent_session(
+        &self,
+        m: &slath_db::merge_requests::MergeRequest,
+        id: uuid::Uuid,
+        change: Option<uuid::Uuid>,
+    ) -> Result<()> {
+        let Some(r) = slath_db::context_records::get(&self.pool, m.repo_id, id).await? else {
+            return Ok(());
+        };
+        let Some(uploader) = r.uploader_id else {
+            return Ok(());
+        };
+        if r.binding_state == "bound" {
+            return Ok(());
+        }
+        let Some(u) = slath_db::users::get(&self.pool, uploader).await? else {
+            return Ok(());
+        };
+        if u.state != UserState::Active {
+            return Ok(());
+        }
+        let s = crate::notifications::user_subject(uploader, &u);
+        let a = match self
+            .repo_access_by_id(&s, m.repo_id, Action::RepoRead)
+            .await
+        {
+            Ok(a) => a,
+            Err(ServiceError::NotFound | ServiceError::Forbidden) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        if !self.may_update_mr(&s, &a, uploader, m).await? {
+            return Ok(());
+        }
+        slath_db::context_records::bind(&self.pool, m.repo_id, id, m.id, change).await?;
+        Ok(())
+    }
+
     /// Changes a repository's context settings (repository admins).
     pub async fn set_context_settings(
         &self,
