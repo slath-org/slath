@@ -22,21 +22,21 @@ pub const ARTIFACTS_MAX: usize = 100;
 pub const REDACTIONS_MAX: usize = 100;
 
 /// A record as uploaded.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Upload {
     pub schema: String,
     pub agent: Agent,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initiated_by: Option<String>,
     pub summary: Summary,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transcript: Vec<Entry>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<Artifact>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub redactions: Vec<Redaction>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub binding: Option<Binding>,
 }
 

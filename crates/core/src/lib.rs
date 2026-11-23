@@ -12,6 +12,7 @@ pub mod change_source;
 pub mod config;
 pub mod context_record;
 pub mod credential;
+pub mod entire_import;
 pub mod ids;
 pub mod names;
 pub mod net;
