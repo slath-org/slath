@@ -190,9 +190,81 @@ impl Envelope {
     }
 }
 
+/// Encryption of a large value (such as an agent context record's payload)
+/// with its own random key: the value can live outside the database, while
+/// only the small key is sealed with the [`Envelope`] in a database column,
+/// so key rotation re-encrypts the key and never the value.
+///
+/// Same format as the envelope's; `aad` binds the value to its owner.
+pub mod data_key {
+    use ring::aead::{AES_256_GCM, Aad, LessSafeKey, NONCE_LEN, Nonce, UnboundKey};
+    use slath_core::Secret;
+
+    use super::{CryptoError, VERSION};
+
+    fn key(raw: &[u8]) -> Result<LessSafeKey, CryptoError> {
+        UnboundKey::new(&AES_256_GCM, raw)
+            .map(LessSafeKey::new)
+            .map_err(|_| CryptoError::Decrypt)
+    }
+
+    /// A new random key and `plaintext` encrypted with it.
+    pub fn seal(plaintext: &[u8], aad: &[u8]) -> Result<(Secret<Vec<u8>>, Vec<u8>), CryptoError> {
+        let mut raw = vec![0u8; 32];
+        getrandom::fill(&mut raw).map_err(|e| CryptoError::Random(e.to_string()))?;
+        let mut nonce = [0u8; NONCE_LEN];
+        getrandom::fill(&mut nonce).map_err(|e| CryptoError::Random(e.to_string()))?;
+        let mut buf = plaintext.to_vec();
+        key(&raw)?
+            .seal_in_place_append_tag(
+                Nonce::assume_unique_for_key(nonce),
+                Aad::from(aad),
+                &mut buf,
+            )
+            .map_err(|_| CryptoError::Decrypt)?;
+        let mut out = Vec::with_capacity(1 + NONCE_LEN + buf.len());
+        out.push(VERSION);
+        out.extend_from_slice(&nonce);
+        out.extend_from_slice(&buf);
+        Ok((Secret::new(raw), out))
+    }
+
+    /// Decrypts what [`seal`] returned.
+    pub fn open(raw: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Secret<Vec<u8>>, CryptoError> {
+        let (&version, rest) = ciphertext.split_first().ok_or(CryptoError::Decrypt)?;
+        if version != VERSION || rest.len() < NONCE_LEN {
+            return Err(CryptoError::Decrypt);
+        }
+        let (nonce, body) = rest.split_at(NONCE_LEN);
+        let nonce = Nonce::try_assume_unique_for_key(nonce).map_err(|_| CryptoError::Decrypt)?;
+        let mut buf = body.to_vec();
+        let plain = key(raw)?
+            .open_in_place(nonce, Aad::from(aad), &mut buf)
+            .map_err(|_| CryptoError::Decrypt)?;
+        Ok(Secret::new(plain.to_vec()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn data_key_round_trip_is_bound_to_its_owner() {
+        let (k, c) = data_key::seal(b"transcript", b"record-1").unwrap();
+        assert_eq!(k.expose().len(), 32);
+        assert!(!c.windows(10).any(|w| w == b"transcript"));
+        assert_eq!(
+            data_key::open(k.expose(), &c, b"record-1")
+                .unwrap()
+                .expose(),
+            b"transcript"
+        );
+        assert!(data_key::open(k.expose(), &c, b"record-2").is_err());
+        let (other, _) = data_key::seal(b"x", b"record-1").unwrap();
+        assert!(data_key::open(other.expose(), &c, b"record-1").is_err());
+        assert!(data_key::open(k.expose(), &c[..5], b"record-1").is_err());
+    }
 
     const AT: Location<'static> = Location {
         table: "totp_credentials",
