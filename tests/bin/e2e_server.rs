@@ -250,6 +250,46 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         None,
     );
     assert_eq!(r.status, 204, "{}", r.body);
+    // The bot's record of how it worked, with a transcript, on the change.
+    let r = api.api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&token),
+        Some(&serde_json::json!({"context_detail": "full"})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let stack = api.api(
+        "GET",
+        &format!("/api/v1/repos/alice/demo/merge-requests/{n}/stack"),
+        Some(&token),
+        None,
+    );
+    let change = stack.json()["entries"][0]["change_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/context-records",
+        Some(&agent_token),
+        Some(&serde_json::json!({
+            "schema": "slath-context/1",
+            "agent": {"name": "fixture-agent", "model": "demo-model", "tool": "demo-cli"},
+            "initiated_by": "alice",
+            "summary": {
+                "intent": "Write the agent notes.",
+                "outcome": "Three tries;\nthe third one reads well.",
+                "open_items": ["Ask alice about the second case"]
+            },
+            "transcript": [
+                {"kind": "prompt", "text": "Write notes for the agent fixture."},
+                {"kind": "tool_call", "text": "write agent-notes.txt", "tool": "editor"},
+                {"kind": "response", "text": "Done after three tries."}
+            ],
+            "binding": {"merge_request": n, "change": change}
+        })),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();

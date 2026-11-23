@@ -1944,6 +1944,8 @@ struct MrPage {
     auto_merge: Option<AutoMergeView>,
     /// The linked group this merge request is in.
     group: Option<super::mr_groups::GroupPanel>,
+    /// Agents' context records bound to it.
+    context: Vec<super::context_records::RecordRow>,
     /// The viewer may link it with others (open, and they may edit it).
     can_link: bool,
     /// They may also change its group: "Link a merge request".
@@ -2415,6 +2417,7 @@ async fn mr_page_showing(
         .mr_group(subject, (ns, repo, number))
         .await?
         .map(super::mr_groups::GroupPanel::new);
+    let context = super::context_records::panel(state, subject, &a, (m.id, m.number), None).await?;
     let linked = open && group.is_some();
     let can_link = open && me.is_some() && state.services.mr_perms(subject, &a, &m).edit;
     let merge_form = if open && !linked && a.can(subject, Action::MrMerge) && h.card.mergeable {
@@ -2508,6 +2511,7 @@ async fn mr_page_showing(
         auto_merge,
         link_form: can_link && group.as_ref().is_none_or(|g| g.can_edit),
         group,
+        context,
         can_link,
         apply_suggestions,
         conflict_commands,
@@ -2952,6 +2956,8 @@ struct ChangePage {
     conflict: Option<ConflictView>,
     /// "Land up to here", when the changes up to this one can land.
     land: Option<LandForm>,
+    /// Agents' context records bound to this change.
+    context: Vec<super::context_records::RecordRow>,
     /// The latest statuses of the shown version's commit.
     statuses: Vec<super::StatusRow>,
     /// The shown version is the change's current one: the latest, of a
@@ -3250,7 +3256,16 @@ async fn change(
             .versions
             .last()
             .is_some_and(|v| v.revision == shown.revision);
+    let context = super::context_records::panel(
+        &state,
+        &subject,
+        &a,
+        (m.id, m.number),
+        Some(&change.display_id),
+    )
+    .await?;
     let page = ChangePage {
+        context,
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
         rows,

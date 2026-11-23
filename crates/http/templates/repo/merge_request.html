@@ -432,6 +432,7 @@
     {% include "repo/statuses.html" %}
     {%- endif %}
   </section>
+  {% include "repo/context_panel.html" %}
   {%- if group.is_some() || can_link %}
   <section class="details-section" aria-labelledby="side-group-heading" id="side-group">
     <h2 id="side-group-heading" class="details-heading">Linked merge requests</h2>

@@ -7,6 +7,7 @@ pub mod account;
 pub mod admin;
 pub mod bots;
 pub mod browse;
+pub mod context_records;
 pub mod design;
 pub mod diff;
 pub mod editor;

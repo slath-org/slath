@@ -1,0 +1,39 @@
+{#- The Context panel: agents' records of how they made the changes, in a
+    details column. Expects `context` (Vec<RecordRow>) and `ctx`, and the
+    macros base.html imports. Everything but the uploader and the time is the agent's
+    claim, shown as plain text. -#}
+{%- if !context.is_empty() %}
+<section class="details-section" aria-labelledby="side-context-heading" id="side-context">
+  <h2 id="side-context-heading" class="details-heading">Context</h2>
+  <p class="text-secondary">What agents say about how they made these changes. Slath doesn't check it.</p>
+  <ul class="plain-list stack">
+  {%- for r in context %}
+    <li class="stack">
+      <p>{% call p::who(ctx, r.uploader) %}{% endcall %} {% call m::evidence("Agent's account") %}{% endcall %} <span class="text-secondary">{% call c::time(r.created) %}{% endcall %}</span></p>
+      <p class="text-secondary"><bdi>{{ r.agent }}</bdi>{% if let Some(who) = r.initiated_by %} · for {% call p::account(ctx, who) %}{% endcall %}{% endif %}{% if let Some((short, href)) = r.change %} · change <a href="{{ href }}"><code>{{ short }}</code></a>{% endif %}</p>
+      <pre class="commit-body">{{ r.intent }}</pre>
+      {%- if let Some(o) = r.outcome %}
+      <pre class="commit-body">{{ o }}</pre>
+      {%- endif %}
+      {%- if !r.open_items.is_empty() %}
+      <p>Still open:</p>
+      <ul>
+        {%- for item in r.open_items %}
+        <li><bdi>{{ item }}</bdi></li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
+      {%- if !r.transcript.is_empty() %}
+      {%- let summary = format!("Transcript, {} entries", r.transcript.len()) %}
+      {% call d::disclosure(ctx, summary) %}
+        {%- for e in r.transcript %}
+        <p class="text-secondary">{{ e.label }}{% if let Some(t) = e.tool %} · <bdi>{{ t }}</bdi>{% endif %}</p>
+        <pre class="commit-body">{{ e.text }}</pre>
+        {%- endfor %}
+      {% endcall %}
+      {%- endif %}
+    </li>
+  {%- endfor %}
+  </ul>
+</section>
+{%- endif %}

@@ -169,6 +169,7 @@
     {% include "repo/statuses.html" %}
     {%- endif %}
   </section>
+  {% include "repo/context_panel.html" %}
   {%- if !stack.is_empty() %}
   <section class="details-section" aria-labelledby="stack-heading">
     <h2 id="stack-heading" class="details-heading">Stack</h2>

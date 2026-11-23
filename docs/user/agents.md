@@ -227,6 +227,11 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **Who sees it:** people with write access to the repository, the person
   named in `initiated_by`, and the bot's owner. Others, even if they can
   read the code, don't see that a record exists.
+- **On the merge request:** its page and each change's page show a
+  **Context** panel in the details column with the records bound to it:
+  who uploaded each and when, the agent, who it was for, the summary, and
+  the transcript behind **Transcript**. Everything but the uploader and
+  the time is the agent's account, shown as plain text and marked so.
 - **Reading:** `GET …/context-records` lists records newest first
   (filters `merge_request`, `change`, `unlinked=true`);
   `GET …/context-records/<id>` returns one with its summary and transcript.
