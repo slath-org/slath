@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -201,6 +201,17 @@
             "name": "change_source_prefix"
           }
         }
+      },
+      {
+        "ordinal": 19,
+        "name": "context_detail",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_detail"
+          }
+        }
       }
     ],
     "parameters": {
@@ -227,8 +238,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "7d47053e612b6feb0c0a6200510a83d90eb54bfc4c753de776538f4216bc053b"
+  "hash": "48685992e7daf754b0d51e33c146af477157c0affb41848b9fbbe4077404543b"
 }

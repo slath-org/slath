@@ -32,6 +32,8 @@ pub struct Repo {
     /// The prefix of change sources (branches that open a merge request
     /// when pushed); empty for none.
     pub change_source_prefix: String,
+    /// What agent context records keep: `summary` or `full`.
+    pub context_detail: String,
     pub pushed_at: Option<OffsetDateTime>,
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
@@ -92,6 +94,7 @@ macro_rules! to_repo {
             issues_enabled: $r.issues_enabled,
             stalled_after_days: $r.stalled_after_days,
             change_source_prefix: $r.change_source_prefix,
+            context_detail: $r.context_detail,
             pushed_at: $r.pushed_at,
             deleted_at: $r.deleted_at,
             created_at: $r.created_at,
@@ -103,7 +106,7 @@ macro_rules! to_repo {
 pub async fn get(exec: impl PgExecutor<'_>, id: RepoId) -> Result<Option<Repo>, DbError> {
     let r = sqlx::query!(r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.id = $1"#, id.as_uuid())
         .fetch_optional(exec)
         .await?;
@@ -119,7 +122,7 @@ pub async fn find(
     let r = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext"#,
         namespace,
         name
@@ -238,7 +241,7 @@ pub async fn list_visible_in_namespace(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.namespace_id = $1 AND r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $3
                 OR (r.visibility = 'internal' AND $2::uuid IS NOT NULL)
@@ -259,7 +262,7 @@ pub async fn list_public(exec: impl PgExecutor<'_>, limit: i64) -> Result<Vec<Re
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'
              ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1"#,
         limit
@@ -482,7 +485,7 @@ pub async fn purge(exec: impl PgExecutor<'_>, id: RepoId) -> Result<(), DbError>
 pub async fn list_deleted(exec: impl PgExecutor<'_>, limit: i64) -> Result<Vec<Repo>, DbError> {
     let rows = sqlx::query!(r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.state = 'deleting' ORDER BY r.deleted_at DESC LIMIT $1"#, limit)
         .fetch_all(exec)
         .await?;
@@ -554,7 +557,7 @@ pub async fn list_visible(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            WHERE r.state <> 'deleting' AND (
                 r.visibility = 'public' OR $2
@@ -580,7 +583,7 @@ pub async fn list_all(
     let rows = sqlx::query!(
         r#"SELECT r.id, r.namespace_id, n.name::text AS "namespace!", n.kind AS namespace_kind, r.name::text AS "name!",
                   r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,
-                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix
+                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail
            FROM repositories r JOIN namespaces n ON n.id = r.namespace_id
            ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2"#,
         offset,

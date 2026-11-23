@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET context_detail = COALESCE($2, context_detail),\n             context_entire_import = COALESCE($3, context_entire_import)\n          WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "df5a10e3a88a5701951742f718072771ae67561d46b74b488c9b5a6d63b82535"
+}

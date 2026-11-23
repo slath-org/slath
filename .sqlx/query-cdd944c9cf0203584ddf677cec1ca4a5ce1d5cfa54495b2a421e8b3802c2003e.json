@@ -1,0 +1,257 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM context_records WHERE repo_id = $1 AND id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "repo_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "uploader_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "uploader_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "initiated_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "initiated_by"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "agent_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "agent_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "agent_model",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "agent_model"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "agent_tool",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "agent_tool"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "detail",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "detail"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "requested_mr",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "requested_mr"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "requested_change",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "requested_change"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "requested_commit",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "requested_commit"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "mr_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "mr_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "change_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "change_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "binding_state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "binding_state"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "payload_sha256",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "payload_sha256"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "payload_bytes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "payload_bytes"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "transcript_entries",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "transcript_entries"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "payload_key_enc",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "payload_key_enc"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "key_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "key_id"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cdd944c9cf0203584ddf677cec1ca4a5ce1d5cfa54495b2a421e8b3802c2003e"
+}

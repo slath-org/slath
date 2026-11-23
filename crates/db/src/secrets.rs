@@ -34,6 +34,13 @@ pub const ENCRYPTED_COLUMNS: &[EncryptedColumn] = &[
         value: "secret_enc",
         key: "key_id",
     },
+    // The key of an agent context record's encrypted payload blob.
+    EncryptedColumn {
+        table: "context_records",
+        id: "id",
+        value: "payload_key_enc",
+        key: "key_id",
+    },
 ];
 
 /// One encrypted value.

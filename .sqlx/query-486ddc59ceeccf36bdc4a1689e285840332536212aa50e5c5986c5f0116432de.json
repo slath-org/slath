@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -201,22 +201,23 @@
             "name": "change_source_prefix"
           }
         }
+      },
+      {
+        "ordinal": 19,
+        "name": "context_detail",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_detail"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        {
-          "Custom": {
-            "name": "citext",
-            "kind": "Simple"
-          }
-        },
-        {
-          "Custom": {
-            "name": "citext",
-            "kind": "Simple"
-          }
-        }
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
@@ -238,8 +239,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "8f6867d8a50158443eba44392b3847b29130c28702e04712c90da7c6c497ce3e"
+  "hash": "486ddc59ceeccf36bdc4a1689e285840332536212aa50e5c5986c5f0116432de"
 }

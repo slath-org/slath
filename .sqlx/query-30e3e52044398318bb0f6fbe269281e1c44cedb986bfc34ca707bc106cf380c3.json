@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT slath_owns_namespace(u.namespace_id, $2) AS \"owns!\" FROM users u WHERE u.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owns!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "30e3e52044398318bb0f6fbe269281e1c44cedb986bfc34ca707bc106cf380c3"
+}

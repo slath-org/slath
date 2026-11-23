@@ -444,6 +444,10 @@ pub struct Limits {
     pub background_migration_batch: u32,
     /// Pause between batches of a background migration (rate limit).
     pub background_migration_interval: Dur,
+    /// Largest agent context record (the request body).
+    pub context_record_max_bytes: Bytes,
+    /// Transcript entries per agent context record.
+    pub context_transcript_entries: usize,
     /// Largest text file push protection scans; a bigger one rejects the push.
     pub secret_scan_file_max_bytes: Bytes,
     /// Most new content one push may have for the scan; more rejects it.
@@ -498,6 +502,8 @@ impl Default for Limits {
             job_workers: 4,
             background_migration_batch: 500,
             background_migration_interval: Dur::millis(100),
+            context_record_max_bytes: Bytes(MIB),
+            context_transcript_entries: 2000,
             secret_scan_file_max_bytes: Bytes(8 * MIB),
             secret_scan_push_max_bytes: Bytes(512 * MIB),
             secret_scan_timeout: Dur::secs(60),

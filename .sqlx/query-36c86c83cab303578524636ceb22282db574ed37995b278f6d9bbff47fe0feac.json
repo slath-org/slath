@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT m.id AS \"mr!\", v.change_id AS \"change!\"\n             FROM mr_change_versions v\n             JOIN mr_revisions r ON r.id = v.revision_id\n             JOIN merge_requests m ON m.id = r.mr_id\n            WHERE m.repo_id = $1 AND m.state = 'open' AND v.commit_oid = $2\n              AND v.change_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mr!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "change!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_change_versions",
+            "name": "change_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "36c86c83cab303578524636ceb22282db574ed37995b278f6d9bbff47fe0feac"
+}

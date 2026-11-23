@@ -10,6 +10,12 @@ encrypted with AES-256-GCM under a key derived from the **master key**
 (`secrets.master_key_file`). A database dump on its own contains no
 readable secret.
 
+Agents' context records are encrypted too: each record's content is a file
+in the blob store, encrypted with a key of its own, and that key is
+encrypted with the master key in the database. Backups contain both, so a
+restore needs the master key to read them. Rotating the master key
+re-encrypts only those small keys, not the files.
+
 Each encrypted value records the ID of the master key that sealed it. The
 key itself never enters the database or a backup: back up the key file
 separately (see [backup](backup.md)).
