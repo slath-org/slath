@@ -12,6 +12,7 @@ use slath_db::bots::Bot;
 use crate::Services;
 use crate::audit::Target;
 use crate::error::{Result, ServiceError};
+use crate::push::DenyReason;
 
 /// What a stop removed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -150,7 +151,11 @@ impl Services {
 
     /// Why a bot's push is refused now, if it is: pre-receive re-reads the
     /// pusher, so a bot stopped or frozen during its push can't finish it.
-    pub(crate) async fn bot_push_refusal(&self, subject: &Subject) -> Result<Option<&'static str>> {
+    /// Every push a bot attempts counts against its push limit.
+    pub(crate) async fn bot_push_refusal(
+        &self,
+        subject: &Subject,
+    ) -> Result<Option<(DenyReason, String)>> {
         let Subject::User {
             id,
             kind: UserKind::Bot,
@@ -163,14 +168,96 @@ impl Services {
             .await?
             .map(|u| u.state);
         if state != Some(UserState::Active) {
-            return Ok(Some(
-                "slath: push rejected: this bot is stopped or suspended",
-            ));
+            return Ok(Some((
+                DenyReason::NoPermission,
+                "slath: push rejected: this bot is stopped or suspended".to_owned(),
+            )));
         }
         if slath_db::bots::frozen(&self.pool, *id).await? {
-            return Ok(Some("slath: push rejected: bots are frozen here"));
+            return Ok(Some((
+                DenyReason::NoPermission,
+                "slath: push rejected: bots are frozen here".to_owned(),
+            )));
+        }
+        let per_hour = self.config.limits.bot_pushes_per_hour;
+        if let Err(wait) = self.bot_push_limiter.take(*id, per_hour) {
+            return Ok(Some((
+                DenyReason::RateLimited,
+                format!(
+                    "slath: push rejected: this bot has used its {per_hour} pushes per hour; \
+                     try again in {wait} s"
+                ),
+            )));
         }
         Ok(None)
+    }
+}
+
+/// Pushes per bot: a token bucket that holds an hour's pushes and refills
+/// evenly, so a bot may push in bursts but no more than its hourly limit
+/// over time. In memory: every push of an instance reaches this server's
+/// pre-receive check, over HTTP and SSH alike.
+#[derive(Debug, Default)]
+pub struct PushLimiter {
+    buckets: std::sync::Mutex<std::collections::HashMap<UserId, (f64, std::time::Instant)>>,
+}
+
+impl PushLimiter {
+    /// Takes one push of `per_hour`; `Err(seconds)` until the next one is
+    /// allowed.
+    pub fn take(&self, bot: UserId, per_hour: u32) -> std::result::Result<(), u64> {
+        self.take_at(bot, per_hour, std::time::Instant::now())
+    }
+
+    fn take_at(
+        &self,
+        bot: UserId,
+        per_hour: u32,
+        now: std::time::Instant,
+    ) -> std::result::Result<(), u64> {
+        let cap = f64::from(per_hour.max(1));
+        let rate = cap / 3600.0;
+        let Ok(mut map) = self.buckets.lock() else {
+            return Err(60);
+        };
+        if map.len() > 10_000 {
+            map.retain(|_, (_, t)| now.duration_since(*t).as_secs() < 3600);
+        }
+        let (tokens, last) = map.entry(bot).or_insert((cap, now));
+        *tokens = (*tokens + now.saturating_duration_since(*last).as_secs_f64() * rate).min(cap);
+        *last = now;
+        if *tokens >= 1.0 {
+            *tokens -= 1.0;
+            Ok(())
+        } else {
+            Err((((1.0 - *tokens) / rate).ceil() as u64).max(1))
+        }
+    }
+}
+
+#[cfg(test)]
+mod push_limit_tests {
+    use std::time::{Duration, Instant};
+
+    use super::PushLimiter;
+
+    #[test]
+    fn a_bot_pushes_up_to_its_limit_then_waits_for_a_refill() {
+        let l = PushLimiter::default();
+        let (a, b) = (
+            slath_core::ids::UserId::new(),
+            slath_core::ids::UserId::new(),
+        );
+        let t = Instant::now();
+        for _ in 0..3 {
+            assert_eq!(l.take_at(a, 3, t), Ok(()));
+        }
+        // One push per 20 minutes comes back.
+        assert_eq!(l.take_at(a, 3, t), Err(1200));
+        assert_eq!(l.take_at(a, 3, t + Duration::from_secs(600)), Err(600));
+        assert_eq!(l.take_at(a, 3, t + Duration::from_secs(1200)), Ok(()));
+        // Each bot has its own bucket.
+        assert_eq!(l.take_at(b, 3, t), Ok(()));
     }
 }
 

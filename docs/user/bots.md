@@ -213,6 +213,16 @@ Bots make at most 2,000 API requests per hour (site setting
 `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset` say where a
 bot stands.
 
+Bots also push at most 600 times per hour, over HTTP and SSH together
+(`[limits] bot_pushes_per_hour`); people's pushes aren't limited. A bot
+may push in bursts as long as it stays under the hourly number on
+average. A push over the limit is refused with a message saying when to
+try again:
+
+```text
+remote: slath: push rejected: this bot has used its 600 pushes per hour; try again in 6 s
+```
+
 ## What your bots are doing
 
 The bot lists (**Settings → Bots** and an organization's **Bots** page)

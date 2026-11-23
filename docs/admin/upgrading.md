@@ -185,6 +185,12 @@ same way, but you have to rename those yourself.
   protection rule and name the bot as the check's reporter (`ci by
   acme-ci`), or give the organization a second owner. `slath upgrade
   --check` lists this step.
+- **Bots have a push limit.** A bot may push at most 600 times per hour,
+  over HTTP and SSH together; a push over that is refused and says when
+  to try again. People's pushes aren't limited. If one of your bots
+  pushes more often, for example a fleet of agents behind one bot
+  account, raise `[limits] bot_pushes_per_hour` before upgrading.
+  `slath upgrade --check` lists this step.
 
 ## Coming from a preview
 

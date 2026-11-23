@@ -12,3 +12,8 @@ min_upgrade_from = "0.3.0"
 id = "sole-owner-organization-bots"
 severity = "recommended"
 text = "Statuses from a bot of an organization with one owner no longer satisfy that owner's own merge requests' required checks. Where you relied on that, turn on the one-maintainer policy in branch protection and name the bot as the check's reporter, or give the organization a second owner."
+
+[[action]]
+id = "bot-push-limit"
+severity = "recommended"
+text = "Bots may now push at most 600 times per hour, over HTTP and SSH together; pushes over the limit are refused. If a bot of yours pushes more often, raise [limits] bot_pushes_per_hour before upgrading."

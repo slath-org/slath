@@ -429,6 +429,9 @@ pub struct Limits {
     pub api_anonymous_requests_per_hour: u32,
     /// API requests per hour for a bot account (lower than for people).
     pub bot_requests_per_hour: u32,
+    /// Pushes per hour for a bot account (over HTTP and SSH together);
+    /// people's pushes aren't limited.
+    pub bot_pushes_per_hour: u32,
     /// Failed logins per account per 15 minutes before throttling.
     pub login_failures_per_account: u32,
     /// Failed logins per IP per 15 minutes before throttling.
@@ -488,6 +491,7 @@ impl Default for Limits {
             api_requests_per_hour: 5000,
             api_anonymous_requests_per_hour: 300,
             bot_requests_per_hour: 2000,
+            bot_pushes_per_hour: 600,
             login_failures_per_account: 10,
             login_failures_per_ip: 50,
             ssh_key_lookups_per_second: 200,

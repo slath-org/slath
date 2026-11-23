@@ -113,6 +113,8 @@ pub struct Services {
     pub oidc_cache: Arc<oidc::OidcCache>,
     /// Requests for reference suggestions per user.
     pub reference_limiter: Arc<references::Limiter>,
+    /// Pushes per bot (`[limits] bot_pushes_per_hour`).
+    pub bot_push_limiter: Arc<bot_control::PushLimiter>,
     /// Push protection's rules (built-in plus the configuration's).
     pub scan_rules: Arc<slath_core::secret_scan::RuleSet>,
     /// The names of all bots, cached.
@@ -166,6 +168,7 @@ impl Services {
             webauthn,
             blobs,
             reference_limiter: Arc::default(),
+            bot_push_limiter: Arc::default(),
             oidc_cache: Arc::default(),
             bot_names: Arc::default(),
             avatar_index: Arc::default(),

@@ -183,6 +183,7 @@ bot_token_max_days = 90       # the longest validity an owner can choose
 
 [limits]
 bot_requests_per_hour = 2000  # API requests per bot and hour
+bot_pushes_per_hour = 600     # pushes per bot and hour, HTTP and SSH together
 ```
 
 To create a bot and a token on the server, for example while setting up an

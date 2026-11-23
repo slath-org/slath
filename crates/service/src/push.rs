@@ -66,6 +66,8 @@ pub enum DenyReason {
     Secret,
     /// A bot's push changes a sensitive path, or couldn't be checked.
     SensitivePath,
+    /// A bot over its push limit.
+    RateLimited,
 }
 
 impl DenyReason {
@@ -82,6 +84,7 @@ impl DenyReason {
             Self::Protected => "protected",
             Self::Secret => "secret",
             Self::SensitivePath => "sensitive_path",
+            Self::RateLimited => "rate_limited",
         }
     }
 }
@@ -234,12 +237,13 @@ impl Services {
         quarantine: &Quarantine,
     ) -> Verdict {
         let mut v = Verdict::default();
-        // A bot stopped, suspended, or frozen since it authenticated.
+        // A bot stopped, suspended, or frozen since it authenticated, or
+        // over its push limit.
         match self.bot_push_refusal(&grant.subject).await {
             Ok(None) => {}
-            Ok(Some(why)) => {
-                v.denied.push(DenyReason::NoPermission);
-                v.messages.push(why.to_owned());
+            Ok(Some((reason, why))) => {
+                v.denied.push(reason);
+                v.messages.push(why);
                 return v;
             }
             Err(e) => {
