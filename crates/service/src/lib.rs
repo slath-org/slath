@@ -51,6 +51,7 @@ pub mod mr_threads;
 pub mod net;
 pub mod notifications;
 pub mod oidc;
+pub mod one_maintainer;
 pub mod orgs;
 pub mod origins;
 pub mod partial_landing;

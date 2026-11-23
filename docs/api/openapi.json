@@ -12796,6 +12796,17 @@
           "mergeable": {
             "type": "boolean"
           },
+          "one_maintainer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OneMaintainerBody",
+                "description": "The one-maintainer policy of the target's protection; null without\nthe setting."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requirements": {
             "type": "array",
             "items": {
@@ -13590,6 +13601,26 @@
           }
         }
       },
+      "OneMaintainerBody": {
+        "type": "object",
+        "description": "The one-maintainer policy: while exactly one person has write access,\ntheir review of the exact head counts in place of approvals.",
+        "required": [
+          "applies"
+        ],
+        "properties": {
+          "applies": {
+            "type": "boolean",
+            "description": "The policy applies now."
+          },
+          "maintainer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That person's user name; null with none or several."
+          }
+        }
+      },
       "Org": {
         "type": "object",
         "required": [
@@ -13783,6 +13814,10 @@
               "type": "string"
             }
           },
+          "single_maintainer": {
+            "type": "boolean",
+            "description": "The one-maintainer policy (people only; bots can't turn it on)."
+          },
           "status_reporters": {
             "type": "object",
             "description": "Per context, user or bot names whose statuses count.",
@@ -13887,7 +13922,8 @@
           "statuses_on_head_ok",
           "dismiss_approvals_on_new_revision",
           "bot_merge_allowlist",
-          "ready_waits_for_checks"
+          "ready_waits_for_checks",
+          "single_maintainer"
         ],
         "properties": {
           "block_deletion": {
@@ -13950,6 +13986,10 @@
               "type": "string"
             },
             "description": "Status contexts that must be `success` on the commit that lands."
+          },
+          "single_maintainer": {
+            "type": "boolean",
+            "description": "The one-maintainer policy: while exactly one person has write\naccess, their review of the exact head counts in place of approvals."
           },
           "status_reporters": {
             "type": "object",

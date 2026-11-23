@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT u.id AS \"id!\" FROM users u WHERE u.kind = 'human' AND u.state = 'active' AND u.id IN (\n             SELECT c.user_id FROM repo_collaborators c WHERE c.repo_id = $1 AND c.role <> 'read'\n             UNION SELECT tm.user_id FROM repo_team_access a JOIN team_members tm ON tm.team_id = a.team_id\n                    WHERE a.repo_id = $1 AND a.role <> 'read'\n             UNION SELECT o.id FROM repositories r JOIN users o ON o.namespace_id = r.namespace_id WHERE r.id = $1\n             UNION SELECT b.bot_owner_id FROM repositories r JOIN users b ON b.namespace_id = r.namespace_id\n                    WHERE r.id = $1 AND b.kind = 'bot' AND b.bot_owner_kind = 'user'\n             UNION SELECT m.user_id FROM repositories r JOIN users b ON b.namespace_id = r.namespace_id\n                    JOIN org_members m ON m.org_id = b.bot_owner_id\n                    WHERE r.id = $1 AND b.kind = 'bot' AND b.bot_owner_kind = 'org' AND m.role = 'owner'\n             UNION SELECT m.user_id FROM repositories r JOIN organizations g ON g.namespace_id = r.namespace_id\n                    JOIN org_members m ON m.org_id = g.id WHERE r.id = $1 AND m.role = 'owner')\n           ORDER BY u.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3bdbb16fed0719b4d96c95134a091e5a945885ad6877fa77da203921c524f690"
+}

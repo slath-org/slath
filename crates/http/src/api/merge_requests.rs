@@ -827,6 +827,19 @@ pub struct MergeabilityBody {
     /// without counting approvals.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coverage: Option<CoverageBody>,
+    /// The one-maintainer policy of the target's protection; null without
+    /// the setting.
+    pub one_maintainer: Option<OneMaintainerBody>,
+}
+
+/// The one-maintainer policy: while exactly one person has write access,
+/// their review of the exact head counts in place of approvals.
+#[derive(Serialize, ToSchema)]
+pub struct OneMaintainerBody {
+    /// That person's user name; null with none or several.
+    pub maintainer: Option<String>,
+    /// The policy applies now.
+    pub applies: bool,
 }
 
 /// A counting approval's coverage: a snapshot taken when it was given.
@@ -889,6 +902,10 @@ impl From<slath_service::mr_reviews::Mergeability> for MergeabilityBody {
         MergeabilityBody {
             mergeable: mb.mergeable,
             up_to_date: mb.up_to_date,
+            one_maintainer: mb.one_maintainer.map(|o| OneMaintainerBody {
+                maintainer: o.maintainer.map(|(_, n)| n),
+                applies: o.applies,
+            }),
             coverage: mb.coverage.map(|c| CoverageBody {
                 approvals: c
                     .approvals

@@ -1250,6 +1250,7 @@ struct RuleForm {
     statuses_on_head_ok: Option<String>,
     dismiss_approvals_on_new_revision: Option<String>,
     ready_waits_for_checks: Option<String>,
+    single_maintainer: Option<String>,
     /// Bot names, separated by commas or spaces.
     #[serde(default)]
     bot_merge_allowlist: String,
@@ -1308,6 +1309,7 @@ async fn save_protection(
                 statuses_on_head_ok: f.statuses_on_head_ok.is_some(),
                 dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
                 ready_waits_for_checks: f.ready_waits_for_checks.is_some(),
+                single_maintainer: f.single_maintainer.is_some(),
                 bot_merge_allowlist: f
                     .bot_merge_allowlist
                     .split(|c: char| c == ',' || c.is_whitespace())

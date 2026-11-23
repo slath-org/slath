@@ -139,6 +139,13 @@ For merging merge requests into a protected branch:
   it builds on changed.
 - **Require resolved threads** and **Require the branch to be up to date
   with the target**.
+- **Only one maintainer: their own review counts** (off by default): for
+  repositories where exactly one person has write access, so nobody else
+  could approve. While that holds, their review of the latest revision
+  counts in place of approvals. People with
+  write access through collaborators, teams, or an organization's owners
+  count; bots and instance admins without such a role don't. A second
+  person with write access ends it at once. Bots can't turn it on.
 
 - **Required status checks:** status contexts that must report `success`
   on the commit that lands, one per line (`ci/build`). Add `by` and names
@@ -150,7 +157,8 @@ For merging merge requests into a protected branch:
   head's statuses.
 
 With several matching rules, the highest number of approvals applies, any
-rule can turn on a requirement, bots count only if every rule allows it
+rule can turn on a requirement, bots count only if every rule allows it,
+the one-maintainer policy applies only if every rule has it,
 and may merge only if every rule lists them,
 and the required checks of all rules apply (with reporter lists, only
 reporters on every list count).

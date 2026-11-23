@@ -840,3 +840,33 @@ pub async fn merge_settings(
     .await?;
     Ok((r.merge_strategies, r.default_merge_strategy))
 }
+
+/// Every active person who may hold write access to the repository by a
+/// grant: direct collaborators, members of teams with access, the owner
+/// of a user namespace (or of the bot whose namespace it is), and owners
+/// of an owning organization. A superset of the writers: callers check
+/// each one's role.
+pub async fn writer_candidates(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<UserId>, DbError> {
+    let rows = sqlx::query_scalar!(
+        r#"SELECT DISTINCT u.id AS "id!" FROM users u WHERE u.kind = 'human' AND u.state = 'active' AND u.id IN (
+             SELECT c.user_id FROM repo_collaborators c WHERE c.repo_id = $1 AND c.role <> 'read'
+             UNION SELECT tm.user_id FROM repo_team_access a JOIN team_members tm ON tm.team_id = a.team_id
+                    WHERE a.repo_id = $1 AND a.role <> 'read'
+             UNION SELECT o.id FROM repositories r JOIN users o ON o.namespace_id = r.namespace_id WHERE r.id = $1
+             UNION SELECT b.bot_owner_id FROM repositories r JOIN users b ON b.namespace_id = r.namespace_id
+                    WHERE r.id = $1 AND b.kind = 'bot' AND b.bot_owner_kind = 'user'
+             UNION SELECT m.user_id FROM repositories r JOIN users b ON b.namespace_id = r.namespace_id
+                    JOIN org_members m ON m.org_id = b.bot_owner_id
+                    WHERE r.id = $1 AND b.kind = 'bot' AND b.bot_owner_kind = 'org' AND m.role = 'owner'
+             UNION SELECT m.user_id FROM repositories r JOIN organizations g ON g.namespace_id = r.namespace_id
+                    JOIN org_members m ON m.org_id = g.id WHERE r.id = $1 AND m.role = 'owner')
+           ORDER BY u.id"#,
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows.into_iter().map(UserId::from_uuid).collect())
+}

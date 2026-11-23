@@ -53,6 +53,8 @@ pub struct Effective {
     /// Any rule's: a bot's merge request marked ready reaches its
     /// reviewers only once the required checks pass on its head.
     pub ready_waits_for_checks: bool,
+    /// Every matching rule has the one-maintainer policy.
+    pub single_maintainer: bool,
 }
 
 impl Effective {
@@ -135,6 +137,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
     let mut e = Effective {
         bots_count_as_approvers: true,
         statuses_on_head_ok: true,
+        single_maintainer: true,
         ..Effective::default()
     };
     let mut bots: Option<Vec<UserId>> = None;
@@ -161,6 +164,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.statuses_on_head_ok &= r.statuses_on_head_ok;
         e.dismiss_approvals_on_new_revision |= r.dismiss_approvals_on_new_revision;
         e.ready_waits_for_checks |= r.ready_waits_for_checks;
+        e.single_maintainer &= r.single_maintainer;
         let lists = reporters_of(r);
         for ctx in &r.required_status_contexts {
             let list = lists.get(ctx).filter(|l| !l.is_empty()).cloned();
@@ -190,6 +194,7 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
     e.bot_mergers = bots.unwrap_or_default();
     if !e.protected {
         e.bots_count_as_approvers = false;
+        e.single_maintainer = false;
     }
     e.required_checks.sort_by(|a, b| a.context.cmp(&b.context));
     e
@@ -235,6 +240,7 @@ pub struct RuleInput {
     /// Names of the bots that may merge into and push to matching branches.
     pub bot_merge_allowlist: Vec<String>,
     pub ready_waits_for_checks: bool,
+    pub single_maintainer: bool,
 }
 
 /// Whether `s` is a valid status context.
@@ -280,6 +286,21 @@ impl Services {
                 "push_role",
                 "invalid",
                 "Choose who may push.",
+            ));
+        }
+        if r.single_maintainer
+            && matches!(
+                subject,
+                Subject::User {
+                    kind: slath_core::authz::UserKind::Bot,
+                    ..
+                }
+            )
+        {
+            return Err(ServiceError::invalid(
+                "single_maintainer",
+                "bot",
+                "Bots can't turn on the one-maintainer policy.",
             ));
         }
         if !(0..=20).contains(&r.required_approvals) {
@@ -367,6 +388,7 @@ impl Services {
                 dismiss_approvals_on_new_revision: r.dismiss_approvals_on_new_revision,
                 bot_merge_allowlist: &bot_mergers,
                 ready_waits_for_checks: r.ready_waits_for_checks,
+                single_maintainer: r.single_maintainer,
             },
         )
         .await?;
@@ -391,6 +413,7 @@ impl Services {
                 "dismiss_approvals_on_new_revision": r.dismiss_approvals_on_new_revision,
                 "bot_merge_allowlist": bot_mergers,
                 "ready_waits_for_checks": r.ready_waits_for_checks,
+                "single_maintainer": r.single_maintainer,
             }),
         )
         .await;
@@ -495,6 +518,7 @@ mod tests {
             dismiss_approvals_on_new_revision: false,
             bot_merge_allowlist: Vec::new(),
             ready_waits_for_checks: true,
+            single_maintainer: false,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

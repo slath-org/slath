@@ -111,6 +111,8 @@ pub struct Mergeability {
     /// What the counting approvers had viewed when they approved; `None`
     /// without counting approvals.
     pub coverage: Option<Coverage>,
+    /// The one-maintainer policy; `None` without the protection setting.
+    pub one_maintainer: Option<crate::one_maintainer::OneMaintainer>,
 }
 
 /// One counting approval's coverage snapshot.
@@ -1211,6 +1213,7 @@ impl Services {
                 "Mark it as ready",
             ));
         }
+        let one_maintainer = self.one_maintainer(&a.repo, &eff).await?;
         let review = self
             .review_requirements(a, m, &eff, prefix.map(|p| p.len))
             .await?;
@@ -1285,6 +1288,7 @@ impl Services {
             requirements: reqs,
             up_to_date,
             coverage,
+            one_maintainer,
         })
     }
 

@@ -166,7 +166,7 @@ impl Services {
     }
 
     /// The role `user`'s grants give on a repository (not site administration).
-    async fn granted_role(&self, repo: &Repo, user: UserId) -> Result<Option<Role>> {
+    pub(crate) async fn granted_role(&self, repo: &Repo, user: UserId) -> Result<Option<Role>> {
         let f = slath_db::repos::role_facts(&self.pool, repo.id, user).await?;
         Ok(authz::effective_role(&authz::RoleGrants {
             site_admin: false,
