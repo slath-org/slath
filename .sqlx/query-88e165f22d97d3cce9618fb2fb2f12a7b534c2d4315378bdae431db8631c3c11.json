@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (merging_since IS NOT NULL AND merging_since >= now() - interval '10 minutes') AS \"m!\"\n             FROM mr_groups WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "m!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "88e165f22d97d3cce9618fb2fb2f12a7b534c2d4315378bdae431db8631c3c11"
+}

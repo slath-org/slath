@@ -419,6 +419,8 @@ pub struct Limits {
     pub mr_list_readiness_rebuilds: usize,
     /// Saved merge request list views per user and repository.
     pub saved_views_per_repo: usize,
+    /// Merge requests in one linked group.
+    pub mr_group_members: usize,
     /// Concurrent archive downloads.
     pub archive_max_concurrent: usize,
     /// API requests per hour for an authenticated principal.
@@ -481,6 +483,7 @@ impl Default for Limits {
             iteration_interdiff_max_bytes: Bytes(1024 * 1024),
             mr_list_readiness_rebuilds: 100,
             saved_views_per_repo: 20,
+            mr_group_members: 10,
             archive_max_concurrent: 4,
             api_requests_per_hour: 5000,
             api_anonymous_requests_per_hour: 300,

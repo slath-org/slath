@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT mr_id FROM mr_group_members WHERE group_id = $1 ORDER BY position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mr_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "mr_group_members",
+            "name": "mr_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cdcf65bf5319ce15f197473dc6df63bb52c3e645de1cefaf0007c01614378101"
+}

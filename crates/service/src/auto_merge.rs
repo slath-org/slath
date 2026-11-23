@@ -61,6 +61,9 @@ impl Services {
         }
         self.check_bot_merge(subject, &a, &m.target_branch).await?;
         let user = subject_user(subject).ok_or(ServiceError::Unauthenticated)?;
+        if self.mr_linked(m.id).await? {
+            return Err(ServiceError::Conflict(crate::mr_groups::LINKED.into()));
+        }
         if m.state != "open" {
             return Err(ServiceError::Conflict(
                 "The merge request isn't open.".into(),

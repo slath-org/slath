@@ -658,6 +658,32 @@ as `landed` instead of `removed`. A commit that carries a change's ID but
 different content only adds a note that the change possibly landed with
 modifications; it doesn't merge the change.
 
+### Linked merge requests
+
+Some changes span repositories: a library and the application that uses
+it, or a service and its client. Link their merge requests so they land
+together, in an order you choose. Git can't land in several repositories
+at once, so Slath checks every one first and merges only when all of them
+are ready, each with its own approvals, checks, and other requirements.
+It then merges them one after another. If a later merge fails anyway,
+for example because someone pushed to its target meanwhile, Slath stops
+there: the group is partially landed and shows what landed, what remains,
+and why it stopped. Merging the group again continues with the rest.
+
+A linked merge request merges only with its group: its own merge, landing
+part of its stack, and merge when ready are refused until you unlink it.
+Merging by pushing the target still works, and the group then shows it as
+partially landed.
+
+You can link merge requests that you may edit (as their author, or with
+the triage role), in this instance's repositories. People see only the
+members they can read. The API sets a group's members in order with
+`PUT …/merge-requests/{n}/group` and
+`{"members": ["acme/lib!4", "acme/app!7"]}`, where the list includes `n`
+and a member can also be given by its URL. `GET` on the same path shows
+the group and `DELETE` unlinks `n`; a group left with one member
+dissolves. A group holds at most 10 merge requests by default.
+
 ## Merge when ready
 
 While a requirement is still missing (an approval, a check, a resolved

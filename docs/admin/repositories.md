@@ -224,12 +224,16 @@ until a later view computes them:
 [limits]
 mr_list_readiness_rebuilds = 100   # 0 groups only what is current
 saved_views_per_repo = 20          # saved list views per person and repository
+mr_group_members = 10              # merge requests in one linked group
 ```
 
 People can save views of the list (its state, filters, view, and order)
 under a name. A saved view is only the list's query: opening it shows
 what that person can read at the time. Saved views are deleted with the
 account or the repository.
+
+Linked merge requests, which merge together across repositories, hold
+at most `mr_group_members` merge requests each.
 
 ## Change sources
 

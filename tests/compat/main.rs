@@ -31,6 +31,7 @@ mod ledger;
 mod merge;
 mod merge_requests;
 mod mergeability;
+mod mr_groups;
 mod oidc_providers;
 mod partial_landing;
 mod readiness;

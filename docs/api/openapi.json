@@ -5989,6 +5989,257 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The group of a merge request; 404 when it isn't linked.",
+        "operationId": "get_group",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Links merge requests into a group, or changes its members and order\n(edit right on every merge request named and on every current member).",
+        "operationId": "put_group",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutGroupBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Unlinks this merge request from its group; a group left with fewer\nthan two members dissolves.",
+        "operationId": "delete_group",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/interdiff": {
       "get": {
         "tags": [
@@ -11351,6 +11602,150 @@
           }
         }
       },
+      "GroupBody": {
+        "type": "object",
+        "description": "A linked group: the members you can read, in merge order.",
+        "required": [
+          "state",
+          "members",
+          "can_edit",
+          "can_merge",
+          "ready",
+          "merging"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "You may change the group (edit every member)."
+          },
+          "can_merge": {
+            "type": "boolean",
+            "description": "You may merge every open member."
+          },
+          "last_failure": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GroupFailureBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMemberBody"
+            }
+          },
+          "merging": {
+            "type": "boolean",
+            "description": "A group merge runs now."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Every open member is mergeable now."
+          },
+          "state": {
+            "type": "string",
+            "description": "`open`, `partially_landed` (some members merged), or `merged`."
+          }
+        }
+      },
+      "GroupFailureBody": {
+        "type": "object",
+        "description": "Why the last group merge stopped.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merge_request": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member it stopped at, if you can read it."
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "GroupMemberBody": {
+        "type": "object",
+        "description": "One member, as far as you can read it.",
+        "required": [
+          "merge_request",
+          "namespace",
+          "repo",
+          "number",
+          "title",
+          "untrusted_content",
+          "origin",
+          "state",
+          "readiness_tone",
+          "readiness",
+          "mergeable",
+          "can_merge"
+        ],
+        "properties": {
+          "can_merge": {
+            "type": "boolean",
+            "description": "You may merge it."
+          },
+          "head_oid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merge_request": {
+            "type": "string",
+            "description": "`ns/repo!n`."
+          },
+          "mergeable": {
+            "type": "boolean",
+            "description": "Mergeable now with all its own requirements."
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "readiness_tone": {
+            "type": "string",
+            "description": "The readiness card's tone: `done`, `waiting`, or `blocking`."
+          },
+          "repo": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`open`, `merged`, or `closed`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "The title is user-generated text."
+          }
+        }
+      },
       "HeldFinding": {
         "type": "object",
         "description": "A possible secret, redacted: the excerpt keeps four characters of it.",
@@ -13417,6 +13812,19 @@
           "role": {
             "type": "string",
             "description": "`read`, `write`, `maintain`, or `admin`."
+          }
+        }
+      },
+      "PutGroupBody": {
+        "type": "object",
+        "description": "Every field is optional in the JSON so that authorization runs first.",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every member in merge order, including this merge request:\n`ns/repo!n` or merge request URLs. Merged members stay, first."
           }
         }
       },

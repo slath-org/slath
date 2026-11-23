@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_groups SET merging_since = NULL, last_failure = $2 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b0f0aa85469d26b347904c12f2c8e163cd68c8a1fb20122e626b155bf6f4c4a"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mr_groups SET merging_since = now()\n          WHERE id = $1 AND (merging_since IS NULL OR merging_since < now() - interval '10 minutes')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ab082d051b2f6d2fb900f627b45147c912ef9126d69feba8b61a779d575070c7"
+}

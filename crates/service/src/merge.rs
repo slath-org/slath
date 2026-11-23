@@ -184,6 +184,7 @@ impl Services {
 
     /// Merges a merge request: checks the head and the requirements,
     /// builds the result, and moves the target by compare-and-swap.
+    /// A linked merge request merges only with its group.
     pub async fn merge_mr(
         &self,
         subject: &Subject,
@@ -191,6 +192,22 @@ impl Services {
         input: &MergeInput,
     ) -> Result<MergeRequest> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
+        if !a.can(subject, Action::MrMerge) {
+            return Err(ServiceError::Forbidden);
+        }
+        if self.mr_linked(m.id).await? {
+            return Err(ServiceError::Conflict(crate::mr_groups::LINKED.into()));
+        }
+        self.merge_one(subject, (a, m), input).await
+    }
+
+    /// Merges one merge request (also a group's member).
+    pub(crate) async fn merge_one(
+        &self,
+        subject: &Subject,
+        (a, m): (RepoAccess, MergeRequest),
+        input: &MergeInput,
+    ) -> Result<MergeRequest> {
         if !a.can(subject, Action::MrMerge) {
             return Err(ServiceError::Forbidden);
         }
@@ -374,7 +391,7 @@ impl Services {
     /// Refuses a merge or squash message with secrets that block rules
     /// find, unless the repository's push protection is off or warns, or
     /// an allowance or the allowlist lets them through.
-    async fn scan_message(
+    pub(crate) async fn scan_message(
         &self,
         a: &RepoAccess,
         m: &MergeRequest,
