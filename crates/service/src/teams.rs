@@ -170,16 +170,17 @@ impl Services {
         let team = slath_db::teams::find(&self.pool, org, team)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        let user = match slath_db::orgs::resolve_namespace(&self.pool, username.trim()).await? {
-            Some((_, _, NamespaceKind::User(u))) => u,
-            _ => {
-                return Err(ServiceError::invalid(
-                    "username",
-                    "unknown",
-                    "There's no user with this name.",
-                ));
-            }
-        };
+        let user =
+            match slath_db::orgs::resolve_namespace(&self.pool, crate::one_name(username)).await? {
+                Some((_, _, NamespaceKind::User(u))) => u,
+                _ => {
+                    return Err(ServiceError::invalid(
+                        "username",
+                        "unknown",
+                        "There's no user with this name.",
+                    ));
+                }
+            };
         if slath_db::orgs::role_of(&self.pool, org, user)
             .await?
             .is_none()

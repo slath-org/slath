@@ -67,6 +67,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Picking a suggested name in a field for one person (collaborator, author and assignee filters) no longer adds a comma that made saving or filtering fail.
 - Merging in Slath no longer counts as your push, so the branch it merged into doesn't show as "You pushed to … recently".
 
 ### Security

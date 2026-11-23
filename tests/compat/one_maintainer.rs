@@ -731,3 +731,31 @@ fn conf_review_32_settings_warn_about_requirements_nobody_can_meet() {
     // Without one maintainer, the protection page warns about nothing.
     assert!(!ui.get(page).body.contains("only alice"));
 }
+
+/// A collaborator's name as a picker or a paste leaves it ("bob,",
+/// "@bob ") is that name.
+#[test]
+fn a_collaborator_name_with_a_trailing_comma_is_the_name() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    s.create_user("carol", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let mut ui = s.login("alice", PASSWORD);
+    for name in ["bob, ", "@carol"] {
+        let r = slath_tests::http::submit(
+            &mut ui,
+            "/alice/demo/settings/access",
+            "/alice/demo/settings/access",
+            &[("username", name), ("role", "read")],
+        );
+        assert_eq!(r.status, 303, "{name}: {}", r.body);
+    }
+    let list = api(&s, &alice, "GET", "/collaborators", None).json();
+    let names: Vec<&str> = list["items"]
+        .as_array()
+        .unwrap_or_else(|| list.as_array().unwrap())
+        .iter()
+        .filter_map(|c| c["username"].as_str())
+        .collect();
+    assert_eq!(names, ["bob", "carol"], "{list}");
+}

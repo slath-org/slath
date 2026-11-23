@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Suggestions for username fields: an ARIA combobox on the input with a
-// listbox below it. As the person types, the last name of a
-// comma-separated list (or, with `data-suggest-single`, the field's one
-// name) is completed from /-/ui/references: people who can be mentioned in
+// listbox below it. As the person types, the field's one name is completed
+// (or, in a field for several names, `data-names`, the last name of its
+// comma-separated list) from /-/ui/references: people who can be mentioned in
 // the repository, and with `data-suggest-teams` also teams of its
 // organization (`org/team`). Up/Down choose, Enter or Tab accept, Escape
 // closes. Without JavaScript the field is a plain text box.
@@ -22,7 +22,9 @@ let seq = 0;
 function attach(input: HTMLInputElement): void {
   const repo = input.dataset.suggestUsers ?? "";
   const item = input.dataset.suggestItem ?? "";
-  const single = input.dataset.suggestSingle !== undefined;
+  // One name unless the field takes several: picking one in a field for a
+  // single name must not leave a list separator behind.
+  const single = input.dataset.suggestSingle !== undefined || input.dataset.names === undefined;
   const teams = input.dataset.suggestTeams !== undefined;
   const id = `user-suggestions-${++seq}`;
   const list = document.createElement("ul");

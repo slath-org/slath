@@ -75,3 +75,23 @@ test.describe("time zone", () => {
     await expect(zone).toHaveValue("America/New_York");
   });
 });
+
+// Picking a suggestion in a field for one name leaves just that name: no
+// list separator that would make saving fail.
+test("ux_single_name_fields_take_the_picked_name_alone", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  for (const [path, label] of [
+    ["/alice/demo/settings/access", "Username"],
+    ["/alice/demo/merge-requests", "Author"],
+  ] as const) {
+    await page.goto(path);
+    const field = page.getByRole("combobox", { name: label });
+    if (!(await field.isVisible())) {
+      await tapOrClick(page, page.getByText("Filters", { exact: true }));
+    }
+    await field.pressSequentially("ali");
+    await expect(page.getByRole("listbox", { name: "People" }).getByRole("option").first()).toContainText("alice");
+    await field.press("Enter");
+    await expect(field).toHaveValue("alice");
+  }
+});

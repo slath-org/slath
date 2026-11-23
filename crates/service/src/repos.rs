@@ -710,7 +710,8 @@ impl Services {
         role: Role,
     ) -> Result<()> {
         self.authorize(subject, a, Action::CollaboratorsManage)?;
-        let user = match slath_db::orgs::resolve_namespace(&self.pool, username.trim()).await? {
+        let username = crate::one_name(username);
+        let user = match slath_db::orgs::resolve_namespace(&self.pool, username).await? {
             Some((_, _, NamespaceKind::User(u))) => u,
             _ => {
                 return Err(ServiceError::invalid(

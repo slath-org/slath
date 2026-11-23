@@ -915,7 +915,7 @@ impl Services {
         me: UserId,
         name: &str,
     ) -> Result<(db::DeferTo, String)> {
-        let name = name.trim().trim_start_matches('@');
+        let name = crate::one_name(name);
         if name.contains('/') {
             let t = self.repo_team(a, "defer_to", name).await?;
             return Ok((db::DeferTo::Team(t), name.to_owned()));

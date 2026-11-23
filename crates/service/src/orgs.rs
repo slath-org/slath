@@ -162,16 +162,17 @@ impl Services {
         role: OrgRole,
     ) -> Result<()> {
         self.require_org_owner(subject, org).await?;
-        let target = match slath_db::orgs::resolve_namespace(&self.pool, username.trim()).await? {
-            Some((_, _, NamespaceKind::User(u))) => u,
-            _ => {
-                return Err(ServiceError::invalid(
-                    "username",
-                    "unknown",
-                    "There's no user with this name.",
-                ));
-            }
-        };
+        let target =
+            match slath_db::orgs::resolve_namespace(&self.pool, crate::one_name(username)).await? {
+                Some((_, _, NamespaceKind::User(u))) => u,
+                _ => {
+                    return Err(ServiceError::invalid(
+                        "username",
+                        "unknown",
+                        "There's no user with this name.",
+                    ));
+                }
+            };
         if role == OrgRole::Owner
             && slath_db::users::get(&self.pool, target)
                 .await?

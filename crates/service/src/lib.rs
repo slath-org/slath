@@ -122,6 +122,16 @@ pub struct Services {
     pub logo_cache: Arc<logos::LogoCache>,
 }
 
+/// One person's name as typed, pasted, or left by a picker: without
+/// surrounding spaces, a leading `@`, or a trailing list separator ("@bob,"
+/// is bob).
+#[must_use]
+pub fn one_name(s: &str) -> &str {
+    s.trim()
+        .trim_start_matches('@')
+        .trim_end_matches(|c: char| c == ',' || c.is_whitespace())
+}
+
 impl Services {
     #[must_use]
     pub fn new(
@@ -173,5 +183,17 @@ impl Services {
     ) -> Self {
         self.envelope = Arc::new(slath_auth::Envelope::new(master, old));
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn one_name_drops_what_pickers_and_pastes_leave() {
+        for s in ["bob", " bob ", "@bob", "bob,", "bob, ", " @bob ,"] {
+            assert_eq!(super::one_name(s), "bob", "{s:?}");
+        }
+        assert_eq!(super::one_name("acme/team,"), "acme/team");
+        assert_eq!(super::one_name(","), "");
     }
 }

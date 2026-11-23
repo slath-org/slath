@@ -304,7 +304,7 @@ impl Services {
         let user = |name: &Option<String>| {
             let name = name
                 .as_deref()
-                .map(str::trim)
+                .map(crate::one_name)
                 .filter(|n| !n.is_empty())
                 .map(str::to_owned);
             async move {
