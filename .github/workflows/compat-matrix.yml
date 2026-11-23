@@ -60,16 +60,18 @@ jobs:
     env:
       SQLX_OFFLINE: "true"
       DATABASE_URL: postgres://slath:slath@localhost:5432/slath
-      SLATH_TOOLS_DIR: ${{ github.workspace }}/target/tools
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The clients live in the install scripts' default ~/.cache/slath/tools,
+      # not under target/: rust-cache empties target/ when its cache doesn't
+      # fully match, which deleted the Git built in the step before it.
       - name: Cache pinned clients
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: target/tools
-          key: compat-tools-${{ runner.arch }}-${{ hashFiles('tests/compat/versions.toml') }}
+          path: ~/.cache/slath/tools
+          key: compat-tools-v2-${{ runner.arch }}-${{ hashFiles('tests/compat/versions.toml') }}
       - name: Install the pinned Git
         run: |
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libexpat1-dev zlib1g-dev
