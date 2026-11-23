@@ -38,6 +38,16 @@ pub enum Verdict {
     Approve,
     RequestChanges,
     Comment,
+    /// The one maintainer's review under the one-maintainer policy: never
+    /// an approval, and counted only by that policy.
+    AccountableReview,
+}
+
+/// Whether a verdict decides a reviewer's standing: an approval or a
+/// request for changes (comments and the one maintainer's review don't).
+#[must_use]
+pub fn decisive(verdict: &str) -> bool {
+    matches!(verdict, "approve" | "request_changes")
 }
 
 impl Verdict {
@@ -47,6 +57,7 @@ impl Verdict {
             "approve" => Some(Self::Approve),
             "request_changes" => Some(Self::RequestChanges),
             "comment" => Some(Self::Comment),
+            "accountable_review" => Some(Self::AccountableReview),
             _ => None,
         }
     }
@@ -57,6 +68,7 @@ impl Verdict {
             Self::Approve => "approve",
             Self::RequestChanges => "request_changes",
             Self::Comment => "comment",
+            Self::AccountableReview => "accountable_review",
         }
     }
 }
@@ -113,6 +125,9 @@ pub struct Mergeability {
     pub coverage: Option<Coverage>,
     /// The one-maintainer policy; `None` without the protection setting.
     pub one_maintainer: Option<crate::one_maintainer::OneMaintainer>,
+    /// Requirements the policy met (`approvals`, `sensitive_paths`): a
+    /// merge records it.
+    pub by_policy: Vec<&'static str>,
 }
 
 /// One counting approval's coverage snapshot.
@@ -344,9 +359,9 @@ impl History {
 /// included), and that change kept its patch.
 #[must_use]
 pub fn counting(reviews: &[Review], h: &History) -> Vec<ReviewView> {
-    let decisive: Vec<&Review> = reviews.iter().filter(|r| r.verdict != "comment").collect();
+    let decisive_reviews: Vec<&Review> = reviews.iter().filter(|r| decisive(&r.verdict)).collect();
     let latest = |r: &Review| {
-        decisive
+        decisive_reviews
             .iter()
             .rev()
             .find(|o| {
@@ -361,7 +376,7 @@ pub fn counting(reviews: &[Review], h: &History) -> Vec<ReviewView> {
         .map(|r| {
             // A deferring approval replaces the reviewer's earlier verdicts
             // and never counts itself, so it's never stale either.
-            let decisive = r.verdict != "comment"
+            let decisive = decisive(&r.verdict)
                 && !r.deferred
                 && r.reviewer_id.is_some()
                 && latest(r) == Some(r.id);
@@ -399,8 +414,7 @@ pub fn standings(reviews: &[Review], h: &History, order: &[uuid::Uuid]) -> Vec<S
         .map(|k| {
             let mut latest: Vec<(UserId, &Review)> = Vec::new();
             for r in reviews.iter().filter(|r| {
-                r.verdict != "comment"
-                    && (r.change_id.is_none() || (k.is_some() && r.change_id == k))
+                decisive(&r.verdict) && (r.change_id.is_none() || (k.is_some() && r.change_id == k))
             }) {
                 let Some(u) = r.reviewer_id else { continue };
                 match latest.iter_mut().find(|(v, _)| *v == u) {
@@ -479,7 +493,9 @@ impl Services {
                 "Choose comment, approve, or request changes.",
             )
         })?;
-        if verdict != Verdict::Comment && m.author_id == Some(*me) {
+        if verdict == Verdict::AccountableReview {
+            self.check_one_maintainer(&a, &m, *me, change).await?;
+        } else if verdict != Verdict::Comment && m.author_id == Some(*me) {
             return Err(ServiceError::invalid(
                 "verdict",
                 "own",
@@ -513,7 +529,9 @@ impl Services {
         // An approval's coverage: the files of the revision's (or the
         // change's) diff the approver viewed, as they are in it. A
         // deferring approval counts for nothing, so it takes none.
-        let coverage = if verdict == Verdict::Approve && defer.is_none() {
+        let coverage = if (verdict == Verdict::Approve && defer.is_none())
+            || verdict == Verdict::AccountableReview
+        {
             Some(self.coverage_snapshot(&m, *me, change.as_ref()).await?)
         } else {
             None
@@ -1136,11 +1154,14 @@ impl Services {
     /// to sensitive paths need an approval of every change by a person
     /// with the maintain role or higher, other than the author
     /// (`maintainers`). Bots never satisfy it.
+    /// The sensitive-path requirement, and whether the one-maintainer
+    /// policy met it.
     async fn sensitive_requirement(
         &self,
         m: &MergeRequest,
         maintainers: &[String],
-    ) -> Result<Option<Requirement>> {
+        policy: Option<&crate::one_maintainer::PolicyReview>,
+    ) -> Result<Option<(Requirement, bool)>> {
         let touched = self.mr_sensitive_changes(m).await?;
         if touched.is_empty() {
             return Ok(None);
@@ -1154,20 +1175,26 @@ impl Services {
         if touched.len() > 10 {
             let _ = write!(list, " and {} more", touched.len() - 10);
         }
-        Ok(Some(if maintainers.is_empty() {
-            unmet(
-                "sensitive_paths",
-                format!("Changes sensitive paths: {list}. Needs an approval by a maintainer."),
-                "Ask a maintainer to review",
-            )
-        } else {
-            met(
-                "sensitive_paths",
-                format!(
-                    "Changes sensitive paths ({list}); approved by a maintainer: {}.",
-                    maintainers.join(", ")
+        Ok(Some(match (maintainers.is_empty(), policy) {
+            (true, Some(p)) => p.sensitive(&list),
+            (true, None) => (
+                unmet(
+                    "sensitive_paths",
+                    format!("Changes sensitive paths: {list}. Needs an approval by a maintainer."),
+                    "Ask a maintainer to review",
                 ),
-            )
+                false,
+            ),
+            (false, _) => (
+                met(
+                    "sensitive_paths",
+                    format!(
+                        "Changes sensitive paths ({list}); approved by a maintainer: {}.",
+                        maintainers.join(", ")
+                    ),
+                ),
+                false,
+            ),
         }))
     }
 
@@ -1218,6 +1245,10 @@ impl Services {
             .review_requirements(a, m, &eff, prefix.map(|p| p.len))
             .await?;
         let coverage = review.coverage;
+        let mut by_policy = Vec::new();
+        if review.by_policy {
+            by_policy.push("approvals");
+        }
         reqs.push(review.approvals);
         reqs.push(review.changes_requested);
         let (up_to_date, up_req) = self.up_to_date(lands).await?;
@@ -1225,10 +1256,13 @@ impl Services {
             reqs.push(up_req);
         }
         if eff.protected
-            && let Some(r) = self
-                .sensitive_requirement(lands, &review.maintainers)
+            && let Some((r, policy)) = self
+                .sensitive_requirement(lands, &review.maintainers, review.policy.as_ref())
                 .await?
         {
+            if policy {
+                by_policy.push("sensitive_paths");
+            }
             reqs.push(r);
         }
         reqs.extend(self.check_requirements(lands, &eff, up_to_date).await?);
@@ -1289,6 +1323,7 @@ impl Services {
             up_to_date,
             coverage,
             one_maintainer,
+            by_policy,
         })
     }
 

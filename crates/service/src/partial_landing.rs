@@ -96,7 +96,7 @@ impl Services {
         subject: &Subject,
         (a, m): (&RepoAccess, &MergeRequest),
         p: &Prefix,
-        strategy: &str,
+        (strategy, by_policy): (&str, &[&'static str]),
         input: &MergeInput,
         user: UserId,
     ) -> Result<MergeRequest> {
@@ -190,14 +190,18 @@ impl Services {
             *m.id.as_uuid(),
             Some(user),
             "changes_landed",
-            &serde_json::json!({
-                "changes": p.changes,
-                "oid": result.as_str(),
-                "target": m.target_branch,
-                "strategy": strategy,
-            }),
+            &crate::merge::policy_detail(
+                serde_json::json!({
+                    "changes": p.changes,
+                    "oid": result.as_str(),
+                    "target": m.target_branch,
+                    "strategy": strategy,
+                }),
+                by_policy,
+            ),
         )
         .await?;
+        Self::record_policy(&mut tx, m, user, by_policy).await?;
         tx.commit().await.map_err(internal)?;
         self.record_push(
             a.repo.id,

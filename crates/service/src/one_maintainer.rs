@@ -8,11 +8,109 @@
 
 use slath_core::authz::Role;
 use slath_core::ids::UserId;
+use slath_db::merge_requests::MergeRequest;
+use slath_db::mr_reviews::Review;
 use slath_db::repos::Repo;
 
 use crate::Services;
-use crate::error::Result;
+use crate::error::{Result, ServiceError};
+use crate::mr_reviews::{ApprovalCoverage, Requirement, met, unmet};
 use crate::protections::Effective;
+use crate::repos::RepoAccess;
+
+/// Refusal of the maintainer's review to anyone else.
+pub const ONLY_MAINTAINER: &str =
+    "Only the repository's one maintainer can record a review under the one-maintainer policy.";
+
+/// The maintainer's review that counts under the policy.
+#[derive(Debug, Clone)]
+pub struct PolicyReview {
+    /// The maintainer's name.
+    pub name: String,
+    /// Their review of the exact head, with its coverage; `None` without one.
+    pub review: Option<(Review, ApprovalCoverage)>,
+}
+
+impl PolicyReview {
+    /// Whether the review viewed every file of the diff.
+    #[must_use]
+    pub fn complete(&self) -> bool {
+        self.review
+            .as_ref()
+            .is_some_and(|(_, c)| c.files_viewed >= c.files_total)
+    }
+
+    /// The approvals requirement under the policy, from `approvals` as
+    /// the normal rules have it; whether the policy met it.
+    #[must_use]
+    pub fn approvals(&self, mut approvals: Requirement) -> (Requirement, bool) {
+        if approvals.state == "met" {
+            return (approvals, false);
+        }
+        match &self.review {
+            Some((_, c)) => (
+                met(
+                    "approvals",
+                    format!(
+                        "Reviewed by {} under the one-maintainer policy ({}).",
+                        self.name,
+                        c.describe()
+                    ),
+                ),
+                true,
+            ),
+            None => {
+                approvals.reason.push_str(&format!(
+                    " Under the one-maintainer policy, {}'s review of this revision counts.",
+                    self.name
+                ));
+                approvals.fix = Some("Review it".to_owned());
+                (approvals, false)
+            }
+        }
+    }
+
+    /// The sensitive-path requirement under the policy for the paths
+    /// `list`, when no maintainer's approval meets it; whether the policy
+    /// met it.
+    #[must_use]
+    pub fn sensitive(&self, list: &str) -> (Requirement, bool) {
+        match &self.review {
+            Some(_) if self.complete() => (
+                met(
+                    "sensitive_paths",
+                    format!(
+                        "Changes sensitive paths ({list}); reviewed by {} under the one-maintainer policy with every file viewed.",
+                        self.name
+                    ),
+                ),
+                true,
+            ),
+            Some((_, c)) => (
+                unmet(
+                    "sensitive_paths",
+                    format!(
+                        "Changes sensitive paths: {list}. Under the one-maintainer policy, {}'s review needs every file viewed: {} of {} are.",
+                        self.name, c.files_viewed, c.files_total
+                    ),
+                    "Review every file",
+                ),
+                false,
+            ),
+            None => (
+                unmet(
+                    "sensitive_paths",
+                    format!(
+                        "Changes sensitive paths: {list}. Under the one-maintainer policy, {}'s review of this revision with every file viewed counts.",
+                        self.name
+                    ),
+                    "Review it",
+                ),
+                false,
+            ),
+        }
+    }
+}
 
 /// The policy as it stands for one protection and repository.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,5 +166,105 @@ impl Services {
             maintainer: Some((u, name)),
             applies: true,
         }))
+    }
+
+    /// Refuses the maintainer's review unless the subject is the one
+    /// maintainer while the policy applies, for the whole merge request.
+    pub(crate) async fn check_one_maintainer(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        me: UserId,
+        change: Option<&str>,
+    ) -> Result<()> {
+        if change.is_some_and(|c| !c.trim().is_empty()) {
+            return Err(ServiceError::invalid(
+                "change",
+                "accountable_review",
+                "A review under the one-maintainer policy covers the whole merge request.",
+            ));
+        }
+        let eff = self.effective_for(m).await?;
+        match self.one_maintainer(&a.repo, &eff).await? {
+            Some(OneMaintainer {
+                maintainer: Some((u, _)),
+                applies: true,
+            }) if u == me => Ok(()),
+            _ => Err(ServiceError::invalid(
+                "verdict",
+                "accountable_review",
+                ONLY_MAINTAINER,
+            )),
+        }
+    }
+
+    /// The maintainer's review under the policy: their latest
+    /// `accountable_review`, if it was given on the current head. `None`
+    /// when the policy doesn't apply.
+    pub(crate) async fn policy_review(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        eff: &Effective,
+        reviews: &[Review],
+    ) -> Result<Option<PolicyReview>> {
+        let Some(OneMaintainer {
+            maintainer: Some((u, name)),
+            applies: true,
+        }) = self.one_maintainer(&a.repo, eff).await?
+        else {
+            return Ok(None);
+        };
+        let latest = reviews
+            .iter()
+            .rev()
+            .find(|r| r.reviewer_id == Some(u) && r.verdict == "accountable_review");
+        let Some(r) = latest else {
+            return Ok(Some(PolicyReview { name, review: None }));
+        };
+        let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
+        let head_of = |seq: i32| {
+            revs.iter()
+                .find(|v| v.seq == seq)
+                .map(|v| v.head_oid.as_str())
+        };
+        if head_of(r.revision_seq) != m.head_oid.as_deref() {
+            return Ok(Some(PolicyReview { name, review: None }));
+        }
+        let coverage = self
+            .approval_coverage(m, &[(r, name.clone())])
+            .await?
+            .and_then(|c| c.approvals.into_iter().next());
+        Ok(Some(PolicyReview {
+            review: coverage.map(|c| (r.clone(), c)),
+            name,
+        }))
+    }
+
+    /// Records in the merge's transaction that the one-maintainer policy
+    /// met `by_policy` (nothing when it met none).
+    pub(crate) async fn record_policy(
+        tx: &mut sqlx::PgConnection,
+        m: &MergeRequest,
+        user: UserId,
+        by_policy: &[&'static str],
+    ) -> Result<()> {
+        if by_policy.is_empty() {
+            return Ok(());
+        }
+        slath_db::mr_ledger::append(
+            &mut *tx,
+            m.id,
+            &slath_db::mr_ledger::NewEntry {
+                revision_seq: Some(m.revisions),
+                kind: "one_maintainer_policy",
+                reason: Some("one_maintainer"),
+                detail: serde_json::json!({"maintainer": user.as_uuid(), "met": by_policy}),
+                actor: Some(user),
+                ..Default::default()
+            },
+        )
+        .await?;
+        Ok(())
     }
 }

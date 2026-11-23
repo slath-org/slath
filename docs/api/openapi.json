@@ -7085,7 +7085,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Reviews the current revision, or one change of it. The author may only comment; a comment\nneeds a body.",
+        "summary": "Reviews the current revision, or one change of it. The author may only comment (or, as the\none maintainer under the one-maintainer policy, record `accountable_review`); a comment\nneeds a body.",
         "operationId": "create_review",
         "parameters": [
           {
@@ -13404,7 +13404,7 @@
           },
           "verdict": {
             "type": "string",
-            "description": "`approve`, `request_changes`, or `comment` (default)."
+            "description": "`approve`, `request_changes`, or `comment` (default); or\n`accountable_review`: the repository's one maintainer's review of\nthe exact head under the one-maintainer policy, also of their own\nmerge request (never an approval; `change` can't be given)."
           }
         }
       },

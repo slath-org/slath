@@ -394,6 +394,31 @@ or higher, other than the author. Approvals by bots never count for this,
 even where bot approvals count otherwise. The readiness card says
 "Maintainer approval required" and lists the files.
 
+### Working alone
+
+On your own repository you can push to `main` directly, and merge
+requests need no approval unless you protect a branch. If you protect it
+anyway, to make every change go through a merge request and its checks,
+nobody else can approve: your own approval never counts. Turn on **Only
+one maintainer: their own review counts** in the branch protection rule
+(`"single_maintainer": true`). While you're the only person with write
+access, you then review your own merge request and that review counts in
+place of approvals.
+
+Review the changes, then record your review with
+`POST …/merge-requests/{n}/reviews` and `{"verdict": "accountable_review"}`. It counts
+for the revision you reviewed: after a new push, even a plain rebase,
+review again. For a change to a sensitive path it counts once you've
+marked every file viewed before submitting it. Required checks still need
+a status from someone other than you or your bots, and bots still can't
+push sensitive paths. Your review never shows or counts as an approval;
+the timeline and the ledger record that the merge happened under the
+one-maintainer policy.
+
+Once a second person has write access, for example a collaborator or a
+team, the normal rules apply again at once: open merge requests need
+their approval as before.
+
 Every merge request page opens with a **readiness card**: one headline
 (such as "Ready to merge", "Approval required", or "Conflicts with
 main"), the reason, and the one thing you can do next, chosen for you:

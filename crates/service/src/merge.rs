@@ -43,6 +43,18 @@ fn internal(e: impl std::fmt::Display) -> ServiceError {
     ServiceError::internal(e.to_string())
 }
 
+/// An event's detail, with `policy: "one_maintainer"` when the
+/// one-maintainer policy met a requirement of the merge.
+pub(crate) fn policy_detail(
+    mut detail: serde_json::Value,
+    by_policy: &[&'static str],
+) -> serde_json::Value {
+    if !by_policy.is_empty() {
+        detail["policy"] = serde_json::json!("one_maintainer");
+    }
+    detail
+}
+
 fn oid(s: &str) -> Result<ObjectId> {
     ObjectId::parse(s).map_err(internal)
 }
@@ -264,7 +276,14 @@ impl Services {
         }
         if let Some(p) = &prefix {
             return self
-                .land_prefix(subject, (&a, &m), p, &strategy, input, user)
+                .land_prefix(
+                    subject,
+                    (&a, &m),
+                    p,
+                    (&strategy, &mb.by_policy),
+                    input,
+                    user,
+                )
                 .await;
         }
         let committer = self.identity(subject).await?;
@@ -331,6 +350,7 @@ impl Services {
         )
         .await?;
         slath_db::mr_changes::set_merged(&mut *tx, m.id, m.revisions).await?;
+        Self::record_policy(&mut tx, &m, user, &mb.by_policy).await?;
         for (old_c, new_c) in &signatures {
             slath_db::mr_ledger::append(
                 &mut *tx,
@@ -354,7 +374,10 @@ impl Services {
             *m.id.as_uuid(),
             Some(user),
             "merged",
-            &serde_json::json!({"strategy": strategy, "oid": result.as_str(), "target": m.target_branch}),
+            &policy_detail(
+                serde_json::json!({"strategy": strategy, "oid": result.as_str(), "target": m.target_branch}),
+                &mb.by_policy,
+            ),
         )
         .await?;
         tx.commit().await.map_err(internal)?;

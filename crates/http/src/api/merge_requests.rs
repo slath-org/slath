@@ -720,7 +720,10 @@ pub async fn list_reviews(
 
 #[derive(Deserialize, ToSchema)]
 pub struct NewReview {
-    /// `approve`, `request_changes`, or `comment` (default).
+    /// `approve`, `request_changes`, or `comment` (default); or
+    /// `accountable_review`: the repository's one maintainer's review of
+    /// the exact head under the one-maintainer policy, also of their own
+    /// merge request (never an approval; `change` can't be given).
     #[serde(default = "comment")]
     pub verdict: String,
     #[serde(default)]
@@ -743,7 +746,8 @@ fn comment() -> String {
     "comment".to_owned()
 }
 
-/// Reviews the current revision, or one change of it. The author may only comment; a comment
+/// Reviews the current revision, or one change of it. The author may only comment (or, as the
+/// one maintainer under the one-maintainer policy, record `accountable_review`); a comment
 /// needs a body.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = NewReview,
     responses((status = 201, body = MrReview), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]

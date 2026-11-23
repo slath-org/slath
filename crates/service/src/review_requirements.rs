@@ -112,7 +112,10 @@ pub(crate) fn approvals_requirement(
 /// claim: "alice approved and left the decision to bob."
 pub(crate) fn deferrals(reviews: &[Review]) -> Vec<String> {
     let mut latest: Vec<&Review> = Vec::new();
-    for r in reviews.iter().filter(|r| r.verdict != "comment") {
+    for r in reviews
+        .iter()
+        .filter(|r| crate::mr_reviews::decisive(&r.verdict))
+    {
         match latest.iter_mut().find(|o| o.reviewer_id == r.reviewer_id) {
             Some(o) => *o = r,
             None => latest.push(r),
@@ -174,6 +177,10 @@ pub(crate) struct ReviewRequirements {
     /// sensitive-path requirement.
     pub maintainers: Vec<String>,
     pub coverage: Option<Coverage>,
+    /// The maintainer's review while the one-maintainer policy applies.
+    pub policy: Option<crate::one_maintainer::PolicyReview>,
+    /// The policy met the approvals requirement.
+    pub by_policy: bool,
 }
 
 /// Each standing among the people whose verdicts count, by name.
@@ -375,11 +382,20 @@ impl Services {
                 approvals.reason.push_str(&d);
             }
         }
+        // Under the one-maintainer policy, the maintainer's own review of
+        // the exact head meets what only another person could.
+        let policy = self.policy_review(a, m, eff, &reviews).await?;
+        let mut by_policy = false;
+        if let Some(p) = &policy {
+            (approvals, by_policy) = p.approvals(approvals);
+        }
         Ok(ReviewRequirements {
             approvals,
             changes_requested: blockers_requirement(&judged),
             maintainers,
             coverage,
+            policy,
+            by_policy,
         })
     }
 }

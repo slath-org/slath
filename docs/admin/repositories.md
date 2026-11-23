@@ -142,7 +142,8 @@ For merging merge requests into a protected branch:
 - **Only one maintainer: their own review counts** (off by default): for
   repositories where exactly one person has write access, so nobody else
   could approve. While that holds, their review of the latest revision
-  counts in place of approvals. People with
+  counts in place of approvals (see
+  [working alone](../user/merge-requests.md#working-alone)). People with
   write access through collaborators, teams, or an organization's owners
   count; bots and instance admins without such a role don't. A second
   person with write access ends it at once. Bots can't turn it on.
