@@ -3356,6 +3356,7 @@
         "tags": [
           "repos"
         ],
+        "summary": "A commit with the files it changes (compared with its first parent).",
         "operationId": "get_commit",
         "parameters": [
           {
@@ -3418,7 +3419,7 @@
         "tags": [
           "repos"
         ],
-        "summary": "A commit with the files it changes (compared with its first parent).\nA commit's diff against its first parent, as plain text (`git diff`).",
+        "summary": "A commit's diff against its first parent, as plain text (`git diff`).",
         "operationId": "get_commit_diff",
         "parameters": [
           {

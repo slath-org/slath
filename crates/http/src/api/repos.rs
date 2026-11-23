@@ -471,7 +471,6 @@ pub struct CommitDetail {
     pub files_limit: Option<String>,
 }
 
-/// A commit with the files it changes (compared with its first parent).
 /// A commit's diff against its first parent, as plain text (`git diff`).
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}/diff", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
     responses((status = 200, content_type = "text/plain", body = String), (status = 404, body = super::Problem), (status = 413, body = super::Problem)))]
@@ -496,6 +495,7 @@ pub async fn get_commit_patch(
     crate::plain::commit(&state, &a, &oid, crate::plain::Format::Patch).await
 }
 
+/// A commit with the files it changes (compared with its first parent).
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/commits/{oid}", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("oid" = String, Path)),
     responses((status = 200, body = CommitDetail), (status = 404, body = super::Problem)))]
 pub async fn get_commit(
