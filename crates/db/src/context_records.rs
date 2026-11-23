@@ -217,17 +217,6 @@ pub async fn owns_uploader(
     .unwrap_or(false))
 }
 
-/// A repository's context settings: (detail level, Entire import on).
-pub async fn settings(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<(String, bool), DbError> {
-    let r = sqlx::query!(
-        "SELECT context_detail, context_entire_import FROM repositories WHERE id = $1",
-        repo.as_uuid()
-    )
-    .fetch_one(exec)
-    .await?;
-    Ok((r.context_detail, r.context_entire_import))
-}
-
 pub async fn set_settings(
     exec: impl PgExecutor<'_>,
     repo: RepoId,

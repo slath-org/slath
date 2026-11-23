@@ -57,9 +57,12 @@ fn user_id(subject: &Subject) -> Result<UserId> {
 
 impl Services {
     /// A repository's context settings: (detail level, Entire import on).
-    pub async fn context_settings(&self, a: &RepoAccess) -> Result<(Detail, bool)> {
-        let (detail, entire) = slath_db::context_records::settings(&self.pool, a.repo.id).await?;
-        Ok((Detail::parse(&detail).unwrap_or(Detail::Summary), entire))
+    #[must_use]
+    pub fn context_settings(a: &RepoAccess) -> (Detail, bool) {
+        (
+            Detail::parse(&a.repo.context_detail).unwrap_or(Detail::Summary),
+            a.repo.context_entire_import,
+        )
     }
 
     /// Whether `subject` may see records of this repository at all (people
@@ -98,6 +101,44 @@ impl Services {
         self.ingest_context_record(subject, &a, body).await
     }
 
+    /// Imports one session of an Entire CLI checkpoint (experimental):
+    /// converts it into a record and ingests that like an upload. "Not
+    /// found" while the repository's Entire import is off.
+    pub async fn import_entire_checkpoint(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+        body: &[u8],
+    ) -> Result<ContextRecord> {
+        let a = self
+            .repo_access(subject, ns, repo, Action::RepoPush)
+            .await?;
+        let (detail, entire) = Self::context_settings(&a);
+        if !entire {
+            return Err(ServiceError::NotFound);
+        }
+        let limit = self.config.limits.context_record_max_bytes.0;
+        if body.len() as u64 > limit.saturating_mul(4) {
+            return Err(ServiceError::invalid(
+                "body",
+                "too_large",
+                format!("Send a checkpoint of at most {} KiB.", limit * 4 / 1024),
+            ));
+        }
+        let import: slath_core::entire_import::Import =
+            serde_json::from_slice(body).map_err(|e| {
+                ServiceError::invalid(
+                    "body",
+                    "invalid",
+                    format!("This isn't a checkpoint session: {e}."),
+                )
+            })?;
+        let record = serde_json::to_vec(&import.to_upload(detail == Detail::Full))
+            .map_err(ServiceError::internal)?;
+        self.ingest_context_record(subject, &a, &record).await
+    }
+
     pub(crate) async fn ingest_context_record(
         &self,
         subject: &Subject,
@@ -123,7 +164,7 @@ impl Services {
                 format!("This isn't a valid record: {e}."),
             )
         })?;
-        let (detail, _) = self.context_settings(a).await?;
+        let (detail, _) = Self::context_settings(a);
         upload
             .check(detail == Detail::Full, limits.context_transcript_entries)
             .map_err(|errs| {

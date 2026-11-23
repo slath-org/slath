@@ -218,7 +218,7 @@ impl utoipa::Modify for SecurityAddon {
         merge_requests::get_mergeability, merge_requests::merge, merge_requests::update_branch, merge_requests::put_auto_merge, merge_requests::apply_suggestions, merge_requests::checkout, merge_requests::get_inventory, merge_requests::delete_auto_merge, merge_requests::get_ledger,
         statuses::create_status, statuses::list_statuses,
         mr_revisions::list_revisions, mr_revisions::get_interdiff, mr_iteration::get_iteration,
-        context_records::create_record, context_records::list_records, context_records::get_record,
+        context_records::create_record, context_records::import_entire, context_records::list_records, context_records::get_record,
         mr_groups::get_group, mr_groups::put_group, mr_groups::delete_group, mr_groups::merge_group,
         mr_threads::list_threads, mr_threads::create_thread, mr_threads::reply, mr_threads::update_thread, mr_threads::mark_addressed, mr_threads::clear_addressed,
         labels::list_labels, labels::create_label, labels::update_label, labels::delete_label,

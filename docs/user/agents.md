@@ -237,6 +237,19 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   `GET …/context-records/<id>` returns one with its summary and transcript.
 - **Storage:** records are encrypted on the server and never written into
   the repository, so clones and forks never contain them.
+- **From Entire (experimental):** if your agents record sessions with the
+  Entire CLI, a repository admin can turn on
+  `"context_entire_import": true` (in `PATCH /api/v1/repos/<ns>/<repo>`).
+  Then `POST …/context-records/import/entire` takes one session of a
+  checkpoint: its `metadata.json` as `session`, and optionally its
+  `transcript.jsonl` and `prompt.txt` as text in `transcript` and
+  `prompt`, with `binding` and `initiated_by` as above. Slath turns it into
+  a record (the agent, model, summary, Entire's redaction counts, and, at
+  the full detail level, the transcript) and checks it like an upload. It
+  was written against Entire CLI 0.13; Entire's format has no version and
+  may change without notice. Entire's checkpoint refs (`refs/entire/…`,
+  and with the import on its `entire/checkpoints/v1` branch) can't be
+  pushed here: upload instead.
 - **Limits:** a record is at most 1 MiB with at most 2,000 transcript
   entries (site settings `[limits] context_record_max_bytes` and
   `context_transcript_entries`).

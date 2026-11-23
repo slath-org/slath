@@ -99,6 +99,13 @@ pub struct Verdict {
     pub agit: Vec<crate::agit::AgitUpdate>,
 }
 
+/// The branch where older Entire CLIs keep their checkpoints.
+const ENTIRE_BRANCH: &[u8] = b"refs/heads/entire/checkpoints/v1";
+
+const CONTEXT_HINT: &str = "agent context isn't kept in Git here; upload it with \
+     POST /api/v1/repos/<ns>/<repo>/context-records (Entire checkpoints: \
+     …/context-records/import/entire)";
+
 fn is_zero(oid: &str) -> bool {
     oid.bytes().all(|b| b == b'0')
 }
@@ -394,6 +401,18 @@ impl Services {
                 continue;
             }
             let is_tag = bytes.starts_with(b"refs/tags/");
+            // Agent context never lives in Git: say where it goes instead.
+            let entire_branch = bytes == ENTIRE_BRANCH
+                && access
+                    .as_ref()
+                    .is_some_and(|a| a.repo.context_entire_import);
+            if bytes.starts_with(b"refs/context/")
+                || bytes.starts_with(b"refs/entire/")
+                || entire_branch
+            {
+                deny(DenyReason::ReservedRef, CONTEXT_HINT);
+                continue;
+            }
             if !bytes.starts_with(b"refs/heads/") && !is_tag {
                 deny(
                     DenyReason::NotBranchOrTag,

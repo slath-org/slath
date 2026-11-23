@@ -3824,6 +3824,98 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/context-records/import/entire": {
+      "post": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Imports one session of an Entire CLI checkpoint (experimental; the\nrepository's `context_entire_import` must be on, 404 otherwise): its\n`metadata.json` as `session`, and optionally its `transcript.jsonl` as\n`transcript` and its `prompt.txt` as `prompt`, as text. It becomes a\nrecord like an upload, with the same checks.",
+        "operationId": "import_entire",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "{session, transcript?, prompt?, initiated_by?, binding?}",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextRecordBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/context-records/{id}": {
       "get": {
         "tags": [
@@ -14569,6 +14661,7 @@
           "stalled_after_days",
           "change_source_prefix",
           "context_detail",
+          "context_entire_import",
           "clone_urls",
           "created_at",
           "updated_at"
@@ -14587,6 +14680,10 @@
           "context_detail": {
             "type": "string",
             "description": "What agent context records keep: `summary` (default) or `full`\n(transcripts too)."
+          },
+          "context_entire_import": {
+            "type": "boolean",
+            "description": "Entire CLI checkpoints may be imported (experimental)."
           },
           "created_at": {
             "type": "string"
@@ -15576,6 +15673,13 @@
               "null"
             ],
             "description": "`summary` or `full`: whether agent context records may carry\ntranscripts. Applies to new uploads."
+          },
+          "context_entire_import": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Accept Entire CLI checkpoints at `…/context-records/import/entire`\n(experimental)."
           },
           "default_branch": {
             "type": [

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail, r.context_entire_import\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE r.visibility = 'public' AND r.state <> 'deleting'\n             ORDER BY COALESCE(r.pushed_at, r.created_at) DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -212,11 +212,21 @@
             "name": "context_detail"
           }
         }
+      },
+      {
+        "ordinal": 20,
+        "name": "context_entire_import",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_entire_import"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Int8"
       ]
     },
@@ -240,8 +250,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "486ddc59ceeccf36bdc4a1689e285840332536212aa50e5c5986c5f0116432de"
+  "hash": "a50ae46c45d94f41f7de98683e69dd127df47ef5291b3dd9323fec0b8586b00b"
 }

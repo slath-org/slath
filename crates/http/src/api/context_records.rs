@@ -160,6 +160,27 @@ pub async fn create_record(
     Ok((StatusCode::CREATED, axum::Json(ContextRecordBody::from(v))).into_response())
 }
 
+/// Imports one session of an Entire CLI checkpoint (experimental; the
+/// repository's `context_entire_import` must be on, 404 otherwise): its
+/// `metadata.json` as `session`, and optionally its `transcript.jsonl` as
+/// `transcript` and its `prompt.txt` as `prompt`, as text. It becomes a
+/// record like an upload, with the same checks.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/context-records/import/entire", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    request_body(content = Object, description = "{session, transcript?, prompt?, initiated_by?, binding?}", content_type = "application/json"),
+    responses((status = 201, body = ContextRecordBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn import_entire(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let v = state
+        .services
+        .import_entire_checkpoint(&s, &ns, &repo, &body)
+        .await?;
+    Ok((StatusCode::CREATED, axum::Json(ContextRecordBody::from(v))).into_response())
+}
+
 /// Records you may see, newest first, without their payloads.
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/context-records", tag = "repos", security(("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ListParams, PageParams),
     responses((status = 200, body = ContextRecordPage), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
@@ -211,6 +232,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/context-records",
             Access::Resource,
             axum::routing::get(list_records).post(create_record),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/context-records/import/entire",
+            Access::Resource,
+            axum::routing::post(import_entire),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/context-records/{id}",

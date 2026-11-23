@@ -510,3 +510,154 @@ fn conf_agent_05_an_agent_session_trailer_binds_a_record_to_its_change() {
     );
     assert_eq!(r.json()["binding"]["state"], "none", "{}", r.body);
 }
+
+/// One session as the Entire CLI 0.13 writes it.
+fn entire_session(n: i64) -> Value {
+    let transcript = [
+        json!({"v": 1, "type": "user", "ts": "2026-11-20T10:00:00Z", "content": [{"text": "Fix the parser"}]}),
+        json!({"v": 1, "type": "assistant", "ts": "2026-11-20T10:00:05Z", "content": [
+            {"type": "text", "text": "Running the tests."},
+            {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "cargo test"},
+             "result": {"output": "test result: ok", "status": "success"}}
+        ]}),
+    ]
+    .iter()
+    .map(Value::to_string)
+    .collect::<Vec<_>>()
+    .join("\n");
+    json!({
+        "session": {
+            "cli_version": "0.13.4", "checkpoint_id": "a1b2c3d4e5f6", "session_id": "s-1",
+            "strategy": "manual-commit", "created_at": "2026-11-20T10:00:00Z",
+            "agent": "Claude Code", "model": "some-model", "files_touched": ["a.txt"],
+            "summary": {"intent": "Fix the parser", "outcome": "Fixed", "open_items": [], "friction": []},
+            "redaction": {"replacements": 1, "layers": {"entropy": 1}}
+        },
+        "transcript": transcript,
+        "prompt": "Fix the parser",
+        "binding": {"merge_request": n}
+    })
+}
+
+#[test]
+fn conf_agent_05_entire_checkpoints_import_when_turned_on() {
+    let (w, n) = World::start();
+    let import = |body: &Value| {
+        w.api(
+            &w.bot,
+            "POST",
+            "/context-records/import/entire",
+            Some(body.clone()),
+        )
+    };
+    // Off by default: the import isn't there.
+    assert_eq!(import(&entire_session(n)).status, 404);
+    let patch = |token: &str, body: Value| {
+        w.s.client().api(
+            "PATCH",
+            "/api/v1/repos/alice/demo",
+            Some(token),
+            Some(&body),
+        )
+    };
+    assert_eq!(
+        patch(&w.bob, json!({"context_entire_import": true})).status,
+        403
+    );
+    let r = patch(&w.alice, json!({"context_entire_import": true}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["context_entire_import"], true);
+
+    // At the summary level, the transcript is left out.
+    let r = import(&entire_session(n));
+    assert_eq!(r.status, 201, "{}", r.body);
+    slath_tests::contract::check(
+        "POST",
+        "/api/v1/repos/{ns}/{repo}/context-records/import/entire",
+        &r,
+    );
+    let v = r.json();
+    assert_eq!(v["agent"]["name"], "Claude Code");
+    assert_eq!(v["agent"]["tool"], "entire 0.13.4");
+    assert_eq!(v["summary"]["intent"], "Fix the parser");
+    assert_eq!(v["redactions"][0]["rule"], "entire-entropy");
+    assert_eq!(v["transcript_entries"], 0);
+    assert_eq!(v["binding"]["state"], "bound");
+
+    // With full, it comes along, and a secret in it is refused in place.
+    assert_eq!(
+        patch(&w.alice, json!({"context_detail": "full"})).status,
+        200
+    );
+    let r = import(&entire_session(n));
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["transcript_entries"], 4);
+    assert_eq!(r.json()["transcript"][2]["tool"], "Bash");
+    let mut leaky = entire_session(n);
+    let token = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
+    leaky["transcript"] = json!(format!(
+        "{}",
+        json!({"v": 1, "type": "user", "content": [{"text": format!("use {token}")}]})
+    ));
+    let r = import(&leaky);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/transcript/0/text"), "{}", r.body);
+    assert!(!r.body.contains(&token), "{}", r.body);
+    // Readers can't import, and the request has a fixed shape.
+    assert_eq!(
+        w.api(
+            &w.carol,
+            "POST",
+            "/context-records/import/entire",
+            Some(entire_session(n))
+        )
+        .status,
+        403
+    );
+    let mut odd = entire_session(n);
+    odd["extra"] = json!(1);
+    assert_eq!(import(&odd).status, 422);
+}
+
+#[test]
+fn conf_agent_16_context_refs_are_refused_with_a_hint() {
+    let (w, _) = World::start();
+    let wd = w.w.path();
+    let refused = |refspec: &str| {
+        let out = w
+            .git
+            .cmd(wd)
+            .args(["push", &w.url, refspec])
+            .output()
+            .unwrap();
+        (
+            !out.status.success(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
+    };
+    for r in [
+        "HEAD:refs/context/abc",
+        "HEAD:refs/entire/checkpoints/ab/a1b2c3d4e5ab",
+    ] {
+        let (no, err) = refused(r);
+        assert!(no, "{r}");
+        assert!(
+            err.contains("agent context isn't kept in Git here"),
+            "{err}"
+        );
+        assert!(err.contains("/context-records"), "{err}");
+    }
+    // Entire's old checkpoint branch is a branch like any other, until the
+    // repository imports Entire checkpoints.
+    assert!(!refused("HEAD:refs/heads/entire/checkpoints/v1").0);
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"context_entire_import": true})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let (no, err) = refused("+HEAD~1:refs/heads/entire/checkpoints/v1");
+    assert!(no);
+    assert!(err.contains("import/entire"), "{err}");
+}

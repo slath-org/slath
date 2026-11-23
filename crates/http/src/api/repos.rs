@@ -62,6 +62,8 @@ pub struct Repo {
     /// What agent context records keep: `summary` (default) or `full`
     /// (transcripts too).
     pub context_detail: String,
+    /// Entire CLI checkpoints may be imported (experimental).
+    pub context_entire_import: bool,
     pub clone_urls: CloneUrls,
     pub created_at: String,
     pub updated_at: String,
@@ -84,6 +86,7 @@ fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
         stalled_after_days: r.stalled_after_days,
         change_source_prefix: r.change_source_prefix.clone(),
         context_detail: r.context_detail.clone(),
+        context_entire_import: r.context_entire_import,
         clone_urls: CloneUrls { https, ssh },
         created_at: ts(r.created_at),
         updated_at: ts(r.updated_at),
@@ -208,6 +211,9 @@ pub struct UpdateRepo {
     /// `summary` or `full`: whether agent context records may carry
     /// transcripts. Applies to new uploads.
     pub context_detail: Option<String>,
+    /// Accept Entire CLI checkpoints at `…/context-records/import/entire`
+    /// (experimental).
+    pub context_entire_import: Option<bool>,
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
@@ -246,9 +252,14 @@ pub async fn update_repo(
     if let Some(prefix) = &u.change_source_prefix {
         svc.set_change_source_prefix(&subject, &a, prefix).await?;
     }
-    if let Some(d) = &u.context_detail {
-        svc.set_context_settings(&subject, &a, Some(d), None)
-            .await?;
+    if u.context_detail.is_some() || u.context_entire_import.is_some() {
+        svc.set_context_settings(
+            &subject,
+            &a,
+            u.context_detail.as_deref(),
+            u.context_entire_import,
+        )
+        .await?;
     }
     if let Some(v) = &u.visibility {
         svc.set_repo_visibility(&subject, false, &a, visibility(v)?)
