@@ -399,7 +399,7 @@ impl Services {
                 let mut own = true;
                 for id in ids {
                     own &= *id == u
-                        || slath_db::users::bot_owner_user(&self.pool, *id).await? == Some(u);
+                        || slath_db::users::bot_sole_person(&self.pool, *id).await? == Some(u);
                 }
                 if own {
                     out.push(format!(

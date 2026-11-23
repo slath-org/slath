@@ -759,3 +759,101 @@ fn a_collaborator_name_with_a_trailing_comma_is_the_name() {
         .collect();
     assert_eq!(names, ["bob", "carol"], "{list}");
 }
+
+/// A bot of `owner` (a user or organization) with the write role on
+/// alice/demo, which reporting statuses needs; its token.
+pub(crate) fn ci_bot(s: &TestServer, alice: &str, owner: &str, name: &str) -> String {
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            owner,
+            "--name",
+            name,
+            "--token-scopes",
+            "repo:read,statuses:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let r = api(
+        s,
+        alice,
+        "PUT",
+        &format!("/collaborators/{name}"),
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    serde_json::from_str::<Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+fn report(s: &TestServer, token: &str, n: i64, alice: &str) {
+    let h = head(s, alice, n);
+    let r = api(
+        s,
+        token,
+        "POST",
+        &format!("/statuses/{h}"),
+        Some(json!({"context": "ci", "state": "success"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+}
+
+#[test]
+fn conf_review_11_a_sole_owners_organization_bot_is_theirs() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let mut ui = s.login("alice", PASSWORD);
+    let r = slath_tests::http::submit(
+        &mut ui,
+        "/-/orgs/new",
+        "/-/orgs",
+        &[("name", "acme"), ("display_name", "")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let d = tempfile::tempdir().unwrap();
+    let n = open_mr(&s, &alice, &d.path().join("w"), "a.txt");
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/protections",
+        Some(
+            json!({"pattern": "main", "required_approvals": 0, "required_status_contexts": ["ci"]}),
+        ),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let bot = ci_bot(&s, &alice, "acme", "acme-ci");
+    report(&s, &bot, n, &alice);
+    // alice is acme's only owner, so its bot is alice's and can't report alice's checks.
+    let r = requirement(&s, &alice, n, "statuses");
+    assert_eq!(r["state"], "unmet", "{r}");
+    assert!(
+        r["reason"]
+            .as_str()
+            .unwrap()
+            .contains("bots of the author can't report its checks"),
+        "{r}"
+    );
+    // With a second owner, acme is another party again.
+    let mut user_api = s.client();
+    let mut c = s.login("alice", PASSWORD);
+    let org_token = slath_tests::http::create_token(&mut c, "org", &["user:write"]);
+    let r = user_api.api(
+        "PUT",
+        "/api/v1/orgs/acme/members/bob",
+        Some(&org_token),
+        Some(&json!({"role": "owner"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(requirement(&s, &alice, n, "statuses")["state"], "met");
+}

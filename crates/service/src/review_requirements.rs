@@ -231,7 +231,7 @@ impl Services {
             }
             let ok = m.author_id != Some(u)
                 && !(m.author_id.is_some()
-                    && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id)
+                    && slath_db::users::bot_sole_person(&self.pool, u).await? == m.author_id)
                 && r.reviewer.is_some()
                 && self
                     .verdict_counts(a, u, eff.bots_count_as_approvers)

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Upgrade notes for 0.4.0 (in development; the release task completes
+# them).
+
+version = "0.4.0"
+schema_version = 155
+min_upgrade_from = "0.3.0"
+
+[[action]]
+id = "sole-owner-organization-bots"
+severity = "recommended"
+text = "Statuses from a bot of an organization with one owner no longer satisfy that owner's own merge requests' required checks. Where you relied on that, turn on the one-maintainer policy in branch protection and name the bot as the check's reporter, or give the organization a second owner."

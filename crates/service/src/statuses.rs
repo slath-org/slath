@@ -424,7 +424,7 @@ impl Services {
             return Ok(Some(OWN));
         }
         if m.author_id.is_some()
-            && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id
+            && slath_db::users::bot_sole_person(&self.pool, u).await? == m.author_id
         {
             return Ok(Some(OWN_BOTS));
         }

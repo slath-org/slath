@@ -279,6 +279,27 @@ pub async fn set_admin(exec: impl PgExecutor<'_>, id: UserId, admin: bool) -> Re
     Ok(())
 }
 
+/// The one person a bot answers to: its owning user, or the only owner of
+/// its owning organization. `None` for people, and for bots of an
+/// organization with several owners (or none).
+pub async fn bot_sole_person(
+    exec: impl PgExecutor<'_>,
+    id: UserId,
+) -> Result<Option<UserId>, DbError> {
+    let person = sqlx::query_scalar!(
+        r#"SELECT CASE WHEN u.bot_owner_kind = 'user' THEN u.bot_owner_id
+                  ELSE (SELECT CASE WHEN count(*) = 1 THEN (array_agg(m.user_id))[1] END
+                          FROM org_members m WHERE m.org_id = u.bot_owner_id AND m.role = 'owner')
+                  END AS person
+             FROM users u WHERE u.id = $1 AND u.kind = 'bot'"#,
+        id.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?
+    .flatten();
+    Ok(person.map(UserId::from_uuid))
+}
+
 /// Saves a user's appearance settings.
 /// The Markdown editor mode (`wysiwyg` or `source`).
 /// The user that owns a bot account, if `id` is a bot owned by a user.

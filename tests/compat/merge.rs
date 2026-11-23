@@ -511,7 +511,7 @@ fn ux_mr_01_a_merge_in_slath_is_no_recent_push() {
     c.s.create_user("bob", PASSWORD, false);
     let r = c.api("PUT", "/collaborators/bob", Some(json!({"role": "write"})));
     assert!(r.status < 300, "{}", r.body);
-    // bob pushes the target, alice the branch she merges into it.
+    // bob pushes the target; alice pushes the branch merged into it.
     let mut bob = c.s.login("bob", PASSWORD);
     let bob_token = slath_tests::http::create_token(&mut bob, "b", &["repo:write"]);
     let bob_url = c.url.replace(&c.s.token, &bob_token);
@@ -537,7 +537,7 @@ fn ux_mr_01_a_merge_in_slath_is_no_recent_push() {
     let mut alice = c.s.login("alice", PASSWORD);
     let page = alice.get("/alice/demo/branches");
     assert!(!page.body.contains("You pushed to"), "{}", page.body);
-    // Pushing it herself does offer one.
+    // A branch alice pushes over Git is offered.
     c.git.ok(&w, &["switch", "-q", "-c", "next", "main"]);
     commit(&c.git, &w, "next.txt", "next\n", "Next");
     c.push(&w, "next");

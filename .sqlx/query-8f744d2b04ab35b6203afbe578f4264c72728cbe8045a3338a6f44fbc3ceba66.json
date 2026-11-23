@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT CASE WHEN u.bot_owner_kind = 'user' THEN u.bot_owner_id\n                  ELSE (SELECT CASE WHEN count(*) = 1 THEN (array_agg(m.user_id))[1] END\n                          FROM org_members m WHERE m.org_id = u.bot_owner_id AND m.role = 'owner')\n                  END AS person\n             FROM users u WHERE u.id = $1 AND u.kind = 'bot'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "person",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8f744d2b04ab35b6203afbe578f4264c72728cbe8045a3338a6f44fbc3ceba66"
+}

@@ -171,6 +171,21 @@ saves the previous file as `slath.toml.bak`. Running it again changes
 nothing. Keys set through `SLATH__…` environment variables are mapped the
 same way, but you have to rename those yourself.
 
+## Changes that may need you
+
+### 0.4.0
+
+- **Bots of an organization with one owner count as that owner's.** A
+  required check's statuses never count when the merge request's author
+  or one of their bots reported them. Until 0.4.0, a bot of an
+  organization didn't count as its owner's, even when that person was the
+  organization's only owner. Now it does, so such checks stop counting on
+  that owner's own merge requests. If a repository relied on it, turn on
+  **Only one maintainer: their own review counts** in its branch
+  protection rule and name the bot as the check's reporter (`ci by
+  acme-ci`), or give the organization a second owner. `slath upgrade
+  --check` lists this step.
+
 ## Coming from a preview
 
 The 0.1 and 0.2 releases were previews. Their databases can't be upgraded:

@@ -3,8 +3,8 @@
 //
 // Working alone: a branch protection rule that needs an approval nobody
 // else can give says so, in the settings and on the merge request, whose
-// next step leads to the one-maintainer policy. With it on, alice reviews
-// her own merge request as the only maintainer and merges it, in every
+// next step leads to the one-maintainer policy. With it on, alice reviews a
+// merge request of alice's own as the only maintainer and merges it, in every
 // browser cell. The e2e server seeds `solo/<project>/main` (the protected
 // target) and `solo/<project>/topic`.
 import type { Page } from "@playwright/test";
@@ -45,7 +45,7 @@ test("conf_review_32_review_alone_and_merge_under_the_policy", async ({ page }, 
   await saveRule(page, target, true);
   await expect(page.getByRole("row", { name: new RegExp(target) })).toContainText("one-maintainer policy");
   await expect(page.getByText(`${target}: only alice has write access`)).toHaveCount(0);
-  // Now her review counts.
+  // Now alice's review counts.
   await page.goto(mr);
   await expect(card).toContainText("Under the one-maintainer policy, alice's review of this revision counts.");
   await expect(card.getByRole("link", { name: "Review" })).toHaveAttribute("href", /#review-form$/);
