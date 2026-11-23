@@ -421,6 +421,9 @@ Once a second person has write access, for example a collaborator or a
 team, the normal rules apply again at once: open merge requests need
 their approval as before.
 
+A merge request stuck on approvals nobody can give says so: "Nobody
+else with write access can approve it.", with what helps.
+
 Every merge request page opens with a **readiness card**: one headline
 (such as "Ready to merge", "Approval required", or "Conflicts with
 main"), the reason, and the one thing you can do next, chosen for you:

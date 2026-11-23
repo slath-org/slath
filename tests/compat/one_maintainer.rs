@@ -352,7 +352,10 @@ fn conf_review_32_only_the_maintainer_records_it_while_the_policy_applies() {
     let r = requirement(&s, &alice, n, "approvals");
     assert_eq!(r["state"], "unmet", "{r}");
     assert!(
-        !r["reason"].as_str().unwrap().contains("one-maintainer"),
+        r["reason"]
+            .as_str()
+            .unwrap()
+            .ends_with("The one-maintainer policy doesn't apply: alice and bob have write access."),
         "{r}"
     );
     let r = review(&s, &alice, n, json!({"verdict": "accountable_review"}));
@@ -574,4 +577,93 @@ fn conf_review_32_jj_stacks_land_under_the_policy_change_by_change() {
         Some(json!({"expected_head_oid": h})),
     );
     assert_eq!(r.status, 200, "{}", r.body);
+}
+
+#[test]
+fn conf_review_32_stuck_requirements_say_why_and_what_helps() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let d = tempfile::tempdir().unwrap();
+    let n = open_mr(&s, &alice, &d.path().join("w"), "a.txt");
+    let rule = |approvals: i32, policy: bool| {
+        let r = api(
+            &s,
+            &alice,
+            "POST",
+            "/protections",
+            Some(json!({"pattern": "main", "required_approvals": approvals,
+                        "single_maintainer": policy, "required_status_contexts": ["ci"]})),
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+    };
+    let role = |r: &str| {
+        let r = api(
+            &s,
+            &alice,
+            "PUT",
+            "/collaborators/bob",
+            Some(json!({"role": r})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    };
+    let row = |key: &str| {
+        let r = requirement(&s, &alice, n, key);
+        (
+            r["reason"].as_str().unwrap_or_default().to_owned(),
+            r["fix_action"].as_str().unwrap_or_default().to_owned(),
+        )
+    };
+    // Alone with one required approval: nobody can give it.
+    rule(1, false);
+    let (reason, fix) = row("approvals");
+    assert!(
+        reason.ends_with("Nobody else with write access can approve it."),
+        "{reason}"
+    );
+    assert!(
+        fix.starts_with("Turn on the one-maintainer policy"),
+        "{fix}"
+    );
+    // A reader can't approve either; a writer can.
+    role("read");
+    assert!(row("approvals").0.contains("Nobody else"));
+    role("write");
+    let (reason, fix) = row("approvals");
+    assert!(!reason.contains("Nobody else"), "{reason}");
+    assert!(!fix.contains("one-maintainer"), "{fix}");
+    // Two required approvals, one other writer.
+    rule(2, false);
+    let (reason, fix) = row("approvals");
+    assert!(
+        reason.ends_with("Only 1 other person with write access can approve it."),
+        "{reason}"
+    );
+    assert!(fix.starts_with("Give more people write access"), "{fix}");
+    // The setting on, but two writers: the row says why it doesn't apply.
+    rule(1, true);
+    let (reason, _) = row("approvals");
+    assert!(
+        reason
+            .contains("The one-maintainer policy doesn't apply: alice and bob have write access."),
+        "{reason}"
+    );
+    // The author's own status for a required check never counts, and the
+    // row says what to do instead.
+    let h = head(&s, &alice, n);
+    let mut c = s.login("alice", PASSWORD);
+    let reporter = slath_tests::http::create_token(&mut c, "ci", &["statuses:write"]);
+    let r = api(
+        &s,
+        &reporter,
+        "POST",
+        &format!("/statuses/{h}"),
+        Some(json!({"context": "ci", "state": "success"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let (_, fix) = row("statuses");
+    assert!(
+        fix.starts_with("Report it with an account that isn't the author's"),
+        "{fix}"
+    );
 }

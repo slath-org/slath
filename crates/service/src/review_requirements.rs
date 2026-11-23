@@ -181,6 +181,8 @@ pub(crate) struct ReviewRequirements {
     pub policy: Option<crate::one_maintainer::PolicyReview>,
     /// The policy met the approvals requirement.
     pub by_policy: bool,
+    /// Fewer people may approve than are needed.
+    pub stuck: Option<crate::one_maintainer::Stuck>,
 }
 
 /// Each standing among the people whose verdicts count, by name.
@@ -389,7 +391,9 @@ impl Services {
         if let Some(p) = &policy {
             (approvals, by_policy) = p.approvals(approvals);
         }
+        let stuck = self.explain_approvals(a, m, eff, &mut approvals).await?;
         Ok(ReviewRequirements {
+            stuck,
             approvals,
             changes_requested: blockers_requirement(&judged),
             maintainers,

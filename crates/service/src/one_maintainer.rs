@@ -18,6 +18,14 @@ use crate::mr_reviews::{ApprovalCoverage, Requirement, met, unmet};
 use crate::protections::Effective;
 use crate::repos::RepoAccess;
 
+/// Approvals nobody can give: fewer people may approve than are needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stuck {
+    /// The author is the only person with write access and the
+    /// one-maintainer setting is off: turning it on unblocks them.
+    pub policy_helps: bool,
+}
+
 /// Refusal of the maintainer's review to anyone else.
 pub const ONLY_MAINTAINER: &str =
     "Only the repository's one maintainer can record a review under the one-maintainer policy.";
@@ -126,20 +134,51 @@ impl Services {
     /// repository by their grants; `None` with none or several. Bots and
     /// instance admins without a grant don't count.
     pub(crate) async fn sole_maintainer(&self, repo: &Repo) -> Result<Option<UserId>> {
-        let mut found = None;
+        let w = self.writers(repo, 2).await?;
+        Ok((w.len() == 1).then(|| w[0]))
+    }
+
+    /// The active people with write access or higher by their grants, in
+    /// a stable order; at most `most` of them (a cap keeps large
+    /// organizations cheap).
+    pub(crate) async fn writers(&self, repo: &Repo, most: usize) -> Result<Vec<UserId>> {
+        let mut out = Vec::new();
         for u in slath_db::repos::writer_candidates(&self.pool, repo.id).await? {
+            if out.len() >= most {
+                break;
+            }
             if self
                 .granted_role(repo, u)
                 .await?
                 .is_some_and(|r| r >= Role::Write)
             {
-                if found.is_some() {
-                    return Ok(None);
-                }
-                found = Some(u);
+                out.push(u);
             }
         }
-        Ok(found)
+        Ok(out)
+    }
+
+    /// The names of up to three people with write access, for "the policy
+    /// doesn't apply" ("alice and bob", "alice, bob, and others").
+    pub(crate) async fn writer_names(&self, repo: &Repo) -> Result<String> {
+        let ids = self.writers(repo, 4).await?;
+        let mut names = Vec::new();
+        for u in ids.iter().take(3) {
+            if let Some(x) = slath_db::users::get(&self.pool, *u).await? {
+                names.push(x.name);
+            }
+        }
+        Ok(match (names.as_slice(), ids.len() > 3) {
+            ([], _) => String::new(),
+            ([a], _) => a.clone(),
+            ([a, b], false) => format!("{a} and {b}"),
+            (list, false) => format!(
+                "{}, and {}",
+                list[..list.len() - 1].join(", "),
+                list[list.len() - 1]
+            ),
+            (list, true) => format!("{}, and others", list.join(", ")),
+        })
     }
 
     /// The one-maintainer policy for a protection; `None` without the
@@ -266,5 +305,58 @@ impl Services {
         )
         .await?;
         Ok(())
+    }
+
+    /// Explains an unmet approvals requirement that people can't meet by
+    /// asking for a review: the one-maintainer setting is on but doesn't
+    /// apply, or fewer people may approve than are needed. Whether
+    /// approvals are stuck.
+    pub(crate) async fn explain_approvals(
+        &self,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        eff: &Effective,
+        approvals: &mut Requirement,
+    ) -> Result<Option<Stuck>> {
+        if approvals.state == "met" {
+            return Ok(None);
+        }
+        let policy = self.one_maintainer(&a.repo, eff).await?;
+        if policy.as_ref().is_some_and(|p| p.applies) {
+            return Ok(None);
+        }
+        if policy.is_some() {
+            let names = self.writer_names(&a.repo).await?;
+            approvals.reason.push_str(&if names.is_empty() {
+                " The one-maintainer policy doesn't apply: nobody has write access.".to_owned()
+            } else {
+                format!(" The one-maintainer policy doesn't apply: {names} have write access.")
+            });
+        }
+        // Bots may approve here: whether enough of them can isn't known.
+        if eff.bots_count_as_approvers {
+            return Ok(None);
+        }
+        let needed = usize::try_from(eff.required_approvals).unwrap_or(0);
+        let writers = self.writers(&a.repo, needed + 1).await?;
+        let author_writes = m.author_id.is_some_and(|u| writers.contains(&u));
+        let possible = writers.len() - usize::from(author_writes);
+        if possible >= needed {
+            return Ok(None);
+        }
+        let policy_helps = policy.is_none() && author_writes && writers.len() == 1;
+        approvals.reason.push_str(&match possible {
+            0 => " Nobody else with write access can approve it.".to_owned(),
+            1 => " Only 1 other person with write access can approve it.".to_owned(),
+            n => format!(" Only {n} other people with write access can approve it."),
+        });
+        approvals.fix = Some(if policy_helps {
+            "Turn on the one-maintainer policy in branch protection, or give someone else write access"
+                .to_owned()
+        } else {
+            "Give more people write access, or lower the required approvals in branch protection"
+                .to_owned()
+        });
+        Ok(Some(Stuck { policy_helps }))
     }
 }

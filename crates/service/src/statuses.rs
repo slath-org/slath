@@ -166,6 +166,11 @@ pub fn latest_per_context(all: &[Status]) -> Vec<Status> {
     out
 }
 
+/// A status by the merge request's author doesn't count.
+const OWN: &str = "the author can't report their own checks";
+/// A status by a bot of the author doesn't count.
+const OWN_BOTS: &str = "bots of the author can't report its checks";
+
 impl Services {
     /// Reports a status on a commit of the repository (`status.write`).
     pub async fn report_status(
@@ -416,12 +421,12 @@ impl Services {
             return Ok(Some("its reporter's account was deleted"));
         };
         if m.author_id == Some(u) {
-            return Ok(Some("the author can't report their own checks"));
+            return Ok(Some(OWN));
         }
         if m.author_id.is_some()
             && slath_db::users::bot_owner_user(&self.pool, u).await? == m.author_id
         {
-            return Ok(Some("bots of the author can't report its checks"));
+            return Ok(Some(OWN_BOTS));
         }
         if check.reporters.as_ref().is_some_and(|r| !r.contains(&u)) {
             return Ok(Some("only the listed reporters count"));
@@ -460,16 +465,21 @@ impl Services {
             }
             let mut ignored = Vec::new();
             let mut counted = None;
+            // Every ignored report is the author's own (or their bots').
+            let mut only_own = true;
             for s in all.iter().filter(|s| s.context == *ctx) {
                 match self.not_counting(m, check, s.reporter_id).await? {
                     None => {
                         counted = Some(s);
                         break;
                     }
-                    Some(why) => ignored.push(format!(
-                        "the report by {} doesn't count: {why}",
-                        s.reporter.as_deref().unwrap_or("a deleted user")
-                    )),
+                    Some(why) => {
+                        only_own &= why == OWN || why == OWN_BOTS;
+                        ignored.push(format!(
+                            "the report by {} doesn't count: {why}",
+                            s.reporter.as_deref().unwrap_or("a deleted user")
+                        ));
+                    }
                 }
             }
             let by = |s: &Status| {
@@ -511,7 +521,11 @@ impl Services {
                     state: "unmet",
                     tone: "blocking",
                     reason: format!("{ctx}: no status counts; {}.", ignored.join("; ")),
-                    fix: Some("Have an allowed reporter report it".to_owned()),
+                    fix: Some(if only_own {
+                        "Report it with an account that isn't the author's or one of their bots, or don't require it in branch protection".to_owned()
+                    } else {
+                        "Have an allowed reporter report it".to_owned()
+                    }),
                 },
             });
         }

@@ -128,6 +128,8 @@ pub struct Mergeability {
     /// Requirements the policy met (`approvals`, `sensitive_paths`): a
     /// merge records it.
     pub by_policy: Vec<&'static str>,
+    /// Approvals nobody can give.
+    pub approvals_stuck: Option<crate::one_maintainer::Stuck>,
 }
 
 /// One counting approval's coverage snapshot.
@@ -1245,6 +1247,7 @@ impl Services {
             .review_requirements(a, m, &eff, prefix.map(|p| p.len))
             .await?;
         let coverage = review.coverage;
+        let approvals_stuck = review.stuck;
         let mut by_policy = Vec::new();
         if review.by_policy {
             by_policy.push("approvals");
@@ -1324,6 +1327,7 @@ impl Services {
             coverage,
             one_maintainer,
             by_policy,
+            approvals_stuck,
         })
     }
 
