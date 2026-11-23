@@ -262,6 +262,16 @@ fn calls(f: &Fixture) -> Vec<(&'static str, Value, String)> {
             repo(json!({"oid": h})),
             format!("{r}/commits/{h}/statuses"),
         ),
+        (
+            "list_context_records",
+            repo(json!({"merge_request": 1})),
+            format!("{r}/context-records?merge_request=1"),
+        ),
+        (
+            "get_context_record",
+            repo(json!({"id": "0190d3a4-0000-7000-8000-000000000001"})),
+            format!("{r}/context-records/0190d3a4-0000-7000-8000-000000000001"),
+        ),
     ]
 }
 

@@ -52,6 +52,7 @@ header instead. If a client insists on OAuth, it gets `401` and stops.
 | `get_group` | Merge requests linked to land together |
 | `list_threads`, `list_reviews`, `list_merge_request_comments` | Review threads, reviews, and the conversation |
 | `list_statuses` | The checks on a commit |
+| `list_context_records`, `get_context_record` | Agents' records of how changes were made, where you may see them ([context records](agents.md#context-records-how-a-change-was-made)); uploading is through the API |
 
 The arguments are the operation's path and query parameters, such as
 `ns`, `repo`, `number`, `ref`, and `path`. Lists come in pages: pass a
