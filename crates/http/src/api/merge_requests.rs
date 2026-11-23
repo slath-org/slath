@@ -197,6 +197,7 @@ pub struct MrPage {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct MrQuery {
     /// `open` (default), `merged`, `closed`, or `all`.
     pub state: Option<String>,
@@ -874,6 +875,7 @@ pub struct CoverageBody {
 
 /// Which part of the stack the mergeability is for.
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct MergeabilityQuery {
     /// The requirements for landing the changes up to this one (partial
     /// landing); default: the whole merge request.

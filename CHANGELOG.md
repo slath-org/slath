@@ -72,6 +72,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- The API description lists the filters of issue, merge request, search, notification, and delivery lists as optional query parameters instead of required path parameters.
 - Picking a suggested name in a field for one person (collaborator, author and assignee filters) no longer adds a comma that made saving or filtering fail.
 - Merging in Slath no longer counts as your push, so the branch it merged into doesn't show as "You pushed to … recently".
 

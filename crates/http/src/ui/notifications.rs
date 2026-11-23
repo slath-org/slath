@@ -310,6 +310,7 @@ pub struct NotificationList {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct NotificationQuery {
     /// Include read notifications.
     #[serde(default)]

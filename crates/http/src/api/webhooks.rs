@@ -149,6 +149,7 @@ pub struct Queued {
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct DeliveryParams {
     /// At most this many, newest first (default 50, at most 100).
     #[serde(default)]

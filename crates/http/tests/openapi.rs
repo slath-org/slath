@@ -47,6 +47,24 @@ fn every_operation_documents_its_errors() {
     }
 }
 
+#[test]
+fn path_parameters_are_in_the_path() {
+    let doc = serde_json::to_value(slath_http::api::openapi()).unwrap();
+    for (path, item) in doc["paths"].as_object().unwrap() {
+        for (method, op) in item.as_object().unwrap() {
+            for p in op["parameters"].as_array().into_iter().flatten() {
+                let name = p["name"].as_str().unwrap();
+                if p["in"] == "path" {
+                    assert!(
+                        path.contains(&format!("{{{name}}}")),
+                        "{method} {path}: `{name}` is a query parameter documented as a path parameter"
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Fields that hold free text in response objects.
 const TEXT_FIELDS: &[&str] = &[
     "title",

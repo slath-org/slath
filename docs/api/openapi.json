@@ -756,23 +756,20 @@
         "parameters": [
           {
             "name": "all",
-            "in": "path",
+            "in": "query",
             "description": "Include read notifications.",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "boolean"
             }
           },
           {
             "name": "page",
-            "in": "path",
+            "in": "query",
             "description": "Page number (50 per page).",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
+              "type": "integer",
               "format": "int64"
             }
           }
@@ -2112,14 +2109,11 @@
           },
           {
             "name": "limit",
-            "in": "path",
+            "in": "query",
             "description": "At most this many, newest first (default 50, at most 100).",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
+              "type": "integer",
               "format": "int64"
             }
           }
@@ -3864,74 +3858,56 @@
           },
           {
             "name": "state",
-            "in": "path",
+            "in": "query",
             "description": "`open` (default), `closed`, or `all`.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "sort",
-            "in": "path",
+            "in": "query",
             "description": "`created` (default) or `updated`.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "labels",
-            "in": "path",
+            "in": "query",
             "description": "Comma-separated label names; issues must have all of them.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "assignee",
-            "in": "path",
+            "in": "query",
             "description": "Username.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "author",
-            "in": "path",
+            "in": "query",
             "description": "Username.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "milestone",
-            "in": "path",
+            "in": "query",
             "description": "Milestone title.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
@@ -5128,74 +5104,56 @@
           },
           {
             "name": "state",
-            "in": "path",
+            "in": "query",
             "description": "`open` (default), `merged`, `closed`, or `all`.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "sort",
-            "in": "path",
+            "in": "query",
             "description": "`created` (default) or `updated`.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "labels",
-            "in": "path",
+            "in": "query",
             "description": "Comma-separated label names; merge requests must have all of them.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "assignee",
-            "in": "path",
+            "in": "query",
             "description": "Username.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "author",
-            "in": "path",
+            "in": "query",
             "description": "Username.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
             "name": "milestone",
-            "in": "path",
+            "in": "query",
             "description": "Milestone title.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
@@ -6801,14 +6759,11 @@
           },
           {
             "name": "upto_change",
-            "in": "path",
+            "in": "query",
             "description": "The requirements for landing the changes up to this one (partial\nlanding); default: the whole merge request.",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           }
         ],
@@ -8796,32 +8751,29 @@
           },
           {
             "name": "kind",
-            "in": "path",
+            "in": "query",
             "description": "`user`, `team`, `item`, `label`, or `milestone`.",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "q",
-            "in": "path",
+            "in": "query",
             "description": "What was typed so far (with or without the leading `@`, `#`, `~`, `%`).",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "item",
-            "in": "path",
+            "in": "query",
             "description": "The issue being edited (its participants rank first).",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
+              "type": "integer",
               "format": "int32"
             }
           }
@@ -9772,14 +9724,11 @@
           },
           {
             "name": "limit",
-            "in": "path",
+            "in": "query",
             "description": "At most this many, newest first (default 50, at most 100).",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
+              "type": "integer",
               "format": "int64"
             }
           }
@@ -10064,23 +10013,20 @@
         "parameters": [
           {
             "name": "q",
-            "in": "path",
+            "in": "query",
             "description": "Search terms: words, `\"phrases\"`, `-excluded`, `or`.",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "repo",
-            "in": "path",
+            "in": "query",
             "description": "Limit to one repository (`owner/repo`).",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           {
@@ -10152,9 +10098,9 @@
         "parameters": [
           {
             "name": "q",
-            "in": "path",
+            "in": "query",
             "description": "Part of a repository's name or description.",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }

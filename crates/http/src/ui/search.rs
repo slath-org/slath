@@ -187,6 +187,7 @@ pub struct RepoHitPage {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct IssueSearchQuery {
     /// Search terms: words, `"phrases"`, `-excluded`, `or`.
     #[serde(default)]
@@ -196,6 +197,7 @@ pub struct IssueSearchQuery {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct RepoSearchQuery {
     /// Part of a repository's name or description.
     #[serde(default)]

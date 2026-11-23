@@ -122,6 +122,7 @@ pub struct IssuePage {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct IssueQuery {
     /// `open` (default), `closed`, or `all`.
     pub state: Option<String>,

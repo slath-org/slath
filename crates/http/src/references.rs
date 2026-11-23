@@ -40,6 +40,7 @@ pub struct ReferenceList {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ReferenceQuery {
     /// `user`, `team`, `item`, `label`, or `milestone`.
     #[serde(default)]
