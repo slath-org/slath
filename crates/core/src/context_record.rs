@@ -434,7 +434,7 @@ mod tests {
     fn transcripts_need_the_full_detail_level_and_fit_the_limit() {
         let u = upload(
             r#"{"schema":"slath-context/1","agent":{"name":"a"},"summary":{"intent":"x"},
-            "transcript":[{"kind":"prompt","text":"a"},{"kind":"tool_call","text":"b","tool":"sh"}]}"#,
+            "transcript":[{"kind":"prompt","text":"a"},{"kind":"tool_call","text":"b","tool":"shell"}]}"#,
         );
         assert!(u.check(false, 10).is_err());
         assert_eq!(u.check(true, 10), Ok(()));
@@ -468,7 +468,7 @@ mod tests {
         let u = upload(
             r#"{"schema":"slath-context/1","agent":{"name":"a","model":"m"},
             "summary":{"intent":"i","outcome":"o","open_items":["x"]},
-            "transcript":[{"kind":"tool_result","text":"t","tool":"sh"}]}"#,
+            "transcript":[{"kind":"tool_result","text":"t","tool":"shell"}]}"#,
         );
         let ptrs: Vec<String> = u.texts().into_iter().map(|(p, _)| p).collect();
         for p in [
