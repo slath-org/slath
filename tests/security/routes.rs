@@ -237,7 +237,8 @@ fn conf_rbac_01_route_markers_hold_for_strangers_and_anonymous_visitors() {
                 let read = method == "GET";
                 let anon = who.name == "anonymous";
                 match access {
-                    Access::Public => {}
+                    // Checked through the routes it runs (MCP tests).
+                    Access::Public | Access::Delegated => {}
                     Access::PublicRead => {
                         if !read && success {
                             failures.push(format!("{ctx}: write succeeded"));

@@ -9,6 +9,7 @@ pub mod bot_freeze;
 pub mod bots;
 pub mod issues;
 pub mod labels;
+pub mod mcp;
 pub mod merge_requests;
 pub mod mr_groups;
 pub mod mr_iteration;
@@ -272,5 +273,6 @@ pub fn router() -> Router<AppState> {
         .merge(crate::ui::search::api_router())
         .merge(crate::ui::import::api_router())
         .merge(webhooks::router())
+        .merge(mcp::router())
         .route_as("/api/{*rest}", Access::Public, any(fallback))
 }

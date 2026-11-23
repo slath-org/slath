@@ -10,6 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
+- Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.
 - Requirements nobody can meet say so: a merge request stuck on approvals names what helps, and branch protection warns about such rules while one person has write access.
 - A protected branch can let its only maintainer's own review count in place of approvals, also for sensitive paths once every file was viewed; a second writer ends it.

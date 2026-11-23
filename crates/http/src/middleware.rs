@@ -176,6 +176,11 @@ fn is_api(path: &str) -> bool {
     path == "/api" || path.starts_with("/api/")
 }
 
+/// Marks an error response whose body is already in its protocol's format
+/// (JSON-RPC errors of `/api/mcp`), so [`render_errors`] leaves it alone.
+#[derive(Debug, Clone, Copy)]
+pub struct OwnErrorBody;
+
 /// Renders error responses: problem JSON under `/api/`, HTML pages elsewhere.
 /// Responses carrying [`ErrorInfo`] are rendered; bare error statuses from
 /// axum (rejections, the 404 fallback) get the generic error for the status.
@@ -203,7 +208,7 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
                     s.starts_with("text/html") || s.starts_with("application/problem+json")
                 })
             });
-            if rendered {
+            if rendered || res.extensions().get::<OwnErrorBody>().is_some() {
                 return res;
             }
             *AppError::from_status(status).0
@@ -301,7 +306,10 @@ pub async fn maintenance_guard(
 ) -> Response {
     use axum::http::Method;
     let maint = state.services.maintenance();
-    if maint.is_on() && !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+    // MCP requests are all POSTs; its tools run reads only.
+    let read = matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS)
+        || req.uri().path() == "/api/mcp";
+    if maint.is_on() && !read {
         let mut e = AppError::with_code(
             axum::http::StatusCode::SERVICE_UNAVAILABLE,
             "maintenance",

@@ -106,10 +106,11 @@ deny:
 license-deps:
     python3 scripts/check_license_deps.py
 
-# The committed OpenAPI document matches the code. Set
-# SLATH_UPDATE_SNAPSHOTS=1 to regenerate docs/api/openapi.json.
+# The committed OpenAPI document and MCP tool list match the code. Set
+# SLATH_UPDATE_SNAPSHOTS=1 to regenerate docs/api/openapi.json and
+# docs/api/mcp-tools.json.
 api-check:
-    cargo nextest run --locked -p slath-http --test openapi
+    cargo nextest run --locked -p slath-http --test openapi --test mcp_tools
 
 # Every bundled font, icon set, and UI dependency has a license entry.
 asset-licenses:

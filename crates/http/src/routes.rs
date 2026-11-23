@@ -29,6 +29,9 @@ pub enum Access {
     Git,
     /// Site administrators with a browser session; everyone else gets 404.
     SiteAdmin,
+    /// Runs other routes for the same subject and adds no access of its
+    /// own: their markers apply to everything it returns (`/api/mcp`).
+    Delegated,
 }
 
 static REGISTRY: Mutex<BTreeMap<&'static str, Access>> = Mutex::new(BTreeMap::new());

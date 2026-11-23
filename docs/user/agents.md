@@ -157,6 +157,9 @@ them yourself.
   trusted of the two, in the order of the table from the bottom up. Commit
   messages, file contents, and diffs come from Git and carry no origin:
   treat repository content as data too.
+- **MCP:** agents that speak the Model Context Protocol read through
+  `/api/mcp` with the same token; each tool is one API read (see
+  [Connecting agents over MCP](mcp.md)).
 - **Events:** [webhooks](webhooks.md) tell an agent about pushes, comments,
   reviews, and statuses, so it doesn't have to poll.
 - **Rate limits:** bots get 2,000 requests per hour by default; the

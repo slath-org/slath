@@ -1,0 +1,893 @@
+{
+  "tools": [
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Repositories the caller can see (public ones for anonymous callers).\n\nRuns `GET /api/v1/repos`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "list_repos"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A repository.\n\nRuns `GET /api/v1/repos/{ns}/{repo}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "get_repo"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Repositories you can see whose name or description contains the query.\n\nRuns `GET /api/v1/search/repos`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "q": {
+            "description": "Part of a repository's name or description.",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "search_repos"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Branches, newest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/branches`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_branches"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Tags, newest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/tags`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_tags"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "History of a ref, optionally limited to a path.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/commits`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Only commits touching this path.",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Branch, tag, or commit ID (default: the default branch).",
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_commits"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A commit with the files it changes (compared with its first parent).\n\nRuns `GET /api/v1/repos/{ns}/{repo}/commits/{oid}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "oid": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "oid"
+        ],
+        "type": "object"
+      },
+      "name": "get_commit"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A commit's diff against its first parent, as plain text (`git diff`).\n\nRuns `GET /api/v1/repos/{ns}/{repo}/commits/{oid}/diff`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "oid": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "oid"
+        ],
+        "type": "object"
+      },
+      "name": "get_commit_diff"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The entries of a directory at a ref.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/tree/{ref}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Path inside the repository (default: the root).",
+            "type": "string"
+          },
+          "ref": {
+            "description": "Branch, tag, or commit ID (percent-encode slashes)",
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "get_tree"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A file's content at a ref (up to the instance's render limit).\n\nRuns `GET /api/v1/repos/{ns}/{repo}/blob/{ref}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "path": {
+            "description": "Path inside the repository (default: the root).",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "get_blob"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A repository's issues, newest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/issues`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "assignee": {
+            "description": "Username.",
+            "type": "string"
+          },
+          "author": {
+            "description": "Username.",
+            "type": "string"
+          },
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "labels": {
+            "description": "Comma-separated label names; issues must have all of them.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "milestone": {
+            "description": "Milestone title.",
+            "type": "string"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "sort": {
+            "description": "`created` (default) or `updated`.",
+            "type": "string"
+          },
+          "state": {
+            "description": "`open` (default), `closed`, or `all`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_issues"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "One issue.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/issues/{number}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_issue"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "An issue's comments, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/issues/{number}/comments`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_issue_comments"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Issues (titles, descriptions, and comments) you can read, best match first.\n\nRuns `GET /api/v1/search/issues`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "q": {
+            "description": "Search terms: words, `\"phrases\"`, `-excluded`, `or`.",
+            "type": "string"
+          },
+          "repo": {
+            "description": "Limit to one repository (`owner/repo`).",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "name": "search_issues"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A repository's merge requests, newest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "assignee": {
+            "description": "Username.",
+            "type": "string"
+          },
+          "author": {
+            "description": "Username.",
+            "type": "string"
+          },
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "labels": {
+            "description": "Comma-separated label names; merge requests must have all of them.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "milestone": {
+            "description": "Milestone title.",
+            "type": "string"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "sort": {
+            "description": "`created` (default) or `updated`.",
+            "type": "string"
+          },
+          "state": {
+            "description": "`open` (default), `merged`, `closed`, or `all`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_merge_requests"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "One merge request.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_merge_request"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The current revision's diff from its merge base, as plain text (`git diff`).\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/diff`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_merge_request_diff"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The changes of the current revision: each commit with its change ID\nand how it was matched.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/stack`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_stack"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A merge request's revisions, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/revisions`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_revisions"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Two revisions compared, as plain text (`git range-diff`). It pairs\ncommits by similarity, so it's a heuristic. 404 when a revision is\nunknown or has no merge base.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/interdiff`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "description": "The earlier revision.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "to": {
+            "description": "The later revision (default: the current one).",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number",
+          "from"
+        ],
+        "type": "object"
+      },
+      "name": "get_interdiff"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The current revision, the interdiff since `since`, failing required\nchecks, unresolved threads, and mergeability, in one call. 422 when\n`since` isn't a revision of the merge request.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/iteration`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "since": {
+            "description": "The revision you last worked on; adds the interdiff since then.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_iteration"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Whether the merge request can be merged, with each requirement.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/mergeability`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "upto_change": {
+            "description": "The requirements for landing the changes up to this one (partial\nlanding); default: the whole merge request.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_mergeability"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Every identity decision and effect on review state, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_ledger"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The group of a merge request; 404 when it isn't linked.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/group`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_group"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The threads the caller may see, with their position in the current\nrevision.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "resolved": {
+            "description": "Only resolved (`true`) or unresolved (`false`) threads.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_threads"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The reviews of a merge request, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/reviews`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_reviews"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The conversation's comments, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/comments`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_merge_request_comments"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The latest status of each context on a commit.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/commits/{oid}/statuses`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "oid": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "oid"
+        ],
+        "type": "object"
+      },
+      "name": "list_statuses"
+    }
+  ]
+}
