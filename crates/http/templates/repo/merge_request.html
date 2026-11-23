@@ -314,6 +314,33 @@
   </section>
   {%- endif %}
   {%- endif %}
+  {%- if let Some(g) = group %}
+  {%- if g.open > 0 %}
+  <section class="frame" id="group-merge" aria-labelledby="group-merge-title">
+    <h3 id="group-merge-title" class="frame-title">Merge the group</h3>
+    <p class="text-secondary">This merge request is linked with others. They merge together, in this order, each with its own requirements.</p>
+    {%- if let Some(e) = self.error("group_merge") %}
+    {%- call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}
+    {%- endif %}
+    <ol class="plain-list">
+      {%- for x in g.members %}{% if x.open %}
+      <li>{% call m::status_text(ctx, x.tone.clone(), x.line()) %}{% endcall %}</li>
+      {%- endif %}{% endfor %}
+    </ol>
+    {%- if g.merging %}
+    {%- call msg::notice_line(ctx, "waiting", "The group is merging now.") %}{% endcall %}
+    {%- else if let Some(list) = g.merge %}
+    <form method="post" action="{{ here }}/group/merge" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      <input type="hidden" name="members" value="{{ list }}">
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merge {{ g.open }} merge request{% if g.open != 1 %}s{% endif %} in order</button>{% endcall %}
+    </form>
+    {%- else if let Some(why) = g.blocker %}
+    <p>{{ why }}</p>
+    {%- endif %}
+  </section>
+  {%- endif %}
+  {%- endif %}
   {%- if let Some(e) = self.error("merge") %}
   <div id="merge">{% call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}</div>
   {%- endif %}
@@ -402,6 +429,76 @@
     {% include "repo/statuses.html" %}
     {%- endif %}
   </section>
+  {%- if group.is_some() || can_link %}
+  <section class="details-section" aria-labelledby="side-group-heading" id="side-group">
+    <h2 id="side-group-heading" class="details-heading">Linked merge requests</h2>
+    {%- if let Some(e) = self.error("group") %}
+    {%- call msg::notice("warning") %}<p>{{ e }}</p>{% endcall %}
+    {%- endif %}
+    {%- if let Some(g) = group %}
+    {%- if let Some((tone, text)) = g.summary %}
+    {% call m::status_line(ctx, tone.to_string(), text) %}{% endcall %}
+    {%- endif %}
+    {%- if let Some(why) = g.failure %}
+    {% call m::status_line(ctx, "blocking", why) %}{% endcall %}
+    {%- endif %}
+    <p class="text-secondary">They merge together, first to last.</p>
+    <ol class="plain-list stack-list">
+    {%- for x in g.members %}
+      <li class="stack-item"{% if x.current %} aria-current="true"{% endif %}>
+        <span class="stack-position">{{ loop.index }}.</span>
+        <div class="stack-main">
+          {%- if x.current %}
+          <strong>{{ x.reference }}</strong> <span class="visually-hidden">(this one)</span>
+          {%- else %}
+          <a href="{{ x.href }}">{{ x.reference }}</a>
+          {%- endif %}
+          <p class="text-secondary"><bdi>{{ crate::ui::title_html(x.title.as_str()) }}</bdi></p>
+          {% call m::status_line(ctx, x.tone.clone(), x.headline) %}{% endcall %}
+          {%- if g.can_edit && (x.up || x.down) %}
+          <div class="cluster">
+            {%- if x.up %}
+            <form method="post" action="{{ here }}/group/move" class="inline-form">
+              <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+              <input type="hidden" name="member" value="{{ x.reference }}">
+              <button type="submit" name="dir" value="up" class="button button-quiet button-icon" data-tip="Move {{ x.reference }} up">{% call m::icon(ctx, "chevron-up") %}{% endcall %}<span class="visually-hidden">Move {{ x.reference }} up</span></button>
+            </form>
+            {%- endif %}
+            {%- if x.down %}
+            <form method="post" action="{{ here }}/group/move" class="inline-form">
+              <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+              <input type="hidden" name="member" value="{{ x.reference }}">
+              <button type="submit" name="dir" value="down" class="button button-quiet button-icon" data-tip="Move {{ x.reference }} down">{% call m::icon(ctx, "chevron-down") %}{% endcall %}<span class="visually-hidden">Move {{ x.reference }} down</span></button>
+            </form>
+            {%- endif %}
+          </div>
+          {%- endif %}
+        </div>
+      </li>
+    {%- endfor %}
+    </ol>
+    {%- if can_link %}
+    <form method="post" action="{{ here }}/group/unlink" class="form-layout">
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Unlink this one</button>{% endcall %}
+    </form>
+    {%- endif %}
+    {%- else %}
+    {%- call msg::empty("None.") %}{% endcall %}
+    {%- endif %}
+    {%- if link_form %}
+    {%- call d::disclosure(ctx, "Link a merge request", self.error("group").is_some()) %}
+    <form method="post" action="{{ here }}/group/link" class="form-layout" novalidate>
+      <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+      {%- call f::field("group-reference", "Merge request", "Like acme/app!7, or its address. It merges after the others.") %}
+      <input id="group-reference" name="reference" type="text" required autocapitalize="none" autocomplete="off" spellcheck="false"{% call f::described("group-reference", "x", "") %}{% endcall %}>
+      {%- endcall %}
+      {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "link") %}{% endcall %}Link</button>{% endcall %}
+    </form>
+    {%- endcall %}
+    {%- endif %}
+  </section>
+  {%- endif %}
   <section class="details-section" aria-labelledby="side-reviewers">
     <h2 id="side-reviewers" class="details-heading">Reviewers</h2>
     {%- if h.mr.attention == "iterating" %}

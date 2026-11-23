@@ -676,8 +676,17 @@ Merging by pushing the target still works, and the group then shows it as
 partially landed.
 
 You can link merge requests that you may edit (as their author, or with
-the triage role), in this instance's repositories. People see only the
-members they can read. The API sets a group's members in order with
+the triage role), in this instance's repositories. On a merge request's
+page, **Linked merge requests** in the details column has **Link a merge
+request**: enter another one like `acme/app!7`, or paste its address. It
+joins at the end; **Move up** and **Move down** change the order, and
+**Unlink this one** takes the page's merge request out. Every member's
+page shows the group with each one's readiness, and its merge box
+becomes **Merge the group**: once every member is ready and you may merge
+each, **Merge 2 merge requests in order** merges them. Otherwise it says
+which one isn't ready yet.
+
+People see only the members they can read. The API sets a group's members in order with
 `PUT …/merge-requests/{n}/group` and
 `{"members": ["acme/lib!4", "acme/app!7"]}`, where the list includes `n`
 and a member can also be given by its URL. `GET` on the same path shows

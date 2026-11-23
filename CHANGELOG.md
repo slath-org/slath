@@ -10,7 +10,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Added
 
-- Merge requests in one or several repositories can be linked to land together in a chosen order; a linked merge request no longer merges alone.
+- Merge requests in one or several repositories can be linked on their pages or by API to land together in a chosen order; a linked one no longer merges alone.
 - Merge requests merge when their commits reach the target by a push: merge or fast-forward locally, then `git push` or `jj git push` the target branch.
 - Rebased or cherry-picked changes land one by one when the target gains their exact patch; the merge request merges once all have.
 - A pushed commit that carries a change's ID with different content notes that the change possibly landed with modifications.

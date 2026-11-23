@@ -393,6 +393,15 @@ fn seed_stacks(git: &GitClient, w: &Path, url: &str) {
             git.ok(w, &["commit", "-q", "-m", &format!("Part {i}")]);
         }
         git.ok(w, &["push", "-q", url, &format!("land/{p}")]);
+        // Two branches for merge requests that are linked to land together.
+        for part in ["lib", "app", "keys-lib", "keys-app"] {
+            let branch = format!("linked/{p}/{part}");
+            git.ok(w, &["switch", "-q", "-c", &branch, "main"]);
+            std::fs::write(w.join(format!("linked-{p}-{part}.md")), format!("{part}\n")).unwrap();
+            git.ok(w, &["add", "-A"]);
+            git.ok(w, &["commit", "-q", "-m", &format!("Change the {part}")]);
+            git.ok(w, &["push", "-q", url, &branch]);
+        }
         // A branch whose file main changes too.
         let shared = format!("ux-{p}-shared.md");
         git.ok(w, &["switch", "-q", "main"]);

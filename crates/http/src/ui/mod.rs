@@ -17,6 +17,7 @@ pub mod import;
 pub mod issues;
 pub mod labels;
 pub mod merge_requests;
+pub mod mr_groups;
 pub mod notifications;
 pub mod oidc;
 pub mod passkeys;
@@ -724,6 +725,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(bots::router())
         .merge(issues::router())
         .merge(merge_requests::router())
+        .merge(mr_groups::router())
         .merge(diff::router())
         .merge(labels::router())
         .merge(secret_scan::router())

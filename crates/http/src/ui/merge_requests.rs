@@ -1739,7 +1739,14 @@ async fn heading(
         .map(|(_, n)| n)
         .filter(|n| *n > 0);
     let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
-    let card = card(&m, mb, &viewer, since, &base);
+    let mut card = card(&m, mb, &viewer, since, &base);
+    // A linked merge request merges with its group, in the group's box.
+    if let Some(act) = card.action.as_mut()
+        && act.href.as_deref() == Some(&format!("{base}#merge-form"))
+        && state.services.mr_is_linked(&m).await?
+    {
+        act.href = Some(format!("{base}#group-merge"));
+    }
     let may_allow = a.can(subject, Action::RepoPush)
         && (a.can(subject, Action::RepoSettings)
             || !state.services.allowances_need_admin(a.repo.id).await?);
@@ -1896,6 +1903,12 @@ struct MrPage {
     merge_form: Option<MergeForm>,
     update_form: Option<UpdateForm>,
     auto_merge: Option<AutoMergeView>,
+    /// The linked group this merge request is in.
+    group: Option<super::mr_groups::GroupPanel>,
+    /// The viewer may link it with others (open, and they may edit it).
+    can_link: bool,
+    /// They may also change its group: "Link a merge request".
+    link_form: bool,
     /// The head, if the viewer can apply a suggestion of the conversation.
     apply_suggestions: Option<String>,
     /// Commands for Git and jj that resolve conflicts with the target.
@@ -2124,7 +2137,7 @@ async fn thread_item(
     })
 }
 
-async fn mr_page(
+pub(super) async fn mr_page(
     state: &AppState,
     ctx: PageCtx,
     subject: &Subject,
@@ -2356,7 +2369,15 @@ async fn mr_page_showing(
     let conflict_commands = conflicted.then(|| {
         slath_service::merge::conflict_commands(&sh(&m.source_branch()), &sh(&m.target_branch))
     });
-    let merge_form = if open && a.can(subject, Action::MrMerge) && h.card.mergeable {
+    // A linked merge request merges with its group, in the group's box.
+    let group = state
+        .services
+        .mr_group(subject, (ns, repo, number))
+        .await?
+        .map(super::mr_groups::GroupPanel::new);
+    let linked = open && group.is_some();
+    let can_link = open && me.is_some() && state.services.mr_perms(subject, &a, &m).edit;
+    let merge_form = if open && !linked && a.can(subject, Action::MrMerge) && h.card.mergeable {
         let (allowed, default) = state.services.mr_merge_settings(&a).await?;
         let mut strategies: Vec<(String, &'static str)> = allowed
             .iter()
@@ -2382,6 +2403,7 @@ async fn mr_page_showing(
         })
         .then(|| m.head_oid.clone().unwrap_or_default());
     let auto_merge = match state.services.mr_auto_merge(&m).await? {
+        _ if linked => None,
         Some(am) if open => Some(AutoMergeView {
             may_cancel: state
                 .services
@@ -2444,6 +2466,9 @@ async fn mr_page_showing(
         merge_form,
         update_form,
         auto_merge,
+        link_form: can_link && group.as_ref().is_none_or(|g| g.can_edit),
+        group,
+        can_link,
         apply_suggestions,
         conflict_commands,
         message,
@@ -2491,6 +2516,13 @@ async fn view(
         }
         Some("auto_merge") => Some("It merges when it's ready."),
         Some("auto_merge_cancelled") => Some("Merge when ready cancelled."),
+        Some("linked") => Some("Linked. The group merges together, in its order."),
+        Some("unlinked") => Some("Unlinked: it merges on its own again."),
+        Some("group_moved") => Some("Order saved."),
+        Some("group_merged") => Some("The group merged."),
+        Some("group_partial") => {
+            Some("Partially landed: merging stopped. The group says where and why.")
+        }
         _ => None,
     };
     let show = match q.show.as_deref() {
@@ -3227,6 +3259,8 @@ async fn land_form(
     if m.state != "open"
         || !a.can(subject, Action::MrMerge)
         || !matches!(subject, Subject::User { .. })
+        // Linked merge requests land only with their group.
+        || state.services.mr_is_linked(m).await?
     {
         return Ok(None);
     }

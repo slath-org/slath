@@ -143,6 +143,12 @@ pub fn parse_reference(s: &str) -> Option<(String, String, i32)> {
 }
 
 impl Services {
+    /// Whether the merge request is in a linked group (it then merges only
+    /// with its group).
+    pub async fn mr_is_linked(&self, m: &MergeRequest) -> Result<bool> {
+        self.mr_linked(m.id).await
+    }
+
     /// Whether `m` is in a linked group.
     pub(crate) async fn mr_linked(&self, m: MergeRequestId) -> Result<bool> {
         let mut c = self.pool.acquire().await.map_err(ServiceError::internal)?;
