@@ -442,13 +442,30 @@ impl Services {
         eff: &Effective,
         up_to_date: bool,
     ) -> Result<Vec<Requirement>> {
+        Ok(self.checks_with_policy(m, eff, up_to_date).await?.0)
+    }
+
+    /// The required checks' requirements, and whether the one-maintainer
+    /// policy met one: a status of the maintainer's bot named as the
+    /// context's reporter, which neither wrote the merge request nor
+    /// pushed a revision of it.
+    pub(crate) async fn checks_with_policy(
+        &self,
+        m: &MergeRequest,
+        eff: &Effective,
+        up_to_date: bool,
+    ) -> Result<(Vec<Requirement>, bool)> {
         let mut out = Vec::new();
+        let mut by_policy = false;
         if eff.required_checks.is_empty() {
-            return Ok(out);
+            return Ok((out, by_policy));
         }
         let Some(head) = m.head_oid.as_deref() else {
-            return Ok(out);
+            return Ok((out, by_policy));
         };
+        // Computed once, when a status of the author's bot asks for it.
+        let mut policy: Option<bool> = None;
+        let mut pushers: Option<Vec<String>> = None;
         let all = slath_db::statuses::for_commit(&self.pool, m.repo_id, head).await?;
         for check in &eff.required_checks {
             let ctx = &check.context;
@@ -465,10 +482,21 @@ impl Services {
             }
             let mut ignored = Vec::new();
             let mut counted = None;
+            let mut counted_by_policy = false;
             // Every ignored report is the author's own (or their bots').
             let mut only_own = true;
             for s in all.iter().filter(|s| s.context == *ctx) {
-                match self.not_counting(m, check, s.reporter_id).await? {
+                let why = self.not_counting(m, check, s.reporter_id).await?;
+                if why == Some(OWN_BOTS)
+                    && self
+                        .maintainers_ci_bot(m, eff, check, s, (&mut policy, &mut pushers))
+                        .await?
+                {
+                    counted = Some(s);
+                    counted_by_policy = true;
+                    break;
+                }
+                match why {
                     None => {
                         counted = Some(s);
                         break;
@@ -487,26 +515,34 @@ impl Services {
                     .clone()
                     .unwrap_or_else(|| "a deleted user".to_owned())
             };
+            let under = if counted_by_policy {
+                " under the one-maintainer policy"
+            } else {
+                ""
+            };
             out.push(match counted {
-                Some(s) if s.state == "success" => Requirement {
-                    key: "statuses",
-                    state: "met",
-                    tone: "done",
-                    reason: format!("{ctx}: success, reported by {}.", by(s)),
-                    fix: None,
-                },
+                Some(s) if s.state == "success" => {
+                    by_policy |= counted_by_policy;
+                    Requirement {
+                        key: "statuses",
+                        state: "met",
+                        tone: "done",
+                        reason: format!("{ctx}: success, reported by {}{under}.", by(s)),
+                        fix: None,
+                    }
+                }
                 Some(s) if s.state == "pending" => Requirement {
                     key: "statuses",
                     state: "pending",
                     tone: "waiting",
-                    reason: format!("{ctx}: pending, reported by {}.", by(s)),
+                    reason: format!("{ctx}: pending, reported by {}{under}.", by(s)),
                     fix: Some("Wait for the check".to_owned()),
                 },
                 Some(s) => Requirement {
                     key: "statuses",
                     state: "unmet",
                     tone: "blocking",
-                    reason: format!("{ctx}: {}, reported by {}.", s.state, by(s)),
+                    reason: format!("{ctx}: {}, reported by {}{under}.", s.state, by(s)),
                     fix: Some("Fix what the check found and push again".to_owned()),
                 },
                 None if ignored.is_empty() => Requirement {
@@ -521,7 +557,9 @@ impl Services {
                     state: "unmet",
                     tone: "blocking",
                     reason: format!("{ctx}: no status counts; {}.", ignored.join("; ")),
-                    fix: Some(if only_own {
+                    fix: Some(if only_own && self.author_alone(m).await? {
+                        "Report it with an account that isn't the author's or one of their bots, don't require it in branch protection, or, under the one-maintainer policy, report it with a bot for your CI and name that bot as the check's reporter".to_owned()
+                    } else if only_own {
                         "Report it with an account that isn't the author's or one of their bots, or don't require it in branch protection".to_owned()
                     } else {
                         "Have an allowed reporter report it".to_owned()
@@ -529,7 +567,61 @@ impl Services {
                 },
             });
         }
-        Ok(out)
+        Ok((out, by_policy))
+    }
+
+    /// Whether the merge request's author is the only person with write
+    /// access to its repository.
+    async fn author_alone(&self, m: &MergeRequest) -> Result<bool> {
+        let Some(repo) = slath_db::repos::get(&self.pool, m.repo_id).await? else {
+            return Ok(false);
+        };
+        Ok(m.author_id.is_some() && self.sole_maintainer(&repo).await? == m.author_id)
+    }
+
+    /// Whether a status of the author's bot counts under the one-maintainer
+    /// policy: it applies, the author is the maintainer, the rule names the
+    /// bot as the context's reporter, and the bot pushed no revision of the
+    /// merge request. `cache` keeps the policy and the pushers across checks.
+    async fn maintainers_ci_bot(
+        &self,
+        m: &MergeRequest,
+        eff: &Effective,
+        check: &RequiredCheck,
+        status: &Status,
+        (policy, pushers): (&mut Option<bool>, &mut Option<Vec<String>>),
+    ) -> Result<bool> {
+        let Some(bot) = status.reporter_id else {
+            return Ok(false);
+        };
+        if !check.reporters.as_ref().is_some_and(|r| r.contains(&bot)) {
+            return Ok(false);
+        }
+        if policy.is_none() {
+            let applies = match slath_db::repos::get(&self.pool, m.repo_id).await? {
+                Some(repo) => self.one_maintainer(&repo, eff).await?.is_some_and(|o| {
+                    o.applies && o.maintainer.as_ref().map(|(u, _)| *u) == m.author_id
+                }),
+                None => false,
+            };
+            *policy = Some(applies);
+        }
+        if *policy != Some(true) {
+            return Ok(false);
+        }
+        if pushers.is_none() {
+            *pushers = Some(
+                slath_db::merge_requests::revisions(&self.pool, m.id)
+                    .await?
+                    .into_iter()
+                    .filter_map(|r| r.pushed_by)
+                    .collect(),
+            );
+        }
+        let name = status.reporter.as_deref().unwrap_or_default();
+        Ok(!pushers
+            .as_ref()
+            .is_some_and(|p| p.iter().any(|x| x == name)))
     }
 }
 

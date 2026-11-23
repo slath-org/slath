@@ -1268,7 +1268,11 @@ impl Services {
             }
             reqs.push(r);
         }
-        reqs.extend(self.check_requirements(lands, &eff, up_to_date).await?);
+        let (checks, checks_by_policy) = self.checks_with_policy(lands, &eff, up_to_date).await?;
+        if checks_by_policy {
+            by_policy.push("statuses");
+        }
+        reqs.extend(checks);
         if eff.require_resolved_threads {
             let (open, later) = self
                 .unresolved_threads_upto(m, prefix.map(|p| p.changes.as_slice()))

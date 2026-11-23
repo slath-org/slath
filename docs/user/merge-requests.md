@@ -410,9 +410,18 @@ review form and submit it; the readiness card's **Review** leads there.
 The API takes `{"verdict": "accountable_review"}`. It counts
 for the revision you reviewed: after a new push, even a plain rebase,
 review again. For a change to a sensitive path it counts once you've
-marked every file viewed before submitting it. Required checks still need
-a status from someone other than you or your bots, and bots still can't
-push sensitive paths. Your review never shows or counts as an approval;
+marked every file viewed before submitting it. Bots still can't push
+sensitive paths.
+
+Required checks never count a status you report yourself: an agent
+working with your token could otherwise claim its own success. Under the
+policy, let your CI report with a bot instead. Create a bot (its tokens
+are made in the browser, never with an API token), give your CI one of
+its tokens with `statuses:write`, and name the bot as the check's
+reporter in the rule (`ci by my-ci`). Its statuses then count on your
+merge requests, unless the bot also pushed to that merge request: a bot
+that writes code doesn't certify it. The check reads "reported by my-ci
+under the one-maintainer policy", and the merge records it. Your review never shows or counts as an approval;
 the timeline shows it as "reviewed as the only maintainer", and the
 timeline and the ledger record that the merge happened under the
 one-maintainer policy.

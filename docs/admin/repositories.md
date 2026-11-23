@@ -146,13 +146,18 @@ For merging merge requests into a protected branch:
   [working alone](../user/merge-requests.md#working-alone)). People with
   write access through collaborators, teams, or an organization's owners
   count; bots and instance admins without such a role don't. A second
-  person with write access ends it at once. Bots can't turn it on.
+  person with write access ends it at once. Bots can't turn it on. Under
+  it, a required check also counts statuses from a bot of that person
+  that the rule names as the check's reporter, unless that bot pushed to
+  the merge request.
 
 - **Required status checks:** status contexts that must report `success`
   on the commit that lands, one per line (`ci/build`). Add `by` and names
   to count only those reporters' statuses (`ci/build by ci-bot`).
-  Statuses from the merge request's author and from bots the author owns
-  never count, whatever the rule says.
+  Statuses from the merge request's author and from the author's bots
+  (owned by them, or by an organization whose only owner they are) never
+  count, whatever the rule says, except under the one-maintainer policy
+  above.
 - **Accept statuses on the merge request's head for rebase and merge
   commits** (on by default). Off, only a fast-forward merge can use the
   head's statuses.

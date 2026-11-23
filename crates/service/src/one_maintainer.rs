@@ -397,15 +397,26 @@ impl Services {
                     continue;
                 };
                 let mut own = true;
+                let mut bots = false;
                 for id in ids {
-                    own &= *id == u
-                        || slath_db::users::bot_sole_person(&self.pool, *id).await? == Some(u);
+                    let mine_bot =
+                        slath_db::users::bot_sole_person(&self.pool, *id).await? == Some(u);
+                    own &= *id == u || mine_bot;
+                    bots |= mine_bot;
                 }
-                if own {
-                    out.push(format!(
-                        "{}: only {name} and {name}'s bots may report {ctx}, and their statuses never count on {name}'s own merge requests. Add a reporter that isn't {name}'s, or don't require {ctx}.",
-                        r.pattern
-                    ));
+                // Under the policy, a named bot of the maintainer counts.
+                if own && !(r.single_maintainer && bots) {
+                    out.push(if bots {
+                        format!(
+                            "{}: only {name} and {name}'s bots may report {ctx}, and their statuses never count on {name}'s own merge requests. Turn on \u{201c}Only one maintainer: their own review counts\u{201d} for this rule so the named bots count, or add a reporter that isn't {name}'s.",
+                            r.pattern
+                        )
+                    } else {
+                        format!(
+                            "{}: only {name} may report {ctx}, and {name}'s statuses never count on {name}'s own merge requests. Name a bot for your CI as its reporter and turn on \u{201c}Only one maintainer: their own review counts\u{201d}, or add a reporter that isn't {name}'s.",
+                            r.pattern
+                        )
+                    });
                 }
             }
         }

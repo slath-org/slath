@@ -698,7 +698,7 @@ fn conf_review_32_settings_warn_about_requirements_nobody_can_meet() {
         body.contains("main: only alice has write access, so nobody else can approve alice&#39;s merge requests"),
         "{body}"
     );
-    assert!(body.contains("only alice and alice"), "{body}");
+    assert!(body.contains("main: only alice may report ci"), "{body}");
     // With the policy on, only the check is left.
     let r = api(
         &s,
@@ -855,5 +855,197 @@ fn conf_review_11_a_sole_owners_organization_bot_is_theirs() {
         Some(&json!({"role": "owner"})),
     );
     assert!(r.status < 300, "{}", r.body);
+    assert_eq!(requirement(&s, &alice, n, "statuses")["state"], "met");
+}
+
+fn checks_rule(s: &TestServer, alice: &str, policy: bool, reporters: Value) {
+    let r = api(
+        s,
+        alice,
+        "POST",
+        "/protections",
+        Some(
+            json!({"pattern": "main", "required_approvals": 0, "single_maintainer": policy,
+                    "required_status_contexts": ["ci"], "status_reporters": reporters}),
+        ),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+}
+
+#[test]
+fn conf_review_32_the_maintainers_named_ci_bot_counts_under_the_policy() {
+    let s = TestServer::start();
+    s.create_user("bob", PASSWORD, false);
+    let alice = token(&s, "alice");
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let n = open_mr(&s, &alice, &w, "a.txt");
+    let ci = ci_bot(&s, &alice, "alice", "alice-ci");
+    report(&s, &ci, n, &alice);
+    let state = || requirement(&s, &alice, n, "statuses");
+    // Without the policy, alice's bot never counts on alice's merge request.
+    checks_rule(&s, &alice, false, json!({"ci": ["alice-ci"]}));
+    assert_eq!(state()["state"], "unmet");
+    // Under it, without naming the bot, the row says how to get unstuck.
+    checks_rule(&s, &alice, true, json!({}));
+    let r = state();
+    assert_eq!(r["state"], "unmet", "{r}");
+    assert!(
+        r["fix_action"]
+            .as_str()
+            .unwrap()
+            .contains("name that bot as the check's reporter"),
+        "{r}"
+    );
+    // Named, it counts, and says why.
+    checks_rule(&s, &alice, true, json!({"ci": ["alice-ci"]}));
+    let r = state();
+    assert_eq!(r["state"], "met", "{r}");
+    assert_eq!(
+        r["reason"],
+        "ci: success, reported by alice-ci under the one-maintainer policy."
+    );
+    // A second writer restores the normal rule at once.
+    let role = |r: &str| {
+        let r = api(
+            &s,
+            &alice,
+            "PUT",
+            "/collaborators/bob",
+            Some(json!({"role": r})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    };
+    role("write");
+    assert_eq!(state()["state"], "unmet");
+    role("read");
+    assert_eq!(state()["state"], "met");
+    // The merge records it.
+    let h = head(&s, &alice, n);
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        &format!("/merge-requests/{n}/merge"),
+        Some(json!({"expected_head_oid": h})),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let ledger = api(
+        &s,
+        &alice,
+        "GET",
+        &format!("/merge-requests/{n}/ledger"),
+        None,
+    )
+    .json();
+    let met: Vec<Value> = ledger
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["kind"] == "one_maintainer_policy")
+        .map(|e| e["detail"]["met"].clone())
+        .collect();
+    assert_eq!(met, [json!(["statuses"])], "{ledger}");
+}
+
+#[test]
+fn conf_review_32_the_maintainer_and_a_pushing_bot_never_certify() {
+    let s = TestServer::start();
+    let alice = token(&s, "alice");
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path().join("w");
+    let n = open_mr(&s, &alice, &w, "a.txt");
+    // alice's own status, with alice named as the reporter.
+    let mut c = s.login("alice", PASSWORD);
+    let own = slath_tests::http::create_token(&mut c, "ci", &["statuses:write"]);
+    checks_rule(&s, &alice, true, json!({"ci": ["alice"]}));
+    report(&s, &own, n, &alice);
+    let r = requirement(&s, &alice, n, "statuses");
+    assert_eq!(r["state"], "unmet", "{r}");
+    // A bot of alice's that pushed a revision doesn't certify it either.
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alice-agent",
+            "--token-scopes",
+            "repo:write,statuses:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let agent = serde_json::from_str::<Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = api(
+        &s,
+        &alice,
+        "PUT",
+        "/collaborators/alice-agent",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let git = slath_tests::server::GitClient::new();
+    std::fs::write(w.join("b.txt"), "agent\n").unwrap();
+    git.ok(&w, &["add", "-A"]);
+    git.ok(&w, &["commit", "-q", "-m", "The agent's change"]);
+    let url = s.url(&slath_tests::server::DEMO).replace(&s.token, &agent);
+    git.ok(&w, &["push", "-q", &url, "topic"]);
+    revisions(&s, &alice, n, 2);
+    checks_rule(&s, &alice, true, json!({"ci": ["alice-agent"]}));
+    report(&s, &agent, n, &alice);
+    let r = requirement(&s, &alice, n, "statuses");
+    assert_eq!(r["state"], "unmet", "{r}");
+    // Another bot of alice's that pushed nothing does.
+    let ci = ci_bot(&s, &alice, "alice", "alice-ci");
+    checks_rule(&s, &alice, true, json!({"ci": ["alice-agent", "alice-ci"]}));
+    report(&s, &ci, n, &alice);
+    assert_eq!(requirement(&s, &alice, n, "statuses")["state"], "met");
+}
+
+#[test]
+fn conf_review_32_a_jj_made_merge_request_takes_the_named_bots_checks() {
+    use crate::jj::{Jj, jj_binaries};
+    let s = TestServer::start();
+    let alice = token(&s, "alice");
+    let d = tempfile::tempdir().unwrap();
+    open_mr(&s, &alice, &d.path().join("w"), "a.txt");
+    let (version, bin) = jj_binaries().into_iter().next().unwrap();
+    let jj = Jj::new(&version, &bin);
+    let j = d.path().join("jj");
+    jj.ok(
+        d.path(),
+        &[
+            "git",
+            "clone",
+            &s.url(&slath_tests::server::DEMO),
+            j.to_str().unwrap(),
+        ],
+    );
+    jj.ok(&j, &["new", "main@origin", "-m", "Add b"]);
+    std::fs::write(j.join("b.txt"), "b\n").unwrap();
+    jj.ok(&j, &["bookmark", "create", "jj-topic", "-r", "@"]);
+    jj.ok(&j, &["git", "push", "--bookmark", "jj-topic"]);
+    let r = api(
+        &s,
+        &alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "jj-topic", "title": "jj"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    revisions(&s, &alice, n, 1);
+    let ci = ci_bot(&s, &alice, "alice", "alice-ci");
+    checks_rule(&s, &alice, true, json!({"ci": ["alice-ci"]}));
+    report(&s, &ci, n, &alice);
     assert_eq!(requirement(&s, &alice, n, "statuses")["state"], "met");
 }
