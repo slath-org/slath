@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Push throughput, nightly: 8 Git clients push new commits to a release
+# build over HTTP for 60 s. The run's summary shows pushes per second,
+# push latency, and the runner's hardware; the JSON and Markdown reports
+# stay as an artifact for 90 days. There is no pass threshold: the numbers
+# are for comparing commits on the same kind of runner.
+name: Push benchmark
+
+on:
+  schedule:
+    - cron: "53 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-benchmark
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  push-benchmark:
+    name: push throughput
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18@sha256:b9f6b8ff03b62f3cfd9d9ba3fe56226a9991c79d3fb46fd46536263bf02be553
+        env:
+          POSTGRES_USER: slath
+          POSTGRES_PASSWORD: slath
+          POSTGRES_DB: slath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slath -d slath"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://slath:slath@localhost:5432/slath
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install newest stable Git
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get install -y --no-install-recommends git
+      - name: Install Rust (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: push-benchmark
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: just,cargo-nextest
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+      - run: just web
+      - run: just bench-push
+      - name: Summary
+        run: cat target/perf-report/push-throughput.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: push-throughput
+          path: target/perf-report/
+          retention-days: 90

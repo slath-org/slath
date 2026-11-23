@@ -46,6 +46,15 @@ test-backup-restore:
     cargo build --locked -p slath --bins
     cargo nextest run --locked -p slath-tests --test ops -E 'test(/backup|restore/)'
 
+# Push throughput against a release build: clients push new commits over
+# HTTP for a while; the report is in target/perf-report/. Defaults: 8 clients
+# for 60 s (SLATH_BENCH_PUSH_CLIENTS, SLATH_BENCH_PUSH_SECONDS).
+bench-push:
+    cargo build --locked --release -p slath --bins
+    SLATH_BIN=target/release/slath SLATH_BENCH_PUSH_CLIENTS=${SLATH_BENCH_PUSH_CLIENTS:-8} \
+        SLATH_BENCH_PUSH_SECONDS=${SLATH_BENCH_PUSH_SECONDS:-60} \
+        cargo nextest run --locked -p slath-tests --test perf --no-capture
+
 # Upgrade every release (built from its tag, cached in target/upgrade-matrix)
 # to this checkout and check the data. Pass tags to limit it.
 upgrade-matrix *TAGS:

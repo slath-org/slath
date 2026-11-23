@@ -55,6 +55,21 @@ comments on the issue labeled `compat-matrix` and blocks the next release;
 the next green run closes it. When a new jj release passes, pin it in
 `versions.toml` and drop the oldest.
 
+### Push benchmark
+
+`tests/perf/` measures push throughput: several Git clients push new
+commits to their own branches of one repository over HTTP, as one person,
+against a real server. The test suite runs it for 3 seconds with 4 clients
+so it keeps working; `just bench-push` runs it against a release build
+with 8 clients for 60 seconds (`SLATH_BENCH_PUSH_CLIENTS`,
+`SLATH_BENCH_PUSH_SECONDS`). It writes pushes per second, push latency
+(p50, p95, p99), and the hardware and versions it ran on to
+`target/perf-report/push-throughput.json` and `.md`. The nightly workflow
+`.github/workflows/push-benchmark.yml` runs it on the hosted runner, shows
+the Markdown report in the run's summary, and keeps both files as an
+artifact for 90 days. There is no pass threshold: compare the numbers
+between commits on the same kind of hardware.
+
 ## Documentation
 
 `docs/user`, `docs/admin`, `docs/cli`, `docs/dev`, and the OpenAPI
@@ -90,6 +105,7 @@ To use Podman instead of Docker when both are installed, set
 | `just css-lint` | Check CSS against the design-token rules |
 | `just hooks` | Use the optional pre-commit hook: audits the workflows with zizmor when a commit changes `.github/` |
 | `just test-backup-restore` | Run the backup and restore drill |
+| `just bench-push` | Measure push throughput against a release build; see [Push benchmark](#push-benchmark) |
 | `docker build -t slath:test . && just test-compose` | Install with Docker Compose as the guide says, then render every page offline |
 | `just schema-fixture` | Write the release schema and data fixture |
 | `just dev-mail` | Start a mail catcher: SMTP on `127.0.0.1:1025` (`tls = "none"`), inbox at <http://127.0.0.1:8025> |

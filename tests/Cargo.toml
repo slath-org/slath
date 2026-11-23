@@ -34,6 +34,10 @@ path = "security/main.rs"
 name = "ops"
 path = "ops/main.rs"
 
+[[test]]
+name = "perf"
+path = "perf/main.rs"
+
 [dependencies]
 base64.workspace = true
 flate2.workspace = true
