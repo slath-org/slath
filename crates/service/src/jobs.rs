@@ -166,8 +166,15 @@ impl Services {
         };
         let path = self.repo_path(id);
         let timeout = std::time::Duration::from_secs(u64::from(MAINTENANCE_TIMEOUT_SECS));
-        if let Err(e) = slath_git::storage::maintain(&self.runner, &path, timeout).await {
-            tracing::warn!(error = %e, repo = %id, "repository maintenance failed");
+        tracing::info!(repo = %id, "repository maintenance started");
+        let started = std::time::Instant::now();
+        match slath_git::storage::maintain(&self.runner, &path, timeout).await {
+            Ok(()) => tracing::info!(
+                repo = %id,
+                ms = started.elapsed().as_millis(),
+                "repository maintenance finished"
+            ),
+            Err(e) => tracing::warn!(error = %e, repo = %id, "repository maintenance failed"),
         }
         let size = match slath_git::storage::disk_usage(&self.runner, &path).await {
             Ok(b) => Some(i64::try_from(b).unwrap_or(i64::MAX)),

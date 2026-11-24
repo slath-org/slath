@@ -91,8 +91,11 @@ fn client(url: &str, n: u64, deadline: Instant) -> Result<Vec<f64>, String> {
             .unwrap();
         let took = start.elapsed();
         if !out.status.success() {
+            let at = time::OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
             return Err(format!(
-                "push {i} of client {n} failed:\n{}",
+                "push {i} of client {n} failed at {at}:\n{}",
                 String::from_utf8_lossy(&out.stderr)
             ));
         }
