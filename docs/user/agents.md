@@ -116,7 +116,8 @@ them yourself.
   documents with a stable `code`.
 - **Safe retries:** send an `Idempotency-Key` header with any request that
   changes something. Repeating it within 24 hours returns the first
-  response instead of doing it twice.
+  response instead of doing it twice. A refused request isn't kept: fix
+  it and send it again with the same key.
 - **Plain text:** a commit's or merge request's diff and patches, ready for
   `git apply` and `git am`, at
   `GET /api/v1/repos/<ns>/<repo>/merge-requests/<n>/diff` and `/patch`

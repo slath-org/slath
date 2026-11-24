@@ -208,8 +208,11 @@ async fn with_idempotency(
     let res = next
         .run(Request::from_parts(parts, Body::from(bytes)))
         .await;
+    // Only successes are kept. A refused request changed nothing, so its
+    // retry runs again: it gets the full error again, and a corrected body
+    // may reuse the key.
     let status = res.status();
-    if status.is_server_error() {
+    if status.is_client_error() || status.is_server_error() {
         let _ = slath_db::idempotency::release(&state.pool, principal, &key).await;
         return res;
     }

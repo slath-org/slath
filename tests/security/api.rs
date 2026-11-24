@@ -676,6 +676,21 @@ fn conf_api_01_pagination_uses_signed_cursors() {
 fn conf_api_05_idempotency_keys() {
     let mut e = setup();
     let a = e.alice.clone();
+    // A refused request isn't kept: its retry is refused again with the
+    // same details, and the corrected body may use the same key.
+    let bad = json!({"namespace": "alice", "name": "-bad", "visibility": "private"});
+    for _ in 0..2 {
+        let r = e.c.api_with(
+            "POST",
+            "/api/v1/repos",
+            Some(&a),
+            Some(&bad),
+            &[("idempotency-key", "create-once-1")],
+        );
+        assert_eq!(r.status, 422, "{}", r.body);
+        assert_eq!(r.header("idempotency-replayed"), None);
+        assert_eq!(r.json()["errors"][0]["field"], "name", "{}", r.body);
+    }
     let body = json!({"namespace": "alice", "name": "once", "visibility": "private"});
     let first = e.c.api_with(
         "POST",
