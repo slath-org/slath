@@ -70,6 +70,34 @@
   {%- call f::buttons() %}<button type="submit" class="button">Save merge request settings</button>{% endcall %}
 </form>
 </section>
+<section class="section" aria-labelledby="context-heading">
+<div class="section-head">
+  <h2 id="context-heading">Agent context</h2>
+  {%- call c::popover(ctx, "About agent context") %}
+  <p>Agents can upload an account of how they made a change: a summary and, if kept, the transcript. It shows next to the change on its merge request.</p>
+  <p>Records are encrypted, never part of the repository's Git data, and never copied to forks.</p>
+  {%- endcall %}
+</div>
+<form method="post" action="{{ base }}/context" class="form-layout" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- call f::question("context_visibility", "Who sees agent context", "", self.error("context_visibility").unwrap_or_default()) %}
+  {%- call f::option("radio", "cv-writers", "visibility", "writers", "Writers (recommended)", context_visibility == "writers", "People who can push, the person who asked for the work, and the bot's owner.") %}{% endcall %}
+  {%- let readers_hint %}Everyone who can read the code{% if visibility == "public" %}, so anyone: this repository is public{% endif %}.{% endlet %}
+  {%- call f::option("radio", "cv-readers", "visibility", "readers", "Readers", context_visibility == "readers", readers_hint) %}{% endcall %}
+  {%- call f::option("radio", "cv-off", "visibility", "off", "Off", context_visibility == "off", "New records are refused. Existing ones stay visible to writers until deleted.") %}{% endcall %}
+  {%- endcall %}
+  {%- call f::question("context_detail", "What records keep") %}
+  {%- call f::option("radio", "cd-summary", "detail", "summary", "Summary", context_detail == "summary", "What the agent meant to do, what came of it, and what's left open.") %}{% endcall %}
+  {%- call f::option("radio", "cd-full", "detail", "full", "Summary and transcript", context_detail == "full", "Also the prompts, responses, and tool calls. Applies to new records.") %}{% endcall %}
+  {%- endcall %}
+  {%- let retention_error = self.error("context_retention_days").unwrap_or_default() %}
+  {%- call f::field("context_retention_days", "Delete records after (days)", "Empty keeps them until someone deletes them. Older records are deleted within the hour, also after lowering it.", retention_error) %}
+  <input id="context_retention_days" name="retention_days" type="number" inputmode="numeric" min="1" max="3650" value="{% if let Some(d) = context_retention_days %}{{ d }}{% endif %}"{% call f::described("context_retention_days", "x", retention_error) %}{% endcall %}>
+  {%- endcall %}
+  {%- call f::option("checkbox", "cv-entire", "entire_import", "1", "Accept Entire checkpoints (experimental)", context_entire_import, "Agents that record sessions with the Entire CLI can upload them; Entire's format may change without notice.") %}{% endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Save agent context settings</button>{% endcall %}
+</form>
+</section>
 <section class="section" aria-labelledby="rename-heading">
 <h2 id="rename-heading">Rename</h2>
 <form method="post" action="{{ base }}/rename" class="form-layout" novalidate>

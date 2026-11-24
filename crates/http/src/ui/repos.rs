@@ -470,6 +470,12 @@ struct GeneralSettings<'a> {
     stalled_after_days: i16,
     /// The prefix of change sources; empty for none.
     change_source_prefix: String,
+    /// Agent context: who sees records, what they keep, for how long,
+    /// and whether Entire checkpoints are accepted.
+    context_visibility: String,
+    context_detail: String,
+    context_retention_days: Option<i32>,
+    context_entire_import: bool,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
 }
@@ -500,6 +506,7 @@ fn status_message(s: Option<&str>) -> Option<&'static str> {
         "renamed" => "Repository renamed. The old name redirects here.",
         "push-protection" => "Push protection changed.",
         "merge-requests" => "Merge request settings saved.",
+        "context" => "Agent context settings saved.",
         "archived" => "Repository archived. It's read-only now.",
         "unarchived" => "Repository unarchived.",
         "collaborator-saved" => "Collaborator saved.",
@@ -558,6 +565,10 @@ fn general_page<'a>(
         admins_allow,
         stalled_after_days: a.repo.stalled_after_days,
         change_source_prefix: a.repo.change_source_prefix.clone(),
+        context_visibility: a.repo.context_visibility.clone(),
+        context_detail: a.repo.context_detail.clone(),
+        context_retention_days: a.repo.context_retention_days,
+        context_entire_import: a.repo.context_entire_import,
         header,
         description: a.repo.description.clone().unwrap_or_default(),
         default_branch: a.repo.default_branch.clone(),
@@ -682,6 +693,52 @@ async fn save_merge_request_settings(
         Ok(()) => Ok(
             Redirect::to(&repo_url(&a, "/settings/general?status=merge-requests")).into_response(),
         ),
+        Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
+    }
+}
+
+#[derive(Deserialize)]
+struct ContextSettingsForm {
+    #[serde(default)]
+    visibility: String,
+    #[serde(default)]
+    detail: String,
+    #[serde(default)]
+    retention_days: String,
+    /// Checkbox: accept Entire checkpoints.
+    #[serde(default)]
+    entire_import: Option<String>,
+}
+
+async fn save_context_settings(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    Sudo(s): Sudo,
+    Path((ns, repo)): Path<(String, String)>,
+    Form(f): Form<ContextSettingsForm>,
+) -> Result<Response, AppError> {
+    let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let days = f.retention_days.trim();
+    let retention = if days.is_empty() {
+        None
+    } else {
+        // Not a number: the service says what fits.
+        Some(days.parse::<i32>().unwrap_or(0))
+    };
+    let settings = slath_db::context_records::Settings {
+        visibility: Some(f.visibility.as_str()),
+        detail: Some(f.detail.as_str()),
+        retention_days: Some(retention),
+        entire_import: Some(f.entire_import.is_some()),
+    };
+    match state
+        .services
+        .set_context_settings(&s.subject, &a, &settings)
+        .await
+    {
+        Ok(()) => {
+            Ok(Redirect::to(&repo_url(&a, "/settings/general?status=context")).into_response())
+        }
         Err(e) => invalid_page(&state, &a, &s.subject, ctx, e).await,
     }
 }
@@ -1556,6 +1613,11 @@ pub fn router() -> Router<AppState> {
             "/{ns}/{repo}/settings/merge-requests",
             Access::Resource,
             post(save_merge_request_settings),
+        )
+        .route_as(
+            "/{ns}/{repo}/settings/context",
+            Access::Resource,
+            post(save_context_settings),
         )
         .route_as(
             "/{ns}/{repo}/settings/rename",

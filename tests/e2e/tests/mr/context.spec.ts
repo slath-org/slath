@@ -55,3 +55,31 @@ test("conf_agent_05_the_record_page_opens_with_the_keyboard", async ({ page }) =
   await page.keyboard.press("Enter");
   await expect(page.getByRole("region", { name: "Transcript" })).toContainText("Write notes for the agent fixture.");
 });
+
+test("conf_agent_16_the_record_page_offers_deletion_to_who_may_delete", async ({ page }) => {
+  // alice owns the agent's bot and administers the repository. The record
+  // is shared by every test, so this checks the offer, not the deletion
+  // (the compat suite deletes through this form).
+  await signIn(page, USERS.alice);
+  await openFixture(page);
+  await tapOrClick(page, panel(page).getByRole("link", { name: "Read the transcript (3 entries)" }));
+  const danger = page.getByRole("region", { name: "Delete this record" });
+  await expect(danger).toContainText("backups taken before, still exist");
+  await expect(danger.getByRole("button", { name: "Delete record" })).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("conf_agent_16_agent_context_settings_save_as_they_are", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/settings/general");
+  const section = page.getByRole("region", { name: "Agent context" });
+  const who = section.getByRole("group", { name: "Who sees agent context" });
+  await expect(who.getByRole("radio", { name: /^Writers/ })).toBeChecked();
+  await expect(section.getByRole("group", { name: "What records keep" }).getByRole("radio", { name: /^Summary and transcript/ })).toBeChecked();
+  await expect(section.getByRole("spinbutton", { name: "Delete records after (days)" })).toHaveValue("");
+  await expectAccessible(page);
+  // Saving the fixture's own values changes nothing other tests rely on.
+  await tapOrClick(page, section.getByRole("button", { name: "Save agent context settings" }));
+  await expect(page.getByText("Agent context settings saved.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Agent context" }).getByRole("radio", { name: /^Writers/ })).toBeChecked();
+});

@@ -10,7 +10,7 @@
 use askama::Template;
 use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::response::Response;
+use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
 use slath_core::authz::Subject;
 use slath_core::context_record::{EntryKind, Payload};
@@ -21,7 +21,7 @@ use slath_service::repos::RepoAccess;
 use super::repos::RepoHeader;
 use super::{PageCtx, Time, Who, render};
 use crate::AppState;
-use crate::auth::MaybeSession;
+use crate::auth::{MaybeSession, RequireSession};
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
@@ -186,6 +186,8 @@ struct RecordPage {
     total: usize,
     prev: String,
     next: String,
+    /// Where the delete form posts, for those who may delete the record.
+    delete: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -268,7 +270,13 @@ async fn show_record(
         )
     });
     let r = &v.record;
+    let delete = state
+        .services
+        .may_delete_context(&subject, &a, r)
+        .await?
+        .then(|| format!("{here}/delete"));
     let page = RecordPage {
+        delete,
         header: RepoHeader::load(&state, &a, &subject, "merge-requests").await,
         uploader: Who::account(v.uploader.clone()),
         created: r.created_at.into(),
@@ -307,12 +315,37 @@ async fn show_record(
     Ok(render(&page))
 }
 
+/// Deletes the record, then shows what it was about: its merge request,
+/// or the repository's merge requests.
+async fn delete_record(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let id: uuid::Uuid = id.parse().map_err(|_| AppError::not_found())?;
+    let svc = &state.services;
+    let v = svc.context_record(&s.subject, &ns, &repo, id).await?;
+    svc.delete_context_record(&s.subject, &ns, &repo, id)
+        .await?;
+    let to = match v.merge_request {
+        Some(n) => format!("/{ns}/{repo}/merge-requests/{n}"),
+        None => format!("/{ns}/{repo}/merge-requests"),
+    };
+    Ok(Redirect::to(&to).into_response())
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route_as(
-        "/{ns}/{repo}/-/context/{id}",
-        Access::Resource,
-        axum::routing::get(show_record),
-    )
+    Router::new()
+        .route_as(
+            "/{ns}/{repo}/-/context/{id}",
+            Access::Resource,
+            axum::routing::get(show_record),
+        )
+        .route_as(
+            "/{ns}/{repo}/-/context/{id}/delete",
+            Access::Resource,
+            axum::routing::post(delete_record),
+        )
 }
 
 #[cfg(test)]

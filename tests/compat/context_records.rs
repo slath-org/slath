@@ -1183,3 +1183,110 @@ fn conf_agent_16_records_past_the_retention_are_deleted() {
     let r = w.patch_repo(&w.alice, json!({"context_detail": "summary"}));
     assert_eq!(r.json()["context_retention_days"], Value::Null);
 }
+
+#[test]
+fn conf_agent_16_settings_and_deletion_in_the_ui() {
+    use slath_tests::http::submit;
+    let (w, n) = World::start();
+    let general = "/alice/demo/settings/general";
+    let action = "/alice/demo/settings/context";
+    let mut alice = w.s.login("alice", PASSWORD);
+    let page = alice.get(general);
+    assert!(page.body.contains("Agent context"), "{}", page.body);
+    assert!(
+        page.body.contains(r#"value="writers" checked"#),
+        "{}",
+        page.body
+    );
+    fn form<'a>(v: &'a str, d: &'a str, days: &'a str, entire: bool) -> Vec<(&'a str, &'a str)> {
+        let mut f = vec![("visibility", v), ("detail", d), ("retention_days", days)];
+        if entire {
+            f.push(("entire_import", "1"));
+        }
+        f
+    }
+    let r = submit(
+        &mut alice,
+        general,
+        action,
+        &form("readers", "full", "30", true),
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(
+        r.header("location"),
+        Some("/alice/demo/settings/general?status=context")
+    );
+    let repo = w.api(&w.alice, "GET", "", None).json();
+    assert_eq!(repo["context_visibility"], "readers");
+    assert_eq!(repo["context_detail"], "full");
+    assert_eq!(repo["context_retention_days"], 30);
+    assert_eq!(repo["context_entire_import"], true);
+    assert!(
+        alice
+            .get(&format!("{general}?status=context"))
+            .body
+            .contains("Agent context settings saved.")
+    );
+    // A retention out of range is explained in place; empty keeps records.
+    let r = submit(
+        &mut alice,
+        general,
+        action,
+        &form("readers", "full", "0", true),
+    );
+    assert_eq!(r.status, 422);
+    assert!(
+        r.body.contains("Keep records for 1 to 3650 days"),
+        "{}",
+        r.body
+    );
+    let r = submit(
+        &mut alice,
+        general,
+        action,
+        &form("writers", "summary", "", false),
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let repo = w.api(&w.alice, "GET", "", None).json();
+    assert_eq!(repo["context_retention_days"], Value::Null);
+    assert_eq!(repo["context_visibility"], "writers");
+    assert_eq!(repo["context_entire_import"], false);
+    // Writers who aren't admins don't get the page; it needs sudo.
+    let mut bob = w.s.login("bob", PASSWORD);
+    assert_eq!(bob.get(general).status, 404);
+    w.s.db.execute("UPDATE sessions SET sudo_until = NULL");
+    let r = submit(
+        &mut alice,
+        general,
+        action,
+        &form("readers", "summary", "", false),
+    );
+    assert_eq!(r.status, 303);
+    assert!(r.header("location").unwrap().starts_with("/-/sudo"));
+    assert_eq!(
+        w.api(&w.alice, "GET", "", None).json()["context_visibility"],
+        "writers"
+    );
+
+    // Deletion from the record's page: offered to the person who asked,
+    // not to a writer who neither asked nor owns the bot.
+    let mut rec = record("For carol", json!({"merge_request": n}));
+    rec["initiated_by"] = json!("carol");
+    let id = w.upload(&w.bot, &rec).json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let page = format!("/alice/demo/-/context/{id}");
+    assert!(!bob.get(&page).body.contains("Delete record"));
+    let mut carol = w.s.login("carol", PASSWORD);
+    assert!(carol.get(&page).body.contains("Delete record"));
+    let r = submit(&mut bob, &page, &format!("{page}/delete"), &[]);
+    assert_eq!(r.status, 403, "{}", r.body);
+    let r = submit(&mut carol, &page, &format!("{page}/delete"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(
+        r.header("location"),
+        Some(format!("/alice/demo/merge-requests/{n}").as_str())
+    );
+    assert_eq!(carol.get(&page).status, 404);
+}

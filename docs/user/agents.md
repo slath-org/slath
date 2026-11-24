@@ -230,15 +230,16 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **Who sees it:** by default, people with write access to the
   repository, the person named in `initiated_by`, and the bot's owner.
   Others, even if they can read the code, don't see that a record exists.
-  Repository admins can change that with `"context_visibility"` in
-  `PATCH /api/v1/repos/<ns>/<repo>`: `"readers"` shows records to
-  everyone who can read the code (on a public repository, to everyone),
-  and `"off"` refuses new records while the existing ones stay visible as
-  by default. Records never go to forks or mirrors, and never into search,
+  Repository admins can change that under **Settings → General → Agent
+  context** (with what records keep, how long, and the Entire import), or
+  with `"context_visibility"` in `PATCH /api/v1/repos/<ns>/<repo>`:
+  `"readers"` shows records to everyone who can read the code (on a
+  public repository, to everyone), and `"off"` refuses new records while
+  the existing ones stay visible as by default. Records never go to forks or mirrors, and never into search,
   notifications, or webhooks.
 - **Deleting:** the person named in `initiated_by`, the bot's owner, and
-  repository admins can delete a record with
-  `DELETE …/context-records/<id>`. It's gone at once and its content
+  repository admins can delete a record with **Delete record** on its
+  page or with `DELETE …/context-records/<id>`. It's gone at once and its content
   can't be read any more. Copies someone already downloaded, and backups
   taken before, still exist.
 - **Keeping:** records are kept until deleted, unless repository admins

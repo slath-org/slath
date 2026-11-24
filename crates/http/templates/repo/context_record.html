@@ -75,5 +75,13 @@
   {% call l::pager(prev, next, "Earlier entries", "Later entries") %}{% endcall %}
   {%- endif %}
 </section>
+{%- if let Some(action) = delete %}
+{%- call f::danger("delete-heading", "Delete this record", "It's gone at once and can't be read any more. Copies someone already downloaded, and backups taken before, still exist.") %}
+<form method="post" action="{{ action }}" class="form-layout">
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- call f::buttons() %}<button type="submit" class="button button-danger">Delete record</button>{% endcall %}
+</form>
+{%- endcall %}
+{%- endif %}
 </div>
 {% endblock %}
