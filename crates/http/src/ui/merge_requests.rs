@@ -2951,6 +2951,9 @@ struct ChangePage {
     too_big: bool,
     /// The same comparison the other way (patches or tree).
     other_href: Option<String>,
+    /// For an interdiff whose versions' descriptions differ: their lines,
+    /// each marked same, removed, or added; `Err` past the lines compared.
+    description: Option<Result<Vec<DescriptionLine>, ()>>,
     base: String,
     /// The shown version holds a conflict jj recorded.
     conflict: Option<ConflictView>,
@@ -2964,6 +2967,39 @@ struct ChangePage {
     /// change still in the stack. Statuses of any other version are
     /// history and must not read as the change's checks now.
     shown_current: bool,
+}
+
+/// A line of a change's description, compared with another version's.
+struct DescriptionLine {
+    /// `same`, `removed`, or `added`.
+    kind: &'static str,
+    text: String,
+}
+
+/// How two versions' descriptions differ, if they do.
+fn description_diff(old: &str, new: &str) -> Option<Result<Vec<DescriptionLine>, ()>> {
+    use slath_markup::intraline::LineChange;
+    let (old, new) = (old.trim_end(), new.trim_end());
+    if old == new {
+        return None;
+    }
+    Some(
+        slath_markup::intraline::diff_lines(old, new)
+            .map(|lines| {
+                lines
+                    .into_iter()
+                    .map(|(c, text)| DescriptionLine {
+                        kind: match c {
+                            LineChange::Same => "same",
+                            LineChange::Removed => "removed",
+                            LineChange::Added => "added",
+                        },
+                        text: slath_markup::reveal_bidi(text).into_owned(),
+                    })
+                    .collect()
+            })
+            .ok_or(()),
+    )
 }
 
 /// Landing the changes of a stack up to the shown one.
@@ -3159,6 +3195,16 @@ async fn change(
             }
         }
     };
+    let description = match &from {
+        Some(f) => {
+            let (old, new) = state
+                .services
+                .mr_version_descriptions(&m, f, &shown)
+                .await?;
+            description_diff(&old, &new)
+        }
+        None => None,
+    };
     let diff = match raw {
         Some(raw) => {
             let head = slath_git::ObjectId::parse(&shown.commit_oid)
@@ -3288,6 +3334,7 @@ async fn change(
         text,
         too_big,
         other_href,
+        description,
         base,
         conflict,
         land,

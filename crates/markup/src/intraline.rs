@@ -235,8 +235,76 @@ pub fn refine_pair(old: &str, new: &str, ignore_whitespace: bool) -> Option<Refi
     (any(&r.old) || any(&r.new)).then_some(r)
 }
 
+/// How a line of a text compares with the other version of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineChange {
+    Same,
+    Removed,
+    Added,
+}
+
+/// The most lines of either text [`diff_lines`] compares (its table is
+/// quadratic).
+pub const DIFF_LINES_MAX: usize = 1000;
+
+/// The lines of `old` and `new` in order, each marked same, removed, or
+/// added (removed before added where they differ), by a longest common
+/// subsequence of lines. `None` when either has more than
+/// [`DIFF_LINES_MAX`] lines.
+#[must_use]
+pub fn diff_lines<'a>(old: &'a str, new: &'a str) -> Option<Vec<(LineChange, &'a str)>> {
+    let a: Vec<&str> = old.lines().collect();
+    let b: Vec<&str> = new.lines().collect();
+    if a.len() > DIFF_LINES_MAX || b.len() > DIFF_LINES_MAX {
+        return None;
+    }
+    let (ca, cb) = changed(&a, &b);
+    let (mut i, mut j) = (0, 0);
+    let mut out = Vec::with_capacity(a.len().max(b.len()));
+    while i < a.len() || j < b.len() {
+        if i < a.len() && ca[i] {
+            out.push((LineChange::Removed, a[i]));
+            i += 1;
+        } else if j < b.len() && cb[j] {
+            out.push((LineChange::Added, b[j]));
+            j += 1;
+        } else {
+            // Both unchanged: the same line of each.
+            out.push((LineChange::Same, b.get(j).copied().unwrap_or_default()));
+            i += 1;
+            j += 1;
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn line_diffs_keep_order_and_mark_changes() {
+        use LineChange::{Added, Removed, Same};
+        let d = diff_lines("Fix it\n\nOld body\nKeep", "Fix it well\n\nKeep\nNew").unwrap();
+        assert_eq!(
+            d,
+            vec![
+                (Removed, "Fix it"),
+                (Added, "Fix it well"),
+                (Same, ""),
+                (Removed, "Old body"),
+                (Same, "Keep"),
+                (Added, "New"),
+            ]
+        );
+        assert!(
+            diff_lines("a", "a")
+                .unwrap()
+                .iter()
+                .all(|(c, _)| *c == Same)
+        );
+        let long = "x\n".repeat(DIFF_LINES_MAX + 1);
+        assert!(diff_lines(&long, "x").is_none());
+    }
+
     use proptest::prelude::*;
 
     use super::*;

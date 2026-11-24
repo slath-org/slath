@@ -1079,6 +1079,14 @@ main > .repo-context {
   font-family: var(--font-ui);
   font-size: var(--text-base);
 }
+/* A change's description compared across versions: a line per row,
+   removed and added ones with the diff backgrounds and a marker, so they
+   read apart without color too. */
+.description-diff > span {
+  display: block;
+  min-height: 1.5em;
+  padding-inline: var(--space-1);
+}
 .file-actions a {
   display: inline-flex;
   min-height: var(--target-min);

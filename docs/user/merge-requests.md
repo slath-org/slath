@@ -289,6 +289,11 @@ two versions:
   patches are compared, so the rebase itself doesn't show. **Tree diff,
   including the rebase** shows everything that's different.
 
+If the commit description changed between the two versions (reworded
+with `git commit --amend` or `jj describe`), **Description changed**
+above the diff shows both line by line, with removed and added lines
+marked.
+
 Beside the change (below it on narrow screens), **Checks** lists the
 statuses reported for the shown version's commit, each with who reported
 it. Statuses belong to one commit: a new version starts with none, and an

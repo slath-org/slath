@@ -549,6 +549,58 @@ fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// "Description fixture": a merge request of one change whose second
+/// version rewords its description.
+fn seed_description(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "described", "main"]);
+    std::fs::write(w.join("described.md"), "Described\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(
+        w,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "Add notes\n\nA first body.\nKept as it is.",
+        ],
+    );
+    git.ok(w, &["push", "-q", url, "described"]);
+    let mut alice = server.login("alice", PASSWORD);
+    let token =
+        slath_tests::http::create_token(&mut alice, "described", &["repo:write", "mrs:write"]);
+    let mut api = server.client();
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&token),
+        Some(&serde_json::json!({"source_branch": "described", "title": "Description fixture"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let path = format!("/api/v1/repos/alice/demo/merge-requests/{n}");
+    let mut wait = |k: i64| {
+        let start = std::time::Instant::now();
+        while api.api("GET", &path, Some(&token), None).json()["revisions"] != k {
+            assert!(start.elapsed().as_secs() < 30, "no revision {k}");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    };
+    wait(1);
+    git.ok(
+        w,
+        &[
+            "commit",
+            "-q",
+            "--amend",
+            "-m",
+            "Add notes, reworded\n\nKept as it is.\nA second body.",
+        ],
+    );
+    git.ok(w, &["push", "-q", "--force", url, "described"]);
+    wait(2);
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// "Change source fixture": a merge request that pushing the change
 /// source `push-kxqzlmnopqrs` opened, as `jj git push --change` would.
 fn seed_change_source(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
@@ -685,6 +737,7 @@ fn main() {
     // their latest push.
     seed_jj_conflict(&server, &git, &url);
     seed_outcomes(&server, &git, w, &url);
+    seed_description(&server, &git, w, &url);
     seed_change_source(&server, &git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");

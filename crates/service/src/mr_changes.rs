@@ -1162,6 +1162,31 @@ impl Services {
         Ok(Interdiff::Patches(out, cut))
     }
 
+    /// The commit descriptions (full messages) of two versions of a
+    /// change, to compare them; the caller has checked access to `m`.
+    pub async fn mr_version_descriptions(
+        &self,
+        m: &MergeRequest,
+        a: &VersionInfo,
+        b: &VersionInfo,
+    ) -> Result<(String, String)> {
+        let dir = self.repo_path(m.repo_id);
+        let read = |c: String| {
+            let dir = dir.clone();
+            async move {
+                let c = oid(&c)?;
+                let found = slath_git::browse::messages_range(&self.runner, &dir, None, &c, 1)
+                    .await
+                    .map_err(ServiceError::internal)?;
+                Ok::<_, ServiceError>(found.into_iter().next().map(|(_, m)| m).unwrap_or_default())
+            }
+        };
+        Ok((
+            read(a.commit_oid.clone()).await?,
+            read(b.commit_oid.clone()).await?,
+        ))
+    }
+
     /// Two revisions compared with `git range-diff` (spec: revision
     /// interdiff): heuristic, since it pairs commits by similarity.
     /// `None` if either revision is unknown or has no merge base.

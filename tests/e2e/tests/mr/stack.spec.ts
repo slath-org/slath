@@ -178,3 +178,17 @@ test("conf_review_08_land_up_to_here_from_a_change_page", async ({ page }, info)
   await page.goto(url);
   await expect(page.getByText(/landed changes \S+, \S+ into main \(rebase\); the rest is still open/)).toBeVisible();
 });
+
+test("conf_agent_15_comparing_versions_shows_how_the_description_changed", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Description fixture" }));
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  await tapOrClick(page, page.locator("section[aria-labelledby=changes-heading] .item-list > li a.item-title").first());
+  await tapOrClick(page, page.getByRole("link", { name: "Compare with version 2" }));
+  const section = page.getByRole("region", { name: "Description changed" });
+  await expect(section).toContainText("Removed: Add notes");
+  await expect(section).toContainText("Added: Add notes, reworded");
+  await expect(section).toContainText("Kept as it is.");
+  await expectAccessible(page);
+});

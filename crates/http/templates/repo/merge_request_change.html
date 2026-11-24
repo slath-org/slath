@@ -114,6 +114,17 @@
 {%- else if kind == "tree" %}
 {%- call msg::notice() %}<p><strong>Tree diff, including the rebase:</strong> versions {{ f.number }} and {{ shown.number }} have different parents, so this includes what the rebase brought in.{% if let Some(o) = other_href %} <a href="{{ o }}">Show the diff of patches</a>{% endif %}</p>{% endcall %}
 {%- endif %}
+{%- if let Some(dsc) = description %}
+<section class="section" aria-labelledby="description-heading">
+  <h2 id="description-heading">Description changed</h2>
+  {%- match dsc %}
+  {%- when Ok(lines) %}
+  <pre class="commit-body description-diff">{% for l in lines %}{% if l.kind == "removed" %}<span class="diff-del"><span aria-hidden="true">− </span><span class="visually-hidden">Removed: </span>{{ l.text }}</span>{% else if l.kind == "added" %}<span class="diff-add"><span aria-hidden="true">+ </span><span class="visually-hidden">Added: </span>{{ l.text }}</span>{% else %}<span><span aria-hidden="true">  </span>{{ l.text }}</span>{% endif %}{% endfor %}</pre>
+  {%- when Err(_) %}
+  <p class="text-secondary">The descriptions are too long to compare here; each version's commit has its own.</p>
+  {%- endmatch %}
+</section>
+{%- endif %}
 {%- else %}
 <p class="text-secondary">Version {{ shown.number }}, in revision {{ shown.revision }}: the commit's own changes.</p>
 {%- endif %}

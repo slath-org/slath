@@ -896,3 +896,64 @@ fn conf_review_03_interdiffs_are_labeled_exact_or_heuristic() {
         404
     );
 }
+
+#[test]
+fn conf_agent_15_descriptions_compare_between_versions() {
+    let c = Ctx::start();
+    let d = tempfile::tempdir().unwrap();
+    let w = seed(&c, d.path());
+    c.git.ok(&w, &["switch", "-q", "-c", "desc", "main"]);
+    commit_file(
+        &c.git,
+        &w,
+        "a.txt",
+        &lines("a", None),
+        "Add a\n\nOld body\nKeep this",
+    );
+    c.push(&w, "desc");
+    let n = c.open_mr("desc");
+    let id = ids(&c.stack(n, 1))[0].clone();
+    // Version 2: the description is reworded (jj describe or git commit
+    // --amend make the same kind of commit).
+    c.git.ok(
+        &w,
+        &[
+            "commit",
+            "-q",
+            "--amend",
+            "-m",
+            "Add a, carefully\n\nKeep this\nA new line",
+        ],
+    );
+    c.push(&w, "desc");
+    c.stack(n, 2);
+    // Version 3: only the content changes.
+    std::fs::write(w.join("a.txt"), lines("a", Some(3))).unwrap();
+    c.git.ok(&w, &["commit", "-qa", "--amend", "--no-edit"]);
+    c.push(&w, "desc");
+    c.stack(n, 3);
+
+    let mut ui = c.s.login("alice", PASSWORD);
+    let page = |ui: &mut slath_tests::http::Client, q: &str| {
+        let r = ui.get(&format!("/alice/demo/merge-requests/{n}/changes/{id}{q}"));
+        assert_eq!(r.status, 200, "{q}: {}", r.body);
+        r.body
+    };
+    let reworded = page(&mut ui, "?from=1&rev=2");
+    assert!(reworded.contains("Description changed"), "{reworded}");
+    for line in [
+        "<span class=\"visually-hidden\">Removed: </span>Add a</span>",
+        "<span class=\"visually-hidden\">Added: </span>Add a, carefully</span>",
+        "<span class=\"visually-hidden\">Removed: </span>Old body</span>",
+        "<span class=\"visually-hidden\">Added: </span>A new line</span>",
+        "<span aria-hidden=\"true\">  </span>Keep this</span>",
+    ] {
+        assert!(reworded.contains(line), "{line}\n{reworded}");
+    }
+    // The other way round, and across both rewrites.
+    assert!(page(&mut ui, "?from=2&rev=1").contains("Removed: </span>A new line"));
+    assert!(page(&mut ui, "?from=1&rev=3").contains("Description changed"));
+    // The same description shows nothing extra, nor does a single version.
+    assert!(!page(&mut ui, "?from=2&rev=3").contains("Description changed"));
+    assert!(!page(&mut ui, "").contains("Description changed"));
+}
