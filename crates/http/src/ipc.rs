@@ -275,7 +275,8 @@ async fn handle_conn(mut stream: UnixStream, ctx: &IpcContext) -> std::io::Resul
             };
             return ssh_session(stream, ctx, &session).await;
         }
-        Some(req) => handle(req, ctx).await,
+        // A hook's Git commands ride on its push's process limit permit.
+        Some(req) => slath_git::runner::for_hook(handle(req, ctx)).await,
         None => Response::deny("slath: malformed request"),
     };
     write_response(&mut stream, &response).await

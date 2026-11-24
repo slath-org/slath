@@ -237,6 +237,10 @@ pub struct AuthorizedKey {
 pub enum IpcError {
     #[error("cannot reach the Slath server: {0}")]
     Io(#[from] std::io::Error),
+    /// The server took longer than the timeout to answer (a socket read
+    /// timeout reports itself as "would block").
+    #[error("the Slath server didn't answer in time")]
+    Timeout,
     #[error("invalid message: {0}")]
     Json(#[from] serde_json::Error),
     #[error("message too large")]
@@ -304,7 +308,12 @@ fn connect(socket: &Path, request: &Request, timeout: Duration) -> Result<UnixSt
 fn read_response(stream: &UnixStream) -> Result<Response, IpcError> {
     let mut reader = BufReader::new(std::io::Read::take(stream, MAX_MESSAGE as u64));
     let mut answer = Vec::new();
-    reader.read_until(b'\n', &mut answer)?;
+    reader
+        .read_until(b'\n', &mut answer)
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => IpcError::Timeout,
+            _ => IpcError::Io(e),
+        })?;
     if answer.last() != Some(&b'\n') {
         return Err(IpcError::NoAnswer);
     }

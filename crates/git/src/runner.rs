@@ -68,6 +68,35 @@ impl RunnerConfig {
     }
 }
 
+tokio::task_local! {
+    /// Set while serving a push's hooks: see [`for_hook`].
+    static FOR_HOOK: ();
+}
+
+/// Runs `f`, the work of a push's hook (pre-receive, proc-receive,
+/// post-receive), with Git processes that don't count against
+/// `max_concurrent`. The push's own `receive-pack` holds a permit until
+/// its hooks are done, so if the hooks' commands needed permits too,
+/// enough simultaneous pushes would hold every permit and wait for each
+/// other until the hook timed out. A hook's work is bounded by its push,
+/// which is counted. Only the task running `f` is exempt, not tasks it
+/// spawns.
+pub async fn for_hook<F: Future>(f: F) -> F::Output {
+    FOR_HOOK.scope((), f).await
+}
+
+/// A permit for one process, unless the current task serves a hook.
+async fn permit(sem: &Arc<Semaphore>) -> Result<Option<OwnedSemaphorePermit>, GitError> {
+    if FOR_HOOK.try_with(|()| ()).is_ok() {
+        return Ok(None);
+    }
+    Arc::clone(sem)
+        .acquire_owned()
+        .await
+        .map(Some)
+        .map_err(|_| GitError::Closed)
+}
+
 /// Spawns Git processes under the rules in the module docs. Cheap to clone.
 #[derive(Debug, Clone)]
 pub struct Runner {
@@ -338,10 +367,7 @@ impl Invocation {
     /// long-lived `cat-file`). The caller enforces its own I/O timeouts; the
     /// process group is killed when the returned [`GitChild`] is dropped.
     pub async fn spawn(self) -> Result<GitChild, GitError> {
-        let permit = Arc::clone(&self.runner.sem)
-            .acquire_owned()
-            .await
-            .map_err(|_| GitError::Closed)?;
+        let permit = permit(&self.runner.sem).await?;
         let mut cmd = self.command();
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -359,10 +385,7 @@ impl Invocation {
     /// (used for SSH, where they are the SSH channel passed in by
     /// `ssh-serve`). This process keeps no copies of them.
     pub async fn spawn_attached(self, stdio: [OwnedFd; 3]) -> Result<GitChild, GitError> {
-        let permit = Arc::clone(&self.runner.sem)
-            .acquire_owned()
-            .await
-            .map_err(|_| GitError::Closed)?;
+        let permit = permit(&self.runner.sem).await?;
         let mut cmd = self.command();
         let [stdin, stdout, stderr] = stdio;
         cmd.stdin(Stdio::from(stdin))
@@ -563,7 +586,7 @@ impl Drop for ProcessGroup {
 pub struct GitChild {
     child: Child,
     group: ProcessGroup,
-    _permit: OwnedSemaphorePermit,
+    _permit: Option<OwnedSemaphorePermit>,
 }
 
 impl GitChild {
