@@ -13,6 +13,10 @@
 //! person the record names as having asked for the work, and the
 //! uploader's owner (a bot's owner, or the uploader themselves), each only
 //! while they can read the repository. Everyone else gets "not found".
+//!
+//! Deleting or expiring a record leaves a tombstone in its row: no text
+//! of the record, no payload, but what it was about and who deleted it,
+//! seen by the same people as the record.
 
 use slath_core::authz::{Action, Subject, UserKind, UserState};
 use slath_core::context_record::{Binding, Detail, Payload, Upload};
@@ -37,10 +41,12 @@ pub struct ContextRecord {
     pub uploader: Option<String>,
     pub uploader_is_bot: bool,
     pub initiated_by: Option<String>,
+    /// On a tombstone: the person who deleted it, while their account exists.
+    pub deleted_by: Option<String>,
     /// The bound merge request's number and change display ID.
     pub merge_request: Option<i32>,
     pub change: Option<String>,
-    /// Loaded only for a single record.
+    /// Loaded only for a single record, and never for a tombstone.
     pub payload: Option<Payload>,
 }
 
@@ -143,8 +149,9 @@ impl Services {
         self.asked_or_owns(subject, r).await
     }
 
-    /// Deletes a record at once: its row, with the key its payload is
-    /// sealed with, so the payload is unreadable from then on.
+    /// Deletes a record at once, leaving a tombstone: the key its payload
+    /// is sealed with goes, so the payload is unreadable from then on. A
+    /// tombstone stays as it is.
     pub async fn delete_context_record(
         &self,
         subject: &Subject,
@@ -164,7 +171,7 @@ impl Services {
         if !self.may_delete_context(subject, &a, &r).await? {
             return Err(ServiceError::Forbidden);
         }
-        if slath_db::context_records::delete(&self.pool, a.repo.id, id).await? {
+        if slath_db::context_records::delete(&self.pool, a.repo.id, id, user_id(subject)?).await? {
             self.audit(
                 subject,
                 "context.delete",
@@ -176,7 +183,8 @@ impl Services {
         Ok(())
     }
 
-    /// Deletes the records past their repository's retention, in batches;
+    /// Turns the records past their repository's retention into
+    /// tombstones, in batches;
     /// each repository's deletions are audited once per run. Returns how
     /// many went.
     pub async fn purge_expired_context(&self) -> Result<i64> {
@@ -510,6 +518,9 @@ impl Services {
         };
         let uploader = user(record.uploader_id).await?;
         let initiated_by = user(record.initiated_by).await?.map(|u| u.name);
+        let deleted_by = user(record.deleted.as_ref().and_then(|d| d.by))
+            .await?
+            .map(|u| u.name);
         let (merge_request, change) = match record.mr_id {
             Some(m) => {
                 let number = slath_db::merge_requests::get_by_id(&self.pool, m)
@@ -531,6 +542,7 @@ impl Services {
             uploader_is_bot: uploader.as_ref().is_some_and(|u| u.kind == UserKind::Bot),
             uploader: uploader.map(|u| u.name),
             initiated_by,
+            deleted_by,
             merge_request,
             change,
             payload: None,
@@ -538,13 +550,19 @@ impl Services {
         })
     }
 
-    async fn context_payload(&self, r: &Record) -> Result<Payload> {
+    /// A record's payload; `None` for a tombstone.
+    async fn context_payload(&self, r: &Record) -> Result<Option<Payload>> {
+        let (Some(sealed), Some(key_id), Some(sha)) =
+            (&r.payload_key_enc, &r.key_id, &r.payload_sha256)
+        else {
+            return Ok(None);
+        };
         let id_text = r.id.to_string();
         let key = self
             .envelope
             .open(
-                &r.payload_key_enc,
-                &r.key_id,
+                sealed,
+                key_id,
                 slath_auth::crypto::Location {
                     table: TABLE,
                     column: KEY_COLUMN,
@@ -554,7 +572,7 @@ impl Services {
             .map_err(ServiceError::internal)?;
         let mut file = self
             .blobs
-            .open(&r.payload_sha256)
+            .open(sha)
             .await
             .map_err(ServiceError::internal)?
             .ok_or_else(|| {
@@ -566,7 +584,9 @@ impl Services {
             .map_err(ServiceError::internal)?;
         let plain = slath_auth::crypto::data_key::open(key.expose(), &ciphertext, &aad(r.id))
             .map_err(ServiceError::internal)?;
-        serde_json::from_slice(plain.expose()).map_err(ServiceError::internal)
+        serde_json::from_slice(plain.expose())
+            .map(Some)
+            .map_err(ServiceError::internal)
     }
 
     /// One record with its payload; "not found" for anyone who may not see it.
@@ -588,7 +608,7 @@ impl Services {
         }
         let payload = self.context_payload(&r).await?;
         let mut view = self.context_view(r).await?;
-        view.payload = Some(payload);
+        view.payload = payload;
         Ok(view)
     }
 
@@ -675,7 +695,8 @@ impl Services {
     }
 
     /// The records bound to merge request `m` that the subject may see,
-    /// with payloads (oldest first), for the merge request's pages.
+    /// with payloads (oldest first; tombstones without), for the merge
+    /// request's pages.
     pub async fn mr_context_records(
         &self,
         subject: &Subject,
@@ -697,7 +718,7 @@ impl Services {
             if self.may_see(subject, a, &r).await? {
                 let payload = self.context_payload(&r).await?;
                 let mut v = self.context_view(r).await?;
-                v.payload = Some(payload);
+                v.payload = payload;
                 out.push(v);
             }
         }

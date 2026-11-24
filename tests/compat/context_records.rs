@@ -188,6 +188,19 @@ impl World {
             .collect()
     }
 
+    /// The IDs of records that aren't tombstones, newest first.
+    fn live_ids(&self, token: &str) -> Vec<String> {
+        let r = self.api(token, "GET", "/context-records", None);
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.json()["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|i| i["deleted"].is_null())
+            .map(|i| i["id"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
     /// Every object in the repository, as `git cat-file` lists them.
     fn objects(&self) -> String {
         self.git.ok(
@@ -1102,18 +1115,19 @@ fn conf_agent_16_the_asker_the_owner_and_admins_delete_records() {
     assert_eq!(del(&w.carol, &other).status, 404);
     let r = del(&w.carol, &mine);
     assert_eq!(r.status, 204, "{}", r.body);
-    assert_eq!(del(&w.carol, &mine).status, 404);
-    assert_eq!(
-        w.api(&w.alice, "GET", &format!("/context-records/{mine}"), None)
-            .status,
-        404
-    );
-    // The row and its sealed key are gone at once; the blob is released.
+    // A tombstone stays as it is.
+    assert_eq!(del(&w.carol, &mine).status, 204);
+    let t = w.api(&w.alice, "GET", &format!("/context-records/{mine}"), None);
+    assert_eq!(t.status, 200, "{}", t.body);
+    assert_eq!(t.json()["deleted"]["by"], "carol");
+    // The sealed key and the claimed fields are gone at once; the blob is
+    // released.
     assert_eq!(
         w.s.db.query_one(&format!(
-            "SELECT count(*)::text FROM context_records WHERE id = '{mine}'"
+            "SELECT (agent_name IS NULL AND payload_key_enc IS NULL AND payload_sha256 IS NULL)::text
+               FROM context_records WHERE id = '{mine}'"
         )),
-        "0"
+        "true"
     );
     assert_eq!(
         w.s.db.query_one(&format!(
@@ -1129,7 +1143,7 @@ fn conf_agent_16_the_asker_the_owner_and_admins_delete_records() {
     );
     // alice owns the bot and administers the repository.
     assert_eq!(del(&w.alice, &other).status, 204);
-    assert!(w.ids(&w.alice, "").is_empty());
+    assert!(w.live_ids(&w.alice).is_empty());
     assert_eq!(del(&w.alice, "not-a-uuid").status, 404);
 }
 
@@ -1162,11 +1176,14 @@ fn conf_agent_16_records_past_the_retention_are_deleted() {
     w.s.stop();
     w.s.start_again(&slath_tests::server::slath_bin()).unwrap();
     let start = std::time::Instant::now();
-    while w.ids(&w.alice, "").len() != 1 {
+    while w.live_ids(&w.alice).len() != 1 {
         assert!(start.elapsed().as_secs() < 30, "{}", w.s.log());
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    assert_eq!(w.ids(&w.alice, ""), vec![new]);
+    assert_eq!(w.live_ids(&w.alice), vec![new]);
+    let t = w.api(&w.alice, "GET", &format!("/context-records/{old}"), None);
+    assert_eq!(t.json()["deleted"]["retention"], true, "{}", t.body);
+    assert_eq!(t.json()["deleted"]["by"], Value::Null);
     let repo =
         w.s.db
             .query_one("SELECT id::text FROM repositories WHERE name = 'demo'");
@@ -1288,5 +1305,253 @@ fn conf_agent_16_settings_and_deletion_in_the_ui() {
         r.header("location"),
         Some(format!("/alice/demo/merge-requests/{n}").as_str())
     );
-    assert_eq!(carol.get(&page).status, 404);
+    let gone = carol.get(&page);
+    assert_eq!(gone.status, 200, "{}", gone.body);
+    assert!(gone.body.contains("Deleted by carol"), "{}", gone.body);
+    assert!(!gone.body.contains("Delete record"));
+}
+
+impl World {
+    fn mcp_call(&self, token: &str, tool: &str, args: Value) -> String {
+        let mut arguments = json!({"ns": "alice", "repo": "demo"});
+        arguments
+            .as_object_mut()
+            .unwrap()
+            .extend(args.as_object().unwrap().clone());
+        let r = self.s.client().api_with(
+            "POST",
+            "/api/mcp",
+            Some(token),
+            Some(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                         "params": {"name": tool, "arguments": arguments}})),
+            &[
+                ("accept", "application/json, text/event-stream"),
+                ("mcp-protocol-version", "2025-06-18"),
+            ],
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.body
+    }
+
+    /// Waits until record `id` is a tombstone.
+    fn wait_tombstone(&self, id: &str) -> Value {
+        let start = std::time::Instant::now();
+        loop {
+            let r = self.api(&self.alice, "GET", &format!("/context-records/{id}"), None);
+            if !r.json()["deleted"].is_null() {
+                return r.json();
+            }
+            assert!(start.elapsed().as_secs() < 30, "{}", self.s.log());
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
+}
+
+/// A deleted record leaves a tombstone that says it existed, what it was
+/// about, and who deleted it, and holds none of its text anywhere.
+#[test]
+fn conf_agent_21_tombstones_keep_no_text_on_any_surface() {
+    let (w, n) = World::start();
+    let marker = "Quokkaflint-91c";
+    let mut rec = record(&format!("{marker} intent"), json!({"merge_request": n}));
+    rec["agent"] = json!({"name": format!("{marker} agent"), "model": format!("{marker} model"), "tool": format!("{marker} tool")});
+    rec["summary"]["outcome"] = json!(format!("{marker} outcome"));
+    rec["summary"]["open_items"] = json!([format!("{marker} item")]);
+    rec["artifacts"] = json!([{"name": format!("{marker}.txt"), "sha256": "b".repeat(64)}]);
+    rec["redactions"] = json!([{"rule": format!("{marker}-rule"), "count": 1}]);
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let digest = w.s.db.query_one(&format!(
+        "SELECT payload_sha256 FROM context_records WHERE id = '{id}'"
+    ));
+    let mut bob = w.s.login("bob", PASSWORD);
+    let mr_page = format!("/alice/demo/merge-requests/{n}");
+    assert!(bob.get(&mr_page).body.contains(marker));
+
+    let r = w.api(&w.alice, "DELETE", &format!("/context-records/{id}"), None);
+    assert_eq!(r.status, 204, "{}", r.body);
+
+    // The API, by ID and in lists: the tombstone, without anything claimed.
+    let t = w.api(&w.bob, "GET", &format!("/context-records/{id}"), None);
+    assert_eq!(t.status, 200, "{}", t.body);
+    let v = t.json();
+    assert_eq!(v["deleted"]["by"], "alice");
+    assert_eq!(v["deleted"]["retention"], false);
+    assert_eq!(v["agent"], Value::Null);
+    assert_eq!(v["summary"], Value::Null);
+    assert_eq!(v["transcript"], Value::Null);
+    assert_eq!(v["binding"]["merge_request"], n);
+    assert_eq!(v["uploader"], "alice-ci");
+    assert_eq!(v["initiated_by"], "alice");
+    assert_eq!(v["payload_sha256"], digest.as_str());
+    for path in [
+        format!("/context-records/{id}"),
+        "/context-records".to_owned(),
+        format!("/context-records?merge_request={n}"),
+    ] {
+        let r = w.api(&w.bob, "GET", &path, None);
+        assert!(r.body.contains(&id), "{path}: {}", r.body);
+        assert!(!r.body.contains(marker), "{path}: {}", r.body);
+    }
+    // MCP.
+    let listed = w.mcp_call(&w.bob, "list_context_records", json!({"merge_request": n}));
+    assert!(listed.contains(&id) && !listed.contains(marker), "{listed}");
+    let got = w.mcp_call(&w.bob, "get_context_record", json!({"id": id}));
+    assert!(got.contains("deleted") && !got.contains(marker), "{got}");
+    // The UI: one line in the panel, and the record's page.
+    let mr = bob.get(&mr_page).body;
+    assert!(!mr.contains(marker), "{mr}");
+    assert!(mr.contains("Deleted by alice"), "{mr}");
+    let page = bob.get(&format!("/alice/demo/-/context/{id}"));
+    assert_eq!(page.status, 200, "{}", page.body);
+    assert!(!page.body.contains(marker), "{}", page.body);
+    assert!(page.body.contains("Deleted by alice"), "{}", page.body);
+    assert!(page.body.contains(&digest[..12]), "{}", page.body);
+    // The database keeps no text of it, and the payload's blob is released.
+    for table in ["context_records", "audit_events"] {
+        let hits = w.s.db.query_one(&format!(
+            "SELECT count(*)::text FROM {table} t WHERE t::text LIKE '%Quokkaflint%'"
+        ));
+        assert_eq!(hits, "0", "{table}");
+    }
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT refcount::text FROM blobs WHERE sha256 = '{digest}'"
+        )),
+        "0"
+    );
+}
+
+/// A tombstone is seen by exactly those who could see the record.
+#[test]
+fn conf_agent_21_tombstones_are_seen_as_their_records_were() {
+    let (w, n) = World::start();
+    let mut rec = record("For carol", json!({"merge_request": n}));
+    rec["initiated_by"] = json!("carol");
+    let hers = w.upload(&w.bot, &rec).json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let other = w
+        .upload(
+            &w.bot,
+            &record("Not for carol", json!({"merge_request": n})),
+        )
+        .json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for id in [&hers, &other] {
+        let r = w.api(&w.alice, "DELETE", &format!("/context-records/{id}"), None);
+        assert_eq!(r.status, 204, "{}", r.body);
+    }
+    // carol, a reader, sees the tombstone of the record she asked for.
+    assert_eq!(w.ids(&w.carol, ""), std::slice::from_ref(&hers));
+    let get = |t: &str, id: &str| {
+        w.api(t, "GET", &format!("/context-records/{id}"), None)
+            .status
+    };
+    assert_eq!(get(&w.carol, &hers), 200);
+    assert_eq!(get(&w.carol, &other), 404);
+    let mut carol = w.s.login("carol", PASSWORD);
+    assert_eq!(
+        carol.get(&format!("/alice/demo/-/context/{hers}")).status,
+        200
+    );
+    assert_eq!(
+        carol.get(&format!("/alice/demo/-/context/{other}")).status,
+        404
+    );
+    let mr = carol.get(&format!("/alice/demo/merge-requests/{n}")).body;
+    assert!(mr.contains(&hers) && !mr.contains(&other), "{mr}");
+    // Signed out on a private repository: nothing.
+    assert_eq!(
+        w.s.client()
+            .get(&format!("/alice/demo/-/context/{hers}"))
+            .status,
+        404
+    );
+    // Nobody can delete a tombstone into something else.
+    assert_eq!(
+        w.api(
+            &w.carol,
+            "DELETE",
+            &format!("/context-records/{hers}"),
+            None
+        )
+        .status,
+        204
+    );
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT (deleted_by = (SELECT u.id FROM users u JOIN namespaces n ON n.id = u.namespace_id WHERE n.name = 'alice'))::text FROM context_records WHERE id = '{hers}'"
+        )),
+        "true"
+    );
+}
+
+/// Expiring context removes no evidence: reviews, statuses, merge
+/// requests' timelines, and audit entries stay.
+#[test]
+fn conf_agent_21_expiring_context_removes_no_evidence() {
+    let (mut w, n) = World::start();
+    let id = w
+        .upload(&w.bot, &record("Old", json!({"merge_request": n})))
+        .json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = w.api(
+        &w.bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "approve"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let mut c = w.s.login("alice", PASSWORD);
+    let statuses = slath_tests::http::create_token(&mut c, "ci", &["statuses:write"]);
+    let head = w
+        .api(&w.alice, "GET", &format!("/merge-requests/{n}"), None)
+        .json()["head_oid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = w.api(
+        &statuses,
+        "POST",
+        &format!("/statuses/{head}"),
+        Some(json!({"state": "success", "context": "ci/build"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = w.patch_repo(&w.alice, json!({"context_retention_days": 1}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    // What exists now, counted again after the expiry (audit entries
+    // written since, such as the expiry's own, don't count).
+    let cut = w.s.db.query_one("SELECT now()::text");
+    let evidence = |w: &World| {
+        w.s.db.query_one(&format!(
+            "SELECT (SELECT count(*) FROM mr_reviews)::text || ' ' ||
+                    (SELECT count(*) FROM commit_statuses)::text || ' ' ||
+                    (SELECT count(*) FROM timeline_events WHERE created_at <= '{cut}')::text || ' ' ||
+                    (SELECT count(*) FROM audit_events WHERE created_at <= '{cut}')::text"
+        ))
+    };
+    let before_settings = evidence(&w);
+    assert!(before_settings.starts_with("1 1 "), "{before_settings}");
+    w.s.db.execute(&format!(
+        "UPDATE context_records SET created_at = now() - interval '2 days' WHERE id = '{id}'"
+    ));
+    w.s.stop();
+    w.s.start_again(&slath_tests::server::slath_bin()).unwrap();
+    let t = w.wait_tombstone(&id);
+    assert_eq!(t["deleted"]["retention"], true);
+    assert_eq!(evidence(&w), before_settings);
+    // The record's own upload stays in the audit log.
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'context.create' AND data->>'record' = '{id}'"
+        )),
+        "1"
+    );
 }

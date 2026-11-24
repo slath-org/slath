@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE context_records SET agent_name = NULL, agent_model = NULL, agent_tool = NULL,\n             payload_key_enc = NULL, key_id = NULL,\n             deleted_payload_sha256 = payload_sha256, payload_sha256 = NULL,\n             deleted_at = now(), deleted_by = $3\n          WHERE repo_id = $1 AND id = $2 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bba526ea2c3e77d82b7f50e3f05852c7d5b4272e5eab9029da3e451fd0c7a6f1"
+}

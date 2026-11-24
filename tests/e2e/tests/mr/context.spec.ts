@@ -4,8 +4,9 @@
 // The Context panel: the e2e-agent bot's record of how it made the agent
 // fixture's change, on the merge request's page and on the change's page,
 // with the start of its transcript and a link to the record's page, by taps
-// or clicks and with the keyboard. Who may see a record is tested
-// through the API and the page's HTML.
+// or clicks and with the keyboard, and the tombstone of an earlier record
+// alice deleted. Who may see a record is tested through the API and the
+// page's HTML.
 import type { Page } from "@playwright/test";
 import { USERS, expect, expectAccessible, signIn, tapOrClick, test } from "../../fixtures";
 
@@ -82,4 +83,18 @@ test("conf_agent_16_agent_context_settings_save_as_they_are", async ({ page }) =
   await tapOrClick(page, section.getByRole("button", { name: "Save agent context settings" }));
   await expect(page.getByText("Agent context settings saved.")).toBeVisible();
   await expect(page.getByRole("region", { name: "Agent context" }).getByRole("radio", { name: /^Writers/ })).toBeChecked();
+});
+
+test("conf_agent_21_a_deleted_record_leaves_one_line_and_its_tombstone", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await openFixture(page);
+  const p = panel(page);
+  await expect(p).not.toContainText("A first try, deleted.");
+  await tapOrClick(page, p.getByRole("link", { name: "Deleted by alice" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Context record");
+  await expect(page.getByText("This record was deleted.")).toBeVisible();
+  await expect(page.getByText(/^Deleted by alice/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "Transcript" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Delete record" })).toHaveCount(0);
+  await expectAccessible(page);
 });

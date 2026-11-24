@@ -893,7 +893,7 @@
       "annotations": {
         "readOnlyHint": true
       },
-      "description": "Records you may see, newest first, without their payloads.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/context-records`; the result is its response.",
+      "description": "Records you may see, newest first, without their payloads; deleted\nones as tombstones.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/context-records`; the result is its response.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -938,7 +938,7 @@
       "annotations": {
         "readOnlyHint": true
       },
-      "description": "One record with its summary and, at the `full` detail level, its\ntranscript.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/context-records/{id}`; the result is its response.",
+      "description": "One record with its summary and, at the `full` detail level, its\ntranscript; a deleted one as its tombstone.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/context-records/{id}`; the result is its response.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {

@@ -5,7 +5,8 @@
 //! transcript) and a record's own page in the repository
 //! (`/{ns}/{repo}/-/context/{id}`), with the whole transcript in pages.
 //! Everything in a record but its uploader and time is the agent's claim,
-//! shown as plain text.
+//! shown as plain text. A deleted record shows as its tombstone: who
+//! deleted it and when, and nothing it said.
 
 use askama::Template;
 use axum::Router;
@@ -44,7 +45,7 @@ const fn label(k: EntryKind) -> &'static str {
 /// The agent's name, model, and tool: "coder · some-model · cli".
 fn agent_line(r: &slath_db::context_records::Record) -> String {
     [
-        Some(r.agent_name.clone()),
+        r.agent_name.clone(),
         r.agent_model.clone(),
         r.agent_tool.clone(),
     ]
@@ -85,6 +86,22 @@ pub struct RecordRow {
     /// The transcript's first prompt, shortened, and its number of entries.
     pub excerpt: Option<String>,
     pub entries: usize,
+    /// On a tombstone: "Deleted by alice" or "Deleted by retention", and when.
+    pub deleted: Option<(String, Time)>,
+}
+
+/// What a tombstone says about its deletion.
+fn deleted_line(v: &ContextRecord) -> Option<(String, Time)> {
+    let d = v.record.deleted.as_ref()?;
+    let who = if d.retention {
+        "Deleted when the repository's retention ran out".to_owned()
+    } else {
+        match &v.deleted_by {
+            Some(name) => format!("Deleted by {name}"),
+            None => "Deleted".to_owned(),
+        }
+    };
+    Some((who, d.at.into()))
 }
 
 /// The records of merge request `m` the subject may see, oldest first;
@@ -105,6 +122,7 @@ pub async fn panel(
         .into_iter()
         .filter(|v| change.is_none_or(|c| v.change.as_deref() == Some(c)))
         .map(|v| {
+            let deleted = deleted_line(&v);
             let r = v.record;
             let p = v.payload.unwrap_or_else(empty_payload);
             let excerpt = p
@@ -127,6 +145,7 @@ pub async fn panel(
                 intent: p.summary.intent,
                 outcome: p.summary.outcome,
                 open_items: p.summary.open_items,
+                deleted,
             }
         })
         .collect())
@@ -188,6 +207,9 @@ struct RecordPage {
     next: String,
     /// Where the delete form posts, for those who may delete the record.
     delete: Option<String>,
+    /// On a tombstone: who deleted it, and when.
+    deleted: Option<(String, Time)>,
+    digest: String,
 }
 
 #[derive(Deserialize)]
@@ -270,13 +292,13 @@ async fn show_record(
         )
     });
     let r = &v.record;
-    let delete = state
-        .services
-        .may_delete_context(&subject, &a, r)
-        .await?
+    let delete = (r.deleted.is_none()
+        && state.services.may_delete_context(&subject, &a, r).await?)
         .then(|| format!("{here}/delete"));
     let page = RecordPage {
         delete,
+        deleted: deleted_line(&v),
+        digest: r.digest().to_owned(),
         header: RepoHeader::load(&state, &a, &subject, "merge-requests").await,
         uploader: Who::account(v.uploader.clone()),
         created: r.created_at.into(),

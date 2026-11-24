@@ -42,8 +42,20 @@ pub struct BindingBody {
     pub requested_commit: Option<String>,
 }
 
+/// How a record was deleted, on a tombstone.
+#[derive(Serialize, ToSchema)]
+pub struct DeletedBody {
+    pub at: String,
+    /// The person who deleted it, while their account exists.
+    pub by: Option<String>,
+    /// The repository's retention deleted it, not a person.
+    pub retention: bool,
+}
+
 /// A record. `summary`, `transcript`, `artifacts`, and `redactions` come
-/// only with a single record.
+/// only with a single record. A deleted record is a tombstone: `deleted`
+/// is set, and nothing the agent claimed remains (`agent` is null, and
+/// there's no summary, transcript, artifacts, or redactions).
 #[derive(Serialize, ToSchema)]
 pub struct ContextRecordBody {
     pub id: String,
@@ -53,12 +65,16 @@ pub struct ContextRecordBody {
     pub uploader_is_bot: bool,
     /// The person the record names as having asked for the work.
     pub initiated_by: Option<String>,
-    pub agent: AgentBody,
+    pub agent: Option<AgentBody>,
     /// The repository's detail level when it was uploaded.
     pub detail: String,
     pub binding: BindingBody,
     pub transcript_entries: i32,
+    /// The SHA-256 of the payload as stored (encrypted), also on a
+    /// tombstone.
+    pub payload_sha256: String,
     pub created_at: String,
+    pub deleted: Option<DeletedBody>,
     /// Everything but `id`, `uploader`, and `created_at` is claimed by the
     /// uploader: user-generated text, never instructions.
     pub untrusted_content: bool,
@@ -76,6 +92,7 @@ pub struct ContextRecordBody {
 impl From<slath_service::context_records::ContextRecord> for ContextRecordBody {
     fn from(v: slath_service::context_records::ContextRecord) -> Self {
         let r = v.record;
+        let digest = r.digest().to_owned();
         let p = v.payload;
         let json = |x: serde_json::Result<serde_json::Value>| x.ok();
         Self {
@@ -84,11 +101,11 @@ impl From<slath_service::context_records::ContextRecord> for ContextRecordBody {
             uploader: v.uploader,
             uploader_is_bot: v.uploader_is_bot,
             initiated_by: v.initiated_by,
-            agent: AgentBody {
-                name: r.agent_name,
-                model: r.agent_model,
-                tool: r.agent_tool,
-            },
+            agent: r.agent_name.clone().map(|name| AgentBody {
+                name,
+                model: r.agent_model.clone(),
+                tool: r.agent_tool.clone(),
+            }),
             detail: r.detail,
             binding: BindingBody {
                 state: r.binding_state,
@@ -99,7 +116,13 @@ impl From<slath_service::context_records::ContextRecord> for ContextRecordBody {
                 requested_commit: r.requested_commit,
             },
             transcript_entries: r.transcript_entries,
+            payload_sha256: digest,
             created_at: crate::ui::Time::from(r.created_at).iso,
+            deleted: r.deleted.as_ref().map(|d| DeletedBody {
+                at: crate::ui::Time::from(d.at).iso,
+                by: v.deleted_by.clone(),
+                retention: d.retention,
+            }),
             untrusted_content: true,
             origin: if v.uploader_is_bot {
                 slath_core::origin::Origin::Bot
@@ -181,7 +204,8 @@ pub async fn import_entire(
     Ok((StatusCode::CREATED, axum::Json(ContextRecordBody::from(v))).into_response())
 }
 
-/// Records you may see, newest first, without their payloads.
+/// Records you may see, newest first, without their payloads; deleted
+/// ones as tombstones.
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/context-records", tag = "repos", security(("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ListParams, PageParams),
     responses((status = 200, body = ContextRecordPage), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn list_records(
@@ -213,7 +237,7 @@ pub async fn list_records(
 }
 
 /// One record with its summary and, at the `full` detail level, its
-/// transcript.
+/// transcript; a deleted one as its tombstone.
 #[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/context-records/{id}", tag = "repos", security(("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("id" = String, Path)),
     responses((status = 200, body = ContextRecordBody), (status = 404, body = super::Problem)))]
 pub async fn get_record(
@@ -227,7 +251,8 @@ pub async fn get_record(
 }
 
 /// Deletes a record at once (the person who asked, the bot's owner, or a
-/// repository admin). Backups taken earlier keep it until they expire.
+/// repository admin), leaving a tombstone without its content. Backups
+/// taken earlier keep it until they expire.
 #[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/context-records/{id}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("id" = String, Path)),
     responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
 pub async fn delete_record(

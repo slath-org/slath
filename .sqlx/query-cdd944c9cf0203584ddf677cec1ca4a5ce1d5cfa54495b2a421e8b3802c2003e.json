@@ -222,6 +222,50 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 20,
+        "name": "deleted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "deleted_at"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "deleted_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "deleted_by"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "deleted_by_retention",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "deleted_by_retention"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "deleted_payload_sha256",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "context_records",
+            "name": "deleted_payload_sha256"
+          }
+        }
       }
     ],
     "parameters": {
@@ -235,22 +279,26 @@
       false,
       true,
       true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
       false,
       true,
       true,
       false,
       true,
       true,
-      true,
-      true,
-      true,
       false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
+      true
     ]
   },
   "hash": "cdd944c9cf0203584ddf677cec1ca4a5ce1d5cfa54495b2a421e8b3802c2003e"

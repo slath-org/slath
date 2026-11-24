@@ -290,6 +290,27 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         })),
     );
     assert_eq!(r.status, 201, "{}", r.body);
+    // An earlier record alice deleted: its tombstone in the panel.
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/context-records",
+        Some(&agent_token),
+        Some(&serde_json::json!({
+            "schema": "slath-context/1",
+            "agent": {"name": "fixture-agent"},
+            "summary": {"intent": "A first try, deleted."},
+            "binding": {"merge_request": n}
+        })),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap_or_default().to_owned();
+    let r = api.api(
+        "DELETE",
+        &format!("/api/v1/repos/alice/demo/context-records/{id}"),
+        Some(&token),
+        None,
+    );
+    assert_eq!(r.status, 204, "{}", r.body);
     // Pushed last, so the "Recently pushed" banner always shows it.
     git.ok(w, &["switch", "-q", "-c", "pushed", "main"]);
     std::fs::write(w.join("pushed.md"), "Pushed last.\n").unwrap();

@@ -3629,7 +3629,7 @@
         "tags": [
           "repos"
         ],
-        "summary": "Records you may see, newest first, without their payloads.",
+        "summary": "Records you may see, newest first, without their payloads; deleted\nones as tombstones.",
         "operationId": "list_records",
         "parameters": [
           {
@@ -3921,7 +3921,7 @@
         "tags": [
           "repos"
         ],
-        "summary": "One record with its summary and, at the `full` detail level, its\ntranscript.",
+        "summary": "One record with its summary and, at the `full` detail level, its\ntranscript; a deleted one as its tombstone.",
         "operationId": "get_record",
         "parameters": [
           {
@@ -3981,7 +3981,7 @@
         "tags": [
           "repos"
         ],
-        "summary": "Deletes a record at once (the person who asked, the bot's owner, or a\nrepository admin). Backups taken earlier keep it until they expire.",
+        "summary": "Deletes a record at once (the person who asked, the bot's owner, or a\nrepository admin), leaving a tombstone without its content. Backups\ntaken earlier keep it until they expire.",
         "operationId": "delete_record",
         "parameters": [
           {
@@ -11891,22 +11891,29 @@
       },
       "ContextRecordBody": {
         "type": "object",
-        "description": "A record. `summary`, `transcript`, `artifacts`, and `redactions` come\nonly with a single record.",
+        "description": "A record. `summary`, `transcript`, `artifacts`, and `redactions` come\nonly with a single record. A deleted record is a tombstone: `deleted`\nis set, and nothing the agent claimed remains (`agent` is null, and\nthere's no summary, transcript, artifacts, or redactions).",
         "required": [
           "id",
           "schema",
           "uploader_is_bot",
-          "agent",
           "detail",
           "binding",
           "transcript_entries",
+          "payload_sha256",
           "created_at",
           "untrusted_content",
           "origin"
         ],
         "properties": {
           "agent": {
-            "$ref": "#/components/schemas/AgentBody"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "artifacts": {
             "type": [
@@ -11922,6 +11929,16 @@
           },
           "created_at": {
             "type": "string"
+          },
+          "deleted": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DeletedBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "detail": {
             "type": "string",
@@ -11939,6 +11956,10 @@
           },
           "origin": {
             "$ref": "#/components/schemas/TextOrigin"
+          },
+          "payload_sha256": {
+            "type": "string",
+            "description": "The SHA-256 of the payload as stored (encrypted), also on a\ntombstone."
           },
           "redactions": {
             "type": [
@@ -12027,6 +12048,30 @@
               "type": "string"
             },
             "description": "Files of the current revision's diff no counting approver viewed."
+          }
+        }
+      },
+      "DeletedBody": {
+        "type": "object",
+        "description": "How a record was deleted, on a tombstone.",
+        "required": [
+          "at",
+          "retention"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The person who deleted it, while their account exists."
+          },
+          "retention": {
+            "type": "boolean",
+            "description": "The repository's retention deleted it, not a person."
           }
         }
       },

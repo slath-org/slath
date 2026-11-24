@@ -1,7 +1,8 @@
 {#- The Context panel: agents' records of how they made the changes, in a
     details column. Expects `context` (Vec<RecordRow>) and `ctx`, and the
     macros base.html imports. Everything but the uploader and the time is the agent's
-    claim, shown as plain text. -#}
+    claim, shown as plain text. A deleted record is one line: who uploaded
+    it, who deleted it (linking to its tombstone), and when. -#}
 {%- if !context.is_empty() %}
 <section class="details-section" aria-labelledby="side-context-heading" id="side-context">
   <h2 id="side-context-heading" class="details-heading">Context</h2>
@@ -10,6 +11,9 @@
   {%- for r in context %}
     <li class="stack-item">
       <div class="stack-main">
+        {%- if let Some((what, at)) = r.deleted %}
+        <p>{% call p::who(ctx, r.uploader) %}{% endcall %} <span class="text-secondary">· <a href="{{ r.href }}">{{ what }}</a> {% call c::time(at) %}{% endcall %}</span></p>
+        {%- else %}
         <p>{% call p::who(ctx, r.uploader) %}{% endcall %} {% call m::evidence("Agent's account") %}{% endcall %} <span class="text-secondary">{% call c::time(r.created) %}{% endcall %}</span></p>
         <p class="text-secondary"><bdi>{{ r.agent }}</bdi>{% if let Some(who) = r.initiated_by %} · for {% call p::account(ctx, who) %}{% endcall %}{% endif %}{% if let Some((short, href)) = r.change %} · change <a href="{{ href }}"><code>{{ short }}</code></a>{% endif %}</p>
         <pre class="commit-body">{{ r.intent }}</pre>
@@ -26,6 +30,7 @@
         <p><a href="{{ r.href }}">Read the transcript ({{ r.entries }} {% if r.entries == 1 %}entry{% else %}entries{% endif %})</a></p>
         {%- else %}
         <p><a href="{{ r.href }}">Open the record</a></p>
+        {%- endif %}
         {%- endif %}
       </div>
     </li>

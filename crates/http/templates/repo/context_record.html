@@ -5,8 +5,13 @@
 {% include "repo/header.html" %}
 <header class="page-head">
   <div class="page-head-row"><h1>Context record</h1></div>
+  {%- if deleted.is_some() %}
+  <p class="page-head-meta">{% call p::who(ctx, uploader) %}{% endcall %} · {% call c::time(created) %}{% endcall %}{% if let Some(who) = initiated_by %} · for {% call p::account(ctx, who) %}{% endcall %}{% endif %}</p>
+  <p class="page-head-intro">This record was deleted. Nothing it said is kept, only that it existed.</p>
+  {%- else %}
   <p class="page-head-meta">{% call p::who(ctx, uploader) %}{% endcall %} {% call m::evidence("Agent's account") %}{% endcall %} · {% call c::time(created) %}{% endcall %} · <bdi>{{ agent }}</bdi>{% if let Some(who) = initiated_by %} · for {% call p::account(ctx, who) %}{% endcall %}{% endif %}</p>
   <p class="page-head-intro">What an agent says about how it made a change. Slath doesn't check it.</p>
+  {%- endif %}
 </header>
 {%- match binding %}
 {%- when BindingView::Bound with ((mr, mr_href), change) %}
@@ -15,6 +20,10 @@
 {% call m::status_line(ctx, "waiting", "Not linked: the merge request it names wasn't found, or its uploader can't update it.") %}{% endcall %}
 {%- when BindingView::None %}
 {%- endmatch %}
+{%- if let Some((what, at)) = deleted %}
+<p>{{ what }} {% call c::time(at) %}{% endcall %}.</p>
+<p class="text-secondary">Payload digest as stored: <code data-tip="{{ digest }}">{{ digest[..12] }}</code></p>
+{%- else %}
 <section class="section" aria-labelledby="record-summary">
   <h2 id="record-summary">Summary</h2>
   <pre class="commit-body">{{ intent }}</pre>
@@ -75,6 +84,7 @@
   {% call l::pager(prev, next, "Earlier entries", "Later entries") %}{% endcall %}
   {%- endif %}
 </section>
+{%- endif %}
 {%- if let Some(action) = delete %}
 {%- call f::danger("delete-heading", "Delete this record", "It's gone at once and can't be read any more. Copies someone already downloaded, and backups taken before, still exist.") %}
 <form method="post" action="{{ action }}" class="form-layout">

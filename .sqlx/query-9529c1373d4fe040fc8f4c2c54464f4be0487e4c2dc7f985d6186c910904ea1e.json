@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE context_records SET mr_id = $3, change_id = $4, binding_state = 'bound'\n          WHERE repo_id = $1 AND id = $2 AND binding_state <> 'bound'\n            AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9529c1373d4fe040fc8f4c2c54464f4be0487e4c2dc7f985d6186c910904ea1e"
+}

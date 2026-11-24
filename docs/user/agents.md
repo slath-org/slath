@@ -239,9 +239,17 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   notifications, or webhooks.
 - **Deleting:** the person named in `initiated_by`, the bot's owner, and
   repository admins can delete a record with **Delete record** on its
-  page or with `DELETE …/context-records/<id>`. It's gone at once and its content
-  can't be read any more. Copies someone already downloaded, and backups
-  taken before, still exist.
+  page or with `DELETE …/context-records/<id>`. Its content is gone at
+  once and can't be read any more. Copies someone already downloaded, and
+  backups taken before, still exist.
+- **What's left:** a deleted record leaves a note that it existed, seen
+  by the same people as the record: who uploaded it and for whom, what it
+  was about, when it was deleted and by whom (or that retention did), and
+  a digest of what was stored. Nothing the agent wrote is kept, not even
+  its name. On the merge request it's one line in the **Context** panel;
+  in the API it has `"deleted"` set and `"agent": null`. Reviews, checks,
+  the merge request's history, and the audit log are never deleted with
+  context records.
 - **Keeping:** records are kept until deleted, unless repository admins
   set `"context_retention_days"` (1 to 3650; `null` keeps them again).
   Older records are then deleted within the hour, also when the number is

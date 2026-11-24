@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Agent context records: metadata and binding. The payload is an
 //! encrypted blob (`payload_sha256`) whose own key is sealed in
-//! `payload_key_enc`.
+//! `payload_key_enc`. Deleting or expiring a record turns its row into a
+//! tombstone: the agent's claimed fields, the key, and the blob go; the
+//! rest stays, with who deleted it.
 
 use slath_core::ids::{MergeRequestId, RepoId, UserId};
 use sqlx::{PgConnection, PgExecutor};
@@ -17,7 +19,8 @@ pub struct Record {
     pub repo_id: RepoId,
     pub uploader_id: Option<UserId>,
     pub initiated_by: Option<UserId>,
-    pub agent_name: String,
+    /// `None` only on a tombstone.
+    pub agent_name: Option<String>,
     pub agent_model: Option<String>,
     pub agent_tool: Option<String>,
     pub detail: String,
@@ -27,12 +30,38 @@ pub struct Record {
     pub mr_id: Option<MergeRequestId>,
     pub change_id: Option<uuid::Uuid>,
     pub binding_state: String,
-    pub payload_sha256: String,
+    /// The payload's blob, key, and key ID; `None` only on a tombstone.
+    pub payload_sha256: Option<String>,
     pub payload_bytes: i32,
     pub transcript_entries: i32,
-    pub payload_key_enc: Vec<u8>,
-    pub key_id: String,
+    pub payload_key_enc: Option<Vec<u8>>,
+    pub key_id: Option<String>,
     pub created_at: OffsetDateTime,
+    /// Set on a tombstone, with who deleted it or that retention did.
+    pub deleted: Option<Deletion>,
+}
+
+/// How a record became a tombstone.
+#[derive(Debug, Clone)]
+pub struct Deletion {
+    pub at: OffsetDateTime,
+    /// The person who deleted it, while that account exists.
+    pub by: Option<UserId>,
+    /// Retention deleted it, not a person.
+    pub retention: bool,
+    /// The payload's digest as it was stored.
+    pub payload_sha256: String,
+}
+
+impl Record {
+    /// The payload's digest as stored, also on a tombstone.
+    #[must_use]
+    pub fn digest(&self) -> &str {
+        self.payload_sha256
+            .as_deref()
+            .or(self.deleted.as_ref().map(|d| d.payload_sha256.as_str()))
+            .unwrap_or_default()
+    }
 }
 
 /// A new record; `id` is chosen by the caller (the payload is bound to it).
@@ -116,6 +145,12 @@ macro_rules! record {
             payload_key_enc: r.payload_key_enc,
             key_id: r.key_id,
             created_at: r.created_at,
+            deleted: r.deleted_at.map(|at| Deletion {
+                at,
+                by: r.deleted_by.map(UserId::from_uuid),
+                retention: r.deleted_by_retention,
+                payload_sha256: r.deleted_payload_sha256.unwrap_or_default(),
+            }),
         }
     }};
 }
@@ -189,7 +224,8 @@ pub async fn bind(
 ) -> Result<bool, DbError> {
     let r = sqlx::query!(
         "UPDATE context_records SET mr_id = $3, change_id = $4, binding_state = 'bound'
-          WHERE repo_id = $1 AND id = $2 AND binding_state <> 'bound'",
+          WHERE repo_id = $1 AND id = $2 AND binding_state <> 'bound'
+            AND deleted_at IS NULL",
         repo.as_uuid(),
         id,
         mr.as_uuid(),
@@ -250,35 +286,47 @@ pub async fn set_settings(
     Ok(())
 }
 
-/// Deletes one record of `repo`; whether it was there.
+/// Turns one record of `repo` into a tombstone, deleted by `by`; whether
+/// it was a record (not already a tombstone).
 pub async fn delete(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
     id: uuid::Uuid,
+    by: UserId,
 ) -> Result<bool, DbError> {
     let r = sqlx::query!(
-        "DELETE FROM context_records WHERE repo_id = $1 AND id = $2",
+        "UPDATE context_records SET agent_name = NULL, agent_model = NULL, agent_tool = NULL,
+             payload_key_enc = NULL, key_id = NULL,
+             deleted_payload_sha256 = payload_sha256, payload_sha256 = NULL,
+             deleted_at = now(), deleted_by = $3
+          WHERE repo_id = $1 AND id = $2 AND deleted_at IS NULL",
         repo.as_uuid(),
-        id
+        id,
+        by.as_uuid()
     )
     .execute(exec)
     .await?;
     Ok(r.rows_affected() > 0)
 }
 
-/// Deletes up to `limit` records past their repository's retention, and
-/// says how many each repository lost.
+/// Turns up to `limit` records past their repository's retention into
+/// tombstones, and says how many each repository lost.
 pub async fn delete_expired(
     exec: impl PgExecutor<'_>,
     limit: i64,
 ) -> Result<Vec<(RepoId, i64)>, DbError> {
     let rows = sqlx::query!(
         r#"WITH gone AS (
-               DELETE FROM context_records c
+               UPDATE context_records c
+                  SET agent_name = NULL, agent_model = NULL, agent_tool = NULL,
+                      payload_key_enc = NULL, key_id = NULL,
+                      deleted_payload_sha256 = c.payload_sha256, payload_sha256 = NULL,
+                      deleted_at = now(), deleted_by_retention = true
                 WHERE c.id IN (
                       SELECT c2.id FROM context_records c2
                         JOIN repositories r ON r.id = c2.repo_id
                        WHERE r.context_retention_days IS NOT NULL
+                         AND c2.deleted_at IS NULL
                          AND c2.created_at < now() - make_interval(days => r.context_retention_days)
                        LIMIT $1)
                RETURNING c.repo_id)
