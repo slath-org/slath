@@ -117,6 +117,21 @@ fn conf_ops_02_backup_during_push_restores_to_a_clean_instance() {
         }
         n
     });
+    // An agent context record: a row whose payload is an encrypted blob.
+    let mut c = s.login("alice", PASSWORD);
+    let api_token = slath_tests::http::create_token(&mut c, "ctx", &["repo:write"]);
+    let r = s.client().api(
+        "POST",
+        "/api/v1/repos/alice/demo/context-records",
+        Some(&api_token),
+        Some(&serde_json::json!({
+            "schema": "slath-context/1",
+            "agent": {"name": "coder"},
+            "summary": {"intent": "Kept in the backup"}
+        })),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let record = r.json()["id"].as_str().unwrap().to_owned();
     std::thread::sleep(std::time::Duration::from_millis(300));
     let out = tempfile::tempdir().unwrap();
     let dir = out.path().join("backup");
@@ -165,7 +180,22 @@ fn conf_ops_02_backup_during_push_restores_to_a_clean_instance() {
     assert_eq!(summary["ok"], true);
     assert_eq!(counts(&target.db), counts(&s.db));
 
+    // The master key isn't in the backup: put it in place, as the docs say.
+    std::fs::copy(
+        s.data_dir().join("instance.key"),
+        target.dir.path().join("data/instance.key"),
+    )
+    .unwrap();
     let t = target.start(&[]);
+    // The context record is back and readable with that key.
+    let r = t.client().api(
+        "GET",
+        &format!("/api/v1/repos/alice/demo/context-records/{record}"),
+        Some(&api_token),
+        None,
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["summary"]["intent"], "Kept in the backup");
     // fsck is clean: database refs match Git.
     let (ok, stdout, stderr) = t.slath(&["fsck", "--output", "json"], None);
     assert!(ok, "fsck: {stdout}{stderr}");
