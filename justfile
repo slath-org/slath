@@ -51,7 +51,7 @@ test-backup-restore:
 # for 60 s (SLATH_BENCH_PUSH_CLIENTS, SLATH_BENCH_PUSH_SECONDS).
 bench-push:
     cargo build --locked --release -p slath --bins
-    SLATH_BIN=target/release/slath SLATH_BENCH_PUSH_CLIENTS=${SLATH_BENCH_PUSH_CLIENTS:-8} \
+    SLATH_BIN={{justfile_directory()}}/target/release/slath SLATH_BENCH_PUSH_CLIENTS=${SLATH_BENCH_PUSH_CLIENTS:-8} \
         SLATH_BENCH_PUSH_SECONDS=${SLATH_BENCH_PUSH_SECONDS:-60} \
         cargo nextest run --locked -p slath-tests --test perf --no-capture
 
