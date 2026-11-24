@@ -45,10 +45,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
-          git --version
+        run: scripts/install-git-ppa.sh
       - name: Install Rust (from rust-toolchain.toml)
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -132,9 +129,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
+        run: scripts/install-git-ppa.sh
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: e2e-bins
@@ -201,9 +196,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
+        run: scripts/install-git-ppa.sh
       - name: Install Rust (from rust-toolchain.toml)
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3

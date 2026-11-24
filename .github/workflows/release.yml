@@ -147,9 +147,7 @@ jobs:
           name: build-x86_64
           path: artifacts
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
+        run: scripts/install-git-ppa.sh
       - name: Install Rust (from rust-toolchain.toml)
         run: rustup toolchain install
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
@@ -220,9 +218,7 @@ jobs:
           name: build-x86_64
           path: artifacts
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
+        run: scripts/install-git-ppa.sh
       - name: Install Rust (from rust-toolchain.toml)
         run: rustup toolchain install
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -363,9 +359,7 @@ jobs:
           name: build-x86_64
           path: artifacts
       - name: Install newest stable Git
-        run: |
-          sudo add-apt-repository -y ppa:git-core/ppa
-          sudo apt-get install -y --no-install-recommends git
+        run: scripts/install-git-ppa.sh
       - name: Install Rust (from rust-toolchain.toml)
         run: rustup toolchain install
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
