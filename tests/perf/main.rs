@@ -69,8 +69,8 @@ fn quantile(v: &[f64], q: f64) -> f64 {
 }
 
 /// One client: pushes a new commit to its own branch until `deadline`;
-/// returns each push's duration in milliseconds.
-fn client(url: &str, n: u64, deadline: Instant) -> Vec<f64> {
+/// returns each push's duration in milliseconds, or why a push failed.
+fn client(url: &str, n: u64, deadline: Instant) -> Result<Vec<f64>, String> {
     let git = GitClient::new();
     let d = tempfile::tempdir().unwrap();
     let w = d.path();
@@ -90,14 +90,15 @@ fn client(url: &str, n: u64, deadline: Instant) -> Vec<f64> {
             .output()
             .unwrap();
         let took = start.elapsed();
-        assert!(
-            out.status.success(),
-            "push {i} of client {n} failed:\n{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
+        if !out.status.success() {
+            return Err(format!(
+                "push {i} of client {n} failed:\n{}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
         times.push(took.as_secs_f64() * 1000.0);
     }
-    times
+    Ok(times)
 }
 
 #[test]
@@ -122,10 +123,14 @@ fn conf_perf_04_push_throughput_is_measured() {
             std::thread::spawn(move || client(&url, n, deadline))
         })
         .collect();
-    let mut times: Vec<f64> = handles
-        .into_iter()
-        .flat_map(|h| h.join().unwrap())
-        .collect();
+    let mut times: Vec<f64> = Vec::new();
+    for h in handles {
+        match h.join().unwrap() {
+            Ok(t) => times.extend(t),
+            // The server's log says what Git's message doesn't.
+            Err(why) => panic!("{why}\nserver log:\n{}", s.log()),
+        }
+    }
     let elapsed = started.elapsed().as_secs_f64();
     times.sort_by(f64::total_cmp);
     assert!(!times.is_empty(), "no push finished");
