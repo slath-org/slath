@@ -225,7 +225,11 @@ fn head(s: &TestServer, token: &str, n: i64) -> String {
 fn revisions(s: &TestServer, token: &str, n: i64, k: i64) {
     let start = std::time::Instant::now();
     while api(s, token, "GET", &format!("/merge-requests/{n}"), None).json()["revisions"] != k {
-        assert!(start.elapsed().as_secs() < 30, "no revision {k}\n{}", s.log());
+        assert!(
+            start.elapsed().as_secs() < 30,
+            "no revision {k}\n{}",
+            s.log()
+        );
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
 }
