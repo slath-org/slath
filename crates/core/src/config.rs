@@ -364,7 +364,9 @@ pub struct Limits {
     pub git_read_timeout: Dur,
     /// Upload/receive-pack with no I/O.
     pub git_transport_idle_timeout: Dur,
-    /// Concurrent Git processes; 0 means 2 × CPUs.
+    /// Concurrent Git processes for transfers and one-off commands; 0
+    /// means 2 × CPUs. A push's hooks run on the permit of the push, and
+    /// object readers kept open while other commands run aren't counted.
     pub git_max_concurrent: usize,
     /// Maximum pack size of one push.
     pub push_max_bytes: Bytes,

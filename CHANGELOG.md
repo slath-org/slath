@@ -77,6 +77,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Simultaneous pushes no longer wait for each other until refused when there are more of them than the Git process limit (2 per CPU).
+- Merge requests no longer stop recording revisions when many are updated at once on a small server.
+- A push refused because the server was too slow to check it now says so, instead of that the server can't be reached.
 - The API description lists the filters of issue, merge request, search, notification, and delivery lists as optional query parameters instead of required path parameters.
 - Picking a suggested name in a field for one person (collaborator, author and assignee filters) no longer adds a comma that made saving or filtering fail.
 - Merging in Slath no longer counts as your push, so the branch it merged into doesn't show as "You pushed to … recently".

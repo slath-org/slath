@@ -202,6 +202,8 @@ pub struct Invocation {
     stdin: Option<Vec<u8>>,
     timeout: Duration,
     max_output: usize,
+    /// Doesn't count against `max_concurrent` (see [`Invocation::uncounted`]).
+    uncounted: bool,
 }
 
 impl Invocation {
@@ -223,7 +225,18 @@ impl Invocation {
             stdin: None,
             timeout,
             max_output,
+            uncounted: false,
         }
+    }
+
+    /// Runs without a permit of `max_concurrent`: for a long-lived reader
+    /// (`cat-file --batch-command`) that its owner keeps open while it runs
+    /// other commands. Counted, enough such owners at once would hold every
+    /// permit and wait for each other forever. A reader lives only as long
+    /// as the request or job that opened it, which bounds how many there are.
+    pub(crate) const fn uncounted(mut self) -> Self {
+        self.uncounted = true;
+        self
     }
 
     pub fn arg(mut self, arg: impl AsRef<OsStr>) -> Self {
@@ -367,7 +380,11 @@ impl Invocation {
     /// long-lived `cat-file`). The caller enforces its own I/O timeouts; the
     /// process group is killed when the returned [`GitChild`] is dropped.
     pub async fn spawn(self) -> Result<GitChild, GitError> {
-        let permit = permit(&self.runner.sem).await?;
+        let permit = if self.uncounted {
+            None
+        } else {
+            permit(&self.runner.sem).await?
+        };
         let mut cmd = self.command();
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())

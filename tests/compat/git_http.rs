@@ -363,3 +363,92 @@ fn base64_basic(s: &str) -> String {
     }
     out
 }
+
+/// More simultaneous pushes than the Git process limit allows all land,
+/// and each merge request records its new revision: a push's hooks and a
+/// revision's change identity both run Git commands while holding one Git
+/// process already, which once made enough of them wait for each other.
+#[test]
+fn pushes_beyond_the_git_process_limit_all_land() {
+    use serde_json::json;
+    use slath_tests::server::PASSWORD;
+    const N: usize = 8;
+    let s = TestServer::start_full(&[DEMO], "[limits]\ngit_max_concurrent = 2\n");
+    let mut alice = s.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "t", &["repo:write", "mrs:write"]);
+    let url = s.url(&DEMO);
+    let git = GitClient::new();
+    let w = tempfile::tempdir().unwrap();
+    let wd = w.path();
+    git.ok(wd, &["init", "-q", "-b", "main"]);
+    std::fs::write(wd.join("README"), "demo\n").unwrap();
+    git.ok(wd, &["add", "-A"]);
+    git.ok(wd, &["commit", "-q", "-m", "init"]);
+    git.ok(wd, &["push", "-q", "--force", &url, "main"]);
+    let mut api = s.client();
+    let mut numbers = Vec::new();
+    for i in 0..N {
+        let b = format!("topic-{i}");
+        git.ok(wd, &["switch", "-q", "-c", &b, "main"]);
+        std::fs::write(wd.join(format!("{b}.txt")), "one\n").unwrap();
+        git.ok(wd, &["add", "-A"]);
+        git.ok(wd, &["commit", "-q", "-m", &format!("Add {b}")]);
+        git.ok(wd, &["push", "-q", &url, &b]);
+        let r = api.api(
+            "POST",
+            "/api/v1/repos/alice/demo/merge-requests",
+            Some(&token),
+            Some(&json!({"source_branch": b, "title": format!("Change {i}")})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        numbers.push(r.json()["number"].as_i64().unwrap());
+    }
+    // Every branch gets a second commit, pushed by all clients at once.
+    let pushes: Vec<_> = (0..N)
+        .map(|i| {
+            let url = url.clone();
+            let src = wd.to_path_buf();
+            std::thread::spawn(move || {
+                let git = GitClient::new();
+                let d = tempfile::tempdir().unwrap();
+                let b = format!("topic-{i}");
+                git.ok(
+                    d.path(),
+                    &["clone", "-q", "--branch", &b, src.to_str().unwrap(), "c"],
+                );
+                let c = d.path().join("c");
+                std::fs::write(c.join(format!("{b}.txt")), "two\n").unwrap();
+                git.ok(&c, &["commit", "-qam", &format!("Change {b} again")]);
+                let out = git.cmd(&c).args(["push", "-q", &url, &b]).output().unwrap();
+                (
+                    out.status.success(),
+                    String::from_utf8_lossy(&out.stderr).into_owned(),
+                )
+            })
+        })
+        .collect();
+    for p in pushes {
+        let (ok, err) = p.join().unwrap();
+        assert!(ok, "{err}");
+    }
+    let start = std::time::Instant::now();
+    for n in numbers {
+        while api
+            .api(
+                "GET",
+                &format!("/api/v1/repos/alice/demo/merge-requests/{n}"),
+                Some(&token),
+                None,
+            )
+            .json()["revisions"]
+            != 2
+        {
+            assert!(
+                start.elapsed().as_secs() < 60,
+                "!{n} has no second revision\n{}",
+                s.log()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
+}

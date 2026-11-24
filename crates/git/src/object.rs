@@ -155,7 +155,13 @@ impl ObjectReader {
         if let Some(q) = quarantine {
             inv = inv.quarantine(git_dir, q)?;
         }
-        let mut child = inv.args(["cat-file", "--batch-command"]).spawn().await?;
+        // Not counted against the process limit: its owner runs other
+        // commands while it's open (see `Invocation::uncounted`).
+        let mut child = inv
+            .args(["cat-file", "--batch-command"])
+            .uncounted()
+            .spawn()
+            .await?;
         let (stdin, stdout, stderr) = child.take_stdio()?;
         // Drain stderr so the process never blocks on it.
         tokio::spawn(crate::runner::read_stderr(stderr));
