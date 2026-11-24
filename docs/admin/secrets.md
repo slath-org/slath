@@ -14,7 +14,10 @@ Agents' context records are encrypted too: each record's content is a file
 in the blob store, encrypted with a key of its own, and that key is
 encrypted with the master key in the database. Backups contain both, so a
 restore needs the master key to read them. Rotating the master key
-re-encrypts only those small keys, not the files.
+re-encrypts only those small keys, not the files. Deleting a record, by
+hand or when its repository's retention ends, deletes its key with it, so
+its content is unreadable at once and its file goes with the next cleanup
+of unused files. Backups taken before still hold it until you delete them.
 
 Each encrypted value records the ID of the master key that sealed it. The
 key itself never enters the database or a backup: back up the key file

@@ -226,6 +226,23 @@ pub async fn get_record(
     Ok(axum::Json(v.into()))
 }
 
+/// Deletes a record at once (the person who asked, the bot's owner, or a
+/// repository admin). Backups taken earlier keep it until they expire.
+#[utoipa::path(delete, path = "/api/v1/repos/{ns}/{repo}/context-records/{id}", tag = "repos", security(("token" = ["repo:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("id" = String, Path)),
+    responses((status = 204), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem)))]
+pub async fn delete_record(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, id)): Path<(String, String, String)>,
+) -> Result<StatusCode, AppError> {
+    let id: uuid::Uuid = id.parse().map_err(|_| AppError::not_found())?;
+    state
+        .services
+        .delete_context_record(&s, &ns, &repo, id)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route_as(
@@ -241,6 +258,6 @@ pub fn router() -> Router<AppState> {
         .route_as(
             "/api/v1/repos/{ns}/{repo}/context-records/{id}",
             Access::Resource,
-            axum::routing::get(get_record),
+            axum::routing::get(get_record).delete(delete_record),
         )
 }

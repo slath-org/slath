@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail, r.context_entire_import\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           WHERE r.state <> 'deleting' AND (\n                r.visibility = 'public' OR $2\n                OR (r.visibility = 'internal' AND $1::uuid IS NOT NULL)\n                OR slath_can_read(r.id, $1::uuid))\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $3 LIMIT $4",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail, r.context_entire_import, r.context_visibility, r.context_retention_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id\n           ORDER BY lower(n.name::text), lower(r.name::text) OFFSET $1 LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -223,12 +223,32 @@
             "name": "context_entire_import"
           }
         }
+      },
+      {
+        "ordinal": 21,
+        "name": "context_visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "context_retention_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_retention_days"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Bool",
         "Int8",
         "Int8"
       ]
@@ -254,8 +274,10 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      true
     ]
   },
-  "hash": "e6ac4bd7db51a570268d1c4687f042da7757005cba57fd82668f1855aa171389"
+  "hash": "0ff2a9d2a92bea4dc2db7b5d09dc12b648ae75c1ba0a06a5cd85906ea020bf0f"
 }

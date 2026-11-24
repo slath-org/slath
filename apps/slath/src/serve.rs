@@ -167,7 +167,8 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
     };
     {
         // Periodic maintenance: purge repositories whose trash time is up
-        // and audit events past their retention; schedule repository maintenance;
+        // and audit events and context records past their retention;
+        // schedule repository maintenance;
         // delete attachment and avatar files unused for the grace period.
         let svc = state.services.clone();
         let mut stop = stop_tx.subscribe();
@@ -193,6 +194,11 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
                         }
                         if let Err(e) = svc.purge_webhook_deliveries().await {
                             tracing::warn!(error = %e, "purging old webhook deliveries failed");
+                        }
+                        match svc.purge_expired_context().await {
+                            Ok(n) if n > 0 => tracing::info!(records = n, "deleted expired context records"),
+                            Ok(_) => {}
+                            Err(e) => tracing::warn!(error = %e, "deleting expired context records failed"),
                         }
                         match svc.collect_blobs().await {
                             Ok(c) if c.blobs + c.orphans > 0 => {

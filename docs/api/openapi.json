@@ -3976,6 +3976,76 @@
             ]
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "Deletes a record at once (the person who asked, the bot's owner, or a\nrepository admin). Backups taken earlier keep it until they expire.",
+        "operationId": "delete_record",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/repos/{ns}/{repo}/fork": {
@@ -14662,6 +14732,7 @@
           "change_source_prefix",
           "context_detail",
           "context_entire_import",
+          "context_visibility",
           "clone_urls",
           "created_at",
           "updated_at"
@@ -14684,6 +14755,18 @@
           "context_entire_import": {
             "type": "boolean",
             "description": "Entire CLI checkpoints may be imported (experimental)."
+          },
+          "context_retention_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days agent context records are kept; `null` keeps them."
+          },
+          "context_visibility": {
+            "type": "string",
+            "description": "Who sees agent context records: `writers`, `readers`, or `off`."
           },
           "created_at": {
             "type": "string"
@@ -15680,6 +15763,21 @@
               "null"
             ],
             "description": "Accept Entire CLI checkpoints at `…/context-records/import/entire`\n(experimental)."
+          },
+          "context_retention_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days agent context records are kept, 1 to 3650; `null` keeps them."
+          },
+          "context_visibility": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who sees agent context records: `writers` (push permission, the\nperson who asked, and the bot's owner), `readers` (everyone who\ncan read the code), or `off` (no new records)."
           },
           "default_branch": {
             "type": [

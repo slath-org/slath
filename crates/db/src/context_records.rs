@@ -217,23 +217,80 @@ pub async fn owns_uploader(
     .unwrap_or(false))
 }
 
+/// The context settings to change; `None` keeps one.
+#[derive(Debug, Default, Clone)]
+pub struct Settings<'a> {
+    pub detail: Option<&'a str>,
+    pub entire_import: Option<bool>,
+    pub visibility: Option<&'a str>,
+    /// `Some(None)` clears the retention.
+    pub retention_days: Option<Option<i32>>,
+}
+
 pub async fn set_settings(
     exec: impl PgExecutor<'_>,
     repo: RepoId,
-    detail: Option<&str>,
-    entire_import: Option<bool>,
+    s: &Settings<'_>,
 ) -> Result<(), DbError> {
     sqlx::query!(
         "UPDATE repositories SET context_detail = COALESCE($2, context_detail),
-             context_entire_import = COALESCE($3, context_entire_import)
+             context_entire_import = COALESCE($3, context_entire_import),
+             context_visibility = COALESCE($4, context_visibility),
+             context_retention_days = CASE WHEN $5 THEN $6 ELSE context_retention_days END
           WHERE id = $1",
         repo.as_uuid(),
-        detail,
-        entire_import
+        s.detail,
+        s.entire_import,
+        s.visibility,
+        s.retention_days.is_some(),
+        s.retention_days.flatten()
     )
     .execute(exec)
     .await?;
     Ok(())
+}
+
+/// Deletes one record of `repo`; whether it was there.
+pub async fn delete(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    id: uuid::Uuid,
+) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "DELETE FROM context_records WHERE repo_id = $1 AND id = $2",
+        repo.as_uuid(),
+        id
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+/// Deletes up to `limit` records past their repository's retention, and
+/// says how many each repository lost.
+pub async fn delete_expired(
+    exec: impl PgExecutor<'_>,
+    limit: i64,
+) -> Result<Vec<(RepoId, i64)>, DbError> {
+    let rows = sqlx::query!(
+        r#"WITH gone AS (
+               DELETE FROM context_records c
+                WHERE c.id IN (
+                      SELECT c2.id FROM context_records c2
+                        JOIN repositories r ON r.id = c2.repo_id
+                       WHERE r.context_retention_days IS NOT NULL
+                         AND c2.created_at < now() - make_interval(days => r.context_retention_days)
+                       LIMIT $1)
+               RETURNING c.repo_id)
+           SELECT repo_id AS "repo_id!", count(*) AS "n!" FROM gone GROUP BY repo_id"#,
+        limit
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (RepoId::from_uuid(r.repo_id), r.n))
+        .collect())
 }
 
 /// The (merge request, change) pairs of `repo`'s open merge requests that

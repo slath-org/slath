@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE repositories SET context_detail = COALESCE($2, context_detail),\n             context_entire_import = COALESCE($3, context_entire_import),\n             context_visibility = COALESCE($4, context_visibility),\n             context_retention_days = CASE WHEN $5 THEN $6 ELSE context_retention_days END\n          WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "242a2d89f1d1d60dbc95bb9dc45640766e8e8e8d4255929bf7afbe4420b9b990"
+}

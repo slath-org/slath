@@ -840,3 +840,346 @@ fn conf_agent_05_a_records_page_pages_its_transcript_for_those_who_may_see_it() 
     assert_eq!(w.s.client().get(&page).status, 404);
     assert_eq!(bob.get("/alice/demo/-/context/not-a-uuid").status, 404);
 }
+
+impl World {
+    fn patch_repo(&self, token: &str, body: Value) -> slath_tests::http::Resp {
+        self.s.client().api(
+            "PATCH",
+            "/api/v1/repos/alice/demo",
+            Some(token),
+            Some(&body),
+        )
+    }
+
+    fn mcp_list(&self, token: &str, n: i64) -> String {
+        let r = self.s.client().api_with(
+            "POST",
+            "/api/mcp",
+            Some(token),
+            Some(
+                &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+                "name": "list_context_records",
+                "arguments": {"ns": "alice", "repo": "demo", "merge_request": n}}}),
+            ),
+            &[
+                ("accept", "application/json, text/event-stream"),
+                ("mcp-protocol-version", "2025-06-18"),
+            ],
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.body
+    }
+}
+
+/// With the default visibility, a reader the record doesn't name finds
+/// nothing of it on any surface, and nothing of it is reachable over Git.
+#[test]
+fn conf_agent_16_other_readers_find_nothing_on_any_surface() {
+    let (w, n) = World::start();
+    let marker = "Zebracorn-7f3a plan";
+    let mut rec = record(marker, json!({"merge_request": n}));
+    rec["summary"]["outcome"] = json!(format!("{marker} done"));
+    let r = w.upload(&w.bot, &rec);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    let sha = w.s.db.query_one(&format!(
+        "SELECT payload_sha256 FROM context_records WHERE id = '{id}'"
+    ));
+    // Writers see it (the panel and the MCP list), so the checks below
+    // look in the right places.
+    let mut bob = w.s.login("bob", PASSWORD);
+    assert!(
+        bob.get(&format!("/alice/demo/merge-requests/{n}"))
+            .body
+            .contains(marker)
+    );
+    assert!(w.mcp_list(&w.bob, n).contains(&id));
+
+    let mut carol = w.s.login("carol", PASSWORD);
+    let ui = [
+        format!("/alice/demo/merge-requests/{n}"),
+        format!("/alice/demo/-/context/{id}"),
+        format!("/search?q={}", marker.replace(' ', "+")),
+        "/notifications".to_owned(),
+        "/".to_owned(),
+        "/alice/demo".to_owned(),
+    ];
+    for page in &ui {
+        let r = carol.get(page);
+        assert!(!r.body.contains(marker), "{page}: {}", r.body);
+        if page.contains(&id) {
+            // The error page shows the address asked for, nothing more.
+            assert_eq!(r.status, 404, "{page}");
+        } else {
+            assert!(!r.body.contains(&id), "{page}");
+        }
+    }
+    for path in [
+        format!("/context-records/{id}"),
+        "/context-records".to_owned(),
+        format!("/context-records?merge_request={n}"),
+        format!("/merge-requests/{n}"),
+        format!("/merge-requests/{n}/timeline"),
+    ] {
+        let r = w.api(&w.carol, "GET", &path, None);
+        assert!(!r.body.contains(marker), "{path}: {}", r.body);
+        assert!(!r.body.contains(&id), "{path}: {}", r.body);
+    }
+    let listed = w.mcp_list(&w.carol, n);
+    assert!(
+        !listed.contains(&id) && !listed.contains(marker),
+        "{listed}"
+    );
+    // Nothing went out by webhook or notification, and the audit log names
+    // the record without its text.
+    for table in ["webhook_deliveries", "notifications", "audit_events"] {
+        let hits = w.s.db.query_one(&format!(
+            "SELECT count(*)::text FROM {table} t WHERE t::text LIKE '%Zebracorn%'"
+        ));
+        assert_eq!(hits, "0", "{table}");
+    }
+
+    // Git: the record's ID, its payload's digest, and the Git object IDs
+    // its ciphertext and a text of it would have are unknown to the
+    // repository, over protocol v0 and v2, as a pushed ref, and as a
+    // claimed have.
+    let blob = w.s.data_dir().join("blobs").join(&sha[..2]).join(&sha);
+    let wd = w.w.path();
+    let hash = |path: &Path| {
+        w.git
+            .ok(wd, &["hash-object", path.to_str().unwrap()])
+            .trim()
+            .to_owned()
+    };
+    let text = w.w.path().join("text.tmp");
+    std::fs::write(&text, format!("{marker} done")).unwrap();
+    let oids = [
+        hash(&blob),
+        hash(&text),
+        sha[..40].to_owned(),
+        id.replace('-', "")[..32].to_owned() + "00000000",
+    ];
+    std::fs::remove_file(&text).unwrap();
+    let objects = w.objects();
+    for oid in &oids {
+        assert!(!objects.contains(oid.as_str()), "{oid}");
+        for proto in ["0", "2"] {
+            let out = w
+                .git
+                .cmd(wd)
+                .args([
+                    "-c",
+                    &format!("protocol.version={proto}"),
+                    "fetch",
+                    &w.url,
+                    oid,
+                ])
+                .output()
+                .unwrap();
+            assert!(!out.status.success(), "v{proto} fetched {oid}");
+        }
+        let out = w
+            .git
+            .cmd(wd)
+            .args(["push", &w.url, &format!("{oid}:refs/heads/leak")])
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "pushed a ref to {oid}");
+    }
+    // A commit locally holding the ciphertext, offered as a have, gets
+    // nothing from the server but its own objects.
+    let leak = wd.join("leak.bin");
+    std::fs::copy(&blob, &leak).unwrap();
+    w.git.ok(wd, &["add", "leak.bin"]);
+    w.git.ok(wd, &["commit", "-q", "-m", "local only"]);
+    let clone = tempfile::tempdir().unwrap();
+    w.git
+        .ok(clone.path(), &["clone", "-q", "--mirror", &w.url, "m.git"]);
+    let mirrored = w.git.ok(
+        &clone.path().join("m.git"),
+        &["cat-file", "--batch-all-objects", "--batch-check"],
+    );
+    assert!(!mirrored.contains(&oids[0]), "{mirrored}");
+    w.git.ok(wd, &["fetch", "-q", &w.url, "main"]);
+    assert_eq!(w.objects(), objects);
+}
+
+#[test]
+fn conf_agent_16_readers_follow_the_code_and_off_refuses_ingest() {
+    let (w, n) = World::start();
+    let r = w.upload(&w.bot, &record("Plan", json!({"merge_request": n})));
+    let id = r.json()["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        w.api(&w.alice, "GET", "", None).json()["context_visibility"],
+        "writers"
+    );
+    // Only repository admins change it, and only to known values.
+    assert_eq!(
+        w.patch_repo(&w.bob, json!({"context_visibility": "readers"}))
+            .status,
+        403
+    );
+    let r = w.patch_repo(&w.alice, json!({"context_visibility": "everyone"}));
+    assert_eq!(r.status, 422, "{}", r.body);
+    let r = w.patch_repo(&w.alice, json!({"context_visibility": "readers"}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["context_visibility"], "readers");
+    assert_eq!(w.ids(&w.carol, ""), std::slice::from_ref(&id));
+    let mut carol = w.s.login("carol", PASSWORD);
+    assert_eq!(
+        carol.get(&format!("/alice/demo/-/context/{id}")).status,
+        200
+    );
+    // Never more than the code: someone who can't read it still gets 404.
+    w.s.create_user("dave", PASSWORD, false);
+    let dave = token(&w.s, "dave");
+    assert_eq!(
+        w.api(&dave, "GET", &format!("/context-records/{id}"), None)
+            .status,
+        404
+    );
+    assert_eq!(w.api(&dave, "GET", "/context-records", None).status, 404);
+    assert_eq!(
+        w.s.client()
+            .get(&format!("/alice/demo/-/context/{id}"))
+            .status,
+        404
+    );
+    // Readers still can't upload.
+    assert_eq!(w.upload(&w.carol, &record("x", json!(null))).status, 403);
+
+    // Off: no new records through any path; existing ones stay as with
+    // writers, so they can be read and deleted.
+    let r = w.patch_repo(
+        &w.alice,
+        json!({"context_visibility": "off", "context_entire_import": true}),
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = w.upload(&w.bot, &record("More", json!({"merge_request": n})));
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("context_off"), "{}", r.body);
+    let r = w.api(
+        &w.bot,
+        "POST",
+        "/context-records/import/entire",
+        Some(entire_session(n)),
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("context_off"), "{}", r.body);
+    assert_eq!(w.ids(&w.bob, ""), std::slice::from_ref(&id));
+    assert!(w.ids(&w.carol, "").is_empty());
+    assert_eq!(
+        w.s.db.query_one(
+            "SELECT data->>'context_visibility' FROM audit_events
+              WHERE action = 'repo.context_settings' ORDER BY created_at DESC LIMIT 1"
+        ),
+        "off"
+    );
+}
+
+#[test]
+fn conf_agent_16_the_asker_the_owner_and_admins_delete_records() {
+    let (w, n) = World::start();
+    let mut rec = record("For carol", json!({"merge_request": n}));
+    rec["initiated_by"] = json!("carol");
+    let mine = w.upload(&w.bot, &rec).json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let other = w
+        .upload(&w.bot, &record("Other", json!({"merge_request": n})))
+        .json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let sha = w.s.db.query_one(&format!(
+        "SELECT payload_sha256 FROM context_records WHERE id = '{mine}'"
+    ));
+    let del = |t: &str, id: &str| w.api(t, "DELETE", &format!("/context-records/{id}"), None);
+    // bob sees both as a writer but neither asked nor owns the bot.
+    assert_eq!(del(&w.bob, &other).status, 403);
+    // carol may delete the one she asked for; the other is invisible to her.
+    assert_eq!(del(&w.carol, &other).status, 404);
+    let r = del(&w.carol, &mine);
+    assert_eq!(r.status, 204, "{}", r.body);
+    assert_eq!(del(&w.carol, &mine).status, 404);
+    assert_eq!(
+        w.api(&w.alice, "GET", &format!("/context-records/{mine}"), None)
+            .status,
+        404
+    );
+    // The row and its sealed key are gone at once; the blob is released.
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT count(*)::text FROM context_records WHERE id = '{mine}'"
+        )),
+        "0"
+    );
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT refcount::text FROM blobs WHERE sha256 = '{sha}'"
+        )),
+        "0"
+    );
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT count(*)::text FROM audit_events WHERE action = 'context.delete' AND target_id = '{mine}'"
+        )),
+        "1"
+    );
+    // alice owns the bot and administers the repository.
+    assert_eq!(del(&w.alice, &other).status, 204);
+    assert!(w.ids(&w.alice, "").is_empty());
+    assert_eq!(del(&w.alice, "not-a-uuid").status, 404);
+}
+
+#[test]
+fn conf_agent_16_records_past_the_retention_are_deleted() {
+    let (mut w, n) = World::start();
+    let old = w
+        .upload(&w.bot, &record("Old", json!({"merge_request": n})))
+        .json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let new = w
+        .upload(&w.bot, &record("New", json!({"merge_request": n})))
+        .json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for bad in [json!(0), json!(3651), json!("x")] {
+        let r = w.patch_repo(&w.alice, json!({"context_retention_days": bad}));
+        assert_eq!(r.status, 422, "{bad}: {}", r.body);
+    }
+    let r = w.patch_repo(&w.alice, json!({"context_retention_days": 7}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["context_retention_days"], 7);
+    w.s.db.execute(&format!(
+        "UPDATE context_records SET created_at = now() - interval '8 days' WHERE id = '{old}'"
+    ));
+    // The hourly maintenance runs at start.
+    w.s.stop();
+    w.s.start_again(&slath_tests::server::slath_bin()).unwrap();
+    let start = std::time::Instant::now();
+    while w.ids(&w.alice, "").len() != 1 {
+        assert!(start.elapsed().as_secs() < 30, "{}", w.s.log());
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    assert_eq!(w.ids(&w.alice, ""), vec![new]);
+    let repo =
+        w.s.db
+            .query_one("SELECT id::text FROM repositories WHERE name = 'demo'");
+    assert_eq!(
+        w.s.db.query_one(&format!(
+            "SELECT data->>'count' FROM audit_events WHERE action = 'context.expire' AND target_id = '{repo}'"
+        )),
+        "1"
+    );
+    // null keeps records again.
+    let r = w.patch_repo(&w.alice, json!({"context_retention_days": null}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["context_retention_days"], Value::Null);
+    let r = w.patch_repo(&w.alice, json!({"context_detail": "summary"}));
+    assert_eq!(r.json()["context_retention_days"], Value::Null);
+}

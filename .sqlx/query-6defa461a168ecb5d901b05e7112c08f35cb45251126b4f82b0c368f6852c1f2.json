@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail, r.context_entire_import\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext",
+  "query": "SELECT r.id, r.namespace_id, n.name::text AS \"namespace!\", n.kind AS namespace_kind, r.name::text AS \"name!\",\n                  r.description, r.description_origin, r.visibility, r.default_branch, r.state, r.allow_forking, r.size_bytes,\n                  r.pushed_at, r.deleted_at, r.created_at, r.updated_at, r.issues_enabled, r.stalled_after_days, r.change_source_prefix, r.context_detail, r.context_entire_import, r.context_visibility, r.context_retention_days\n           FROM repositories r JOIN namespaces n ON n.id = r.namespace_id WHERE n.name = $1::citext AND r.name = $2::citext",
   "describe": {
     "columns": [
       {
@@ -223,6 +223,28 @@
             "name": "context_entire_import"
           }
         }
+      },
+      {
+        "ordinal": 21,
+        "name": "context_visibility",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_visibility"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "context_retention_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "repositories",
+            "name": "context_retention_days"
+          }
+        }
       }
     ],
     "parameters": {
@@ -262,8 +284,10 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      true
     ]
   },
-  "hash": "b3f6aa049a75adfa940bb6e55f89c353f7e629b428c3751d9a2c4c67ce1f80e2"
+  "hash": "6defa461a168ecb5d901b05e7112c08f35cb45251126b4f82b0c368f6852c1f2"
 }

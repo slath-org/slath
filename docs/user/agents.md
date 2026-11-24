@@ -227,9 +227,24 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   Redact it and upload again, with the same `Idempotency-Key` if you sent
   one. Report what you redacted as counts per rule in
   `redactions`, never the values.
-- **Who sees it:** people with write access to the repository, the person
-  named in `initiated_by`, and the bot's owner. Others, even if they can
-  read the code, don't see that a record exists.
+- **Who sees it:** by default, people with write access to the
+  repository, the person named in `initiated_by`, and the bot's owner.
+  Others, even if they can read the code, don't see that a record exists.
+  Repository admins can change that with `"context_visibility"` in
+  `PATCH /api/v1/repos/<ns>/<repo>`: `"readers"` shows records to
+  everyone who can read the code (on a public repository, to everyone),
+  and `"off"` refuses new records while the existing ones stay visible as
+  by default. Records never go to forks or mirrors, and never into search,
+  notifications, or webhooks.
+- **Deleting:** the person named in `initiated_by`, the bot's owner, and
+  repository admins can delete a record with
+  `DELETE …/context-records/<id>`. It's gone at once and its content
+  can't be read any more. Copies someone already downloaded, and backups
+  taken before, still exist.
+- **Keeping:** records are kept until deleted, unless repository admins
+  set `"context_retention_days"` (1 to 3650; `null` keeps them again).
+  Older records are then deleted within the hour, also when the number is
+  lowered.
 - **On the merge request:** its page and each change's page show a
   **Context** panel in the details column with the records bound to it:
   who uploaded each and when, the agent, who it was for, the summary, and

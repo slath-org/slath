@@ -64,6 +64,10 @@ pub struct Repo {
     pub context_detail: String,
     /// Entire CLI checkpoints may be imported (experimental).
     pub context_entire_import: bool,
+    /// Who sees agent context records: `writers`, `readers`, or `off`.
+    pub context_visibility: String,
+    /// Days agent context records are kept; `null` keeps them.
+    pub context_retention_days: Option<i32>,
     pub clone_urls: CloneUrls,
     pub created_at: String,
     pub updated_at: String,
@@ -87,6 +91,8 @@ fn repo_json(state: &AppState, r: &slath_db::repos::Repo) -> Repo {
         change_source_prefix: r.change_source_prefix.clone(),
         context_detail: r.context_detail.clone(),
         context_entire_import: r.context_entire_import,
+        context_visibility: r.context_visibility.clone(),
+        context_retention_days: r.context_retention_days,
         clone_urls: CloneUrls { https, ssh },
         created_at: ts(r.created_at),
         updated_at: ts(r.updated_at),
@@ -214,6 +220,23 @@ pub struct UpdateRepo {
     /// Accept Entire CLI checkpoints at `…/context-records/import/entire`
     /// (experimental).
     pub context_entire_import: Option<bool>,
+    /// Who sees agent context records: `writers` (push permission, the
+    /// person who asked, and the bot's owner), `readers` (everyone who
+    /// can read the code), or `off` (no new records).
+    pub context_visibility: Option<String>,
+    /// Days agent context records are kept, 1 to 3650; `null` keeps them.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<i32>, nullable)]
+    pub context_retention_days: Option<Option<i32>>,
+}
+
+/// Tells a field sent as `null` (`Some(None)`) from one left out (`None`).
+fn present<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(d).map(Some)
 }
 
 /// Changes a repository's settings (admins, `repo:write`).
@@ -252,14 +275,18 @@ pub async fn update_repo(
     if let Some(prefix) = &u.change_source_prefix {
         svc.set_change_source_prefix(&subject, &a, prefix).await?;
     }
-    if u.context_detail.is_some() || u.context_entire_import.is_some() {
-        svc.set_context_settings(
-            &subject,
-            &a,
-            u.context_detail.as_deref(),
-            u.context_entire_import,
-        )
-        .await?;
+    let context = slath_db::context_records::Settings {
+        detail: u.context_detail.as_deref(),
+        entire_import: u.context_entire_import,
+        visibility: u.context_visibility.as_deref(),
+        retention_days: u.context_retention_days,
+    };
+    if context.detail.is_some()
+        || context.entire_import.is_some()
+        || context.visibility.is_some()
+        || context.retention_days.is_some()
+    {
+        svc.set_context_settings(&subject, &a, &context).await?;
     }
     if let Some(v) = &u.visibility {
         svc.set_repo_visibility(&subject, false, &a, visibility(v)?)

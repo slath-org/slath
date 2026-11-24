@@ -55,6 +55,38 @@ fn user_id(subject: &Subject) -> Result<UserId> {
     }
 }
 
+/// Who sees a repository's records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Visibility {
+    /// Push permission, the person who asked, and the uploader's owner.
+    Writers,
+    /// Everyone who can read the code.
+    Readers,
+    /// No new records; existing ones are seen as with `Writers`.
+    Off,
+}
+
+impl Visibility {
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "writers" => Some(Self::Writers),
+            "readers" => Some(Self::Readers),
+            "off" => Some(Self::Off),
+            _ => None,
+        }
+    }
+
+    /// A repository's setting; anything unknown counts as the narrowest.
+    #[must_use]
+    pub fn of(a: &RepoAccess) -> Self {
+        Self::parse(&a.repo.context_visibility).unwrap_or(Self::Writers)
+    }
+}
+
+/// The longest retention a repository may set, in days.
+pub const RETENTION_MAX_DAYS: i32 = 3650;
+
 impl Services {
     /// A repository's context settings: (detail level, Entire import on).
     #[must_use]
@@ -71,10 +103,20 @@ impl Services {
         a.can(subject, Action::RepoPush)
     }
 
+    /// The one check of every surface that shows a record. `a` was
+    /// obtained with read access, so `readers` never exceeds the code.
     async fn may_see(&self, subject: &Subject, a: &RepoAccess, r: &Record) -> Result<bool> {
+        if Visibility::of(a) == Visibility::Readers && a.can(subject, Action::RepoRead) {
+            return Ok(true);
+        }
         if Self::context_writer(subject, a) {
             return Ok(true);
         }
+        self.asked_or_owns(subject, r).await
+    }
+
+    /// Whether `subject` asked for the record's work or owns its uploader.
+    async fn asked_or_owns(&self, subject: &Subject, r: &Record) -> Result<bool> {
         let Ok(viewer) = user_id(subject) else {
             return Ok(false);
         };
@@ -85,6 +127,83 @@ impl Services {
             Some(u) => Ok(slath_db::context_records::owns_uploader(&self.pool, u, viewer).await?),
             None => Ok(false),
         }
+    }
+
+    /// Whether `subject`, who sees the record, may delete it: the person
+    /// who asked, the uploader's owner, or a repository admin.
+    pub async fn may_delete_context(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        r: &Record,
+    ) -> Result<bool> {
+        if a.can(subject, Action::RepoSettings) {
+            return Ok(true);
+        }
+        self.asked_or_owns(subject, r).await
+    }
+
+    /// Deletes a record at once: its row, with the key its payload is
+    /// sealed with, so the payload is unreadable from then on.
+    pub async fn delete_context_record(
+        &self,
+        subject: &Subject,
+        ns: &str,
+        repo: &str,
+        id: uuid::Uuid,
+    ) -> Result<()> {
+        let a = self
+            .repo_access(subject, ns, repo, Action::RepoRead)
+            .await?;
+        let r = slath_db::context_records::get(&self.pool, a.repo.id, id)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
+        if !self.may_see(subject, &a, &r).await? {
+            return Err(ServiceError::NotFound);
+        }
+        if !self.may_delete_context(subject, &a, &r).await? {
+            return Err(ServiceError::Forbidden);
+        }
+        if slath_db::context_records::delete(&self.pool, a.repo.id, id).await? {
+            self.audit(
+                subject,
+                "context.delete",
+                Target::new("context_record", Some(id)),
+                serde_json::json!({"repository": a.repo.id.as_uuid()}),
+            )
+            .await;
+        }
+        Ok(())
+    }
+
+    /// Deletes the records past their repository's retention, in batches;
+    /// each repository's deletions are audited once per run. Returns how
+    /// many went.
+    pub async fn purge_expired_context(&self) -> Result<i64> {
+        let mut total = 0;
+        let mut per_repo: std::collections::BTreeMap<uuid::Uuid, i64> =
+            std::collections::BTreeMap::new();
+        loop {
+            let gone = slath_db::context_records::delete_expired(&self.pool, 500).await?;
+            let n: i64 = gone.iter().map(|(_, n)| n).sum();
+            for (repo, k) in gone {
+                *per_repo.entry(*repo.as_uuid()).or_default() += k;
+            }
+            total += n;
+            if n < 500 {
+                break;
+            }
+        }
+        for (repo, n) in per_repo {
+            self.audit(
+                &Subject::System,
+                "context.expire",
+                Target::new("repository", Some(repo)),
+                serde_json::json!({"count": n}),
+            )
+            .await;
+        }
+        Ok(total)
     }
 
     /// Uploads a record (`body` is its JSON). Needs push permission.
@@ -179,6 +298,13 @@ impl Services {
         body: &[u8],
     ) -> Result<ContextRecord> {
         let uploader = user_id(subject)?;
+        if Visibility::of(a) == Visibility::Off {
+            return Err(ServiceError::invalid(
+                "context_visibility",
+                "context_off",
+                "This repository doesn't accept context records: its admins turned them off.",
+            ));
+        }
         let limits = &self.config.limits;
         if body.len() as u64 > limits.context_record_max_bytes.0 {
             return Err(ServiceError::invalid(
@@ -641,13 +767,12 @@ impl Services {
         &self,
         subject: &Subject,
         a: &RepoAccess,
-        detail: Option<&str>,
-        entire_import: Option<bool>,
+        settings: &slath_db::context_records::Settings<'_>,
     ) -> Result<()> {
         if !a.can(subject, Action::RepoSettings) {
             return Err(ServiceError::Forbidden);
         }
-        if let Some(d) = detail
+        if let Some(d) = settings.detail
             && Detail::parse(d).is_none()
         {
             return Err(ServiceError::invalid(
@@ -656,13 +781,45 @@ impl Services {
                 "Choose summary or full.",
             ));
         }
-        slath_db::context_records::set_settings(&self.pool, a.repo.id, detail, entire_import)
-            .await?;
+        if let Some(v) = settings.visibility
+            && Visibility::parse(v).is_none()
+        {
+            return Err(ServiceError::invalid(
+                "context_visibility",
+                "invalid",
+                "Choose writers, readers, or off.",
+            ));
+        }
+        if let Some(Some(days)) = settings.retention_days
+            && !(1..=RETENTION_MAX_DAYS).contains(&days)
+        {
+            return Err(ServiceError::invalid(
+                "context_retention_days",
+                "invalid",
+                format!(
+                    "Keep records for 1 to {RETENTION_MAX_DAYS} days, or leave it empty to keep them."
+                ),
+            ));
+        }
+        slath_db::context_records::set_settings(&self.pool, a.repo.id, settings).await?;
+        let mut data = serde_json::Map::new();
+        if let Some(d) = settings.detail {
+            data.insert("context_detail".into(), d.into());
+        }
+        if let Some(e) = settings.entire_import {
+            data.insert("context_entire_import".into(), e.into());
+        }
+        if let Some(v) = settings.visibility {
+            data.insert("context_visibility".into(), v.into());
+        }
+        if let Some(r) = settings.retention_days {
+            data.insert("context_retention_days".into(), r.into());
+        }
         self.audit(
             subject,
             "repo.context_settings",
             Target::new("repository", Some(*a.repo.id.as_uuid())),
-            serde_json::json!({"context_detail": detail, "context_entire_import": entire_import}),
+            serde_json::Value::Object(data),
         )
         .await;
         Ok(())
