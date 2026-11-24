@@ -375,6 +375,33 @@ impl Upload {
     }
 }
 
+/// Every string in `v` with its JSON pointer (RFC 6901), object keys
+/// included, for scanning a request as it was sent.
+#[must_use]
+pub fn strings(v: &serde_json::Value) -> Vec<(String, &str)> {
+    fn walk<'a>(v: &'a serde_json::Value, at: &str, out: &mut Vec<(String, &'a str)>) {
+        match v {
+            serde_json::Value::String(s) => out.push((at.to_owned(), s)),
+            serde_json::Value::Array(items) => {
+                for (i, item) in items.iter().enumerate() {
+                    walk(item, &format!("{at}/{i}"), out);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for (k, item) in map {
+                    let here = format!("{at}/{}", k.replace('~', "~0").replace('/', "~1"));
+                    out.push((here.clone(), k));
+                    walk(item, &here, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(v, "", &mut out);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,6 +488,25 @@ mod tests {
         assert!(!ok(r#"{}"#));
         assert!(!ok(&format!(r#"{{"change":"{}"}}"#, "k".repeat(32))));
         assert!(!ok(r#"{"merge_request":3,"change":"abc"}"#));
+    }
+
+    #[test]
+    fn strings_have_their_pointers() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"a":{"b/c":["x",1,"y"]},"d~":"z"}"#).unwrap();
+        let got: Vec<(String, &str)> = strings(&v);
+        for want in [
+            ("/a", "a"),
+            ("/a/b~1c", "b/c"),
+            ("/a/b~1c/0", "x"),
+            ("/a/b~1c/2", "y"),
+            ("/d~0", "z"),
+        ] {
+            assert!(
+                got.iter().any(|(p, s)| p == want.0 && *s == want.1),
+                "{want:?} {got:?}"
+            );
+        }
     }
 
     #[test]

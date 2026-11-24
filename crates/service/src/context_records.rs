@@ -134,9 +134,42 @@ impl Services {
                     format!("This isn't a checkpoint session: {e}."),
                 )
             })?;
+        // Every string of the checkpoint is scanned, also those the record
+        // leaves out (the prompt file, a transcript at the summary level),
+        // with locations in the checkpoint as it was sent.
+        let raw: serde_json::Value =
+            serde_json::from_slice(body).map_err(ServiceError::internal)?;
+        self.refuse_secrets(slath_core::context_record::strings(&raw))?;
         let record = serde_json::to_vec(&import.to_upload(detail == Detail::Full))
             .map_err(ServiceError::internal)?;
         self.ingest_context_record(subject, &a, &record).await
+    }
+
+    /// Refuses texts (JSON pointer, text) in which a block rule finds a
+    /// secret, with each finding's place, whatever the repository's push
+    /// protection mode. The scan runs over at most a request's size with
+    /// linear-time rules, so it has no time limit to run into.
+    fn refuse_secrets<'a>(&self, texts: impl IntoIterator<Item = (String, &'a str)>) -> Result<()> {
+        let mut secrets = Vec::new();
+        for (field, text) in texts {
+            for f in self.scan_rules.scan(text.as_bytes()) {
+                if f.tier == Tier::Block {
+                    secrets.push(FieldError::new(
+                        &field,
+                        "secret",
+                        format!(
+                            "Line {}, column {}: {} ({}) in {}. Remove it and upload again.",
+                            f.line, f.column, f.description, f.rule, f.excerpt
+                        ),
+                    ));
+                }
+            }
+        }
+        if secrets.is_empty() {
+            Ok(())
+        } else {
+            Err(ServiceError::Invalid(secrets))
+        }
     }
 
     pub(crate) async fn ingest_context_record(
@@ -174,26 +207,7 @@ impl Services {
                         .collect(),
                 )
             })?;
-        // Secrets are refused whatever the repository's push protection
-        // mode: nothing of the request is stored.
-        let mut secrets = Vec::new();
-        for (field, text) in upload.texts() {
-            for f in self.scan_rules.scan(text.as_bytes()) {
-                if f.tier == Tier::Block {
-                    secrets.push(FieldError::new(
-                        &field,
-                        "secret",
-                        format!(
-                            "Line {}, column {}: {} ({}). Remove it and upload again.",
-                            f.line, f.column, f.description, f.excerpt
-                        ),
-                    ));
-                }
-            }
-        }
-        if !secrets.is_empty() {
-            return Err(ServiceError::Invalid(secrets));
-        }
+        self.refuse_secrets(upload.texts())?;
         let initiated_by = match &upload.initiated_by {
             None => None,
             Some(name) => Some(self.initiating_user(a, name).await?),

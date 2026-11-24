@@ -409,6 +409,118 @@ fn conf_agent_06_a_record_with_a_secret_is_refused_with_its_location() {
     assert_eq!(w.upload(&w.bot, &rec).status, 201);
 }
 
+/// Every block rule's sample, in each text field a record or an Entire
+/// checkpoint carries it in, is refused with its location and rule, and
+/// without the secret; nothing of a refused request is kept, and the
+/// redacted retry goes through. A warn-only finding doesn't refuse.
+#[test]
+fn conf_agent_06_the_secret_corpus_is_refused_on_every_ingest_path() {
+    let (w, n) = World::start();
+    for body in [
+        json!({"context_detail": "full"}),
+        json!({"context_entire_import": true}),
+    ] {
+        let r = w.s.client().api(
+            "PATCH",
+            "/api/v1/repos/alice/demo",
+            Some(&w.alice),
+            Some(&body),
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+    }
+    let blobs = || w.s.db.query_one("SELECT count(*)::text FROM blobs");
+    let blobs_before = blobs();
+    let samples = slath_core::secret_scan::samples();
+    let block: Vec<_> = samples
+        .iter()
+        .filter(|(rule, _)| *rule != "generic-assignment")
+        .collect();
+    assert!(block.len() >= 10, "{block:?}");
+    let fields = [
+        "/summary/intent",
+        "/summary/outcome",
+        "/summary/open_items/0",
+        "/transcript/0/text",
+    ];
+    let refused = |r: &slath_tests::http::Resp, rule: &str, at: &str, text: &str| {
+        assert_eq!(r.status, 422, "{rule} in {at}: {}", r.body);
+        assert!(r.body.contains("\"secret\""), "{rule}: {}", r.body);
+        assert!(r.body.contains(at), "{rule} in {at}: {}", r.body);
+        assert!(r.body.contains(&format!("({rule})")), "{rule}: {}", r.body);
+        // The excerpt is redacted: no line of the sample comes back whole.
+        for line in text.lines().filter(|l| l.len() > 24) {
+            assert!(!r.body.contains(line), "{rule}: {}", r.body);
+        }
+    };
+    for (i, (rule, text)) in block.iter().enumerate() {
+        // Through the API, in a different field each time.
+        let at = fields[i % fields.len()];
+        let mut rec = record("Deploy", json!({"merge_request": n}));
+        rec["transcript"] = json!([{"kind": "prompt", "text": "Deploy it"}]);
+        rec.pointer_mut(at)
+            .unwrap()
+            .clone_from(&json!(format!("Ran\n{text}")));
+        // A retry under the same idempotency key is refused again, not
+        // replayed or stored.
+        for _ in 0..2 {
+            let r = w.s.client().api_with(
+                "POST",
+                "/api/v1/repos/alice/demo/context-records",
+                Some(&w.bot),
+                Some(&rec),
+                &[("Idempotency-Key", &format!("corpus-{i}"))],
+            );
+            refused(&r, rule, at, text);
+        }
+
+        // Through the Entire import: in the prompt, which the record leaves
+        // out, and in the transcript, at the checkpoint's own places.
+        let mut session = entire_session(n);
+        session["prompt"] = json!(format!("Please\n{text}"));
+        let r = w.api(
+            &w.bot,
+            "POST",
+            "/context-records/import/entire",
+            Some(session),
+        );
+        refused(&r, rule, "\"/prompt\"", text);
+        let mut session = entire_session(n);
+        session["transcript"] = json!(
+            json!({"v": 1, "type": "user", "content": [{"text": format!("use\n{text}")}]})
+                .to_string()
+        );
+        let r = w.api(
+            &w.bot,
+            "POST",
+            "/context-records/import/entire",
+            Some(session),
+        );
+        // A secret that shows only once the transcript's lines are decoded
+        // (a key across lines) is found in the converted record.
+        refused(&r, rule, "\"/transcript", text);
+    }
+    assert!(w.ids(&w.alice, "").is_empty());
+    assert_eq!(blobs(), blobs_before);
+    let audits =
+        w.s.db
+            .query_one("SELECT count(*)::text FROM audit_events WHERE action = 'context.create'");
+    assert_eq!(audits, "0");
+
+    // A warn-only finding is kept, like any other text.
+    let (_, warn) = samples
+        .iter()
+        .find(|(rule, _)| *rule == "generic-assignment")
+        .unwrap();
+    let mut rec = record("Configure", json!({"merge_request": n}));
+    rec["summary"]["outcome"] = json!(warn);
+    assert_eq!(w.upload(&w.bot, &rec).status, 201);
+    // The redacted retry of a refused record is accepted.
+    let mut rec = record("Deploy", json!({"merge_request": n}));
+    rec["summary"]["outcome"] = json!("Ran\nSLATH_TOKEN=[redacted]");
+    assert_eq!(w.upload(&w.bot, &rec).status, 201);
+    assert_eq!(w.ids(&w.alice, "").len(), 2);
+}
+
 /// The published JSON Schema accepts what the server accepts and refuses
 /// what it refuses, for the shapes these tests upload.
 #[test]
@@ -601,7 +713,7 @@ fn conf_agent_05_entire_checkpoints_import_when_turned_on() {
     ));
     let r = import(&leaky);
     assert_eq!(r.status, 422, "{}", r.body);
-    assert!(r.body.contains("/transcript/0/text"), "{}", r.body);
+    assert!(r.body.contains("\"/transcript\""), "{}", r.body);
     assert!(!r.body.contains(&token), "{}", r.body);
     // Readers can't import, and the request has a fixed shape.
     assert_eq!(

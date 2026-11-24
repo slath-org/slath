@@ -220,10 +220,12 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   `tool_result`). A repository accepts them only if its admins set
   **Context records: full** (`"context_detail": "full"` in
   `PATCH /api/v1/repos/<ns>/<repo>`); by default it keeps summaries only.
-- **Secrets are refused:** each text field is checked like a push. A
-  finding rejects the whole record with its place, such as
-  `/summary/outcome`, line 2, and nothing of it is kept. Redact it and
-  upload again. Report what you redacted as counts per rule in
+- **Secrets are refused:** each text field is checked with push
+  protection's rules, whatever the repository's push protection setting.
+  A finding rejects the whole record with its place and rule, such as
+  `/summary/outcome`, line 2, `github-token`, and nothing of it is kept.
+  Redact it and upload again, with the same `Idempotency-Key` if you sent
+  one. Report what you redacted as counts per rule in
   `redactions`, never the values.
 - **Who sees it:** people with write access to the repository, the person
   named in `initiated_by`, and the bot's owner. Others, even if they can
@@ -248,9 +250,10 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   `transcript.jsonl` and `prompt.txt` as text in `transcript` and
   `prompt`, with `binding` and `initiated_by` as above. Slath turns it into
   a record (the agent, model, summary, Entire's redaction counts, and, at
-  the full detail level, the transcript) and checks it like an upload. It
-  was written against Entire CLI 0.13; Entire's format has no version and
-  may change without notice. Entire's checkpoint refs (`refs/entire/…`,
+  the full detail level, the transcript) and checks it like an upload.
+  Every text of the session is checked for secrets, also the parts the
+  record leaves out, such as `prompt`. It was written against Entire CLI
+  0.13; Entire's format has no version and may change without notice. Entire's checkpoint refs (`refs/entire/…`,
   and with the import on its `entire/checkpoints/v1` branch) can't be
   pushed here: upload instead.
 - **Limits:** a record is at most 1 MiB with at most 2,000 transcript
