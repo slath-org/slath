@@ -225,7 +225,7 @@ fn head(s: &TestServer, token: &str, n: i64) -> String {
 fn revisions(s: &TestServer, token: &str, n: i64, k: i64) {
     let start = std::time::Instant::now();
     while api(s, token, "GET", &format!("/merge-requests/{n}"), None).json()["revisions"] != k {
-        assert!(start.elapsed().as_secs() < 30, "no revision {k}");
+        assert!(start.elapsed().as_secs() < 30, "no revision {k}\n{}", s.log());
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
 }
@@ -267,7 +267,25 @@ fn conf_review_32_the_maintainers_review_of_the_exact_head_counts() {
     assert_eq!(mergeability(&s, &alice, n)["mergeable"], true);
     // A new revision needs a new review, even with the same patches.
     let git = slath_tests::server::GitClient::new();
-    git.ok(&w, &["commit", "-q", "--amend", "--no-edit", "--date=now"]);
+    // Fixed dates make it a new commit even within the original's second
+    // (with the same tree, message, and times it would be the same one).
+    let out = git
+        .cmd(&w)
+        .env("GIT_COMMITTER_DATE", "2030-01-01T00:00:00Z")
+        .args([
+            "commit",
+            "-q",
+            "--amend",
+            "--no-edit",
+            "--date=2030-01-01T00:00:00Z",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     git.ok(
         &w,
         &[
