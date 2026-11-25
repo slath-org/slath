@@ -1639,6 +1639,19 @@ h1 > bdi code,
 .thread-snippet .snippet-anchor {
   background: var(--selection);
 }
+/* The text a thread on a brief field was started on, in the place a code
+   thread's snippet takes: set apart on the subtle surface, its line breaks
+   kept, padded like the comments below it. */
+.thread-quote {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  border-block-end: var(--border-width) solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .thread-comments {
   list-style: none;
   padding: 0 var(--space-3);

@@ -515,7 +515,10 @@ fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
         conv.contains(&format!("Brief of change {short}, version 1: Approach")),
         "{conv}"
     );
-    assert!(conv.contains("Line one\nLine two"), "{conv}");
+    assert!(
+        conv.contains("<pre class=\"thread-quote\">Line one\nLine two</pre>"),
+        "{conv}"
+    );
 
     // On the change's page, each field lists its threads and has a
     // Comment link that opens a form under it.
