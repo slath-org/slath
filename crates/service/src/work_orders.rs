@@ -18,6 +18,7 @@ use slath_core::Secret;
 use slath_core::authz::{self, Action, Credential, Role, Subject, UserKind, UserState};
 use slath_core::credential::CredentialKind;
 use slath_core::ids::UserId;
+use slath_core::origin::ContentTrust;
 use slath_core::sensitive_paths::invalid_glob;
 use slath_db::merge_requests::MergeRequest;
 use slath_db::work_orders::{Event, NewWorkOrder, WorkOrder};
@@ -76,6 +77,9 @@ pub struct NewOrder {
     /// Reviewers by name.
     #[serde(default)]
     pub reviewers: Vec<String>,
+    /// Whose text and merge requests the task token reads.
+    #[serde(default)]
+    pub content_trust: ContentTrust,
 }
 
 /// An order as its readers see it.
@@ -456,6 +460,7 @@ impl Services {
                 expires_at,
                 required_checks: &checks,
                 reviewer_ids: &reviewer_ids,
+                content_trust: o.content_trust.as_str(),
             },
         )
         .await
@@ -1193,6 +1198,7 @@ impl Services {
             "max_open_mrs": o.max_open_mrs,
             "expires_at": o.expires_at.format(&time::format_description::well_known::Rfc3339).ok(),
             "required_checks": o.required_checks,
+            "content_trust": o.content_trust,
             "state": o.state,
             "end_reason": o.end_reason,
             "untrusted_content": true,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO work_orders (id, repo_id, number, target_kind, issue_id, mr_id, bot_id,\n             creator_id, origin, goal, instructions, scope, max_revisions, max_open_mrs, expires_at,\n             required_checks, reviewer_ids)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)\n         RETURNING *",
+  "query": "INSERT INTO work_orders (id, repo_id, number, target_kind, issue_id, mr_id, bot_id,\n             creator_id, origin, goal, instructions, scope, max_revisions, max_open_mrs, expires_at,\n             required_checks, reviewer_ids, content_trust)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)\n         RETURNING *",
   "describe": {
     "columns": [
       {
@@ -255,6 +255,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 23,
+        "name": "content_trust",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "content_trust"
+          }
+        }
       }
     ],
     "parameters": {
@@ -275,7 +286,8 @@
         "Int4",
         "Timestamptz",
         "TextArray",
-        "UuidArray"
+        "UuidArray",
+        "Text"
       ]
     },
     "nullable": [
@@ -301,8 +313,9 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "521ddc8329ef2d87593633001deefcb1ae8aee8f8cb7a2c61f30e4ef15f24f3b"
+  "hash": "d0536d16e1aa486d01b40aa6db040c55418a8263b0f3175386582c693a7e7046"
 }

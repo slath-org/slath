@@ -30,6 +30,8 @@ pub struct WorkOrder {
     pub expires_at: OffsetDateTime,
     pub required_checks: Vec<String>,
     pub reviewer_ids: Vec<uuid::Uuid>,
+    /// `all`, `members`, or `writers`.
+    pub content_trust: String,
     /// `open` or `ended`.
     pub state: String,
     pub end_reason: Option<String>,
@@ -57,6 +59,7 @@ pub struct NewWorkOrder<'a> {
     pub expires_at: OffsetDateTime,
     pub required_checks: &'a [String],
     pub reviewer_ids: &'a [uuid::Uuid],
+    pub content_trust: &'a str,
 }
 
 /// One decision under an order.
@@ -93,6 +96,7 @@ macro_rules! order {
             expires_at: r.expires_at,
             required_checks: r.required_checks,
             reviewer_ids: r.reviewer_ids,
+            content_trust: r.content_trust,
             state: r.state,
             end_reason: r.end_reason,
             ended_by: r.ended_by.map(UserId::from_uuid),
@@ -120,8 +124,8 @@ pub async fn insert(
     let r = sqlx::query!(
         "INSERT INTO work_orders (id, repo_id, number, target_kind, issue_id, mr_id, bot_id,
              creator_id, origin, goal, instructions, scope, max_revisions, max_open_mrs, expires_at,
-             required_checks, reviewer_ids)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+             required_checks, reviewer_ids, content_trust)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          RETURNING *",
         uuid::Uuid::now_v7(),
         o.repo_id.as_uuid(),
@@ -139,7 +143,8 @@ pub async fn insert(
         o.max_open_mrs,
         o.expires_at,
         o.required_checks,
-        o.reviewer_ids
+        o.reviewer_ids,
+        o.content_trust
     )
     .fetch_one(&mut *tx)
     .await;

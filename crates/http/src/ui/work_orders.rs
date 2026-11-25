@@ -445,6 +445,7 @@ async fn delegate(
             .map(|r| r.trim().trim_start_matches('@').to_owned())
             .filter(|r| !r.is_empty())
             .collect(),
+        content_trust: slath_core::origin::ContentTrust::default(),
     };
     let result = if errors.is_empty() {
         state

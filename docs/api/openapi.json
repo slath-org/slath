@@ -15172,6 +15172,13 @@
             "type": "string",
             "description": "An active bot with write access to the repository."
           },
+          "content_trust": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`all`, `members` (default), or `writers`: whose text and merge\nrequests the task token reads. Delegating a merge request with\ncode or text below the level needs `all`."
+          },
           "expires_in_days": {
             "type": [
               "integer",
@@ -15566,6 +15573,7 @@
           "expires_at",
           "required_checks",
           "reviewers",
+          "content_trust",
           "state",
           "created_at",
           "untrusted_content",
@@ -15585,6 +15593,10 @@
               "string",
               "null"
             ]
+          },
+          "content_trust": {
+            "type": "string",
+            "description": "Whose text and merge requests the task token reads: `all`,\n`members`, or `writers`. Text and merge requests below it reach\nthe token as placeholders."
           },
           "created_at": {
             "type": "string"

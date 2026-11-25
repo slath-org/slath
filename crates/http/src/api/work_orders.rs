@@ -53,6 +53,10 @@ pub struct OrderBody {
     pub required_checks: Vec<String>,
     /// Requested as reviewers on its merge requests.
     pub reviewers: Vec<String>,
+    /// Whose text and merge requests the task token reads: `all`,
+    /// `members`, or `writers`. Text and merge requests below it reach
+    /// the token as placeholders.
+    pub content_trust: String,
     /// `open` or `ended`.
     pub state: String,
     /// `merged`, `closed`, `expired`, or `stopped`, once ended.
@@ -94,6 +98,7 @@ impl From<OrderView> for OrderBody {
             expires_at: ts(o.expires_at),
             required_checks: o.required_checks,
             reviewers: v.reviewers,
+            content_trust: o.content_trust,
             state: o.state,
             end_reason: o.end_reason,
             ended_by: v.ended_by,
@@ -128,6 +133,10 @@ pub struct NewOrderBody {
     pub required_checks: Vec<String>,
     #[serde(default)]
     pub reviewers: Vec<String>,
+    /// `all`, `members` (default), or `writers`: whose text and merge
+    /// requests the task token reads. Delegating a merge request with
+    /// code or text below the level needs `all`.
+    pub content_trust: Option<String>,
 }
 
 /// List filters.

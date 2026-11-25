@@ -255,6 +255,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 23,
+        "name": "content_trust",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "content_trust"
+          }
+        }
       }
     ],
     "parameters": {
@@ -288,6 +299,7 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },
