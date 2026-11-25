@@ -37,6 +37,14 @@ const FIELDS: [(&str, &str, &str); 4] = [
     ("gaps", "Known gaps", "What's known to be missing or wrong."),
 ];
 
+/// A field's name as the page shows it.
+pub fn field_label(field: &str) -> &'static str {
+    FIELDS
+        .iter()
+        .find(|(id, _, _)| *id == field)
+        .map_or("Brief", |(_, label, _)| label)
+}
+
 fn field_texts(b: &Brief) -> [Option<&str>; 4] {
     [
         Some(b.intent.as_str()),
@@ -48,12 +56,37 @@ fn field_texts(b: &Brief) -> [Option<&str>; 4] {
 
 /// A version's brief as the change's page shows it.
 pub struct BriefView {
+    pub id: String,
     pub author: Who,
     pub created: Time,
     /// How many edits the version's brief has (1 without edits).
     pub edits: usize,
-    /// Each present field's name and text.
-    pub fields: Vec<(&'static str, String)>,
+    /// Each present field.
+    pub fields: Vec<FieldView>,
+}
+
+/// One field of the shown brief, with the threads on it.
+pub struct FieldView {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub text: String,
+    /// Each thread's ID, starter, number of comments, and whether it's
+    /// resolved.
+    pub threads: Vec<(String, Who, usize, bool)>,
+    /// Opens the comment form under the field, for those who may comment.
+    pub comment_href: Option<String>,
+    /// The comment form is open here.
+    pub form_open: bool,
+}
+
+/// Who views the change's page, as the brief section needs it.
+pub struct Viewer<'a> {
+    pub subject: &'a slath_core::authz::Subject,
+    /// May write briefs (the latest version's) and comment.
+    pub write: bool,
+    pub comment: bool,
+    /// The field whose comment form is open (`?brief_comment=`).
+    pub open: Option<&'a str>,
 }
 
 /// One field of two versions' briefs compared.
@@ -71,6 +104,9 @@ pub struct BriefParts {
     /// The page that writes the brief of the latest version, for those
     /// who may, with whether one exists.
     pub write: Option<(String, bool)>,
+    /// Where a field's comment form posts, and the page it returns to.
+    pub threads_action: String,
+    pub back: String,
 }
 
 /// The briefs of `change` for its page: `shown` is the version shown,
@@ -81,8 +117,9 @@ pub async fn parts(
     m: &MergeRequest,
     (ns, repo, change): (&str, &str, &str),
     (shown, from, latest): (&str, Option<&str>, Option<&str>),
-    writable: bool,
+    viewer: &Viewer<'_>,
 ) -> Result<BriefParts, AppError> {
+    let writable = viewer.write;
     let all = state
         .services
         .mr_change_briefs(m, change, None, 1000)
@@ -99,10 +136,23 @@ pub async fn parts(
         )
     });
     let Some(from) = from else {
+        let page = format!("/{ns}/{repo}/merge-requests/{}/changes/{change}", m.number);
+        let shown = match of(shown) {
+            None => None,
+            Some(v) => {
+                let threads = state
+                    .services
+                    .brief_threads(viewer.subject, m, v.brief.id)
+                    .await?;
+                Some(view(v, edits(shown), &threads, &page, viewer))
+            }
+        };
         return Ok(BriefParts {
-            shown: of(shown).map(|v| view(v, edits(shown))),
+            shown,
             changed: Vec::new(),
             write,
+            threads_action: format!("/{ns}/{repo}/merge-requests/{}/threads", m.number),
+            back: page,
         });
     };
     let empty = [None; 4];
@@ -120,19 +170,49 @@ pub async fn parts(
         shown: None,
         changed,
         write: None,
+        threads_action: String::new(),
+        back: String::new(),
     })
 }
 
-fn view(v: &ChangeBrief, edits: usize) -> BriefView {
+fn view(
+    v: &ChangeBrief,
+    edits: usize,
+    threads: &[slath_service::mr_threads::BriefThread],
+    page: &str,
+    viewer: &Viewer<'_>,
+) -> BriefView {
     BriefView {
+        id: v.brief.id.to_string(),
         author: Who::account(v.author.clone()),
         created: v.brief.created_at.into(),
         edits,
         fields: FIELDS
             .iter()
             .zip(field_texts(&v.brief))
-            .filter_map(|((_, label, _), text)| {
-                text.map(|t| (*label, slath_markup::reveal_bidi(t).into_owned()))
+            .filter_map(|((id, label, _), text)| {
+                let text = text?;
+                Some(FieldView {
+                    id,
+                    label,
+                    text: slath_markup::reveal_bidi(text).into_owned(),
+                    threads: threads
+                        .iter()
+                        .filter(|t| t.field == *id)
+                        .map(|t| {
+                            (
+                                t.id.to_string(),
+                                Who::account(t.author.clone()),
+                                t.comments,
+                                t.resolved,
+                            )
+                        })
+                        .collect(),
+                    comment_href: viewer
+                        .comment
+                        .then(|| format!("{page}?brief_comment={id}#brief-{id}")),
+                    form_open: viewer.comment && viewer.open == Some(*id),
+                })
             })
             .collect(),
     }

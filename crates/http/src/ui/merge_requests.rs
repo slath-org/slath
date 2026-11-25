@@ -1031,6 +1031,9 @@ struct ThreadItem {
     from: Option<i32>,
     revision: i32,
     snippet: Vec<SnippetLine>,
+    /// For a thread on a brief: the field's text as it was, quoted in
+    /// place of a code snippet.
+    brief_quote: Option<String>,
     resolved: bool,
     resolved_by: Option<String>,
     /// Who marked it addressed while it's open (bots do; a person
@@ -2064,17 +2067,27 @@ async fn thread_item(
         _ => None,
     };
     let anchor = &t.thread.anchor;
-    let location = anchor.path.as_ref().map(|p| {
-        let side = if anchor.side.as_deref() == Some("old") {
-            " (removed)"
-        } else {
-            ""
-        };
-        match (anchor.line_start, anchor.line_end) {
-            (Some(s), Some(e)) if e > s => format!("{p}, lines {s}–{e}{side}"),
-            (Some(s), _) => format!("{p}, line {s}{side}"),
-            _ => p.clone(),
+    let brief_location = t.brief.as_ref().map(|b| {
+        let short: String = b.change.chars().take(8).collect();
+        let field = super::change_briefs::field_label(&b.field);
+        match b.version {
+            Some(v) => format!("Brief of change {short}, version {v}: {field}"),
+            None => format!("Brief of change {short}: {field}"),
         }
+    });
+    let location = brief_location.or_else(|| {
+        anchor.path.as_ref().map(|p| {
+            let side = if anchor.side.as_deref() == Some("old") {
+                " (removed)"
+            } else {
+                ""
+            };
+            match (anchor.line_start, anchor.line_end) {
+                (Some(s), Some(e)) if e > s => format!("{p}, lines {s}–{e}{side}"),
+                (Some(s), _) => format!("{p}, line {s}{side}"),
+                _ => p.clone(),
+            }
+        })
     });
     let may_apply = m.state == "open" && state.services.may_apply_suggestions(subject, a, m).await;
     let anchored: Vec<String> = anchor
@@ -2156,13 +2169,22 @@ async fn thread_item(
         && (m.author_id == me || t.thread.author_id == me || a.can(subject, Action::RepoPush));
     Ok(ThreadItem {
         id: t.thread.id.to_string(),
-        outdated: t.position == Position::Outdated,
+        // A thread on a brief that a newer edit or version replaced.
+        outdated: t.position == Position::Outdated || t.brief.as_ref().is_some_and(|b| !b.current),
         from: match &t.position {
             Position::Current { from, .. } => *from,
             _ => None,
         },
         revision: t.thread.revision_seq,
-        snippet: snippet(anchor),
+        snippet: if t.brief.is_some() {
+            Vec::new()
+        } else {
+            snippet(anchor)
+        },
+        brief_quote: t
+            .brief
+            .as_ref()
+            .map(|_| slath_markup::reveal_bidi(&anchored.join("\n")).into_owned()),
         location,
         resolved: t.thread.resolved_at.is_some(),
         resolved_by: t.thread.resolved_by.clone(),
@@ -3131,6 +3153,8 @@ struct ChangeQuery {
     from: Option<i32>,
     /// `1`: a tree diff instead of the diff of patches.
     tree: Option<String>,
+    /// Opens the comment form under this field of the brief.
+    brief_comment: Option<String>,
 }
 
 async fn change(
@@ -3206,7 +3230,13 @@ async fn change(
             from.as_ref().map(|f| f.commit_oid.as_str()),
             change.versions.last().map(|v| v.commit_oid.as_str()),
         ),
-        slath_service::Services::may_write_brief(&subject, &a, &m),
+        &super::change_briefs::Viewer {
+            subject: &subject,
+            write: slath_service::Services::may_write_brief(&subject, &a, &m),
+            comment: matches!(subject, Subject::User { .. })
+                && a.can(&subject, slath_core::authz::Action::MrComment),
+            open: q.brief_comment.as_deref(),
+        },
     )
     .await?;
     let description = match &from {
@@ -3823,6 +3853,9 @@ struct ThreadForm {
     mode: String,
     #[serde(default)]
     back: String,
+    /// A brief edit's ID and field, for a thread on a brief.
+    brief: Option<String>,
+    brief_field: Option<String>,
 }
 
 async fn new_thread(
@@ -3843,7 +3876,11 @@ async fn new_thread(
         revision: f.revision.trim().parse().ok(),
         commit: f.commit.filter(|c| !c.is_empty()),
         pending: f.mode == "pending",
-        brief: None,
+        brief: f
+            .brief
+            .as_deref()
+            .and_then(|b| b.parse().ok())
+            .zip(f.brief_field.clone().filter(|x| !x.is_empty())),
     };
     match state
         .services

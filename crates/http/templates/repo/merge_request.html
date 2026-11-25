@@ -58,11 +58,14 @@
       <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}{% if let Some(l) = t.location %}<code>{{ l }}</code>{% else %}On the merge request{% endif %}
         <span class="text-secondary">revision {{ t.revision }}</span>
         {%- if let Some(fl) = t.finding %} <span class="badge">{{ fl }}</span>
-        {%- else if t.outdated %} <span class="badge">Outdated</span>{% endif %}
+        {%- else if t.outdated %} <span class="badge">{% if t.brief_quote.is_some() %}On an earlier brief{% else %}Outdated{% endif %}</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
         {%- if t.resolved %} <span class="badge">Resolved</span>{% if let Some(by) = t.resolved_by %} <span class="text-secondary">by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}{% endif %}
         {%- if let Some(by) = t.addressed_by %} <span class="text-secondary">· marked as addressed by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}
       </header>
+      {%- if let Some(q) = t.brief_quote %}
+      <pre class="commit-body">{{ q }}</pre>
+      {%- endif %}
       {%- if !t.snippet.is_empty() %}
       <div class="code-wrap" tabindex="0" role="region" aria-label="Code{% if let Some(l) = t.location %} at {{ l }}{% endif %}">
       <table class="code-view diff-table thread-snippet">

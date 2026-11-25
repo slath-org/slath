@@ -227,6 +227,17 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await expect(brief).toContainText(intent);
   await expect(brief.getByRole("link", { name: "Edit the brief" })).toBeVisible();
   await expectAccessible(page);
+  // A comment on one field opens a form under it and starts a thread.
+  await tapOrClick(page, brief.getByRole("link", { name: "Comment on the intent" }));
+  const question = `Why reword, asked in ${testInfo.project.name}?`;
+  await page.getByLabel("Comment on the intent").fill(question);
+  await expectAccessible(page);
+  await tapOrClick(page, page.getByRole("button", { name: "Add comment" }));
+  await tapOrClick(page, brief.getByRole("link", { name: "Thread" }).last());
+  const thread = page.locator(".timeline-thread").filter({ hasText: question });
+  await expect(thread).toContainText(/Brief of change [k-z]{8}, version 1: Intent/);
+  await expect(thread).toContainText(intent);
+  await expectAccessible(page);
   // Closed again, so the fixture's open merge requests stay few.
   await tapOrClick(page, page.getByText("More actions"));
   await tapOrClick(page, page.getByRole("button", { name: "Close merge request" }));

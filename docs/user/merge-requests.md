@@ -303,6 +303,10 @@ the merge request is open; saving again keeps the earlier text as an
 edit. A new version starts without a brief. Comparing two versions also
 shows **Brief changed** when their briefs differ. Agents write briefs
 through the API ([briefs](agents.md#briefs-what-a-change-is-for)).
+Anyone who may comment can **Comment** on one field of the brief, right
+under it; the thread shows in the conversation with the field's text
+quoted and counts like any other thread. Once the brief is edited or a
+new version replaces it, the thread is marked **On an earlier brief**.
 
 Beside the change (below it on narrow screens), **Checks** lists the
 statuses reported for the shown version's commit, each with who reported

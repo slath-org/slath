@@ -343,7 +343,7 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
     ] {
         assert!(shown.contains(text), "{text}\n{shown}");
     }
-    assert!(!shown.contains("<h3>Verification</h3>"), "{shown}");
+    assert!(!shown.contains("id=\"brief-verification\""), "{shown}");
     assert!(!shown.contains("Edit the brief"));
     // The form opens prefilled for an edit.
     let f = bob.get(&form);
@@ -492,4 +492,82 @@ fn conf_agent_15_threads_anchor_to_brief_fields() {
     // A newer edit replaces the brief: the thread is on an earlier one.
     assert_eq!(w.write(&w.bob, &id, brief("Add a, edited")).status, 201);
     assert_eq!(threads(&w)[0]["brief"]["current"], false);
+}
+
+#[test]
+fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let (id, _) = w.change();
+    let b = w.write(&w.alice, &id, brief("Add a")).json();
+    let brief_id = b["id"].as_str().unwrap().to_owned();
+    let tid = on_field(&w, &w.carol, &brief_id, "approach").json()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // The conversation locates the thread and quotes the field.
+    let mut carol = w.s.login("carol", PASSWORD);
+    let conversation = format!("/alice/demo/merge-requests/{}", w.n);
+    let conv = carol.get(&conversation).body;
+    let short: String = id.chars().take(8).collect();
+    assert!(
+        conv.contains(&format!("Brief of change {short}, version 1: Approach")),
+        "{conv}"
+    );
+    assert!(conv.contains("Line one\nLine two"), "{conv}");
+
+    // On the change's page, each field lists its threads and has a
+    // Comment link that opens a form under it.
+    let page = format!("{conversation}/changes/{id}");
+    let shown = carol.get(&page).body;
+    assert!(
+        shown.contains(&format!("#thread-{tid}\">Thread</a>")),
+        "{shown}"
+    );
+    assert!(
+        shown.contains(&format!("{page}?brief_comment=intent#brief-intent")),
+        "{shown}"
+    );
+    assert!(
+        !shown.contains("name=\"brief_field\""),
+        "no form until opened"
+    );
+    let opened = format!("{page}?brief_comment=intent");
+    assert!(
+        carol
+            .get(&opened)
+            .body
+            .contains("name=\"brief_field\" value=\"intent\"")
+    );
+    let r = submit(
+        &mut carol,
+        &opened,
+        &format!("{conversation}/threads"),
+        &[
+            ("brief", &brief_id),
+            ("brief_field", "intent"),
+            ("back", &page),
+            ("mode", "single"),
+            ("body", "Why a?"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let fields: Vec<String> = threads(&w)
+        .iter()
+        .filter_map(|t| t["brief"]["field"].as_str().map(str::to_owned))
+        .collect();
+    assert_eq!(fields, ["approach", "intent"]);
+    // Signed out, the page offers no Comment link.
+    let anon = w.s.client().get(&page);
+    assert!(!anon.body.contains("brief_comment"), "{}", anon.body);
+
+    // Once a newer edit replaces the brief, they're on an earlier one.
+    assert_eq!(w.write(&w.bob, &id, brief("Add a, edited")).status, 201);
+    assert!(
+        carol
+            .get(&conversation)
+            .body
+            .contains("On an earlier brief")
+    );
 }
