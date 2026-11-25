@@ -14,7 +14,9 @@
 //! token is the bot's own role narrowed to the order, never anyone else's.
 
 use serde::Deserialize;
+use slath_core::Secret;
 use slath_core::authz::{Action, Credential, Role, Subject, UserKind, UserState};
+use slath_core::credential::CredentialKind;
 use slath_core::ids::UserId;
 use slath_core::sensitive_paths::invalid_glob;
 use slath_db::work_orders::{Event, NewWorkOrder, WorkOrder};
@@ -96,6 +98,13 @@ impl OrderView {
     pub fn branch_prefix(&self) -> String {
         branch_prefix(self.order.number)
     }
+}
+
+/// A task token from a claim, shown once.
+#[derive(Debug)]
+pub struct Claim {
+    pub token: Secret<String>,
+    pub expires_at: OffsetDateTime,
 }
 
 /// `wo/<n>/`.
@@ -618,6 +627,78 @@ impl Services {
             .await?
             .ok_or(ServiceError::NotFound)?;
         self.order_view(&a, o).await
+    }
+
+    /// Exchanges the calling bot's claim credential for a task token of
+    /// its order `number`, shown once. Claiming again renews: it revokes
+    /// the order's earlier task tokens. Another bot gets "not found", an
+    /// ended order a conflict.
+    pub async fn claim_work_order(
+        &self,
+        subject: &Subject,
+        (ns, repo): (&str, &str),
+        number: i32,
+    ) -> Result<Claim> {
+        let bot = match subject {
+            Subject::User {
+                id,
+                kind: UserKind::Bot,
+                state: UserState::Active,
+                credential: Credential::Token { .. },
+                ..
+            } => *id,
+            Subject::User { .. } => return Err(ServiceError::Forbidden),
+            _ => return Err(ServiceError::Unauthenticated),
+        };
+        let (a, view) = match self.work_order(subject, (ns, repo), number).await {
+            Ok(x) => x,
+            Err(ServiceError::Forbidden) => return Err(ServiceError::NotFound),
+            Err(e) => return Err(e),
+        };
+        if view.order.bot_id != bot {
+            return Err(ServiceError::NotFound);
+        }
+        if !a.can(subject, Action::WorkOrderClaim) {
+            return Err(ServiceError::Forbidden);
+        }
+        if view.order.state != "open" {
+            return Err(ServiceError::Conflict(
+                "This work order has ended, so it can't be claimed.".into(),
+            ));
+        }
+        let token = slath_auth::token::new_credential(CredentialKind::TaskToken)
+            .map_err(ServiceError::internal)?;
+        let minutes = i64::from(self.config.limits.task_token_minutes);
+        let expires_at = (OffsetDateTime::now_utc() + time::Duration::minutes(minutes))
+            .min(view.order.expires_at);
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        slath_db::work_orders::claim(
+            &mut tx,
+            view.order.id,
+            (
+                &slath_auth::token::pat_display_prefix(token.expose()),
+                &slath_auth::token::storage_hash(token.expose()),
+            ),
+            expires_at,
+        )
+        .await?;
+        slath_db::work_orders::insert_event(
+            &mut *tx,
+            view.order.id,
+            ("work_order.claim", "allowed", None),
+            None,
+            Some(bot),
+        )
+        .await?;
+        tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "work_order.claim",
+            Target::new("work_order", Some(view.order.id)).in_repo(*a.repo.id.as_uuid()),
+            serde_json::json!({"number": number}),
+        )
+        .await;
+        Ok(Claim { token, expires_at })
     }
 
     /// The open order of an issue or merge request, for showing it there.

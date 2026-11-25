@@ -10914,6 +10914,96 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/work-orders/{number}/claim": {
+      "post": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "Exchanges the calling bot's `work_orders:claim` credential for a task\ntoken of an order assigned to it. Claiming again renews the token and\nrevokes the order's earlier ones. Never stored for idempotent replay.",
+        "operationId": "claim_order",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "work_orders:claim"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/work-orders/{number}/events": {
       "get": {
         "tags": [
@@ -12433,6 +12523,24 @@
           "head_ref": {
             "type": "string",
             "description": "`refs/merge-requests/<n>/head`, for scripts."
+          }
+        }
+      },
+      "ClaimBody": {
+        "type": "object",
+        "description": "A claimed task token.",
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When it stops working: after `task_token_minutes`, or when the\norder ends, whichever comes first. Claim again to renew it."
+          },
+          "token": {
+            "type": "string",
+            "description": "The `slath_tsk_` token, shown once. Use it as a bearer token and as\nthe password for Git over HTTPS."
           }
         }
       },

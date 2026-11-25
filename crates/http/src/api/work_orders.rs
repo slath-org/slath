@@ -309,6 +309,44 @@ pub async fn list_events(
     Ok(page(&state, &uri, items, offset, limit))
 }
 
+/// A claimed task token.
+#[derive(Serialize, ToSchema)]
+pub struct ClaimBody {
+    /// The `slath_tsk_` token, shown once. Use it as a bearer token and as
+    /// the password for Git over HTTPS.
+    pub token: String,
+    /// When it stops working: after `task_token_minutes`, or when the
+    /// order ends, whichever comes first. Claim again to renew it.
+    pub expires_at: String,
+}
+
+/// Exchanges the calling bot's `work_orders:claim` credential for a task
+/// token of an order assigned to it. Claiming again renews the token and
+/// revokes the order's earlier ones. Never stored for idempotent replay.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/work-orders/{number}/claim", tag = "work orders", security(("token" = ["work_orders:claim"])),
+    params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    responses((status = 201, body = ClaimBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem)))]
+pub async fn claim_order(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+) -> Result<Response, AppError> {
+    let c = state
+        .services
+        .claim_work_order(&s, (&ns, &repo), number)
+        .await?;
+    let body = ClaimBody {
+        token: c.token.expose().clone(),
+        expires_at: ts(c.expires_at),
+    };
+    Ok((
+        StatusCode::CREATED,
+        [(axum::http::header::CACHE_CONTROL, "no-store")],
+        axum::Json(body),
+    )
+        .into_response())
+}
+
 /// The open work orders assigned to the calling bot, oldest first, in the
 /// repositories its token names (the pull API).
 #[utoipa::path(get, path = "/api/v1/user/work-orders", tag = "work orders", security(("token" = ["work_orders:claim"])),
@@ -337,6 +375,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/work-orders/{number}/stop",
             Access::Resource,
             post(stop_order),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/work-orders/{number}/claim",
+            Access::Resource,
+            post(claim_order),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/work-orders/{number}/events",

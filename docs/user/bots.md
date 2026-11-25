@@ -52,8 +52,10 @@ personal access tokens, with stricter rules:
 - **Restricted to repositories.** Each token names 1 to 50 repositories,
   and works for nothing else. Name only repositories the bot needs.
 - **Limited scopes.** `repo:read`, `repo:write`, `issues:write`,
-  `mrs:write`, `statuses:write`, and `user:read`. Never `user:write` or
-  `admin`: a bot can't change its own keys or tokens.
+  `mrs:write`, `statuses:write`, `user:read`, and `work_orders:claim`
+  (claiming [work orders](agents.md#work-orders-delegating-one-task),
+  only for bots). Never `user:write` or `admin`: a bot can't change its
+  own keys or tokens.
 - **Short-lived.** A bot token expires after 30 days unless its owner
   picks another period, and after 90 days at the most. Site
   administrators can change both (see

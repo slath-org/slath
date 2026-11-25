@@ -216,6 +216,16 @@ async fn with_idempotency(
         let _ = slath_db::idempotency::release(&state.pool, principal, &key).await;
         return res;
     }
+    // A response that carries a credential (`no-store`) is never kept: a
+    // retry makes a new one instead of reading the old one back.
+    if res
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .is_some_and(|v| v.as_bytes() == b"no-store")
+    {
+        let _ = slath_db::idempotency::release(&state.pool, principal, &key).await;
+        return res;
+    }
     let (rparts, rbody) = res.into_parts();
     let Ok(rbytes) = axum::body::to_bytes(rbody, 16 * 1024 * 1024).await else {
         let _ = slath_db::idempotency::release(&state.pool, principal, &key).await;

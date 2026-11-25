@@ -333,3 +333,84 @@ pub async fn events(
     })
     .collect())
 }
+
+/// A task token that may still be used, with its order.
+#[derive(Debug, Clone)]
+pub struct ActiveTaskToken {
+    pub id: uuid::Uuid,
+    pub order_id: uuid::Uuid,
+    pub repo_id: RepoId,
+    pub bot_id: UserId,
+    pub last_used_at: Option<OffsetDateTime>,
+}
+
+/// Issues a task token for an open order: revokes the order's earlier
+/// ones, stores the new one, and marks the order claimed. Run it in a
+/// transaction.
+pub async fn claim(
+    tx: &mut sqlx::PgConnection,
+    order: uuid::Uuid,
+    (prefix, hash): (&str, &[u8]),
+    expires_at: OffsetDateTime,
+) -> Result<uuid::Uuid, DbError> {
+    sqlx::query!(
+        "UPDATE task_tokens SET revoked_at = now() WHERE order_id = $1 AND revoked_at IS NULL",
+        order
+    )
+    .execute(&mut *tx)
+    .await?;
+    let id = uuid::Uuid::now_v7();
+    sqlx::query!(
+        "INSERT INTO task_tokens (id, order_id, token_prefix, token_hash, expires_at)
+         VALUES ($1, $2, $3, $4, $5)",
+        id,
+        order,
+        prefix,
+        hash,
+        expires_at
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query!(
+        "UPDATE work_orders SET claimed_at = coalesce(claimed_at, now()) WHERE id = $1",
+        order
+    )
+    .execute(&mut *tx)
+    .await?;
+    Ok(id)
+}
+
+/// The task token with this storage hash, if it's unrevoked, unexpired,
+/// and its order is open and within its time.
+pub async fn find_task_token(
+    exec: impl PgExecutor<'_>,
+    hash: &[u8],
+) -> Result<Option<ActiveTaskToken>, DbError> {
+    Ok(sqlx::query!(
+        "SELECT t.id, t.order_id, o.repo_id, o.bot_id, t.last_used_at
+           FROM task_tokens t JOIN work_orders o ON o.id = t.order_id
+          WHERE t.token_hash = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
+            AND o.state = 'open' AND o.expires_at > now()",
+        hash
+    )
+    .fetch_optional(exec)
+    .await?
+    .map(|r| ActiveTaskToken {
+        id: r.id,
+        order_id: r.order_id,
+        repo_id: RepoId::from_uuid(r.repo_id),
+        bot_id: UserId::from_uuid(r.bot_id),
+        last_used_at: r.last_used_at,
+    }))
+}
+
+/// Records that a task token was used.
+pub async fn touch_task_token(exec: impl PgExecutor<'_>, id: uuid::Uuid) -> Result<(), DbError> {
+    sqlx::query!(
+        "UPDATE task_tokens SET last_used_at = now() WHERE id = $1",
+        id
+    )
+    .execute(exec)
+    .await?;
+    Ok(())
+}

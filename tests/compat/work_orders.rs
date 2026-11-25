@@ -285,3 +285,101 @@ fn conf_agent_13_orders_are_stopped_by_their_creator_writers_and_bot_managers() 
     let o = w.api(&w.carol, "GET", "/work-orders/2", None).json();
     assert_eq!(o["end_reason"], "expired", "{o}");
 }
+
+#[test]
+fn conf_agent_13_bots_claim_their_orders_with_a_credential_that_reads_nothing_else() {
+    let w = World::start();
+    let claimer = bot(&w.s, "alice", "claimer", "work_orders:claim");
+    let r = w.api(
+        &w.alice,
+        "PUT",
+        "/collaborators/claimer",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(w.delegate(&w.bob, json!({"bot": "claimer"})).status, 201);
+
+    // The claim credential finds and reads its order, and nothing else.
+    let mine =
+        w.s.client()
+            .api("GET", "/api/v1/user/work-orders", Some(&claimer), None);
+    assert_eq!(mine.status, 200, "{}", mine.body);
+    assert_eq!(mine.json()[0]["number"], 1, "{}", mine.body);
+    assert_eq!(w.api(&claimer, "GET", "/work-orders/1", None).status, 200);
+    for path in ["", "/issues", "/issues/1", "/branches", "/work-orders"] {
+        let r = w.api(&claimer, "GET", path, None);
+        assert_eq!(r.status, 403, "{path}: {}", r.body);
+    }
+    // A person's token has no orders to pull.
+    let r =
+        w.s.client()
+            .api("GET", "/api/v1/user/work-orders", Some(&w.bob), None);
+    assert_eq!(r.status, 403, "{}", r.body);
+
+    // Claiming gives a task token, never kept for replay; claiming again
+    // renews it and revokes the first.
+    let claim = |key: &str| {
+        w.s.client().api_with(
+            "POST",
+            "/api/v1/repos/alice/demo/work-orders/1/claim",
+            Some(&claimer),
+            None,
+            &[("idempotency-key", key)],
+        )
+    };
+    let first = claim("one");
+    assert_eq!(first.status, 201, "{}", first.body);
+    assert_eq!(first.header("cache-control"), Some("no-store"));
+    let t = first.json()["token"].as_str().unwrap().to_owned();
+    assert!(t.starts_with("slath_tsk_"), "{t}");
+    let again = claim("one");
+    assert_eq!(again.status, 201, "{}", again.body);
+    assert_ne!(again.json()["token"].as_str().unwrap(), t);
+    assert_eq!(
+        w.s.db.query_one(
+            "SELECT count(*)::text FROM idempotency_keys k WHERE k::text LIKE '%slath_tsk_%'"
+        ),
+        "0"
+    );
+    assert_eq!(
+        w.s.db.query_one(
+            "SELECT count(*) FILTER (WHERE revoked_at IS NULL)::text || '/' || count(*)::text
+               FROM task_tokens"
+        ),
+        "1/2"
+    );
+    let minutes = w.s.db.query_one(
+        "SELECT round(extract(epoch FROM expires_at - now()) / 60)::text
+           FROM task_tokens WHERE revoked_at IS NULL",
+    );
+    assert_eq!(minutes, "60");
+    let o = w.api(&w.carol, "GET", "/work-orders/1", None).json();
+    assert!(o["claimed_at"].is_string(), "{o}");
+
+    // Another bot, even one with write access, doesn't find it to claim.
+    let r = w.api(&w.agent, "POST", "/work-orders/1/claim", None);
+    assert_eq!(r.status, 404, "{}", r.body);
+    // An ended order can't be claimed.
+    assert_eq!(
+        w.api(&w.bob, "POST", "/work-orders/1/stop", None).status,
+        200
+    );
+    let r = claim("two");
+    assert_eq!(r.status, 409, "{}", r.body);
+    let events = w.api(&w.carol, "GET", "/work-orders/1/events", None).json();
+    let actions: Vec<&str> = events["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["action"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        actions,
+        [
+            "work_order.create",
+            "work_order.claim",
+            "work_order.claim",
+            "work_order.end"
+        ]
+    );
+}

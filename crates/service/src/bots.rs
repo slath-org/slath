@@ -248,6 +248,7 @@ pub const BOT_SCOPES: &[Scope] = &[
     Scope::MrsWrite,
     Scope::StatusesWrite,
     Scope::UserRead,
+    Scope::WorkOrdersClaim,
 ];
 
 /// Most repositories one bot token can name.

@@ -147,6 +147,20 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json'
 - **Events:** `GET …/work-orders/<n>/events` lists what happened under the
   order, kept as long as the repository.
 
+The bot picks up its orders with a token that has only the
+`work_orders:claim` scope. That token can't read code, issues, or merge
+requests; it lists the bot's open orders (`GET /api/v1/user/work-orders`),
+reads them, and claims one:
+
+```sh
+curl -X POST -H "Authorization: Bearer $CLAIM_TOKEN" \
+  https://slath.example.org/api/v1/repos/acme/app/work-orders/3/claim
+```
+
+The answer holds a task token (`slath_tsk_…`), shown once, that lasts an
+hour or until the order ends. Claim again before then to renew it; that
+revokes the earlier one. Only the order's bot can claim it.
+
 ## Surfaces for programs
 
 - **The API** (`/api/v1`, described in `GET /api/v1/openapi.json`)
