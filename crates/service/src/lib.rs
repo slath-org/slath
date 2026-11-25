@@ -82,6 +82,7 @@ pub mod tools;
 pub mod update_branch;
 pub mod updates;
 pub mod webhooks;
+pub mod work_orders;
 
 use std::sync::Arc;
 
