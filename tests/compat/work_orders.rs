@@ -385,15 +385,21 @@ fn conf_agent_13_bots_claim_their_orders_with_a_credential_that_reads_nothing_el
 
 /// alice/demo with `main`, the order's branch `wo/1/fix`, and alice's own
 /// `topic`; issue #1 delegated to `claimer` (claim scope only, write
-/// role) and claimed. Returns the claim token and the task token.
-fn claimed(
-    w: &World,
-) -> (
+/// role) and claimed. Returns the claim token, the task token, the Git
+/// client, and the working copy.
+type Claimed = (
     String,
     String,
     slath_tests::server::GitClient,
     tempfile::TempDir,
-) {
+);
+
+fn claimed(w: &World) -> Claimed {
+    claimed_with(w, json!({}))
+}
+
+/// [`claimed`], with `extra` fields for the order.
+fn claimed_with(w: &World, extra: Value) -> Claimed {
     let claimer = bot(&w.s, "alice", "claimer", "work_orders:claim");
     let r = w.api(
         &w.alice,
@@ -402,7 +408,12 @@ fn claimed(
         Some(json!({"role": "write"})),
     );
     assert!(r.status < 300, "{}", r.body);
-    assert_eq!(w.delegate(&w.bob, json!({"bot": "claimer"})).status, 201);
+    let mut order = json!({"bot": "claimer"});
+    if let (Value::Object(o), Value::Object(e)) = (&mut order, extra) {
+        o.extend(e);
+    }
+    let r = w.delegate(&w.bob, order);
+    assert_eq!(r.status, 201, "{}", r.body);
     let git = slath_tests::server::GitClient::new();
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path();
@@ -884,4 +895,61 @@ fn conf_agent_13_orders_end_when_their_work_ends() {
     let (ok, out, err) = w.s.slath(&["admin", "bot", "stop", "claimer"], None);
     assert!(ok, "{out}{err}");
     assert_eq!(state(third), ended("stopped"));
+}
+
+#[test]
+fn conf_agent_13_order_merge_requests_need_its_checks_and_ask_its_reviewers() {
+    let w = World::start();
+    let (_, task, _git, _dir) = claimed_with(
+        &w,
+        json!({"required_checks": ["agent/tests"], "reviewers": ["carol"]}),
+    );
+    let r = w.api(
+        &task,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "wo/1/fix", "title": "Fix the parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    // carol is asked, in bob's name.
+    assert_eq!(
+        w.s.db.query_one(
+            "SELECT un.name::text || ' by ' || bn.name::text FROM mr_reviewers r
+               JOIN users u ON u.id = r.user_id JOIN namespaces un ON un.id = u.namespace_id
+               JOIN users b ON b.id = r.requested_by JOIN namespaces bn ON bn.id = b.namespace_id"
+        ),
+        "carol by bob"
+    );
+    // The order's check is required, though no protection asks for it.
+    let mergeability = |n: i64| {
+        w.api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{n}/mergeability"),
+            None,
+        )
+        .json()
+    };
+    let m = mergeability(n);
+    assert!(
+        m["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["key"] == "statuses"
+                && r["state"] != "met"
+                && r.to_string().contains("agent/tests")),
+        "{m}"
+    );
+    // A merge request outside any order needs nothing extra.
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Alice's"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let other = mergeability(r.json()["number"].as_i64().unwrap());
+    assert!(!other.to_string().contains("agent/tests"), "{other}");
 }

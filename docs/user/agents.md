@@ -137,6 +137,10 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json'
 - **Limits:** `max_revisions` (default 20), `max_open_mrs` (default 1),
   and `expires_in_days` (default 7, at most 30). `scope` records which
   paths the work is meant for; pushes outside it aren't refused.
+- **Checks and reviewers:** each merge request the bot opens for the
+  order needs the order's `required_checks` on top of what branch
+  protection requires, and asks the order's `reviewers`, in the name of
+  the person who delegated.
 - **Text is checked:** goal and instructions are refused if they contain
   a secret, like briefs.
 - **Reading and stopping:** everyone who can read the repository lists

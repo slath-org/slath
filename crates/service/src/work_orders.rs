@@ -1065,6 +1065,77 @@ impl Services {
         Ok(n)
     }
 
+    /// The work order `m` belongs to (its source is a branch under the
+    /// order's prefix in the same repository), if any, open or ended.
+    pub(crate) async fn order_of_mr(&self, m: &MergeRequest) -> Result<Option<WorkOrder>> {
+        if m.source_repo_id != Some(m.repo_id) {
+            return Ok(None);
+        }
+        match order_number(&m.source_ref) {
+            Some(n) => Ok(slath_db::work_orders::get(&self.pool, m.repo_id, n).await?),
+            None => Ok(None),
+        }
+    }
+
+    /// The status contexts `m`'s work order adds to its required checks.
+    pub(crate) async fn order_required_checks(&self, m: &MergeRequest) -> Result<Vec<String>> {
+        Ok(self
+            .order_of_mr(m)
+            .await?
+            .map(|o| o.required_checks)
+            .unwrap_or_default())
+    }
+
+    /// Requests the reviewers of `m`'s work order on it, in the name of the
+    /// order's creator. Failures are logged; the merge request stands.
+    pub(crate) async fn request_order_reviewers(&self, m: &MergeRequest) {
+        let r = async {
+            let Some(o) = self.order_of_mr(m).await? else {
+                return Ok::<_, ServiceError>(());
+            };
+            let Some(creator) = o.creator_id else {
+                return Ok(());
+            };
+            let mut asked = Vec::new();
+            let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+            for id in o.reviewer_ids.iter().map(|u| UserId::from_uuid(*u)) {
+                if m.author_id == Some(id) {
+                    continue;
+                }
+                slath_db::merge_requests::add_reviewer(&mut *tx, m.id, id, creator).await?;
+                let name = slath_db::users::get(&self.pool, id)
+                    .await?
+                    .map(|u| u.name)
+                    .unwrap_or_default();
+                slath_db::issues::insert_event(
+                    &mut *tx,
+                    m.repo_id,
+                    "merge_request",
+                    *m.id.as_uuid(),
+                    Some(creator),
+                    "review_requested",
+                    &serde_json::json!({"user": name}),
+                )
+                .await?;
+                asked.push(id);
+            }
+            tx.commit().await.map_err(ServiceError::internal)?;
+            if !asked.is_empty() {
+                self.notify_mr(
+                    Some(creator),
+                    m,
+                    crate::notifications::MrActivity::ReviewRequested(asked),
+                )
+                .await;
+            }
+            Ok(())
+        }
+        .await;
+        if let Err(e) = r {
+            tracing::error!(error = %e, "requesting a work order's reviewers failed");
+        }
+    }
+
     /// The open order of an issue or merge request, for showing it there.
     pub async fn latest_work_order(
         &self,

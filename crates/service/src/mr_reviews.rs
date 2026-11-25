@@ -447,10 +447,19 @@ pub fn standings(reviews: &[Review], h: &History, order: &[uuid::Uuid]) -> Vec<S
 impl Services {
     pub(crate) async fn effective_for(&self, m: &MergeRequest) -> Result<Effective> {
         let rules = slath_db::protections::list(&self.pool, m.repo_id).await?;
-        Ok(crate::protections::effective(
-            &rules,
-            m.target_branch.as_bytes(),
-        ))
+        let mut e = crate::protections::effective(&rules, m.target_branch.as_bytes());
+        // A work order's merge request also needs the order's checks; none
+        // that protection requires is removed.
+        for context in self.order_required_checks(m).await? {
+            if !e.required_checks.iter().any(|c| c.context == context) {
+                e.required_checks.push(crate::protections::RequiredCheck {
+                    context,
+                    reporters: None,
+                });
+            }
+        }
+        e.required_checks.sort_by(|a, b| a.context.cmp(&b.context));
+        Ok(e)
     }
 
     /// The status contexts the target branch requires.

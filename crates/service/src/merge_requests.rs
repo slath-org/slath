@@ -630,6 +630,8 @@ impl Services {
         self.record_references(subject, &a, mr_from(&m), &m.description)
             .await;
         self.notify_mr(Some(author), &m, MrActivity::Opened).await;
+        // A work order's merge request asks the order's reviewers.
+        self.request_order_reviewers(&m).await;
         Ok(m)
     }
 
