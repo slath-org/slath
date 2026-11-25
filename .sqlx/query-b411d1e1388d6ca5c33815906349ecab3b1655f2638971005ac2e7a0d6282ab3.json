@@ -1,0 +1,295 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM work_orders WHERE repo_id = $1 AND ($2::text IS NULL OR state = $2)\n         ORDER BY number DESC OFFSET $3 LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "repo_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "issue_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "issue_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "mr_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "mr_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "target_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "target_kind"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "bot_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "bot_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "creator_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "creator_id"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "goal",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "goal"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "instructions",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "instructions"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "scope",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "max_revisions",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "max_revisions"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "max_open_mrs",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "max_open_mrs"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "required_checks",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "required_checks"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "reviewer_ids",
+        "type_info": "UuidArray",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "reviewer_ids"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "state",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "end_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "end_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "ended_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "ended_by"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "ended_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "ended_at"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "claimed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "claimed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "work_orders",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "b411d1e1388d6ca5c33815906349ecab3b1655f2638971005ac2e7a0d6282ab3"
+}

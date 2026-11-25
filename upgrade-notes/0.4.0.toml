@@ -5,7 +5,7 @@
 # them).
 
 version = "0.4.0"
-schema_version = 160
+schema_version = 161
 min_upgrade_from = "0.3.0"
 
 [[action]]

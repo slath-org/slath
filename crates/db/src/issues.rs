@@ -114,6 +114,26 @@ pub async fn get(
     Ok(r.map(|r| to_issue!(r)))
 }
 
+/// One issue by ID.
+pub async fn get_by_id(
+    exec: impl PgExecutor<'_>,
+    id: uuid::Uuid,
+) -> Result<Option<Issue>, DbError> {
+    let r = sqlx::query!(
+        r#"SELECT i.id, i.repo_id, i.number, i.author_id, n.name::text AS author, i.title, i.body, i.origin, i.state,
+                  i.state_reason, i.milestone_id, i.closed_at, i.created_at, i.updated_at,
+                  (SELECT count(*) FROM comments c WHERE c.subject_kind = 'issue' AND c.subject_id = i.id
+                     AND c.deleted_at IS NULL) AS "comments!"
+           FROM issues i LEFT JOIN users u ON u.id = i.author_id AND u.state <> 'deleted'
+           LEFT JOIN namespaces n ON n.id = u.namespace_id
+           WHERE i.id = $1"#,
+        id
+    )
+    .fetch_optional(exec)
+    .await?;
+    Ok(r.map(|r| to_issue!(r)))
+}
+
 /// Filters of the issue list. Values combine with AND.
 #[derive(Debug, Clone, Default)]
 pub struct Filter {

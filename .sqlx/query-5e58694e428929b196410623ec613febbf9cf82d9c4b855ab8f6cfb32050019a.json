@@ -1,0 +1,102 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, action, decision, policy, target, actor_id, created_at\n           FROM work_order_events WHERE order_id = $1\n          ORDER BY created_at, id OFFSET $2 LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "action",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "decision",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "decision"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "policy",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "policy"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "target",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "target"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "actor_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "actor_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "work_order_events",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "5e58694e428929b196410623ec613febbf9cf82d9c4b855ab8f6cfb32050019a"
+}

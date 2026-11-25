@@ -452,6 +452,12 @@ pub struct Limits {
     pub context_transcript_entries: usize,
     /// Largest change brief (the request body).
     pub brief_max_bytes: Bytes,
+    /// Most revisions a work order may make, over all its merge requests.
+    pub work_order_max_revisions: u32,
+    /// Longest a work order may run, in days.
+    pub work_order_max_days: u32,
+    /// How long a work order's task token lasts before it's claimed again.
+    pub task_token_minutes: u32,
     /// Largest text file push protection scans; a bigger one rejects the push.
     pub secret_scan_file_max_bytes: Bytes,
     /// Most new content one push may have for the scan; more rejects it.
@@ -509,6 +515,9 @@ impl Default for Limits {
             context_record_max_bytes: Bytes(MIB),
             context_transcript_entries: 2000,
             brief_max_bytes: Bytes(64 * 1024),
+            work_order_max_revisions: 200,
+            work_order_max_days: 30,
+            task_token_minutes: 60,
             secret_scan_file_max_bytes: Bytes(8 * MIB),
             secret_scan_push_max_bytes: Bytes(512 * MIB),
             secret_scan_timeout: Dur::secs(60),

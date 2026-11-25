@@ -124,6 +124,21 @@ pub async fn find(exec: impl PgExecutor<'_>, name: &str) -> Result<Option<Bot>, 
     Ok(r.map(|r| to_bot!(r)))
 }
 
+/// Names of the active bots that can read a repository, at most 200.
+pub async fn names_with_access(
+    exec: impl PgExecutor<'_>,
+    repo: slath_core::ids::RepoId,
+) -> Result<Vec<String>, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT n.name::text AS "name!" FROM users u JOIN namespaces n ON n.id = u.namespace_id
+           WHERE u.kind = 'bot' AND u.state = 'active' AND slath_can_read($1, u.id)
+           ORDER BY n.name LIMIT 200"#,
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?)
+}
+
 /// The bots of one owner, by name.
 pub async fn list_for_owner(
     exec: impl PgExecutor<'_>,
