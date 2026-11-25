@@ -102,11 +102,14 @@ impl Services {
         let Some((tokens, keys)) = done else {
             return Ok(Stopped::default());
         };
+        // Its work orders end with it, so their task tokens die too.
+        let orders = self.stop_bot_work_orders(bot.id, by).await?;
         self.audit(
             subject,
             "bot.stop",
             Target::new("user", Some(*bot.id.as_uuid())),
-            serde_json::json!({"bot": bot.name, "tokens_revoked": tokens, "keys_removed": keys}),
+            serde_json::json!({"bot": bot.name, "tokens_revoked": tokens, "keys_removed": keys,
+                               "work_orders_stopped": orders}),
         )
         .await;
         Ok(Stopped {

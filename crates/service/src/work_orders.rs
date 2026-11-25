@@ -134,7 +134,7 @@ fn note_policy(policy: &'static str) {
 #[derive(Debug)]
 pub(crate) enum TaskPush {
     /// Go on with this access (cleared for pushing, for a task token).
-    Pass(Option<RepoAccess>),
+    Pass(Option<Box<RepoAccess>>),
     /// Refuse the whole push with this message.
     Denied(String),
 }
@@ -144,6 +144,18 @@ pub(crate) enum TaskPush {
 pub struct Claim {
     pub token: Secret<String>,
     pub expires_at: OffsetDateTime,
+}
+
+/// The order number in a source ref `refs/heads/wo/<n>/…`.
+#[must_use]
+pub fn order_number(source_ref: &[u8]) -> Option<i32> {
+    let rest = source_ref.strip_prefix(b"refs/heads/wo/")?;
+    let end = rest.iter().position(|b| *b == b'/')?;
+    std::str::from_utf8(&rest[..end])
+        .ok()?
+        .parse()
+        .ok()
+        .filter(|n: &i32| *n > 0)
 }
 
 /// `wo/<n>/`.
@@ -897,7 +909,7 @@ impl Services {
             ..
         } = subject
         else {
-            return Ok(TaskPush::Pass(access));
+            return Ok(TaskPush::Pass(access.map(Box::new)));
         };
         let Some(order) = slath_db::work_orders::get_by_id(&self.pool, *order_id)
             .await?
@@ -950,8 +962,107 @@ impl Services {
         event("allowed", None).await?;
         Ok(TaskPush::Pass(access.map(|mut a| {
             a.ctx.task_actions = authz::TASK_PUSH;
-            a
+            Box::new(a)
         })))
+    }
+
+    /// After `m` merged or closed: an order it was the target of ends
+    /// `closed`; an order it belongs to (from a branch under the order's
+    /// prefix) ends `merged` once it merged and no other of its merge
+    /// requests is open. Failures are logged; the merge or close stands.
+    pub(crate) async fn work_orders_after_mr(&self, m: &MergeRequest, merged: bool) {
+        if let Err(e) = self.end_orders_after_mr(m, merged).await {
+            tracing::error!(error = %e, "ending work orders after a merge request failed");
+        }
+    }
+
+    async fn end_orders_after_mr(&self, m: &MergeRequest, merged: bool) -> Result<()> {
+        if let Some(o) =
+            slath_db::work_orders::open_for_target(&self.pool, None, Some(*m.id.as_uuid())).await?
+        {
+            self.end_work_order(&o, "closed", None).await?;
+        }
+        if !merged || m.source_repo_id != Some(m.repo_id) {
+            return Ok(());
+        }
+        let Some(number) = order_number(&m.source_ref) else {
+            return Ok(());
+        };
+        let Some(o) = slath_db::work_orders::get(&self.pool, m.repo_id, number)
+            .await?
+            .filter(|o| o.state == "open")
+        else {
+            return Ok(());
+        };
+        let prefix = format!("refs/heads/{}", branch_prefix(number));
+        let (open, _) =
+            slath_db::work_orders::order_mr_usage(&self.pool, m.repo_id, prefix.as_bytes()).await?;
+        if open == 0 {
+            self.end_work_order(&o, "merged", None).await?;
+        }
+        Ok(())
+    }
+
+    /// After issue `id` closed, its open order ends `closed`.
+    pub(crate) async fn work_orders_after_issue_closed(&self, id: uuid::Uuid) {
+        let r = async {
+            if let Some(o) =
+                slath_db::work_orders::open_for_target(&self.pool, Some(id), None).await?
+            {
+                self.end_work_order(&o, "closed", None).await?;
+            }
+            Ok::<_, ServiceError>(())
+        }
+        .await;
+        if let Err(e) = r {
+            tracing::error!(error = %e, "ending a work order after its issue closed failed");
+        }
+    }
+
+    /// Ends every open order of `bot` as `stopped` (the bot was stopped or
+    /// suspended), by `by`.
+    pub(crate) async fn stop_bot_work_orders(
+        &self,
+        bot: UserId,
+        by: Option<UserId>,
+    ) -> Result<usize> {
+        let mut n = 0;
+        for o in slath_db::work_orders::open_for_bot(&self.pool, bot, None).await? {
+            if self.end_work_order(&o, "stopped", by).await? {
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
+    /// Ends open orders that can't go on: past their time (`expired`), or
+    /// whose bot is no longer active or lost the write role (`stopped`).
+    /// Their task tokens fail already; this makes the orders say so.
+    pub async fn sweep_work_orders(&self) -> Result<usize> {
+        let mut n = 0;
+        for o in slath_db::work_orders::due(&self.pool).await? {
+            if self.end_work_order(&o, "expired", None).await? {
+                n += 1;
+            }
+        }
+        for o in slath_db::work_orders::open_all(&self.pool).await? {
+            let Some(repo) = slath_db::repos::get(&self.pool, o.repo_id).await? else {
+                continue;
+            };
+            let able = match slath_db::users::get(&self.pool, o.bot_id).await? {
+                Some(bot) if bot.state == UserState::Active => {
+                    let s = crate::notifications::user_subject(bot.id, &bot);
+                    self.effective_role(&s, &repo)
+                        .await?
+                        .is_some_and(|r| r >= Role::Write)
+                }
+                _ => false,
+            };
+            if !able && self.end_work_order(&o, "stopped", None).await? {
+                n += 1;
+            }
+        }
+        Ok(n)
     }
 
     /// The open order of an issue or merge request, for showing it there.
@@ -1023,5 +1134,9 @@ mod tests {
             .is_err()
         );
         assert_eq!(branch_prefix(17), "wo/17/");
+        assert_eq!(order_number(b"refs/heads/wo/17/fix"), Some(17));
+        assert_eq!(order_number(b"refs/heads/wo/17"), None);
+        assert_eq!(order_number(b"refs/heads/wo/x/fix"), None);
+        assert_eq!(order_number(b"refs/heads/topic"), None);
     }
 }

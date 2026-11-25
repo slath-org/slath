@@ -299,7 +299,7 @@ impl Services {
         };
         // A task token pushes only its order's branches, within budget.
         let access = match self.task_push(&grant.subject, access, updates).await {
-            Ok(crate::work_orders::TaskPush::Pass(a)) => a,
+            Ok(crate::work_orders::TaskPush::Pass(a)) => a.map(|a| *a),
             Ok(crate::work_orders::TaskPush::Denied(why)) => {
                 v.denied.push(DenyReason::WorkOrder);
                 v.messages.push(why);

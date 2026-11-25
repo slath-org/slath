@@ -239,6 +239,10 @@ impl Services {
         issue: &Issue,
         what: Activity,
     ) {
+        // Closing an issue ends its open work order.
+        if matches!(what, Activity::Closed) {
+            self.work_orders_after_issue_closed(issue.id).await;
+        }
         let (comment, assigned) = match &what {
             Activity::Commented(c) => (Some(c.to_string()), Vec::new()),
             Activity::Assigned(users) => (None, users.iter().map(ToString::to_string).collect()),
@@ -281,6 +285,11 @@ impl Services {
             _ => (None, Vec::new(), None),
         };
         self.webhook_mr(actor, m, &what).await;
+        // A merge or close is where work orders on it may end.
+        if matches!(what, MrActivity::Merged | MrActivity::Closed) {
+            self.work_orders_after_mr(m, matches!(what, MrActivity::Merged))
+                .await;
+        }
         let outcome = match &what {
             MrActivity::AutoMerge { outcome, .. } => Some(outcome.clone()),
             _ => None,

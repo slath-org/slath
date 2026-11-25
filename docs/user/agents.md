@@ -142,8 +142,13 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json'
 - **Reading and stopping:** everyone who can read the repository lists
   orders (`GET …/work-orders`) and reads one (`GET …/work-orders/<n>`).
   The creator, anyone with write access, and the bot's managers stop one
-  with `POST …/work-orders/<n>/stop`. An order also ends when its time is
-  up.
+  with `POST …/work-orders/<n>/stop`.
+- **Ending on its own:** an order ends `merged` when one of its merge
+  requests merges and none of its others is open, `closed` when its
+  issue (or a follow-up's merge request) closes or merges, `expired`
+  when its time is up, and `stopped` when its bot is stopped or
+  suspended or loses write access. Closing one of its own merge requests
+  doesn't end it, so the bot can try again within the budget.
 - **Events:** `GET …/work-orders/<n>/events` lists what happened under the
   order, kept as long as the repository.
 

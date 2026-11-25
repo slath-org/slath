@@ -772,3 +772,116 @@ fn conf_agent_13_git_and_jj_agents_push_only_the_orders_branches() {
         );
     }
 }
+
+#[test]
+fn conf_agent_13_orders_end_when_their_work_ends() {
+    let w = World::start();
+    for title in ["Second", "Third"] {
+        let r = w.api(&w.alice, "POST", "/issues", Some(json!({"title": title})));
+        assert_eq!(r.status, 201, "{}", r.body);
+    }
+    let (_, task, _git, _dir) = claimed(&w);
+    let state = |n: i32| {
+        let o = w
+            .api(&w.alice, "GET", &format!("/work-orders/{n}"), None)
+            .json();
+        (
+            o["state"].as_str().unwrap().to_owned(),
+            o["end_reason"].as_str().unwrap_or("").to_owned(),
+        )
+    };
+    let open = || ("open".to_owned(), String::new());
+    let ended = |why: &str| ("ended".to_owned(), why.to_owned());
+
+    // Merged: its merge request merges, and none of its others is open.
+    let r = w.api(
+        &task,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "wo/1/fix", "title": "Fix the parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let mr = r.json()["number"].as_i64().unwrap();
+    wait_revisions(&w, mr, 1);
+    let head = w
+        .api(&w.alice, "GET", &format!("/merge-requests/{mr}"), None)
+        .json()["head_oid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(state(1), open());
+    // The bot marks its work ready, as any bot does.
+    let r = w.api(
+        &task,
+        "PATCH",
+        &format!("/merge-requests/{mr}"),
+        Some(json!({"draft": false})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let start = std::time::Instant::now();
+    while w
+        .api(&w.alice, "GET", &format!("/merge-requests/{mr}"), None)
+        .json()["attention"]
+        != "ready"
+    {
+        assert!(start.elapsed().as_secs() < 30, "not ready");
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let r = w.api(
+        &w.alice,
+        "POST",
+        &format!("/merge-requests/{mr}/merge"),
+        Some(
+            json!({"strategy": "merge-commit", "expected_head_oid": head, "delete_source": false}),
+        ),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(state(1), ended("merged"));
+    assert_eq!(w.api(&task, "GET", "", None).status, 401);
+
+    // Closed: its issue closes.
+    let delegate = |target: Value| {
+        let r = w.api(
+            &w.bob,
+            "POST",
+            "/work-orders",
+            Some(json!({"target": target, "bot": "claimer", "goal": "Do it"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        i32::try_from(r.json()["number"].as_i64().unwrap()).unwrap()
+    };
+    let second = delegate(json!({"issue": 2}));
+    let r = w.api(
+        &w.alice,
+        "PATCH",
+        "/issues/2",
+        Some(json!({"state": "closed"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(state(second), ended("closed"));
+
+    // Closed: a follow-up's merge request closes.
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Alice's"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let theirs = r.json()["number"].as_i64().unwrap();
+    let follow_up = delegate(json!({"merge_request": theirs}));
+    let r = w.api(
+        &w.alice,
+        "PATCH",
+        &format!("/merge-requests/{theirs}"),
+        Some(json!({"state": "closed"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(state(follow_up), ended("closed"));
+
+    // Stopped: its bot is stopped.
+    let third = delegate(json!({"issue": 3}));
+    let (ok, out, err) = w.s.slath(&["admin", "bot", "stop", "claimer"], None);
+    assert!(ok, "{out}{err}");
+    assert_eq!(state(third), ended("stopped"));
+}

@@ -324,6 +324,25 @@ async fn serve(config_path: &Path, cfg: Config) -> Result<(), String> {
         });
     }
     {
+        // Work orders: end those past their time, or whose bot is no longer
+        // active or lost write access, every minute.
+        let svc = state.services.clone();
+        let mut stop = stop_tx.subscribe();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                tokio::select! {
+                    _ = tick.tick() => match svc.sweep_work_orders().await {
+                        Ok(n) if n > 0 => tracing::info!(orders = n, "ended work orders"),
+                        Ok(_) => {}
+                        Err(e) => tracing::warn!(error = %e, "ending work orders failed"),
+                    },
+                    _ = stop.changed() => return,
+                }
+            }
+        });
+    }
+    {
         // Background migrations: registered at startup, then worked through
         // batch by batch; checked again every minute (resume, retry).
         let svc = state.services.clone();

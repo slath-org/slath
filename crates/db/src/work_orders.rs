@@ -475,3 +475,27 @@ pub async fn open_order_sources(
     .fetch_all(exec)
     .await?)
 }
+
+/// Open orders whose time has passed.
+pub async fn due(exec: impl PgExecutor<'_>) -> Result<Vec<WorkOrder>, DbError> {
+    Ok(sqlx::query!(
+        "SELECT * FROM work_orders WHERE state = 'open' AND expires_at <= now() LIMIT 1000"
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(|r| order!(r))
+    .collect())
+}
+
+/// Every open order, at most 10,000.
+pub async fn open_all(exec: impl PgExecutor<'_>) -> Result<Vec<WorkOrder>, DbError> {
+    Ok(sqlx::query!(
+        "SELECT * FROM work_orders WHERE state = 'open' ORDER BY created_at LIMIT 10000"
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(|r| order!(r))
+    .collect())
+}
