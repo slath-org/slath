@@ -26,9 +26,10 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A task token pushes only branches under `wo/<number>/` with `git push` or `jj git push`, within the order's revision budget; other pushes are rejected with the reason.
 - Work orders end on their own when their merge request merges, their issue or merge request closes, their time is up, or their bot is stopped or loses access.
 - A work order's merge requests need the order's required checks on top of branch protection's and ask its reviewers when they open.
-- A bot can be set to work only through work orders: its own tokens and SSH keys then only read and claim orders, by API or bootstrap file.
+- A bot can be set to work only through work orders: its own tokens and SSH keys then only read and claim orders, set on its page, by API, or in a bootstrap file.
 - Work orders reach agents by the `work_order` webhook event, the pull API, and MCP read tools; an order's merge requests show their order in the iteration endpoint.
 - A work order's or merge request's state comes in one read (API and MCP): goal, change versions, checks, verdicts, open threads, and blockers, each linked to its record.
+- Issues and merge requests have Delegate to a bot for writers; a work order's page shows its limits, merge requests, and events, and can stop it.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.

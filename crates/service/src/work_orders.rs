@@ -678,13 +678,7 @@ impl Services {
     ) -> Result<OrderView> {
         let me = human(subject)?;
         let (a, view) = self.work_order(subject, (ns, repo), number).await?;
-        let may = a.can(subject, Action::WorkOrderStop)
-            || (view.order.creator_id == Some(me) && a.can(subject, Action::RepoRead))
-            || self
-                .managed_bot(subject, &view.bot, slath_core::authz::Scope::RepoWrite)
-                .await
-                .is_ok();
-        if !may {
+        if !self.may_stop_work_order(subject, &a, &view).await {
             return Err(ServiceError::Forbidden);
         }
         if view.order.state != "open" {
@@ -1233,6 +1227,61 @@ impl Services {
             slath_db::work_orders::order_mr_numbers(&self.pool, a.repo.id, prefix.as_bytes())
                 .await?,
         )
+    }
+
+    /// Order `number` with what its page shows: its merge requests (oldest
+    /// first) and how many revisions they have in all, for whoever may
+    /// read the repository.
+    pub async fn work_order_page(
+        &self,
+        subject: &Subject,
+        (ns, repo): (&str, &str),
+        number: i32,
+    ) -> Result<(RepoAccess, OrderView, Vec<MergeRequest>, i64)> {
+        let (a, view) = self.work_order(subject, (ns, repo), number).await?;
+        if !a.can(subject, Action::RepoRead) {
+            return Err(ServiceError::NotFound);
+        }
+        let prefix = format!("refs/heads/{}", branch_prefix(view.order.number));
+        let (_, revisions) =
+            slath_db::work_orders::order_mr_usage(&self.pool, a.repo.id, prefix.as_bytes()).await?;
+        let mut mrs = Vec::new();
+        for n in slath_db::work_orders::order_mr_numbers(&self.pool, a.repo.id, prefix.as_bytes())
+            .await?
+        {
+            if let Some(m) = slath_db::merge_requests::get(&self.pool, a.repo.id, n).await? {
+                mrs.push(m);
+            }
+        }
+        Ok((a, view, mrs, revisions))
+    }
+
+    /// Whether the subject may delegate in `a`'s repository now: a person
+    /// with write access, with at least one bot that could take the order.
+    pub async fn may_delegate(&self, subject: &Subject, a: &RepoAccess) -> Result<bool> {
+        if human(subject).is_err() || !a.can(subject, Action::WorkOrderCreate) {
+            return Ok(false);
+        }
+        Ok(!self.order_bots(a).await?.is_empty())
+    }
+
+    /// Whether the subject may stop `view`: its creator, anyone with the
+    /// write role, and the bot's managers (people only).
+    pub async fn may_stop_work_order(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        view: &OrderView,
+    ) -> bool {
+        let Ok(me) = human(subject) else {
+            return false;
+        };
+        a.can(subject, Action::WorkOrderStop)
+            || (view.order.creator_id == Some(me) && a.can(subject, Action::RepoRead))
+            || self
+                .managed_bot(subject, &view.bot, slath_core::authz::Scope::RepoWrite)
+                .await
+                .is_ok()
     }
 
     /// The open order of an issue or merge request, for showing it there.

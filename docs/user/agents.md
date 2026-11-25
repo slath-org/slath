@@ -121,6 +121,14 @@ A work order hands one issue, or a follow-up on a merge request, to a
 bot. You say what to do; the order keeps the bot to that task and records
 what it did.
 
+On an issue's or merge request's page, **Delegate to a bot** (under
+**Work order**, for people with write access when a bot has write access
+too) opens a form: the bot, the goal (the title to start with), and
+instructions. **Limits and review** holds the rest, already at their
+defaults. The order's page shows its limits and what's used of them, its
+merge requests, and every event; **Stop order** ends it. The issue or merge
+request then names its order. The same through the API:
+
 ```sh
 curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json' \
   https://slath.example.org/api/v1/repos/acme/app/work-orders -d '{

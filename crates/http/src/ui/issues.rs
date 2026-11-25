@@ -460,6 +460,8 @@ struct IssuePage {
     milestone_choices: Vec<String>,
     /// The viewer gets notifications about this issue (signed-in viewers only).
     subscribed: Option<bool>,
+    /// Its work order, or the link to delegate it.
+    work_order: Option<super::work_orders::Side>,
 }
 
 impl IssuePage {
@@ -549,7 +551,16 @@ pub(super) async fn issue_page(
         state.services.mark_issue_read(subject, &issue).await;
         Some(state.services.issue_notified(subject, &a, &issue).await)
     };
+    let work_order = super::work_orders::side(
+        state,
+        subject,
+        &a,
+        ("issues", issue.number, issue.id),
+        issue.state == "open",
+    )
+    .await?;
     let mut res = render(&IssuePage {
+        work_order,
         subscribed,
         header: RepoHeader::load(state, &a, subject, "issues").await,
         assignees: meta.assignees.remove(&issue.id).unwrap_or_default(),

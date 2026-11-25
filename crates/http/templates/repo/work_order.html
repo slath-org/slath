@@ -1,0 +1,81 @@
+{#- One work order: what was delegated, to which bot, its limits, its
+    merge requests, and every decision made under it. -#}
+{% extends "repo/layout.html" %}
+{% block title %}Work order {{ number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+<div class="page">
+{% include "repo/header.html" %}
+<header class="page-head">
+  <div class="page-head-row">
+    <h1>Work order {{ number }} <span class="state-label">{{ state }}</span></h1>
+    {%- if let Some(action) = stop %}
+    <div class="page-head-actions">
+      <form method="post" action="{{ action }}" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+        <button type="submit" class="button">Stop order</button>
+      </form>
+    </div>
+    {%- endif %}
+  </div>
+  <p class="page-head-meta">For <a href="{{ target.0 }}">{{ target.1 }}</a>, delegated to {% call p::who(ctx, bot, false) %}{% endcall %} by {% call p::who(ctx, creator, false) %}{% endcall %} {% call c::time(created) %}{% endcall %}</p>
+</header>
+<dl class="facts">
+  <dt>Branches</dt><dd><code>{{ prefix }}…</code></dd>
+  <dt>Revisions</dt><dd>{{ revisions.0 }} of {{ revisions.1 }}</dd>
+  <dt>Open merge requests</dt><dd>{{ open_mrs.0 }} of {{ open_mrs.1 }}</dd>
+  {%- if let Some((at, by)) = ended %}
+  <dt>Ended</dt><dd>{% call c::time(at, true) %}{% endcall %}{% if let Some(w) = by %} by {% call p::who(ctx, w, false) %}{% endcall %}{% endif %}</dd>
+  {%- else %}
+  <dt>Ends</dt><dd>{% call c::time(ends, true) %}{% endcall %} at the latest</dd>
+  {%- endif %}
+  {%- if !required_checks.is_empty() %}
+  <dt>Required checks</dt><dd>{% for ch in required_checks %}{% if !loop.first %}, {% endif %}<code>{{ ch }}</code>{% endfor %}</dd>
+  {%- endif %}
+  {%- if !reviewers.is_empty() %}
+  <dt>Reviewers</dt><dd>{% for r in reviewers %}{% if !loop.first %}, {% endif %}{% call p::account(ctx, r) %}{% endcall %}{% endfor %}</dd>
+  {%- endif %}
+  {%- if !scope.is_empty() %}
+  <dt>Meant for</dt><dd>{% for g in scope %}{% if !loop.first %}, {% endif %}<code>{{ g }}</code>{% endfor %}</dd>
+  {%- endif %}
+</dl>
+<section class="section" aria-labelledby="goal-heading">
+  <h2 id="goal-heading">Goal</h2>
+  <pre class="commit-body">{{ goal }}</pre>
+  {%- if let Some(i) = instructions %}
+  <h3>Instructions</h3>
+  <pre class="commit-body">{{ i }}</pre>
+  {%- endif %}
+</section>
+<section class="section" aria-labelledby="mrs-heading">
+  <h2 id="mrs-heading">Merge requests</h2>
+  {%- if mrs.is_empty() %}
+  {%- call msg::empty("None yet. The bot opens them from branches under " ~ prefix ~ ".") %}{% endcall %}
+  {%- else %}
+  <ul class="item-list">
+    {%- for (href, n, title, st) in mrs %}
+    <li class="item-row">
+      <div class="item-main">
+        <a class="item-title" href="{{ href }}"><bdi>{{ title }}</bdi></a>
+        <p class="item-meta text-secondary">!{{ n }} · {{ st }}</p>
+      </div>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+</section>
+<section class="section" aria-labelledby="events-heading">
+  <h2 id="events-heading">Events</h2>
+  <p class="text-secondary">What was decided under this order, oldest first. Kept as long as the repository.</p>
+  <ol class="item-list">
+    {%- for (at, action, decision, rule, target, who) in events %}
+    <li class="item-row">
+      <div class="item-main">
+        <p class="item-title"><code>{{ action }}</code></p>
+        <p class="item-meta text-secondary">{{ decision }}{% if !rule.is_empty() %} by <code>{{ rule }}</code>{% endif %}{% if !target.is_empty() %} · <bdi>{{ target }}</bdi>{% endif %} · {% call p::who(ctx, who, false) %}{% endcall %} · {% call c::time(at) %}{% endcall %}</p>
+      </div>
+    </li>
+    {%- endfor %}
+  </ol>
+</section>
+</div>
+{% endblock %}

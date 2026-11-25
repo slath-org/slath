@@ -1909,6 +1909,8 @@ async fn heading(
 #[derive(Template)]
 #[template(path = "repo/merge_request.html")]
 struct MrPage {
+    /// Its work order, or the link to delegate a follow-up.
+    work_order: Option<super::work_orders::Side>,
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
@@ -2509,7 +2511,16 @@ async fn mr_page_showing(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let work_order = super::work_orders::side(
+        state,
+        subject,
+        &a,
+        ("merge-requests", m.number, *m.id.as_uuid()),
+        m.state == "open",
+    )
+    .await?;
     let mut res = render(&MrPage {
+        work_order,
         header: RepoHeader::load(state, &a, subject, TAB).await,
         can_request: open && state.services.mr_perms(subject, &a, &m).edit,
         h,

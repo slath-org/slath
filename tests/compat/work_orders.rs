@@ -1242,6 +1242,106 @@ fn conf_agent_25_the_state_read_equals_the_individual_endpoints() {
 }
 
 #[test]
+fn conf_agent_13_writers_delegate_from_the_issue_page() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let issue = "/alice/demo/issues/1";
+    let form = format!("{issue}/delegate");
+    let mut bob = w.s.login("bob", PASSWORD);
+    let mut carol = w.s.login("carol", PASSWORD);
+    // Writers see where to delegate; readers don't, and the form is 404.
+    assert!(bob.get(issue).body.contains(&format!("href=\"{form}\"")));
+    assert!(!carol.get(issue).body.contains("/delegate"));
+    assert_eq!(carol.get(&form).status, 404);
+    let f = bob.get(&form);
+    assert!(
+        f.body.contains("<option value=\"agent\" selected>"),
+        "{}",
+        f.body
+    );
+    assert!(f.body.contains(">Fix the parser</textarea>"), "{}", f.body);
+
+    // Mistakes come back on the form, the limits opened when they're there.
+    let r = submit(&mut bob, &form, &form, &[("bot", "agent"), ("goal", " ")]);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"goal-error\""), "{}", r.body);
+    assert!(
+        !r.body.contains("<details class=\"disclosure\" open>"),
+        "{}",
+        r.body
+    );
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("bot", "agent"),
+            ("goal", "Fix it"),
+            ("max_revisions", "lots"),
+        ],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"max_revisions-error\""), "{}", r.body);
+    assert!(
+        r.body.contains("<details class=\"disclosure\" open>"),
+        "{}",
+        r.body
+    );
+
+    // Delegated: to the order's page.
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("bot", "agent"),
+            ("goal", "Fix the parser"),
+            ("instructions", "Keep the API."),
+            ("required_checks", "ci/test\n"),
+            ("reviewers", "carol"),
+            ("scope", "src/**"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(r.header("location"), Some("/alice/demo/work-orders/1"));
+    let page = carol.get("/alice/demo/work-orders/1").body;
+    for text in [
+        "Work order 1 <span class=\"state-label\">Open</span>",
+        "issue #1: Fix the parser",
+        "<code>wo/1/…</code>",
+        "Keep the API.",
+        "<code>ci/test</code>",
+        "<code>src/**</code>",
+        "<code>work_order.create</code>",
+    ] {
+        assert!(page.contains(text), "{text}\n{page}");
+    }
+    assert!(!page.contains("Stop order"), "readers can't stop it");
+    // The issue now names its order instead of offering to delegate.
+    let shown = bob.get(issue).body;
+    assert!(
+        shown.contains("href=\"/alice/demo/work-orders/1\">Work order 1</a>"),
+        "{shown}"
+    );
+    assert!(!shown.contains(&format!("href=\"{form}\"")), "{shown}");
+
+    // Stopping it from its page.
+    let order = "/alice/demo/work-orders/1";
+    assert!(bob.get(order).body.contains("Stop order"));
+    let r = submit(&mut bob, order, &format!("{order}/stop"), &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(
+        bob.get(order)
+            .body
+            .contains("<span class=\"state-label\">Stopped</span>")
+    );
+    // Ended, so the issue offers to delegate again.
+    assert!(bob.get(issue).body.contains(&format!("href=\"{form}\"")));
+    // Signed out, the order's page of a private repository isn't there.
+    assert_eq!(w.s.client().get(order).status, 404);
+}
+
+#[test]
 fn conf_agent_13_the_bot_page_sets_work_orders_only() {
     use slath_tests::http::submit;
     let w = World::start();

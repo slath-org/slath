@@ -32,6 +32,7 @@ pub mod secret_scan;
 pub mod settings;
 pub mod teams;
 pub mod webhooks;
+pub mod work_orders;
 
 use askama::Template;
 use axum::extract::{FromRequestParts, Request};
@@ -732,6 +733,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(labels::router())
         .merge(secret_scan::router())
         .merge(change_briefs::router())
+        .merge(work_orders::router())
         .merge(context_records::router())
         .merge(notifications::router())
         .merge(search::router())

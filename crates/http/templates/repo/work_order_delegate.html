@@ -1,0 +1,61 @@
+{#- Delegating an issue or a merge request to a bot. -#}
+{% extends "repo/layout.html" %}
+{% block title %}Delegate {{ target }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+<div class="page">
+{% include "repo/header.html" %}
+<div class="page page-form-wide">
+<header class="page-head">
+  <div class="page-head-row"><h1>Delegate {{ target }} to a bot</h1></div>
+  <p class="page-head-intro">The bot works on <bdi>{{ title }}</bdi> with a token that lets it push only its own branches, open and update their merge requests, and comment here. Reviewers decide what lands, as for anyone's work.</p>
+</header>
+<form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
+{% include "settings/errors.html" %}
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- let error = self.error("bot").unwrap_or_default() %}
+  {%- call f::field("bot", "Bot", "Bots with write access to this repository.", error) %}
+  <select id="bot" name="bot"{% call f::described("bot", "x", error) %}{% endcall %}>
+    {%- for b in bots %}
+    <option value="{{ b }}"{% if *b == f.bot %} selected{% endif %}>{{ b }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
+  {%- let error = self.error("goal").unwrap_or_default() %}
+  {%- call f::field("goal", "Goal", "What the bot should achieve.", error) %}
+  <textarea id="goal" name="goal" rows="3" required{% call f::described("goal", "x", error) %}{% endcall %}>{{ f.goal }}</textarea>
+  {%- endcall %}
+  {%- let error = self.error("instructions").unwrap_or_default() %}
+  {%- call f::field("instructions", "Instructions", "How to go about it, what to avoid.", error, true) %}
+  <textarea id="instructions" name="instructions" rows="5"{% call f::described("instructions", "x", error) %}{% endcall %}>{{ f.instructions }}</textarea>
+  {%- endcall %}
+  {%- call d::disclosure(ctx, "Limits and review", limits_open) %}
+  {%- let error = self.error("max_revisions").unwrap_or_default() %}
+  {%- call f::field("max_revisions", "Revisions", "Pushes to its merge requests, in all. Default 20.", error, true) %}
+  <input id="max_revisions" name="max_revisions" type="number" min="1" inputmode="numeric" value="{{ f.max_revisions }}" placeholder="20"{% call f::described("max_revisions", "x", error) %}{% endcall %}>
+  {%- endcall %}
+  {%- let error = self.error("max_open_mrs").unwrap_or_default() %}
+  {%- call f::field("max_open_mrs", "Open merge requests", "At a time. Default 1.", error, true) %}
+  <input id="max_open_mrs" name="max_open_mrs" type="number" min="1" max="10" inputmode="numeric" value="{{ f.max_open_mrs }}" placeholder="1"{% call f::described("max_open_mrs", "x", error) %}{% endcall %}>
+  {%- endcall %}
+  {%- let error = self.error("expires_in_days").unwrap_or_default() %}
+  {%- call f::field("expires_in_days", "Days to run", "It ends then at the latest. Default 7.", error, true) %}
+  <input id="expires_in_days" name="expires_in_days" type="number" min="1" inputmode="numeric" value="{{ f.expires_in_days }}" placeholder="7"{% call f::described("expires_in_days", "x", error) %}{% endcall %}>
+  {%- endcall %}
+  {%- let error = self.error("required_checks").unwrap_or_default() %}
+  {%- call f::field("required_checks", "Required checks", "Status contexts its merge requests need, one per line, on top of branch protection's.", error, true) %}
+  <textarea id="required_checks" name="required_checks" rows="2" autocapitalize="none" spellcheck="false"{% call f::described("required_checks", "x", error) %}{% endcall %}>{{ f.required_checks }}</textarea>
+  {%- endcall %}
+  {%- let error = self.error("reviewers").unwrap_or_default() %}
+  {%- call f::field("reviewers", "Reviewers", "Asked when a merge request opens. Usernames, separated by commas.", error, true) %}
+  <input id="reviewers" name="reviewers" type="text" value="{{ f.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("reviewers", "x", error) %}{% endcall %}>
+  {%- endcall %}
+  {%- let error = self.error("scope").unwrap_or_default() %}
+  {%- call f::field("scope", "Meant for", "Paths the work should stay in, one glob per line. Recorded for reviewers; pushes outside aren't refused.", error, true) %}
+  <textarea id="scope" name="scope" rows="2" autocapitalize="none" spellcheck="false"{% call f::described("scope", "x", error) %}{% endcall %}>{{ f.scope }}</textarea>
+  {%- endcall %}
+  {%- endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Delegate</button><a class="button button-quiet" href="{{ back }}">Cancel</a>{% endcall %}
+</form>
+</div>
+</div>
+{% endblock %}

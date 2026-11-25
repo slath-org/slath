@@ -16,6 +16,7 @@
     </form>
   </section>
   {%- endif %}
+  {%- include "repo/work_order_side.html" %}
   <section class="details-section" aria-labelledby="side-assignees">
     <h2 id="side-assignees" class="details-heading">Assignees</h2>
     {%- if assignees.is_empty() %}

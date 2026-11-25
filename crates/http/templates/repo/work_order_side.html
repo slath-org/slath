@@ -1,0 +1,12 @@
+{#- The details column's work order section of an issue or merge request. -#}
+{%- if let Some(wo) = work_order %}
+<section class="details-section" aria-labelledby="side-work-order">
+  <h2 id="side-work-order" class="details-heading">Work order</h2>
+  {%- if let Some((href, n, bot, st)) = wo.order %}
+  <p><a href="{{ href }}">Work order {{ n }}</a> for {% call p::who(ctx, bot, false) %}{% endcall %} · {{ st }}</p>
+  {%- endif %}
+  {%- if let Some(href) = wo.delegate %}
+  <p><a href="{{ href }}">Delegate to a bot</a></p>
+  {%- endif %}
+</section>
+{%- endif %}
