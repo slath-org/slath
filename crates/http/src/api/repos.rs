@@ -350,8 +350,15 @@ async fn refs(
     )
     .await
     .map_err(|e| AppError::internal(&e))?;
+    let trust = state.services.content_trust_filter(subject).await?;
     let items: Vec<GitRef> = list
         .into_iter()
+        .filter(|r| {
+            kind != RefKind::Branch
+                || !trust
+                    .as_ref()
+                    .is_some_and(|f| f.hides_branch(&lossy(&r.name)))
+        })
         .skip(offset)
         .take(limit + 1)
         .map(|r| GitRef {
@@ -420,9 +427,17 @@ fn unix(t: i64) -> String {
 
 async fn resolve(
     state: &AppState,
+    s: &Subject,
     a: &RepoAccess,
     reference: &str,
 ) -> Result<browse::RefPath, AppError> {
+    if state
+        .services
+        .content_trust_hides_branch(s, reference)
+        .await?
+    {
+        return Err(AppError::not_found());
+    }
     let r = browse::resolve_ref_path(
         &state.runner,
         &state.services.repo_path(a.repo.id),
@@ -434,7 +449,25 @@ async fn resolve(
     if !r.path.is_root() {
         return Err(AppError::not_found());
     }
+    readable_commit(state, s, a, &r.commit).await?;
     Ok(r)
+}
+
+/// Refuses a commit the subject's content trust hides, as if missing.
+async fn readable_commit(
+    state: &AppState,
+    s: &Subject,
+    a: &RepoAccess,
+    oid: &ObjectId,
+) -> Result<(), AppError> {
+    if state
+        .services
+        .content_trust_hides_commit(s, a.repo.id, oid)
+        .await?
+    {
+        return Err(AppError::not_found());
+    }
+    Ok(())
 }
 
 fn repo_path(path: Option<&str>) -> Result<RepoPath, AppError> {
@@ -456,6 +489,7 @@ pub async fn list_commits(
     let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
     let r = resolve(
         &state,
+        &s,
         &a,
         q.reference.as_deref().unwrap_or(&a.repo.default_branch),
     )
@@ -529,6 +563,9 @@ pub async fn get_commit_diff(
     Path((ns, repo, oid)): Path<(String, String, String)>,
 ) -> Result<Response, AppError> {
     let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
+    if let Ok(id) = ObjectId::parse(oid.as_bytes()) {
+        readable_commit(&state, &s, &a, &id).await?;
+    }
     crate::plain::commit(&state, &a, &oid, crate::plain::Format::Diff).await
 }
 
@@ -541,6 +578,9 @@ pub async fn get_commit_patch(
     Path((ns, repo, oid)): Path<(String, String, String)>,
 ) -> Result<Response, AppError> {
     let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
+    if let Ok(id) = ObjectId::parse(oid.as_bytes()) {
+        readable_commit(&state, &s, &a, &id).await?;
+    }
     crate::plain::commit(&state, &a, &oid, crate::plain::Format::Patch).await
 }
 
@@ -559,6 +599,7 @@ pub async fn get_commit(
         .await
         .map_err(|e| AppError::internal(&e))?
         .ok_or_else(AppError::not_found)?;
+    readable_commit(&state, &s, &a, &oid).await?;
     let mut reader = ObjectReader::open(&state.runner, &git_dir)
         .await
         .map_err(|e| AppError::internal(&e))?;
@@ -664,7 +705,7 @@ pub async fn get_tree(
     Query(q): Query<PathQuery>,
 ) -> Result<Json<Tree>, AppError> {
     let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
-    let r = resolve(&state, &a, &reference).await?;
+    let r = resolve(&state, &s, &a, &reference).await?;
     let path = repo_path(q.path.as_deref())?;
     let mut reader = ObjectReader::open(&state.runner, &state.services.repo_path(a.repo.id))
         .await
@@ -723,7 +764,7 @@ pub async fn get_blob(
     Query(q): Query<PathQuery>,
 ) -> Result<Json<BlobContent>, AppError> {
     let a = access(&state, &s, &ns, &repo, Action::RepoRead).await?;
-    let r = resolve(&state, &a, &reference).await?;
+    let r = resolve(&state, &s, &a, &reference).await?;
     let path = repo_path(q.path.as_deref())?;
     let mut reader = ObjectReader::open(&state.runner, &state.services.repo_path(a.repo.id))
         .await

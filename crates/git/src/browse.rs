@@ -111,6 +111,30 @@ pub async fn resolve_commit(
     Ok(ObjectId::parse(out.stdout.trim_ascii()).ok())
 }
 
+/// The branches and tags (full names) whose history contains `oid`, at
+/// most `max`.
+pub async fn refs_containing(
+    runner: &Runner,
+    git_dir: &Path,
+    oid: &ObjectId,
+    max: usize,
+) -> Result<Vec<Vec<u8>>, GitError> {
+    let out = runner
+        .repo(git_dir)
+        .args(["for-each-ref", "--format=%(refname)", "--contains"])
+        .arg(oid.as_str())
+        .args(["refs/heads/", "refs/tags/"])
+        .run()
+        .await?;
+    Ok(out
+        .stdout
+        .split(|&b| b == b'\n')
+        .filter(|l| !l.is_empty())
+        .take(max)
+        .map(<[u8]>::to_vec)
+        .collect())
+}
+
 /// A `ref/path` from a URL, resolved.
 #[derive(Debug, Clone)]
 pub struct RefPath {

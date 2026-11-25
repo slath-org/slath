@@ -78,7 +78,7 @@ fn invocation(
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
-    shown: &[u32],
+    (shown, withheld): (&[u32], &[u32]),
 ) -> crate::runner::Invocation {
     let mut inv = match service {
         Service::UploadPack => runner.repo(git_dir),
@@ -89,6 +89,11 @@ fn invocation(
     inv = inv.config("transfer.hideRefs", "refs/heads/mr/");
     for n in shown {
         inv = inv.config("transfer.hideRefs", format!("!refs/heads/mr/{n}"));
+    }
+    // Merge requests withheld from this caller show no refs at all.
+    for n in withheld {
+        inv = inv.config("transfer.hideRefs", format!("refs/heads/mr/{n}"));
+        inv = inv.config("transfer.hideRefs", format!("refs/merge-requests/{n}/"));
     }
     if let Some(p) = git_protocol {
         inv = inv.git_protocol(p);
@@ -108,15 +113,17 @@ fn invocation(
 }
 
 /// The ref advertisement for `GET info/refs` (smart HTTP), including the
-/// `# service=…` preamble unless the client asked for protocol v2.
+/// `# service=…` preamble unless the client asked for protocol v2. `refs`
+/// names the fork merge request branches `mr/<n>` to show, and the merge
+/// requests whose refs are hidden whatever else applies.
 pub async fn http_info_refs(
     runner: &Runner,
     git_dir: &Path,
     service: Service,
     git_protocol: Option<&str>,
-    shown: &[u32],
+    refs: (&[u32], &[u32]),
 ) -> Result<Vec<u8>, GitError> {
-    let out = invocation(runner, git_dir, service, git_protocol, None, shown)
+    let out = invocation(runner, git_dir, service, git_protocol, None, refs)
         .args(["--stateless-rpc", "--http-backend-info-refs"])
         .arg(git_dir)
         .max_output(MAX_ADVERTISEMENT)
@@ -141,9 +148,9 @@ pub async fn spawn_http_rpc(
     service: Service,
     git_protocol: Option<&str>,
     hooks: Option<&HookEnv<'_>>,
-    shown: &[u32],
+    refs: (&[u32], &[u32]),
 ) -> Result<GitChild, GitError> {
-    invocation(runner, git_dir, service, git_protocol, hooks, shown)
+    invocation(runner, git_dir, service, git_protocol, hooks, refs)
         .arg("--stateless-rpc")
         .arg(git_dir)
         .spawn()
@@ -161,7 +168,7 @@ pub async fn spawn_ssh(
     shown: &[u32],
     stdio: [OwnedFd; 3],
 ) -> Result<GitChild, GitError> {
-    invocation(runner, git_dir, service, git_protocol, hooks, shown)
+    invocation(runner, git_dir, service, git_protocol, hooks, (shown, &[]))
         .arg(git_dir)
         .spawn_attached(stdio)
         .await

@@ -216,3 +216,255 @@ fn conf_agent_19_an_order_on_an_outsiders_issue_keeps_only_the_goal() {
     assert_eq!(o["target"]["origin"], "outside_contributor");
     assert_eq!(o["target"]["issue"], 2);
 }
+
+/// Where an outside contributor's merge requests come from: dave forks
+/// alice/demo and opens one from a branch pushed with Git and, when a jj
+/// binary is available, one pushed with jj. Their commit messages and
+/// files carry [`INJECTED`]. Bob, a writer, opens one from a branch of
+/// the repository. Returns the outsider's merge request numbers with
+/// their heads, and the writer's number.
+fn outsider_mrs(w: &World) -> (Vec<(i64, String)>, i64) {
+    use crate::fork_merge_requests::{eventually, fork, http_url};
+    let s = &w.s;
+    let dave = crate::work_orders::token(s, "dave", &["repo:write", "mrs:write"]);
+    fork(s, &dave, json!({"namespace": "dave"}), "/dave/demo/fork");
+    let git = slath_tests::server::GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let g = d.path().join("git");
+    git.ok(
+        d.path(),
+        &["clone", "-q", &http_url(s, &dave, "dave/demo"), "git"],
+    );
+    let mut branches = Vec::new();
+    git.ok(&g, &["switch", "-q", "-c", "topic-git", "origin/main"]);
+    std::fs::write(g.join("git.txt"), format!("{INJECTED}\n")).unwrap();
+    git.ok(&g, &["add", "."]);
+    git.ok(&g, &["commit", "-q", "-m", &format!("Add git: {INJECTED}")]);
+    git.ok(&g, &["push", "-q", "origin", "topic-git"]);
+    let head = git.ok(&g, &["rev-parse", "HEAD"]).trim().to_owned();
+    branches.push(("topic-git", head));
+    if let Some((version, bin)) = crate::jj::jj_binaries().into_iter().next() {
+        let jj = crate::jj::Jj::new(&version, &bin);
+        let j = d.path().join("jj");
+        jj.ok(
+            d.path(),
+            &[
+                "git",
+                "clone",
+                &http_url(s, &dave, "dave/demo"),
+                j.to_str().unwrap(),
+            ],
+        );
+        jj.ok(
+            &j,
+            &["new", "main@origin", "-m", &format!("Add jj: {INJECTED}")],
+        );
+        std::fs::write(j.join("jj.txt"), format!("{INJECTED}\n")).unwrap();
+        jj.ok(&j, &["bookmark", "create", "topic-jj", "-r", "@"]);
+        jj.ok(&j, &["git", "push", "--bookmark", "topic-jj"]);
+        branches.push(("topic-jj", jj.show(&j, "topic-jj", "commit_id")));
+    }
+    let mut out = Vec::new();
+    for (b, head) in branches {
+        let r = w.api(
+            &dave,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_repo": "dave/demo", "source_branch": b,
+                        "title": format!("{b}: {INJECTED}")})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        let n = r.json()["number"].as_i64().unwrap();
+        assert_eq!(head.len(), 40, "{head}");
+        let target = s.repo_path(&slath_tests::server::DEMO);
+        eventually(s, "no mr branch", || {
+            git.cmd(&target)
+                .args(["rev-parse", "--verify", "-q", &format!("refs/heads/mr/{n}")])
+                .output()
+                .unwrap()
+                .stdout
+                .starts_with(head.as_bytes())
+        });
+        out.push((n, head));
+    }
+    // Bob's merge request from a branch of the repository passes.
+    let r = w.api(
+        &w.bob,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Writer's change"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    (out, r.json()["number"].as_i64().unwrap())
+}
+
+#[test]
+fn conf_agent_19_outsiders_merge_requests_are_withheld_whole() {
+    let w = World::start();
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let (_claimer, task, git, dir) = crate::work_orders::claimed_with(&w, json!({}));
+    let (withheld, writers) = outsider_mrs(&w);
+    // Involved, so the bot would see their branches.
+    for (n, _) in &withheld {
+        let r = w.api(
+            &w.alice,
+            "PUT",
+            &format!("/merge-requests/{n}/reviewers"),
+            Some(json!({"reviewers": ["claimer", "carol"]})),
+        );
+        assert!(r.status < 300, "{}", r.body);
+    }
+
+    for (n, head) in &withheld {
+        let placeholder = json!({"withheld": true, "merge_request": n,
+                                 "origin": "outside_contributor", "reason": "content_trust"});
+        for sub in [
+            "",
+            "/diff",
+            "/commits",
+            "/revisions",
+            "/iteration",
+            "/state",
+        ] {
+            let r = w.api(&task, "GET", &format!("/merge-requests/{n}{sub}"), None);
+            assert_eq!(r.status, 200, "{sub}: {}", r.body);
+            assert_eq!(r.json(), placeholder, "{sub}");
+        }
+        let body = mcp(
+            &w,
+            &task,
+            "get_merge_request",
+            json!({"ns": "alice", "repo": "demo", "number": n}),
+        );
+        assert!(
+            !body.contains(INJECTED) && body.contains("content_trust"),
+            "{body}"
+        );
+        for path in [
+            format!("/commits/{head}"),
+            format!("/commits/{head}/diff"),
+            format!("/commits?ref={head}"),
+            format!("/commits?ref=mr/{n}"),
+            format!("/tree?ref={head}"),
+        ] {
+            let r = w.api(&task, "GET", &path, None);
+            assert_eq!(r.status, 404, "{path}: {}", r.body);
+        }
+        // A person reads it all.
+        let r = w.api(&w.carol, "GET", &format!("/commits/{head}"), None);
+        assert_eq!(r.status, 200, "{}", r.body);
+    }
+    let list = w.api(&task, "GET", "/merge-requests?state=all", None);
+    assert!(!list.body.contains(INJECTED), "{}", list.body);
+    let r = w.api(&task, "GET", &format!("/merge-requests/{writers}"), None);
+    assert_eq!(r.json()["title"], "Writer's change");
+
+    // Git over HTTPS: not advertised, and not fetched by ID with v2. The
+    // repository is public, so the credentials go in a header (Git sends
+    // URL credentials only when asked).
+    let url = w.s.url(&slath_tests::server::DEMO);
+    let url = format!("http://{}", url.split_once('@').unwrap().1);
+    let as_user = |token: &str| {
+        use base64::Engine;
+        let basic = base64::engine::general_purpose::STANDARD.encode(format!("git:{token}"));
+        format!("http.extraHeader=Authorization: Basic {basic}")
+    };
+    let ls = |token: &str| git.ok(dir.path(), &["-c", &as_user(token), "ls-remote", &url]);
+    let (refs, carol_refs) = (ls(&task), ls(&w.carol));
+    for (n, head) in &withheld {
+        assert!(!refs.contains(&format!("refs/heads/mr/{n}")), "{refs}");
+        assert!(!refs.contains(head.as_str()), "{head} in {refs}");
+        assert!(
+            carol_refs.contains(&format!("refs/heads/mr/{n}")),
+            "carol: {carol_refs}"
+        );
+        let fetch = |token: &str| {
+            git.cmd(dir.path())
+                .args(["-c", &as_user(token), "-c", "protocol.version=2"])
+                .args(["fetch", "-q", &url, head])
+                .output()
+                .unwrap()
+                .status
+                .success()
+        };
+        assert!(!fetch(&task), "the task token fetched {head} by ID");
+        assert!(fetch(&w.carol), "a reviewer fetches {head}");
+    }
+
+    // Every GET operation, as the task token: no outsider text anywhere.
+    let spec =
+        w.s.client()
+            .api("GET", "/api/v1/openapi.json", None, None)
+            .json();
+    let numbers: Vec<String> = (1..=4).map(|n| n.to_string()).collect();
+    let mut checked = 0;
+    for (path, item) in spec["paths"].as_object().unwrap() {
+        if item.get("get").is_none() {
+            continue;
+        }
+        let mut paths = vec![path.replace("{ns}", "alice").replace("{repo}", "demo")];
+        for (param, values) in [
+            ("{number}", numbers.clone()),
+            ("{oid}", withheld.iter().map(|(_, h)| h.clone()).collect()),
+            ("{ref}", vec!["main".to_owned(), "mr/1".to_owned()]),
+            ("{user}", vec!["dave".to_owned()]),
+        ] {
+            paths = paths
+                .into_iter()
+                .flat_map(|p| {
+                    if p.contains(param) {
+                        values.iter().map(|v| p.replace(param, v)).collect()
+                    } else {
+                        vec![p]
+                    }
+                })
+                .collect();
+        }
+        for p in paths.into_iter().filter(|p| !p.contains('{')) {
+            let sep = if p.contains('?') { '&' } else { '?' };
+            let p = format!("{p}{sep}q={INJECTED}&state=all");
+            let r = w.s.client().api("GET", &p, Some(&task), None);
+            assert!(!r.body.contains(INJECTED), "{p}: {}", r.body);
+            checked += 1;
+        }
+    }
+    assert!(checked > 60, "only {checked} reads checked");
+}
+
+#[test]
+fn conf_agent_19_delegating_an_outsiders_merge_request_needs_all() {
+    let w = World::start();
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let _claimed = crate::work_orders::claimed_with(&w, json!({}));
+    let (withheld, writers) = outsider_mrs(&w);
+    let (n, _) = &withheld[0];
+    let order = |trust: &str, n: i64| {
+        w.delegate(
+            &w.bob,
+            json!({"target": {"merge_request": n}, "bot": "claimer", "content_trust": trust}),
+        )
+    };
+    for trust in ["members", "writers"] {
+        let r = order(trust, *n);
+        assert_eq!(r.status, 422, "{}", r.body);
+        assert!(r.body.contains("content_trust: all"), "{}", r.body);
+        assert!(r.body.contains("outside contributor"), "{}", r.body);
+    }
+    let r = order("members", writers);
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = order("all", *n);
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(r.json()["content_trust"], "all");
+}

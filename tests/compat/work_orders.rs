@@ -661,7 +661,7 @@ fn conf_agent_13_task_tokens_stop_with_their_order() {
 }
 
 /// alice/demo's Git URL with `token` as the password.
-fn url_with(w: &World, token: &str) -> String {
+pub fn url_with(w: &World, token: &str) -> String {
     let url = w.s.url(&slath_tests::server::DEMO);
     let (_, host) = url.split_once('@').unwrap();
     format!("http://git:{token}@{host}")

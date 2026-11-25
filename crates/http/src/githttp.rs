@@ -244,6 +244,33 @@ fn internal(e: &dyn std::fmt::Display) -> Response {
     Denied::Internal.into_response()
 }
 
+/// The `mr/<n>` branches the subject sees, the merge requests whose refs
+/// it doesn't see at all, and whether the client may choose its protocol
+/// version. A task token under content trust doesn't see withheld merge
+/// requests' refs and always gets protocol v0,
+/// which refuses objects no advertised ref points to (v2 serves them by
+/// ID).
+async fn visible_refs(
+    state: &AppState,
+    subject: &Subject,
+    access: &RepoAccess,
+    service: Service,
+) -> Result<(Vec<u32>, Vec<u32>, bool), ServiceError> {
+    let shown = state
+        .services
+        .shown_mr_branches(subject, access.repo.id, service.is_write())
+        .await;
+    let Some(trust) = state.services.content_trust_filter(subject).await? else {
+        return Ok((shown, Vec::new(), true));
+    };
+    let withheld = trust
+        .withheld_mrs
+        .keys()
+        .filter_map(|n| u32::try_from(*n).ok())
+        .collect();
+    Ok((shown, withheld, false))
+}
+
 fn git_protocol(headers: &HeaderMap) -> Option<&str> {
     headers.get("git-protocol").and_then(|v| v.to_str().ok())
 }
@@ -289,16 +316,16 @@ async fn info_refs(
         Err(d) => return d.into_response(),
     };
     let git_dir = state.services.repo_path(access.repo.id);
-    let shown = state
-        .services
-        .shown_mr_branches(&subject, access.repo.id, service.is_write())
-        .await;
+    let (shown, withheld, protocol) = match visible_refs(&state, &subject, &access, service).await {
+        Ok(v) => v,
+        Err(e) => return internal(&e),
+    };
     match transport::http_info_refs(
         &state.runner,
         &git_dir,
         service,
-        git_protocol(&headers),
-        &shown,
+        protocol.then(|| git_protocol(&headers)).flatten(),
+        (&shown, &withheld),
     )
     .await
     {
@@ -394,10 +421,10 @@ async fn rpc(
     // receive.maxInputSize check, with its clear message, fires first.
     let body_limit = max_bytes.saturating_add(1024 * 1024);
     let git_dir = state.services.repo_path(access.repo.id);
-    let shown = state
-        .services
-        .shown_mr_branches(&subject, access.repo.id, service.is_write())
-        .await;
+    let (shown, withheld, protocol) = match visible_refs(&state, &subject, &access, service).await {
+        Ok(v) => v,
+        Err(e) => return internal(&e),
+    };
     let token = match service {
         Service::ReceivePack => {
             let grant = PushGrant {
@@ -421,9 +448,9 @@ async fn rpc(
         &state.runner,
         &git_dir,
         service,
-        git_protocol(headers),
+        protocol.then(|| git_protocol(headers)).flatten(),
         hooks.as_ref(),
-        &shown,
+        (&shown, &withheld),
     )
     .await
     {

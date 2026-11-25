@@ -1141,3 +1141,48 @@ pub async fn maintainer_editable_into(
     .fetch_all(exec)
     .await?)
 }
+
+/// Who stands behind one merge request's content: its text's origin, its
+/// author's name, and everyone recorded as pushing one of its revisions.
+#[derive(Debug, Clone)]
+pub struct ContentSources {
+    pub number: i32,
+    pub origin: Origin,
+    pub author: Option<String>,
+    pub pushers: Vec<slath_core::ids::UserId>,
+}
+
+/// [`ContentSources`] of every merge request into `repo`.
+pub async fn content_sources(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+) -> Result<Vec<ContentSources>, DbError> {
+    let rows = sqlx::query!(
+        r#"SELECT m.number, m.origin, n.name::text AS author,
+                  COALESCE(array_agg(DISTINCT r.pushed_by)
+                      FILTER (WHERE r.pushed_by IS NOT NULL), '{}') AS "pushers!: Vec<uuid::Uuid>"
+           FROM merge_requests m
+           LEFT JOIN users u ON u.id = m.author_id
+           LEFT JOIN namespaces n ON n.id = u.namespace_id
+           LEFT JOIN mr_revisions r ON r.mr_id = m.id
+           WHERE m.repo_id = $1
+           GROUP BY m.id, n.name
+           ORDER BY m.number"#,
+        repo.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ContentSources {
+            number: r.number,
+            origin: Origin::parse(&r.origin).unwrap_or(Origin::Anonymous),
+            author: r.author,
+            pushers: r
+                .pushers
+                .into_iter()
+                .map(slath_core::ids::UserId::from_uuid)
+                .collect(),
+        })
+        .collect())
+}

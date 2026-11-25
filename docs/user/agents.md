@@ -249,6 +249,22 @@ on the repository, so the order's bot always reads what it wrote. The
 order itself is the delegating person's text: the goal is how to pass on
 what an outside contributor asked for.
 
+Code can't be filtered line by line, so a merge request with code or
+text from below the level is withheld as a whole: its title, diff,
+commits, threads, and iteration all answer with
+`{"withheld": true, "merge_request": <n>, "reason": "content_trust", …}`,
+its refs (`mr/<n>` and `refs/merge-requests/<n>/…`) aren't advertised to
+the task token's fetches, and its commits aren't served by ID. That's
+the case when its author, or anyone who pushed one of its revisions,
+stands below the level, as for a fork merge request from an outside
+contributor. The repository's own branches were pushed by people with
+write access and are never withheld.
+
+To have a bot work on such a merge request anyway, delegate it with
+`"content_trust": "all"`: the bot then reads that contributor's code
+and messages. With a lower level, delegating it is refused with that
+reason.
+
 ## Surfaces for programs
 
 - **The API** (`/api/v1`, described in `GET /api/v1/openapi.json`)

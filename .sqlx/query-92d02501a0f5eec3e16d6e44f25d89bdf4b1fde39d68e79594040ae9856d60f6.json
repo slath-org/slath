@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.number, m.origin, n.name::text AS author,\n                  COALESCE(array_agg(DISTINCT r.pushed_by)\n                      FILTER (WHERE r.pushed_by IS NOT NULL), '{}') AS \"pushers!: Vec<uuid::Uuid>\"\n           FROM merge_requests m\n           LEFT JOIN users u ON u.id = m.author_id\n           LEFT JOIN namespaces n ON n.id = u.namespace_id\n           LEFT JOIN mr_revisions r ON r.mr_id = m.id\n           WHERE m.repo_id = $1\n           GROUP BY m.id, n.name\n           ORDER BY m.number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "origin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "origin"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "author",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "pushers!: Vec<uuid::Uuid>",
+        "type_info": "UuidArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "92d02501a0f5eec3e16d6e44f25d89bdf4b1fde39d68e79594040ae9856d60f6"
+}

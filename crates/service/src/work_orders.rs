@@ -184,6 +184,21 @@ fn human(subject: &Subject) -> Result<UserId> {
     }
 }
 
+/// Why a merge request can't be delegated under a limited content trust.
+#[must_use]
+pub fn withheld_reason(origin: Origin) -> String {
+    let who = match origin {
+        Origin::OutsideContributor => "an outside contributor",
+        Origin::Member => "a member without write access",
+        Origin::Bot => "a bot without a role here",
+        Origin::Anonymous | Origin::Writer => "someone without a role here",
+    };
+    format!(
+        "This merge request has code or text from {who}; the bot would read their code and \
+         messages. Delegate it with content_trust: all to allow that."
+    )
+}
+
 fn text_field(
     field: &str,
     text: Option<&str>,
@@ -309,6 +324,22 @@ impl Services {
             }
         };
         let bot = self.order_bot(&a, &o.bot).await?;
+        if let TargetRef::MergeRequest(n) = o.target
+            && o.content_trust != ContentTrust::All
+        {
+            let bots = self.trust_bots(&a.repo).await?;
+            if let Some(origin) = self
+                .withheld_mrs(&a.repo, o.content_trust, &bots)
+                .await?
+                .get(&n)
+            {
+                return Err(ServiceError::invalid(
+                    "/content_trust",
+                    "withheld",
+                    withheld_reason(*origin),
+                ));
+            }
+        }
 
         let mut errors = Vec::new();
         let goal = text_field("/goal", Some(&o.goal), GOAL_MAX_BYTES, &mut errors);
@@ -518,21 +549,121 @@ impl Services {
         let repo = slath_db::repos::get(&self.pool, order.repo_id)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        let mut bots = std::collections::HashMap::new();
-        for name in slath_db::bots::names_with_access(&self.pool, repo.id).await? {
-            if let Some(u) = slath_db::users::get_by_name(&self.pool, &name).await? {
-                let s = crate::notifications::user_subject(u.id, &u);
-                let role = self.effective_role(&s, &repo).await?;
-                bots.insert(name, Origin::of_bot(role));
-            }
-        }
+        let bots = self.trust_bots(&repo).await?;
+        let withheld_mrs = self.withheld_mrs(&repo, level, &bots).await?;
         Ok(Some(Filter {
             level,
             namespace: repo.namespace.clone(),
             repo: repo.name.clone(),
             bots,
-            withheld_mrs: std::collections::BTreeMap::new(),
+            withheld_mrs,
         }))
+    }
+
+    /// Whether the subject's content trust hides the branch `name` (a
+    /// short name): a withheld merge request's `mr/<n>`.
+    pub async fn content_trust_hides_branch(&self, subject: &Subject, name: &str) -> Result<bool> {
+        Ok(self
+            .content_trust_filter(subject)
+            .await?
+            .is_some_and(|f| f.hides_branch(name)))
+    }
+
+    /// Whether the subject's content trust hides commit `oid` of `repo`:
+    /// while merge requests are withheld, a commit is shown only when a
+    /// branch or tag other than a withheld `mr/<n>` contains it.
+    pub async fn content_trust_hides_commit(
+        &self,
+        subject: &Subject,
+        repo: slath_core::ids::RepoId,
+        oid: &slath_git::object::ObjectId,
+    ) -> Result<bool> {
+        let Some(f) = self.content_trust_filter(subject).await? else {
+            return Ok(false);
+        };
+        if f.withheld_mrs.is_empty() {
+            return Ok(false);
+        }
+        let refs =
+            slath_git::browse::refs_containing(&self.runner, &self.repo_path(repo), oid, 10_000)
+                .await
+                .map_err(ServiceError::internal)?;
+        let shown = refs.iter().any(|r| match r.strip_prefix(b"refs/heads/") {
+            Some(b) => !f.hides_branch(&String::from_utf8_lossy(b)),
+            None => true,
+        });
+        Ok(!shown)
+    }
+
+    /// The bots with access to `repo`, by name, with how they stand by
+    /// their role there.
+    async fn trust_bots(
+        &self,
+        repo: &slath_db::repos::Repo,
+    ) -> Result<std::collections::HashMap<String, Origin>> {
+        let mut bots = std::collections::HashMap::new();
+        for name in slath_db::bots::names_with_access(&self.pool, repo.id).await? {
+            if let Some(u) = slath_db::users::get_by_name(&self.pool, &name).await? {
+                let s = crate::notifications::user_subject(u.id, &u);
+                let role = self.effective_role(&s, repo).await?;
+                bots.insert(name, Origin::of_bot(role));
+            }
+        }
+        Ok(bots)
+    }
+
+    /// The merge requests of `repo` withheld whole under `level`: those
+    /// whose text, or any of whose revisions' pushers, stands below it,
+    /// with the lowest standing found. Pushers stand by their role now;
+    /// revisions without a recorded pusher don't count.
+    async fn withheld_mrs(
+        &self,
+        repo: &slath_db::repos::Repo,
+        level: ContentTrust,
+        bots: &std::collections::HashMap<String, Origin>,
+    ) -> Result<std::collections::BTreeMap<i32, Origin>> {
+        let mut standing: std::collections::HashMap<UserId, Origin> =
+            std::collections::HashMap::new();
+        let mut out = std::collections::BTreeMap::new();
+        for m in slath_db::merge_requests::content_sources(&self.pool, repo.id).await? {
+            let mut lowest = if m.origin == Origin::Bot {
+                m.author
+                    .as_deref()
+                    .and_then(|a| bots.get(a).copied())
+                    .unwrap_or(Origin::Bot)
+            } else {
+                m.origin
+            };
+            for p in &m.pushers {
+                let s = match standing.get(p) {
+                    Some(s) => *s,
+                    None => {
+                        let s = self.pusher_standing(*p, repo).await?;
+                        standing.insert(*p, s);
+                        s
+                    }
+                };
+                lowest = lowest.min(s);
+            }
+            if !level.admits(lowest) {
+                out.insert(m.number, lowest);
+            }
+        }
+        Ok(out)
+    }
+
+    /// How a pusher stands on `repo` now: a person like a text author, a
+    /// bot by its role.
+    async fn pusher_standing(&self, id: UserId, repo: &slath_db::repos::Repo) -> Result<Origin> {
+        let Some(u) = slath_db::users::get(&self.pool, id).await? else {
+            return Ok(Origin::Anonymous);
+        };
+        let s = crate::notifications::user_subject(u.id, &u);
+        if u.kind == UserKind::Bot {
+            Ok(Origin::of_bot(self.effective_role(&s, repo).await?))
+        } else {
+            self.origin_of(&s, repo).await
+        }
     }
 
     /// The view of `order`, with names resolved.
