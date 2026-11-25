@@ -10,6 +10,7 @@ pub mod bgmigrations;
 pub mod blobs;
 pub mod bot_commits;
 pub mod bots;
+pub mod change_briefs;
 pub mod context_records;
 pub mod email_tokens;
 pub mod forks;
@@ -59,7 +60,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 158;
+pub const REQUIRED_SCHEMA: i32 = 159;
 
 /// A stored origin label; the column's check allows only known ones, and
 /// anything else would count as the least trusted.

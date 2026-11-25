@@ -276,7 +276,10 @@ impl Services {
     /// secret, with each finding's place, whatever the repository's push
     /// protection mode. The scan runs over at most a request's size with
     /// linear-time rules, so it has no time limit to run into.
-    fn refuse_secrets<'a>(&self, texts: impl IntoIterator<Item = (String, &'a str)>) -> Result<()> {
+    pub(crate) fn refuse_secrets<'a>(
+        &self,
+        texts: impl IntoIterator<Item = (String, &'a str)>,
+    ) -> Result<()> {
         let mut secrets = Vec::new();
         for (field, text) in texts {
             for f in self.scan_rules.scan(text.as_bytes()) {

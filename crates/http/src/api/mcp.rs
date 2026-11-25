@@ -63,6 +63,7 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("list_reviews", "list_reviews"),
     ("list_merge_request_comments", "list_mr_comments"),
     ("list_statuses", "list_statuses"),
+    ("list_change_briefs", "list_briefs"),
     ("list_context_records", "list_records"),
     ("get_context_record", "get_record"),
 ];

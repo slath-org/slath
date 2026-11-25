@@ -20,6 +20,7 @@ pub mod bgmigrations;
 pub mod blobs;
 pub mod bot_control;
 pub mod bots;
+pub mod change_briefs;
 pub mod change_sources;
 pub mod context_records;
 pub mod cross_refs;

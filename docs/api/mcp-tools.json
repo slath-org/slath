@@ -893,6 +893,52 @@
       "annotations": {
         "readOnlyHint": true
       },
+      "description": "A change's briefs, newest first: every edit of every version.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "change": {
+            "description": "The change's display ID, its first 8 characters, or a version's commit",
+            "type": "string"
+          },
+          "commit": {
+            "description": "Only the edits of the version with this commit.",
+            "type": "string"
+          },
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number",
+          "change"
+        ],
+        "type": "object"
+      },
+      "name": "list_change_briefs"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
       "description": "Records you may see, newest first, without their payloads; deleted\nones as tombstones.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/context-records`; the result is its response.",
       "inputSchema": {
         "additionalProperties": false,

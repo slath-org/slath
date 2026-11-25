@@ -450,6 +450,8 @@ pub struct Limits {
     pub context_record_max_bytes: Bytes,
     /// Transcript entries per agent context record.
     pub context_transcript_entries: usize,
+    /// Largest change brief (the request body).
+    pub brief_max_bytes: Bytes,
     /// Largest text file push protection scans; a bigger one rejects the push.
     pub secret_scan_file_max_bytes: Bytes,
     /// Most new content one push may have for the scan; more rejects it.
@@ -506,6 +508,7 @@ impl Default for Limits {
             background_migration_interval: Dur::millis(100),
             context_record_max_bytes: Bytes(MIB),
             context_transcript_entries: 2000,
+            brief_max_bytes: Bytes(64 * 1024),
             secret_scan_file_max_bytes: Bytes(8 * MIB),
             secret_scan_push_max_bytes: Bytes(512 * MIB),
             secret_scan_timeout: Dur::secs(60),

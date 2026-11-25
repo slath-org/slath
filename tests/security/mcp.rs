@@ -263,6 +263,12 @@ fn calls(f: &Fixture) -> Vec<(&'static str, Value, String)> {
             format!("{r}/commits/{h}/statuses"),
         ),
         (
+            // The change named by its version's commit, the head.
+            "list_change_briefs",
+            mr(json!({"change": h})),
+            format!("{r}/merge-requests/1/changes/{h}/briefs"),
+        ),
+        (
             "list_context_records",
             repo(json!({"merge_request": 1})),
             format!("{r}/context-records?merge_request=1"),

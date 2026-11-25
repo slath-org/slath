@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod auto_merge;
+mod change_briefs;
 mod change_identity;
 mod change_outcomes;
 mod change_reviews;

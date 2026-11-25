@@ -1,0 +1,304 @@
+// SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Change briefs through the API: they belong to a version's commit, keep
+//! every edit, are read by everyone who can read the merge request and
+//! written by its author and writers while it's open, refuse secrets with
+//! their place, and reach MCP as untrusted text.
+
+use serde_json::{Value, json};
+use slath_tests::server::{DEMO, GitClient, PASSWORD, TestServer};
+
+struct World {
+    s: TestServer,
+    alice: String,
+    bob: String,
+    carol: String,
+    git: GitClient,
+    url: String,
+    w: tempfile::TempDir,
+    n: i64,
+}
+
+fn token(s: &TestServer, user: &str, scopes: &[&str]) -> String {
+    let mut c = s.login(user, PASSWORD);
+    slath_tests::http::create_token(&mut c, user, scopes)
+}
+
+impl World {
+    /// alice/demo (private) with bob a writer and carol a reader, and an
+    /// MR by alice of one change, "Add a".
+    fn start() -> Self {
+        let s = TestServer::start();
+        for u in ["bob", "carol", "dave"] {
+            s.create_user(u, PASSWORD, false);
+        }
+        let all = ["repo:write", "mrs:write"];
+        let mut world = Self {
+            alice: token(&s, "alice", &all),
+            bob: token(&s, "bob", &all),
+            carol: token(&s, "carol", &all),
+            url: s.url(&DEMO),
+            s,
+            git: GitClient::new(),
+            w: tempfile::tempdir().unwrap(),
+            n: 0,
+        };
+        for (who, role) in [("bob", "write"), ("carol", "read")] {
+            let r = world.api(
+                &world.alice,
+                "PUT",
+                &format!("/collaborators/{who}"),
+                Some(json!({"role": role})),
+            );
+            assert!(r.status < 300, "{}", r.body);
+        }
+        let w = world.w.path().to_owned();
+        world.git.ok(&w, &["init", "-q", "-b", "main"]);
+        world.commit("README", "demo\n", "init");
+        world.push("main");
+        world.git.ok(&w, &["switch", "-q", "-c", "topic"]);
+        world.commit("a.txt", "a\n", "Add a");
+        world.push("topic");
+        let r = world.api(
+            &world.alice,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_branch": "topic", "title": "Add a"})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+        world.n = r.json()["number"].as_i64().unwrap();
+        world.wait_revisions(1);
+        world
+    }
+
+    fn api(
+        &self,
+        token: &str,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> slath_tests::http::Resp {
+        self.s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(token),
+            body.as_ref(),
+        )
+    }
+
+    fn commit(&self, file: &str, text: &str, msg: &str) {
+        let w = self.w.path();
+        std::fs::write(w.join(file), text).unwrap();
+        self.git.ok(w, &["add", "-A"]);
+        self.git.ok(w, &["commit", "-q", "-m", msg]);
+    }
+
+    fn push(&self, branch: &str) {
+        self.git
+            .ok(self.w.path(), &["push", "-q", "--force", &self.url, branch]);
+    }
+
+    fn wait_revisions(&self, k: i64) {
+        let start = std::time::Instant::now();
+        while self
+            .api(
+                &self.alice,
+                "GET",
+                &format!("/merge-requests/{}", self.n),
+                None,
+            )
+            .json()["revisions"]
+            != k
+        {
+            assert!(
+                start.elapsed().as_secs() < 30,
+                "no revision {k}\n{}",
+                self.s.log()
+            );
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    }
+
+    /// The change's display ID and its current commit.
+    fn change(&self) -> (String, String) {
+        let r = self.api(
+            &self.alice,
+            "GET",
+            &format!("/merge-requests/{}/stack", self.n),
+            None,
+        );
+        let e = &r.json()["entries"][0];
+        (
+            e["change_id"].as_str().unwrap().to_owned(),
+            e["commit_oid"].as_str().unwrap().to_owned(),
+        )
+    }
+
+    fn briefs_path(&self, change: &str) -> String {
+        format!("/merge-requests/{}/changes/{change}/briefs", self.n)
+    }
+
+    fn write(&self, token: &str, change: &str, body: Value) -> slath_tests::http::Resp {
+        self.api(token, "POST", &self.briefs_path(change), Some(body))
+    }
+
+    fn list(&self, token: &str, change: &str, query: &str) -> Vec<Value> {
+        let r = self.api(
+            token,
+            "GET",
+            &format!("{}{query}", self.briefs_path(change)),
+            None,
+        );
+        assert_eq!(r.status, 200, "{}", r.body);
+        r.json()["items"].as_array().unwrap().clone()
+    }
+}
+
+fn brief(intent: &str) -> Value {
+    json!({"schema": "slath-brief/1", "intent": intent, "approach": "Line one\nLine two",
+           "verification": "Ran the tests", "gaps": ""})
+}
+
+#[test]
+fn conf_agent_15_briefs_belong_to_versions_and_keep_every_edit() {
+    let w = World::start();
+    let (id, v1) = w.change();
+    let r = w.write(&w.alice, &id, brief("Add a"));
+    assert_eq!(r.status, 201, "{}", r.body);
+    let b = r.json();
+    assert_eq!(b["commit"], v1.as_str());
+    assert_eq!(b["version"], 1);
+    assert_eq!(b["author"], "alice");
+    assert_eq!(b["approach"], "Line one\nLine two");
+    // An empty optional field is absent.
+    assert_eq!(b["gaps"], Value::Null);
+    assert_eq!(b["untrusted_content"], true);
+    assert_eq!(b["origin"], "writer");
+    // Writing again adds an edit; the newest comes first.
+    let r = w.write(&w.bob, &id[..8], brief("Add a, edited"));
+    assert_eq!(r.status, 201, "{}", r.body);
+    let all = w.list(&w.alice, &id, "");
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[0]["intent"], "Add a, edited");
+    assert_eq!(all[0]["author"], "bob");
+
+    // A new version starts without a brief; the old one keeps its own.
+    w.git.ok(
+        w.w.path(),
+        &["commit", "-q", "--amend", "-m", "Add a, again"],
+    );
+    w.push("topic");
+    w.wait_revisions(2);
+    let (_, v2) = w.change();
+    assert!(w.list(&w.alice, &id, &format!("?commit={v2}")).is_empty());
+    assert_eq!(w.list(&w.alice, &id, &format!("?commit={v1}")).len(), 2);
+    let r = w.write(&w.alice, &id, brief("Version two"));
+    assert_eq!(r.json()["commit"], v2.as_str());
+    assert_eq!(r.json()["version"], 2);
+    // An earlier version can still get an edit, by its commit.
+    let mut late = brief("Version one, late");
+    late["commit"] = json!(v1);
+    assert_eq!(w.write(&w.alice, &id, late).json()["version"], 1);
+    // The change can be named by a version's commit too.
+    assert_eq!(w.list(&w.alice, &v2, "").len(), 4);
+
+    // Refused: another commit, another schema, unknown keys, no intent.
+    let mut wrong = brief("x");
+    wrong["commit"] = json!("0".repeat(40));
+    let r = w.write(&w.alice, &id, wrong);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/commit"), "{}", r.body);
+    for bad in [
+        json!({"schema": "slath-brief/2", "intent": "x"}),
+        json!({"schema": "slath-brief/1", "intent": "x", "risks": "y"}),
+        json!({"schema": "slath-brief/1", "intent": " "}),
+        json!({"schema": "slath-brief/1", "intent": "x", "approach": "y".repeat(16 * 1024 + 1)}),
+    ] {
+        let r = w.write(&w.alice, &id, bad.clone());
+        assert_eq!(r.status, 422, "{bad}: {}", r.body);
+    }
+    let r = w.write(&w.alice, &id, brief(&"x".repeat(70 * 1024)));
+    assert!(matches!(r.status, 413 | 422), "{} {}", r.status, r.body);
+    assert_eq!(w.list(&w.alice, &id, "").len(), 4);
+    // An unknown change is 404.
+    assert_eq!(w.write(&w.alice, "zzzzzzzz", brief("x")).status, 404);
+}
+
+#[test]
+fn conf_agent_15_merge_request_readers_read_briefs_and_its_updaters_write_them() {
+    let w = World::start();
+    let (id, _) = w.change();
+    assert_eq!(w.write(&w.alice, &id, brief("By the author")).status, 201);
+    // A reader reads them but can't write; others get 404, signed out too.
+    assert_eq!(w.list(&w.carol, &id, "").len(), 1);
+    assert_eq!(w.write(&w.carol, &id, brief("x")).status, 403);
+    let dave = token(&w.s, "dave", &["repo:write", "mrs:write"]);
+    assert_eq!(w.api(&dave, "GET", &w.briefs_path(&id), None).status, 404);
+    assert_eq!(w.write(&dave, &id, brief("x")).status, 404);
+    let anon = w.s.client().api(
+        "GET",
+        &format!("/api/v1/repos/alice/demo{}", w.briefs_path(&id)),
+        None,
+        None,
+    );
+    assert_eq!(anon.status, 404);
+    // A writer writes with push rights; without the scope for it, not.
+    assert_eq!(w.write(&w.bob, &id, brief("By a writer")).status, 201);
+    let bob_mrs = token(&w.s, "bob", &["mrs:write"]);
+    assert_eq!(w.write(&bob_mrs, &id, brief("x")).status, 403);
+    // The author's token needs mrs:write.
+    let alice_read = token(&w.s, "alice", &["repo:read"]);
+    assert_eq!(w.write(&alice_read, &id, brief("x")).status, 403);
+    // A closed merge request's briefs stay as they are.
+    let r = w.api(
+        &w.alice,
+        "PATCH",
+        &format!("/merge-requests/{}", w.n),
+        Some(json!({"state": "closed"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(w.write(&w.alice, &id, brief("x")).status, 409);
+    assert_eq!(w.list(&w.carol, &id, "").len(), 2);
+    // MCP reads them as untrusted text.
+    let r = w.s.client().api_with(
+        "POST",
+        "/api/mcp",
+        Some(&w.carol),
+        Some(
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "list_change_briefs",
+            "arguments": {"ns": "alice", "repo": "demo", "number": w.n, "change": id}}}),
+        ),
+        &[
+            ("accept", "application/json, text/event-stream"),
+            ("mcp-protocol-version", "2025-06-18"),
+        ],
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("By a writer"), "{}", r.body);
+    assert!(r.body.contains("untrusted_content"), "{}", r.body);
+}
+
+#[test]
+fn conf_agent_06_a_brief_with_a_secret_is_refused_with_its_location() {
+    let w = World::start();
+    let (id, _) = w.change();
+    let secret = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
+    let mut b = brief("Deploy");
+    b["verification"] = json!(format!("Deployed\nwith {secret} to staging"));
+    let r = w.write(&w.alice, &id, b.clone());
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("/verification"), "{}", r.body);
+    assert!(r.body.contains("\"secret\""), "{}", r.body);
+    assert!(r.body.contains("Line 2"), "{}", r.body);
+    assert!(!r.body.contains(&secret), "{}", r.body);
+    assert!(w.list(&w.alice, &id, "").is_empty());
+    assert_eq!(
+        w.s.db
+            .query_one("SELECT count(*)::text FROM change_briefs t WHERE t::text LIKE '%ghp_%'"),
+        "0"
+    );
+    // The redacted retry is accepted.
+    b["verification"] = json!("Deployed with [redacted] to staging");
+    assert_eq!(w.write(&w.alice, &id, b).status, 201);
+}

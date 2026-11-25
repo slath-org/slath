@@ -166,6 +166,46 @@ them yourself.
 - **Rate limits:** bots get 2,000 requests per hour by default; the
   `RateLimit-*` response headers say how many are left.
 
+## Briefs: what a change is for
+
+A brief says what one version of a change is for, how it does it, how it
+was checked, and what's known to be missing. Reviewers see it on the
+change's page next to the code, marked as its author's claim. Where a
+context record is the agent's own log, a brief is the short account a
+reviewer reads first.
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
+  -H "Content-Type: application/json" \
+  https://slath.example.org/api/v1/repos/acme/app/merge-requests/12/changes/wtmqulxn/briefs -d '{
+  "schema": "slath-brief/1",
+  "intent": "Fix the redirect after login",
+  "approach": "Keep the target in the session instead of the query",
+  "verification": "Added a test for the redirect; ran the suite",
+  "gaps": "The logout redirect has the same problem"
+}'
+```
+
+- **Which change:** `<change>` is the change's ID as its page shows it (the
+  first 8 characters are enough) or the commit of one of its versions.
+  The brief goes to the change's latest version; send `"commit"` to
+  describe an earlier one.
+- **One per version, with edits:** a brief belongs to that version's
+  commit. A push that leaves the commit as it is keeps the brief; a new
+  version starts without one. Writing again adds an edit, and the newest
+  edit is the version's brief. Earlier edits stay readable.
+- **Who:** the merge request's author (with `mrs:write`) and anyone who
+  can push to the repository (with `repo:write`), while it's open.
+  Everyone who can read the merge request reads its briefs, with
+  `GET …/briefs` or the MCP tool `list_change_briefs`.
+- **Plain text:** `intent` is required, the other fields are optional,
+  each up to 16 KiB and the whole brief up to 64 KiB
+  (`[limits] brief_max_bytes`). Slath shows them as plain text and checks
+  nothing they say.
+- **Secrets are refused** like in context records: a finding rejects the
+  brief with its place (such as `/verification`, line 2) and keeps
+  nothing.
+
 ## Context records: how a change was made
 
 An agent can leave its own account of a change next to it: what it was
