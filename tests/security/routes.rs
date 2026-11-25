@@ -70,6 +70,7 @@ fn concrete(template: &str, missing: bool, head: &str) -> String {
             "{key}" => "none".to_owned(),
             "{family}" => "layout".to_owned(),
             "{ref}" => "main".to_owned(),
+            "{change}" => "kkkkkkkk".to_owned(),
             "{oid}" | "{rest}" => head.to_owned(),
             "{*rest}" if template.contains("/archive/") => "main.tar.gz".to_owned(),
             "{*rest}" if template.starts_with("/api/") && !template.contains("/repos/") => {

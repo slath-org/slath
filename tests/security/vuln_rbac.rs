@@ -156,6 +156,7 @@ fn concrete(template: &str, repo: &str, head: &str) -> String {
             "{name}" => "bug".to_owned(),
             "{op}" => "archive".to_owned(),
             "{ref}" => "main".to_owned(),
+            "{change}" => "kkkkkkkk".to_owned(),
             "{oid}" | "{rest}" => head.to_owned(),
             "{*rest}" if template.contains("/archive/") => "main.tar.gz".to_owned(),
             "{*rest}" => "main/README.md".to_owned(),
