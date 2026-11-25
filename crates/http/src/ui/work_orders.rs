@@ -12,6 +12,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use serde::Deserialize;
 use slath_core::authz::Subject;
+use slath_core::origin::ContentTrust;
 use slath_service::work_orders::{NewOrder, TargetRef};
 use slath_service::{FieldError, ServiceError};
 
@@ -94,6 +95,8 @@ struct OrderPage {
     scope: Vec<String>,
     required_checks: Vec<String>,
     reviewers: Vec<String>,
+    /// Whose text the task token reads, as the form says it.
+    reads: &'static str,
     /// Used and allowed: revisions, open merge requests.
     revisions: (i64, i32),
     open_mrs: (usize, i32),
@@ -156,6 +159,10 @@ async fn page(
         scope: o.scope.clone(),
         required_checks: o.required_checks.clone(),
         reviewers: v.reviewers.clone(),
+        reads: TRUST_CHOICES
+            .iter()
+            .find(|c| c.0 == o.content_trust)
+            .map_or("Writers", |c| c.1),
         revisions: (revisions, o.max_revisions),
         open_mrs: (
             mrs.iter().filter(|m| m.state == "open").count(),
@@ -226,6 +233,10 @@ struct DelegatePage {
     f: DelegateForm,
     /// The limits group opens when one of its fields has an error.
     limits_open: bool,
+    /// Why content trust would withhold the target merge request, if it
+    /// would: the form then asks to let the bot read everything.
+    withheld: Option<String>,
+    trust_choices: &'static [(&'static str, &'static str, &'static str)],
     errors: Vec<FieldError>,
 }
 
@@ -259,9 +270,32 @@ struct DelegateForm {
     /// Names, separated by commas.
     #[serde(default)]
     reviewers: String,
+    /// `members`, `writers`, or `all`.
+    #[serde(default)]
+    content_trust: String,
+    /// Checked to read everything of a merge request content trust would
+    /// withhold.
+    #[serde(default)]
+    read_all: Option<String>,
 }
 
+/// The content trust choices, as the form says them.
+const TRUST_CHOICES: [(&str, &str, &str); 3] = [
+    (
+        "members",
+        "Members",
+        "People and bots with a role here or in the organization.",
+    ),
+    ("writers", "Writers", "People and bots with write access."),
+    (
+        "all",
+        "Everyone",
+        "Outside contributors too: the bot may follow what they wrote.",
+    ),
+];
+
 const LIMIT_FIELDS: &[&str] = &[
+    "content_trust",
     "scope",
     "max_revisions",
     "max_open_mrs",
@@ -338,9 +372,24 @@ async fn delegate_page(
             Vec::new(),
         )
     });
-    let limits_open = errors
-        .iter()
-        .any(|e| LIMIT_FIELDS.contains(&e.field.as_str()));
+    let withheld = match target {
+        TargetRef::MergeRequest(n) => state
+            .services
+            .withheld_under(&a, n, slath_core::origin::ContentTrust::Members)
+            .await?
+            .map(|o| {
+                format!(
+                    "This merge request has code or text from {}. Content trust would \
+                     withhold it from the bot, unless you let the bot read everything.",
+                    slath_service::work_orders::withheld_who(o)
+                )
+            }),
+        TargetRef::Issue(_) => None,
+    };
+    let limits_open = withheld.is_none()
+        && errors
+            .iter()
+            .any(|e| LIMIT_FIELDS.contains(&e.field.as_str()));
     let status = if errors.is_empty() {
         StatusCode::OK
     } else {
@@ -365,6 +414,8 @@ async fn delegate_page(
         bots,
         f,
         limits_open,
+        withheld,
+        trust_choices: &TRUST_CHOICES,
         errors,
         ctx,
     });
@@ -445,7 +496,11 @@ async fn delegate(
             .map(|r| r.trim().trim_start_matches('@').to_owned())
             .filter(|r| !r.is_empty())
             .collect(),
-        content_trust: slath_core::origin::ContentTrust::default(),
+        content_trust: if f.read_all.is_some() {
+            ContentTrust::All
+        } else {
+            ContentTrust::parse(&f.content_trust).unwrap_or_default()
+        },
     };
     let result = if errors.is_empty() {
         state

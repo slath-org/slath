@@ -260,10 +260,14 @@ stands below the level, as for a fork merge request from an outside
 contributor. The repository's own branches were pushed by people with
 write access and are never withheld.
 
+In the Delegate form, the level is under **Limits and review** as **The
+bot reads text from**. The order's page shows it as **Reads text from**.
+
 To have a bot work on such a merge request anyway, delegate it with
 `"content_trust": "all"`: the bot then reads that contributor's code
-and messages. With a lower level, delegating it is refused with that
-reason.
+and messages. The Delegate form says so in place of the choice and asks
+you to check **Let the bot read all content**. With a lower level,
+delegating it is refused with that reason.
 
 ## Surfaces for programs
 

@@ -28,7 +28,23 @@
   {%- call f::field("instructions", "Instructions", "How to go about it, what to avoid.", error, true) %}
   <textarea id="instructions" name="instructions" rows="5"{% call f::described("instructions", "x", error) %}{% endcall %}>{{ f.instructions }}</textarea>
   {%- endcall %}
+  {%- if let Some(why) = withheld %}
+  {%- let error = self.error("content_trust").unwrap_or_default() %}
+  {%- call msg::notice("warning") %}
+  <p>{{ why }}</p>
+  {%- if !error.is_empty() %}<p id="content_trust-error" class="field-error">Check the box to delegate it.</p>{% endif %}
+  {%- call f::option("checkbox", "read_all", "read_all", "on", "Let the bot read all content, including this contributor's code and messages", f.read_all.is_some()) %}{% endcall %}
+  {%- endcall %}
+  {%- endif %}
   {%- call d::disclosure(ctx, "Limits and review", limits_open) %}
+  {%- if withheld.is_none() %}
+  {%- let error = self.error("content_trust").unwrap_or_default() %}
+  {%- call f::question("content_trust", "The bot reads text from", "Other text reaches it as a placeholder.", error) %}
+  {%- for (value, label, hint) in trust_choices %}
+  {%- call f::option("radio", "content_trust-" ~ value, "content_trust", value, label, f.content_trust == *value || (f.content_trust.is_empty() && *value == "members"), hint) %}{% endcall %}
+  {%- endfor %}
+  {%- endcall %}
+  {%- endif %}
   {%- let error = self.error("max_revisions").unwrap_or_default() %}
   {%- call f::field("max_revisions", "Revisions", "Pushes to its merge requests, in all. Default 20.", error, true) %}
   <input id="max_revisions" name="max_revisions" type="number" min="1" inputmode="numeric" value="{{ f.max_revisions }}" placeholder="20"{% call f::described("max_revisions", "x", error) %}{% endcall %}>

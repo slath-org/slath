@@ -18,7 +18,7 @@ test("conf_agent_13_an_issue_is_delegated_to_a_bot_from_its_page", async ({ page
   const side = page.getByRole("region", { name: "Work order" });
   await tapOrClick(page, side.getByRole("link", { name: "Delegate to a bot" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Delegate issue #\d+ to a bot$/);
-  await expect(page.getByLabel("Bot")).toHaveValue("e2e-agent");
+  await expect(page.getByLabel("Bot", { exact: true })).toHaveValue("e2e-agent");
   await expect(page.getByLabel("Goal")).toHaveValue(title);
   await expectAccessible(page);
 
@@ -52,4 +52,27 @@ test("conf_agent_13_an_issue_is_delegated_to_a_bot_from_its_page", async ({ page
   await expect(side).toContainText("Stopped");
   await expect(side.getByRole("link", { name: "Delegate to a bot" })).toBeVisible();
   await expectAccessible(page);
+});
+
+test("conf_agent_19_delegating_an_outsiders_merge_request_asks_first", async ({ page }) => {
+  // alice/contrib's "Outside fixture" comes from e2e-outsider's fork.
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/contrib/merge-requests");
+  await tapOrClick(page, page.getByRole("link", { name: "Outside fixture" }));
+  const side = page.getByRole("region", { name: "Work order" });
+  await tapOrClick(page, side.getByRole("link", { name: "Delegate to a bot" }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Delegate merge request !\d+ to a bot$/);
+  const warning = page.getByRole("note").filter({ hasText: "an outside contributor" });
+  await expect(warning).toBeVisible();
+  await expect(page.getByRole("radio", { name: /^Members/ })).toHaveCount(0);
+  await expectAccessible(page);
+
+  // Without the box, the form says what's missing.
+  await tapOrClick(page, page.getByRole("button", { name: "Delegate" }));
+  await expect(page.getByText("Check the box to delegate it.")).toBeVisible();
+  await expectAccessible(page);
+  // Checking it is one tap; delegating is left to the API tests, since
+  // every project shares this merge request.
+  await tapOrClick(page, page.getByLabel(/^Let the bot read all content/));
+  await expect(page.getByLabel(/^Let the bot read all content/)).toBeChecked();
 });

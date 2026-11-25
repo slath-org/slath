@@ -713,6 +713,87 @@ fn seed_performance(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     }
 }
 
+/// alice/contrib (public), with the merge request "Outside fixture" from
+/// `e2e-outsider`'s fork: content trust withholds it from task tokens, so
+/// delegating it asks to let the bot read everything. `e2e-agent` has
+/// write access there too.
+fn seed_outside_contribution(server: &TestServer, git: &GitClient) {
+    let mut api = server.client();
+    let mut alice = server.login("alice", PASSWORD);
+    let token =
+        slath_tests::http::create_token(&mut alice, "contrib", &["repo:write", "mrs:write"]);
+    let r = api.api(
+        "POST",
+        "/api/v1/repos",
+        Some(&token),
+        Some(&serde_json::json!({"namespace": "alice", "name": "contrib", "visibility": "public"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = api.api(
+        "PUT",
+        "/api/v1/repos/alice/contrib/collaborators/e2e-agent",
+        Some(&token),
+        Some(&serde_json::json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let work = tempfile::tempdir().unwrap();
+    let w = work.path();
+    let url = |token: &str, repo: &str| format!("http://git:{token}@{}/{repo}.git", server.addr);
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("README.md"), "# Contrib\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Initial commit"]);
+    git.ok(w, &["push", "-q", &url(&token, "alice/contrib"), "main"]);
+    server.create_user("e2e-outsider", PASSWORD, false);
+    let mut outsider = server.login("e2e-outsider", PASSWORD);
+    let theirs =
+        slath_tests::http::create_token(&mut outsider, "fork", &["repo:write", "mrs:write"]);
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/contrib/forks",
+        Some(&theirs),
+        Some(&serde_json::json!({"namespace": "e2e-outsider"})),
+    );
+    assert_eq!(r.status, 202, "{}", r.body);
+    let start = std::time::Instant::now();
+    while api
+        .api(
+            "GET",
+            "/api/v1/repos/e2e-outsider/contrib/fork",
+            Some(&theirs),
+            None,
+        )
+        .json()["state"]
+        != "done"
+    {
+        assert!(start.elapsed().as_secs() < 60, "no fork\n{}", server.log());
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    git.ok(w, &["switch", "-q", "-c", "outside"]);
+    std::fs::write(w.join("outside.md"), "A contribution.\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["commit", "-q", "-m", "Add a contribution"]);
+    git.ok(
+        w,
+        &[
+            "push",
+            "-q",
+            &url(&theirs, "e2e-outsider/contrib"),
+            "outside",
+        ],
+    );
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/contrib/merge-requests",
+        Some(&theirs),
+        Some(
+            &serde_json::json!({"source_repo": "e2e-outsider/contrib", "source_branch": "outside",
+                                 "title": "Outside fixture"}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+}
+
 fn main() {
     // alice/demo (private) with content; accounts as in tests/e2e/fixtures.ts.
     // A host name, not an IP address: passkeys (WebAuthn) need one.
@@ -761,6 +842,8 @@ fn main() {
     seed_outcomes(&server, &git, w, &url);
     seed_description(&server, &git, w, &url);
     seed_change_source(&server, &git, w, &url);
+    // Needs e2e-agent from the merge requests.
+    seed_outside_contribution(&server, &git);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");

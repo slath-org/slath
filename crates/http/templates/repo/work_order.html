@@ -23,6 +23,7 @@
   <dt>Branches</dt><dd><code>{{ prefix }}…</code></dd>
   <dt>Revisions</dt><dd>{{ revisions.0 }} of {{ revisions.1 }}</dd>
   <dt>Open merge requests</dt><dd>{{ open_mrs.0 }} of {{ open_mrs.1 }}</dd>
+  <dt>Reads text from</dt><dd>{{ reads }}</dd>
   {%- if let Some((at, by)) = ended %}
   <dt>Ended</dt><dd>{% call c::time(at, true) %}{% endcall %}{% if let Some(w) = by %} by {% call p::who(ctx, w, false) %}{% endcall %}{% endif %}</dd>
   {%- else %}

@@ -34,6 +34,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A work order's target and a finding's thread now say who wrote them (`origin`, `reporter`).
 - Merge requests with code from below a work order's content trust are withheld from its task token as a whole, in the API, MCP, and Git fetches.
 - Delegating an outside contributor's merge request to a bot needs `content_trust: all`, so the bot reads their code only when you choose it.
+- The Delegate form chooses whose text the bot reads, and warns before a bot reads an outside contributor's merge request; the order's page shows the choice.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.

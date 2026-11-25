@@ -184,18 +184,24 @@ fn human(subject: &Subject) -> Result<UserId> {
     }
 }
 
-/// Why a merge request can't be delegated under a limited content trust.
+/// Who, in words, stands behind a merge request content trust withholds.
 #[must_use]
-pub fn withheld_reason(origin: Origin) -> String {
-    let who = match origin {
+pub fn withheld_who(origin: Origin) -> &'static str {
+    match origin {
         Origin::OutsideContributor => "an outside contributor",
         Origin::Member => "a member without write access",
         Origin::Bot => "a bot without a role here",
         Origin::Anonymous | Origin::Writer => "someone without a role here",
-    };
+    }
+}
+
+/// Why a merge request can't be delegated under a limited content trust.
+#[must_use]
+pub fn withheld_reason(origin: Origin) -> String {
     format!(
-        "This merge request has code or text from {who}; the bot would read their code and \
-         messages. Delegate it with content_trust: all to allow that."
+        "This merge request has code or text from {}; the bot would read their code and \
+         messages. Delegate it with content_trust: all to allow that.",
+        withheld_who(origin)
     )
 }
 
@@ -325,20 +331,13 @@ impl Services {
         };
         let bot = self.order_bot(&a, &o.bot).await?;
         if let TargetRef::MergeRequest(n) = o.target
-            && o.content_trust != ContentTrust::All
+            && let Some(origin) = self.withheld_under(&a, n, o.content_trust).await?
         {
-            let bots = self.trust_bots(&a.repo).await?;
-            if let Some(origin) = self
-                .withheld_mrs(&a.repo, o.content_trust, &bots)
-                .await?
-                .get(&n)
-            {
-                return Err(ServiceError::invalid(
-                    "/content_trust",
-                    "withheld",
-                    withheld_reason(*origin),
-                ));
-            }
+            return Err(ServiceError::invalid(
+                "/content_trust",
+                "withheld",
+                withheld_reason(origin),
+            ));
         }
 
         let mut errors = Vec::new();
@@ -558,6 +557,25 @@ impl Services {
             bots,
             withheld_mrs,
         }))
+    }
+
+    /// Who stands lowest behind merge request `number` of `a`'s repository
+    /// if `level` would withhold it, for the delegate form.
+    pub async fn withheld_under(
+        &self,
+        a: &RepoAccess,
+        number: i32,
+        level: ContentTrust,
+    ) -> Result<Option<Origin>> {
+        if level == ContentTrust::All {
+            return Ok(None);
+        }
+        let bots = self.trust_bots(&a.repo).await?;
+        Ok(self
+            .withheld_mrs(&a.repo, level, &bots)
+            .await?
+            .get(&number)
+            .copied())
     }
 
     /// Whether the subject's content trust hides the branch `name` (a

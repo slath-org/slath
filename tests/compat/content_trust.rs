@@ -468,3 +468,74 @@ fn conf_agent_19_delegating_an_outsiders_merge_request_needs_all() {
     assert_eq!(r.status, 201, "{}", r.body);
     assert_eq!(r.json()["content_trust"], "all");
 }
+
+#[test]
+fn conf_agent_19_the_delegate_form_asks_before_the_bot_reads_an_outsider() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let r = w.s.client().api(
+        "PATCH",
+        "/api/v1/repos/alice/demo",
+        Some(&w.alice),
+        Some(&json!({"visibility": "public"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let _claimed = crate::work_orders::claimed_with(&w, json!({}));
+    let (withheld, writers) = outsider_mrs(&w);
+    let mut bob = w.s.login("bob", slath_tests::server::PASSWORD);
+
+    // An ordinary target: the level is one choice among the limits.
+    let form = format!("/alice/demo/merge-requests/{writers}/delegate");
+    let f = bob.get(&form).body;
+    assert!(
+        f.contains("name=\"content_trust\" value=\"members\" checked"),
+        "{f}"
+    );
+    assert!(!f.contains("read_all"), "{f}");
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("bot", "claimer"),
+            ("goal", "Tidy"),
+            ("content_trust", "writers"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let order = r.header("location").unwrap().to_owned();
+    assert!(
+        bob.get(&order)
+            .body
+            .contains("<dt>Reads text from</dt><dd>Writers</dd>")
+    );
+
+    // An outsider's merge request: a warning and one checkbox instead.
+    let form = format!("/alice/demo/merge-requests/{}/delegate", withheld[0].0);
+    let f = bob.get(&form).body;
+    assert!(f.contains("notice-warning"), "{f}");
+    assert!(f.contains("an outside contributor"), "{f}");
+    assert!(f.contains("name=\"read_all\""), "{f}");
+    assert!(!f.contains("name=\"content_trust\""), "{f}");
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[("bot", "claimer"), ("goal", "Review")],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"content_trust-error\""), "{}", r.body);
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[("bot", "claimer"), ("goal", "Review"), ("read_all", "on")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let order = r.header("location").unwrap().to_owned();
+    assert!(
+        bob.get(&order)
+            .body
+            .contains("<dt>Reads text from</dt><dd>Everyone</dd>")
+    );
+}
