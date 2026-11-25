@@ -302,3 +302,123 @@ fn conf_agent_06_a_brief_with_a_secret_is_refused_with_its_location() {
     b["verification"] = json!("Deployed with [redacted] to staging");
     assert_eq!(w.write(&w.alice, &id, b).status, 201);
 }
+
+#[test]
+fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let (id, _) = w.change();
+    let page = format!("/alice/demo/merge-requests/{}/changes/{id}", w.n);
+    let form = format!("{page}/brief");
+    // Without a brief: writers see one line to write it, readers nothing.
+    let mut bob = w.s.login("bob", PASSWORD);
+    let mut carol = w.s.login("carol", PASSWORD);
+    let r = bob.get(&page);
+    assert!(r.body.contains("Write a brief</a>"), "{}", r.body);
+    assert!(!carol.get(&page).body.contains("Write a brief"));
+    assert_eq!(carol.get(&form).status, 404);
+
+    // Writing through the form returns to the change's page.
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("intent", "Add the a file"),
+            ("approach", "One line\nper letter"),
+            ("verification", ""),
+            ("gaps", "No b yet"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(r.header("location"), Some(format!("{page}#brief").as_str()));
+    let shown = carol.get(&page).body;
+    for text in [
+        "<h2 id=\"brief-heading\">Brief</h2>",
+        "Author&#39;s claim",
+        "Add the a file",
+        "One line\nper letter",
+        "Known gaps",
+        "No b yet",
+    ] {
+        assert!(shown.contains(text), "{text}\n{shown}");
+    }
+    assert!(!shown.contains("<h3>Verification</h3>"), "{shown}");
+    assert!(!shown.contains("Edit the brief"));
+    // The form opens prefilled for an edit.
+    let f = bob.get(&form);
+    assert!(f.body.contains("Edit the brief of change"), "{}", f.body);
+    assert!(f.body.contains(">No b yet</textarea>"), "{}", f.body);
+
+    // A secret is refused on the form, which keeps what was typed.
+    let secret = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
+    let typed = format!("Ran it\nwith {secret}");
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[("intent", "Add the a file"), ("verification", &typed)],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("href=\"#verification\""), "{}", r.body);
+    assert!(r.body.contains("id=\"verification-error\""), "{}", r.body);
+    assert!(r.body.contains("Line 2"), "{}", r.body);
+    assert!(r.body.contains("aria-invalid=\"true\""), "{}", r.body);
+    assert_eq!(w.list(&w.alice, &id, "").len(), 1);
+    // An empty intent too.
+    let r = submit(&mut bob, &form, &form, &[("intent", " ")]);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("id=\"intent-error\""), "{}", r.body);
+
+    // An edit, then a new version: comparing shows how the brief changed.
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("intent", "Add the a file, carefully"),
+            ("gaps", "No b yet"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(carol.get(&page).body.contains("Edited (2 edits)"));
+    w.git.ok(
+        w.w.path(),
+        &["commit", "-q", "--amend", "-m", "Add a, again"],
+    );
+    w.push("topic");
+    w.wait_revisions(2);
+    let v2 = carol.get(&page).body;
+    assert!(
+        !v2.contains("brief-heading"),
+        "a new version starts without one"
+    );
+    assert!(w.write(&w.alice, &id, json!({"schema": "slath-brief/1", "intent": "Add the a file, carefully", "approach": "Only now", "gaps": "b comes next"})).status == 201);
+    let cmp = carol.get(&format!("{page}?from=1&rev=2")).body;
+    assert!(cmp.contains("Brief changed"), "{cmp}");
+    assert!(cmp.contains("<h3>Known gaps</h3>"), "{cmp}");
+    assert!(cmp.contains("Removed: </span>No b yet"), "{cmp}");
+    assert!(cmp.contains("Added: </span>b comes next"), "{cmp}");
+    // Only version 2's brief has an approach: all of it is added.
+    assert!(cmp.contains("<h3>Approach</h3>"), "{cmp}");
+    assert!(cmp.contains("Added: </span>Only now"), "{cmp}");
+    assert!(
+        !cmp.contains("<h3>Intent</h3>"),
+        "the same intent shows nothing"
+    );
+    // An older version's page offers no form; a closed merge request none.
+    assert!(
+        !bob.get(&format!("{page}?rev=1"))
+            .body
+            .contains("Edit the brief")
+    );
+    let r = w.api(
+        &w.alice,
+        "PATCH",
+        &format!("/merge-requests/{}", w.n),
+        Some(json!({"state": "closed"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert!(!bob.get(&page).body.contains("Edit the brief"));
+    assert_eq!(bob.get(&form).status, 404);
+}

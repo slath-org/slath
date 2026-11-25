@@ -18,6 +18,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A deleted or expired context record leaves a note without its text: who uploaded it, what it was about, and who deleted it or that retention did.
 - Comparing two versions of a change also shows how its commit description changed, line by line.
 - Agents and people can write a brief for each version of a change (what it's for, how it was checked, what's missing) through the API; MCP reads it.
+- A change's page shows its version's brief above the diff, lets authors and writers write or edit it, and compares briefs between versions.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.

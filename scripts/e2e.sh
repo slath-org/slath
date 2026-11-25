@@ -34,7 +34,8 @@ cleanup() {
     rm -f "$server_out"
 }
 trap cleanup EXIT
-for _ in $(seq 1 600); do
+# Seeding the fixtures takes about a minute; allow three.
+for _ in $(seq 1 1800); do
     url="$(sed -nE 's/^SLATH_E2E_URL=(.*)$/\1/p' "$server_out")"
     [[ -n "$url" ]] && break
     sleep 0.1

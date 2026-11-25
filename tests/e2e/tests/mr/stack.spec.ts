@@ -192,3 +192,43 @@ test("conf_agent_15_comparing_versions_shows_how_the_description_changed", async
   await expect(section).toContainText("Kept as it is.");
   await expectAccessible(page);
 });
+
+test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ page }, testInfo) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/merge-requests");
+  const p = testInfo.project.name;
+  await page.goto(`/alice/demo/compare?source=${encodeURIComponent(`brief/${p}`)}`);
+  const create = page.getByRole("button", { name: "Create merge request" });
+  if (await create.isVisible()) {
+    await tapOrClick(page, create);
+  } else {
+    // A retry: the merge request is open already.
+    await tapOrClick(page, page.getByRole("note").getByRole("link"));
+  }
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(`Add a briefed note for ${p}`);
+  await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
+  await tapOrClick(page, page.locator("section[aria-labelledby=changes-heading] .item-list > li a.item-title").first());
+  // A retried test finds its first brief and edits it.
+  await tapOrClick(page, page.getByRole("link", { name: /^(Write a brief|Edit the brief)$/ }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/brief .*change [k-z]{8}$/);
+  await expectAccessible(page);
+  // Without an intent the form says what's missing and keeps the rest.
+  await page.getByLabel("Intent").fill("");
+  await page.getByLabel("Known gaps").fill(`Gaps seen in ${testInfo.project.name}`);
+  await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
+  await expect(page.getByRole("alert")).toContainText("Say what the change is for.");
+  await expect(page.getByLabel("Known gaps")).toHaveValue(`Gaps seen in ${testInfo.project.name}`);
+  await expectAccessible(page);
+  const intent = `Reworded notes, checked in ${testInfo.project.name}`;
+  await page.getByLabel("Intent").fill(intent);
+  await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
+  const brief = page.getByRole("region", { name: "Brief", exact: true });
+  await expect(brief).toContainText("Author's claim");
+  await expect(brief).toContainText(intent);
+  await expect(brief.getByRole("link", { name: "Edit the brief" })).toBeVisible();
+  await expectAccessible(page);
+  // Closed again, so the fixture's open merge requests stay few.
+  await tapOrClick(page, page.getByText("More actions"));
+  await tapOrClick(page, page.getByRole("button", { name: "Close merge request" }));
+  await expect(page.locator(".state-label")).toHaveText("Closed");
+});

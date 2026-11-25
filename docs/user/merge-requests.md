@@ -294,6 +294,16 @@ with `git commit --amend` or `jj describe`), **Description changed**
 above the diff shows both line by line, with removed and added lines
 marked.
 
+**Briefs.** A version can have a brief: what it's for, how it does it,
+how it was checked, and what's known to be missing. It shows as
+**Brief** above the change's diff, marked as its author's claim. The
+merge request's author and anyone who can push to the repository can
+**Write a brief** (or **Edit the brief**) on the latest version while
+the merge request is open; saving again keeps the earlier text as an
+edit. A new version starts without a brief. Comparing two versions also
+shows **Brief changed** when their briefs differ. Agents write briefs
+through the API ([briefs](agents.md#briefs-what-a-change-is-for)).
+
 Beside the change (below it on narrow screens), **Checks** lists the
 statuses reported for the shown version's commit, each with who reported
 it. Statuses belong to one commit: a new version starts with none, and an

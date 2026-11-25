@@ -1,0 +1,25 @@
+{% extends "repo/layout.html" %}
+{% block title %}{{ heading }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{% block content %}
+<div class="page">
+{% include "repo/header.html" %}
+<div class="page page-form-wide">
+<header class="page-head">
+  <div class="page-head-row"><h1>{{ heading }}</h1></div>
+  <p class="page-head-intro">What this version of the change is for, as you see it. Reviewers read it next to the code as your claim; it's plain text. Saving again keeps the earlier text as an edit.</p>
+</header>
+<form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
+{% include "settings/errors.html" %}
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  <input type="hidden" name="commit" value="{{ commit }}">
+  {%- for (id, label, hint, value) in fields %}
+  {%- let error = self.error(id).unwrap_or_default() %}
+  {%- call f::field(id, label, hint, error, *id != "intent") %}
+  <textarea id="{{ id }}" name="{{ id }}" rows="{% if *id == "intent" %}3{% else %}5{% endif %}" autocomplete="off"{% if *id == "intent" %} required{% endif %}{% call f::described(id, hint, error) %}{% endcall %}>{{ value }}</textarea>
+  {%- endcall %}
+  {%- endfor %}
+  {%- call f::buttons() %}<button type="submit" class="button button-primary">Save brief</button><a class="button button-quiet" href="{{ back }}">Cancel</a>{% endcall %}
+</form>
+</div>
+</div>
+{% endblock %}

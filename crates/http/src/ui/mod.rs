@@ -7,6 +7,7 @@ pub mod account;
 pub mod admin;
 pub mod bots;
 pub mod browse;
+pub mod change_briefs;
 pub mod context_records;
 pub mod design;
 pub mod diff;
@@ -730,6 +731,7 @@ pub fn router() -> axum::Router<AppState> {
         .merge(diff::router())
         .merge(labels::router())
         .merge(secret_scan::router())
+        .merge(change_briefs::router())
         .merge(context_records::router())
         .merge(notifications::router())
         .merge(search::router())

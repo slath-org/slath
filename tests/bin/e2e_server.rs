@@ -549,6 +549,27 @@ fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "main"]);
 }
 
+/// `brief/<project>`: a branch per project to open a merge request from
+/// and write a brief, without one yet (before the "Recently pushed"
+/// branch, which must be the newest without a merge request).
+fn seed_brief_branches(git: &GitClient, w: &Path, url: &str) {
+    // One push for all of them keeps the server's start quick.
+    let mut push = vec!["push".to_owned(), "-q".to_owned(), url.to_owned()];
+    for p in PROJECTS {
+        let branch = format!("brief/{p}");
+        git.ok(w, &["switch", "-q", "-c", &branch, "main"]);
+        std::fs::write(w.join(format!("brief-{p}.md")), "Briefed\n").unwrap();
+        git.ok(w, &["add", "-A"]);
+        git.ok(
+            w,
+            &["commit", "-q", "-m", &format!("Add a briefed note for {p}")],
+        );
+        push.push(branch);
+    }
+    git.ok(w, &push.iter().map(String::as_str).collect::<Vec<_>>());
+    git.ok(w, &["switch", "-q", "main"]);
+}
+
 /// "Description fixture": a merge request of one change whose second
 /// version rewords its description.
 fn seed_description(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
@@ -728,6 +749,7 @@ fn main() {
     git.ok(w, &["push", "-q", &url, "main"]);
     // The stacks first: the "Recently pushed" banner shows the last push.
     seed_stacks(&git, w, &url);
+    seed_brief_branches(&git, w, &url);
     seed_performance(&server, &git, w, &url);
     seed_merge_requests(&server, &git, w, &url);
     seed_diffs(&git, w, &url);

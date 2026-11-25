@@ -125,8 +125,34 @@
   {%- endmatch %}
 </section>
 {%- endif %}
+{%- if !brief.changed.is_empty() %}
+<section class="section" aria-labelledby="brief-changed-heading">
+  <h2 id="brief-changed-heading">Brief changed</h2>
+  {%- for fd in brief.changed %}
+  <h3>{{ fd.label }}</h3>
+  {%- match fd.diff %}
+  {%- when Ok(lines) %}
+  <pre class="commit-body description-diff">{% for l in lines %}{% if l.kind == "removed" %}<span class="diff-del"><span aria-hidden="true">− </span><span class="visually-hidden">Removed: </span>{{ l.text }}</span>{% else if l.kind == "added" %}<span class="diff-add"><span aria-hidden="true">+ </span><span class="visually-hidden">Added: </span>{{ l.text }}</span>{% else %}<span><span aria-hidden="true">  </span>{{ l.text }}</span>{% endif %}{% endfor %}</pre>
+  {%- when Err(_) %}
+  <p class="text-secondary">Too long to compare here.</p>
+  {%- endmatch %}
+  {%- endfor %}
+</section>
+{%- endif %}
 {%- else %}
 <p class="text-secondary">Version {{ shown.number }}, in revision {{ shown.revision }}: the commit's own changes.</p>
+{%- if let Some(b) = brief.shown %}
+<section class="section" id="brief" aria-labelledby="brief-heading">
+  <h2 id="brief-heading">Brief</h2>
+  <p class="text-secondary">{% call p::who(ctx, b.author) %}{% endcall %} {% call m::evidence("Author's claim") %}{% endcall %} · {% call c::time(b.created) %}{% endcall %}{% if b.edits > 1 %} · Edited ({{ b.edits }} edits){% endif %}{% if let Some((href, _)) = brief.write %} · <a href="{{ href }}">Edit the brief</a>{% endif %}</p>
+  {%- for (label, text) in b.fields %}
+  <h3>{{ label }}</h3>
+  <pre class="commit-body">{{ text }}</pre>
+  {%- endfor %}
+</section>
+{%- else if let Some((href, _)) = brief.write %}
+<p id="brief"><a href="{{ href }}">Write a brief</a> <span class="text-secondary">for reviewers: what this version is for and how it was checked.</span></p>
+{%- endif %}
 {%- endif %}
 {%- if let Some(cf) = conflict %}
 <section class="frame" id="conflict" aria-labelledby="conflict-title">

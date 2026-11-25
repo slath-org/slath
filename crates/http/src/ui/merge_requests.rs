@@ -2954,6 +2954,8 @@ struct ChangePage {
     /// For an interdiff whose versions' descriptions differ: their lines,
     /// each marked same, removed, or added; `Err` past the lines compared.
     description: Option<Result<Vec<DescriptionLine>, ()>>,
+    /// The shown version's brief, or how two versions' briefs differ.
+    brief: super::change_briefs::BriefParts,
     base: String,
     /// The shown version holds a conflict jj recorded.
     conflict: Option<ConflictView>,
@@ -2970,14 +2972,14 @@ struct ChangePage {
 }
 
 /// A line of a change's description, compared with another version's.
-struct DescriptionLine {
+pub struct DescriptionLine {
     /// `same`, `removed`, or `added`.
-    kind: &'static str,
-    text: String,
+    pub kind: &'static str,
+    pub text: String,
 }
 
 /// How two versions' descriptions differ, if they do.
-fn description_diff(old: &str, new: &str) -> Option<Result<Vec<DescriptionLine>, ()>> {
+pub(super) fn description_diff(old: &str, new: &str) -> Option<Result<Vec<DescriptionLine>, ()>> {
     use slath_markup::intraline::LineChange;
     let (old, new) = (old.trim_end(), new.trim_end());
     if old == new {
@@ -3195,6 +3197,18 @@ async fn change(
             }
         }
     };
+    let brief = super::change_briefs::parts(
+        &state,
+        &m,
+        (&ns, &repo, &change.display_id),
+        (
+            &shown.commit_oid,
+            from.as_ref().map(|f| f.commit_oid.as_str()),
+            change.versions.last().map(|v| v.commit_oid.as_str()),
+        ),
+        slath_service::Services::may_write_brief(&subject, &a, &m),
+    )
+    .await?;
     let description = match &from {
         Some(f) => {
             let (old, new) = state
@@ -3335,6 +3349,7 @@ async fn change(
         too_big,
         other_href,
         description,
+        brief,
         base,
         conflict,
         land,
