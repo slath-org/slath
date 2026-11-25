@@ -267,6 +267,27 @@ fn logout_revokes_the_session_on_the_next_request() {
 }
 
 #[test]
+fn signing_out_works_from_a_not_found_page() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    s.create_user("bob", PW, false);
+    let mut b = s.login("bob", PW);
+    slath_tests::http::create_repo(&mut b, "bob", "secret", "private");
+    let mut a = s.login("alice", PW);
+    let page = a.get("/bob/secret");
+    assert_eq!(page.status, 404);
+    let i = page
+        .body
+        .find("action=\"/-/logout\"")
+        .expect("a sign-out form");
+    let token = csrf_token(&page.body[i..]).expect("its CSRF token");
+    assert!(!token.is_empty(), "the sign-out form has no CSRF token");
+    let r = a.post_form("/-/logout", &[("_csrf", &token)]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert!(!signed_in_as(&mut a, "alice"));
+}
+
+#[test]
 fn conf_sec_04_login_redirect_stays_on_site() {
     let s = TestServer::start_with(&[]);
     s.create_user("alice", PW, false);

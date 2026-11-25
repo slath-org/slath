@@ -199,6 +199,10 @@ pub async fn render_errors(State(state): State<AppState>, req: Request, next: Ne
             m.0.as_ref()
                 .map(|s| crate::ui::NavUser::from_session(&s.row));
     }
+    // Without it the header's forms, Sign out among them, would be refused.
+    if let Some(seed) = res.extensions().get::<crate::auth::CsrfSeed>() {
+        page.csrf = Some(state.services.csrf.token(&seed.value));
+    }
     let status = res.status();
     let info = match res.extensions().get::<ErrorInfo>() {
         Some(info) => info.clone(),

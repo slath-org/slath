@@ -92,6 +92,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Fixed
 
+- Signing out from an error page, such as "not found" for another person's private repository, works again; its forms had no valid token.
 - Simultaneous pushes no longer wait for each other until refused when there are more of them than the Git process limit (2 per CPU).
 - Merge requests no longer stop recording revisions when many are updated at once on a small server.
 - A push refused because the server was too slow to check it now says so, instead of that the server can't be reached.

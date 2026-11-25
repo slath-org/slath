@@ -259,8 +259,10 @@ pub async fn resolve(State(state): State<AppState>, mut req: Request, next: Next
     req.extensions_mut().insert(maybe.clone());
     req.extensions_mut().insert(seed.clone());
     let mut res = crate::ui::with_zone(zone, next.run(req)).await;
-    // Error pages are rendered outside this middleware; let them know who's signed in.
+    // Error pages are rendered outside this middleware; let them know who's
+    // signed in, and the seed their forms' tokens use (sign out, appearance).
     res.extensions_mut().insert(maybe);
+    res.extensions_mut().insert(seed.clone());
     if stale
         && !res
             .headers()
