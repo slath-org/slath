@@ -196,10 +196,9 @@ fn conf_agent_13_orders_are_checked_before_they_are_stored() {
         (json!({"scope": ["/abs"]}), "/scope"),
         (json!({"reviewers": ["dave"]}), "/reviewers"),
         (json!({"target": {"issue": 7}}), "/target"),
-        (
-            json!({"target": {"issue": 1, "merge_request": 1}}),
-            "/target",
-        ),
+        // Both targets, or an unknown field, isn't a work order at all.
+        (json!({"target": {"issue": 1, "merge_request": 1}}), "body"),
+        (json!({"budget": 3}), "body"),
     ] {
         let r = w.delegate(&w.alice, extra.clone());
         assert_eq!(r.status, 422, "{extra}: {}", r.body);
@@ -382,4 +381,264 @@ fn conf_agent_13_bots_claim_their_orders_with_a_credential_that_reads_nothing_el
             "work_order.end"
         ]
     );
+}
+
+/// alice/demo with `main`, the order's branch `wo/1/fix`, and alice's own
+/// `topic`; issue #1 delegated to `claimer` (claim scope only, write
+/// role) and claimed. Returns the claim token and the task token.
+fn claimed(
+    w: &World,
+) -> (
+    String,
+    String,
+    slath_tests::server::GitClient,
+    tempfile::TempDir,
+) {
+    let claimer = bot(&w.s, "alice", "claimer", "work_orders:claim");
+    let r = w.api(
+        &w.alice,
+        "PUT",
+        "/collaborators/claimer",
+        Some(json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(w.delegate(&w.bob, json!({"bot": "claimer"})).status, 201);
+    let git = slath_tests::server::GitClient::new();
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    let url = w.s.url(&slath_tests::server::DEMO);
+    git.ok(p, &["init", "-q", "-b", "main"]);
+    std::fs::write(p.join("README"), "demo\n").unwrap();
+    git.ok(p, &["add", "-A"]);
+    git.ok(p, &["commit", "-q", "-m", "init"]);
+    for branch in ["wo/1/fix", "wo/1/other", "topic"] {
+        git.ok(p, &["switch", "-q", "-C", branch, "main"]);
+        std::fs::write(p.join(branch.replace('/', "-")), "x\n").unwrap();
+        git.ok(p, &["add", "-A"]);
+        git.ok(p, &["commit", "-q", "-m", branch]);
+    }
+    git.ok(
+        p,
+        &[
+            "push",
+            "-q",
+            &url,
+            "main",
+            "wo/1/fix",
+            "wo/1/other",
+            "topic",
+        ],
+    );
+    let task = w.api(&claimer, "POST", "/work-orders/1/claim", None).json()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    (claimer, task, git, dir)
+}
+
+fn events(w: &World, n: i32) -> Vec<(String, String, String)> {
+    w.api(
+        &w.alice,
+        "GET",
+        &format!("/work-orders/{n}/events?limit=100"),
+        None,
+    )
+    .json()["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            (
+                e["action"].as_str().unwrap().to_owned(),
+                e["decision"].as_str().unwrap().to_owned(),
+                e["policy"].as_str().unwrap_or("").to_owned(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn conf_agent_13_task_tokens_act_only_on_their_order() {
+    let w = World::start();
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/issues",
+        Some(json!({"title": "Someone else's issue"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let (_, task, _git, _dir) = claimed(&w);
+
+    // It reads the repository, issues included, and nothing elsewhere.
+    for path in ["", "/issues/2", "/branches"] {
+        assert_eq!(w.api(&task, "GET", path, None).status, 200, "{path}");
+    }
+    let mut c = w.s.login("alice", PASSWORD);
+    slath_tests::http::create_repo(&mut c, "alice", "open", "public");
+    let r =
+        w.s.client()
+            .api("GET", "/api/v1/repos/alice/open", Some(&task), None);
+    assert_eq!(r.status, 404, "{}", r.body);
+    let r = w.s.client().api("GET", "/api/v1/repos", Some(&task), None);
+    assert!(!r.body.contains("\"open\""), "{}", r.body);
+    assert_eq!(
+        w.s.client()
+            .api("GET", "/api/v1/user", Some(&task), None)
+            .status,
+        403
+    );
+
+    // It talks on its issue only.
+    let comment = |n: i32| {
+        w.api(
+            &task,
+            "POST",
+            &format!("/issues/{n}/comments"),
+            Some(json!({"body": "On it."})),
+        )
+    };
+    assert_eq!(comment(1).status, 201, "{}", comment(1).body);
+    assert_eq!(comment(2).status, 403);
+    // It opens a merge request from its branches only, one at a time.
+    let open = |branch: &str| {
+        w.api(
+            &task,
+            "POST",
+            "/merge-requests",
+            Some(json!({"source_branch": branch, "title": format!("From {branch}")})),
+        )
+    };
+    let r = open("topic");
+    assert_eq!(r.status, 403, "{}", r.body);
+    let r = open("wo/1/fix");
+    assert_eq!(r.status, 201, "{}", r.body);
+    let mine = r.json()["number"].as_i64().unwrap();
+    let r = open("wo/1/other");
+    assert_eq!(r.status, 409, "{}", r.body);
+    assert!(
+        r.body.contains("at most 1 open merge request"),
+        "{}",
+        r.body
+    );
+    // It edits and comments on its merge request, never someone else's,
+    // and never merges.
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "topic", "title": "Alice's"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let theirs = r.json()["number"].as_i64().unwrap();
+    let r = w.api(
+        &task,
+        "PATCH",
+        &format!("/merge-requests/{mine}"),
+        Some(json!({"title": "Fix the parser"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    for (n, status) in [(mine, 201), (theirs, 403)] {
+        let r = w.api(
+            &task,
+            "POST",
+            &format!("/merge-requests/{n}/comments"),
+            Some(json!({"body": "Done."})),
+        );
+        assert_eq!(r.status, status, "!{n}: {}", r.body);
+    }
+    let r = w.api(
+        &task,
+        "PATCH",
+        &format!("/merge-requests/{theirs}"),
+        Some(json!({"title": "Mine now"})),
+    );
+    assert_eq!(r.status, 403, "{}", r.body);
+    let r = w.api(
+        &task,
+        "POST",
+        &format!("/merge-requests/{mine}/merge"),
+        Some(json!({})),
+    );
+    assert_eq!(r.status, 403, "{}", r.body);
+    // It reports statuses on its merge request's head only.
+    let head = |n: i64| {
+        w.api(&w.alice, "GET", &format!("/merge-requests/{n}"), None)
+            .json()["head_oid"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    for (n, status) in [(mine, 201), (theirs, 403)] {
+        let r = w.api(
+            &task,
+            "POST",
+            &format!("/statuses/{}", head(n)),
+            Some(json!({"state": "success", "context": "agent/tests"})),
+        );
+        assert_eq!(r.status, status, "!{n}: {}", r.body);
+    }
+    // Repository settings are out of reach.
+    let r = w.api(
+        &task,
+        "PUT",
+        "/collaborators/carol",
+        Some(json!({"role": "admin"})),
+    );
+    assert_eq!(r.status, 403, "{}", r.body);
+
+    // Every write it tried is an event of the order, with the rule that
+    // refused it.
+    let ev = events(&w, 1);
+    for want in [
+        ("POST /issues/{number}/comments", "allowed", ""),
+        ("POST /issues/{number}/comments", "denied", "order.target"),
+        ("POST /merge-requests", "denied", "order.prefix"),
+        ("POST /merge-requests", "allowed", ""),
+        ("POST /merge-requests", "denied", "order.budget.open_mrs"),
+        ("POST /merge-requests/{number}/merge", "denied", "role"),
+        ("POST /statuses/{oid}", "denied", "order.target"),
+        ("PUT /collaborators/{user}", "denied", "role"),
+    ] {
+        assert!(
+            ev.iter()
+                .any(|(a, d, p)| (a.as_str(), d.as_str(), p.as_str()) == want),
+            "{want:?} in {ev:?}"
+        );
+    }
+}
+
+#[test]
+fn conf_agent_13_task_tokens_stop_with_their_order() {
+    let w = World::start();
+    let (claimer, task, _git, _dir) = claimed(&w);
+    let works = |t: &str| w.api(t, "GET", "", None).status;
+    assert_eq!(works(&task), 200);
+    // Renewing revokes the old token.
+    let renewed = w.api(&claimer, "POST", "/work-orders/1/claim", None).json()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(works(&task), 401);
+    assert_eq!(works(&renewed), 200);
+    // A freeze pauses it; unfreezing resumes it.
+    for (cmd, status) in [("freeze", 401), ("unfreeze", 200)] {
+        let (ok, out, err) = w.s.slath(&["admin", "bot", cmd], None);
+        assert!(ok, "{out}{err}");
+        assert_eq!(works(&renewed), status, "after {cmd}");
+    }
+    // Past its time, it stops.
+    w.s.db
+        .execute("UPDATE task_tokens SET expires_at = now() - interval '1 second'");
+    assert_eq!(works(&renewed), 401);
+    let fresh = w.api(&claimer, "POST", "/work-orders/1/claim", None).json()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(works(&fresh), 200);
+    // Stopping the order ends it at once.
+    assert_eq!(
+        w.api(&w.bob, "POST", "/work-orders/1/stop", None).status,
+        200
+    );
+    assert_eq!(works(&fresh), 401);
 }

@@ -181,8 +181,13 @@ impl Services {
         s: &StatusInput,
     ) -> Result<Status> {
         let a = self
-            .repo_access(subject, ns, repo, Action::StatusWrite)
+            .repo_access(subject, ns, repo, Action::RepoRead)
             .await?;
+        // A task token reports only on its order's merge request heads.
+        let a = self
+            .task_clear(subject, a, crate::work_orders::TaskItem::Commit(oid))
+            .await?;
+        self.authorize(subject, &a, Action::StatusWrite)?;
         let Subject::User { id: reporter, .. } = subject else {
             return Err(ServiceError::Unauthenticated);
         };

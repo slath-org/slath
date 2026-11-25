@@ -18,7 +18,7 @@ use super::{ApiSubject, ApiUser};
 use crate::AppState;
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
-use slath_service::work_orders::{NewOrder, OrderView, TargetRef};
+use slath_service::work_orders::OrderView;
 
 /// What an order is for.
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -176,38 +176,11 @@ pub async fn create_order(
     State(state): State<AppState>,
     ApiUser(s): ApiUser,
     Path((ns, repo)): Path<(String, String)>,
-    axum::Json(b): axum::Json<NewOrderBody>,
+    body: axum::body::Bytes,
 ) -> Result<Response, AppError> {
-    let target = match (b.target.issue, b.target.merge_request) {
-        (Some(n), None) => TargetRef::Issue(n),
-        (None, Some(n)) => TargetRef::MergeRequest(n),
-        _ => {
-            return Err(slath_service::ServiceError::invalid(
-                "/target",
-                "invalid",
-                "Name either an issue or a merge request.",
-            )
-            .into());
-        }
-    };
     let v = state
         .services
-        .create_work_order(
-            &s,
-            (&ns, &repo),
-            &NewOrder {
-                target,
-                bot: b.bot,
-                goal: b.goal,
-                instructions: b.instructions,
-                scope: b.scope,
-                max_revisions: b.max_revisions,
-                max_open_mrs: b.max_open_mrs,
-                expires_in_days: b.expires_in_days,
-                required_checks: b.required_checks,
-                reviewers: b.reviewers,
-            },
-        )
+        .create_work_order_json(&s, (&ns, &repo), &body)
         .await?;
     Ok((StatusCode::CREATED, axum::Json(OrderBody::from(v))).into_response())
 }

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) FILTER (WHERE m.state = 'open') AS \"open!\",\n                  coalesce(sum((SELECT count(*) FROM mr_revisions r WHERE r.mr_id = m.id)), 0)::bigint\n                    AS \"revisions!\"\n             FROM merge_requests m\n            WHERE m.repo_id = $1 AND m.source_repo_id = $1 AND position($2::bytea in m.source_ref) = 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "open!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "revisions!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "d09438216330047de7eabdfdf04a723b041cba53ae48c93065fa7a8362d25f63"
+}

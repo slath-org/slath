@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n             SELECT 1 FROM mr_revisions r JOIN merge_requests m ON m.id = r.mr_id\n              WHERE m.repo_id = $1 AND m.source_repo_id = $1\n                AND position($2::bytea in m.source_ref) = 1 AND r.head_oid = $3) AS \"e!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "e!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "bdaa2db8216c1b58eda09c3ddfb579a42efc8ec5057dc1dd98656ef36426b32d"
+}

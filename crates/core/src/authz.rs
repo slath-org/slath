@@ -203,6 +203,36 @@ pub const TASK_ACTIONS: &[Action] = &[
     Action::StatusWrite,
 ];
 
+/// What a task token may do on its order's target issue or merge request
+/// (a follow-up's original): talk.
+pub const TASK_ON_TARGET: &[Action] = &[
+    Action::CommentCreate,
+    Action::CommentEditOwn,
+    Action::MrComment,
+];
+
+/// What a task token may do on a merge request of its order (one whose
+/// source branch is under the order's prefix): talk, edit it, and push
+/// its branch.
+pub const TASK_ON_OWN_MR: &[Action] = &[
+    Action::CommentCreate,
+    Action::CommentEditOwn,
+    Action::MrComment,
+    Action::MrEditOwn,
+    Action::RepoPush,
+];
+
+/// Opening a merge request from a branch under the order's prefix (which
+/// needs push permission on that branch).
+pub const TASK_NEW_MR: &[Action] = &[Action::MrCreate, Action::MrCreateByPush, Action::RepoPush];
+
+/// Reporting a status on a revision head of one of the order's merge
+/// requests.
+pub const TASK_STATUS: &[Action] = &[Action::StatusWrite];
+
+/// Pushing branches under the order's prefix (refs are checked per update).
+pub const TASK_PUSH: &[Action] = &[Action::RepoPush, Action::MrCreateByPush];
+
 /// The scopes a task token counts as having (for checks outside
 /// repositories, such as which API routes it reaches).
 const TASK_SCOPES: &[Scope] = &[
@@ -451,6 +481,11 @@ pub struct ResourceCtx {
     pub role: Option<Role>,
     /// The repository allows forks.
     pub allow_forking: bool,
+    /// The writes a task token may make on the issue, merge request,
+    /// branch, or commit acted on, because it belongs to the token's work
+    /// order. The service sets it where it has checked; everywhere else
+    /// it's empty, so a task token writes nothing there.
+    pub task_actions: &'static [Action],
 }
 
 impl ResourceCtx {
@@ -468,6 +503,7 @@ impl ResourceCtx {
             state,
             role,
             allow_forking: true,
+            task_actions: &[],
         }
     }
 }
@@ -660,7 +696,9 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
                         // Other repositories don't exist for it.
                         return HIDDEN;
                     }
-                    if !TASK_ACTIONS.contains(&action) {
+                    if !TASK_ACTIONS.contains(&action)
+                        || (action.is_write() && !res.task_actions.contains(&action))
+                    {
                         return Decision::Deny { visible: true };
                     }
                     (res.role, true, None)

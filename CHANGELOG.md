@@ -22,6 +22,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Reviewers can comment on one field of a change's brief; the thread shows in the conversation with the field quoted and is marked when the brief changes.
 - People with write access can delegate an issue or merge request to a bot as a work order through the API, with a goal, limits, and a record of what happened under it.
 - Bots pick up their work orders with a token that can only claim them (`work_orders:claim`) and get a task token for one hour, renewed by claiming again.
+- A work order's task token reads its repository and comments, opens merge requests, and reports statuses only for its order; each write it tries is recorded with the rule that decided.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.

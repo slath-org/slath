@@ -38,6 +38,11 @@ fn viewer(subject: &Subject) -> Viewer {
                 site_admin: false,
                 only: Some(ids.clone()),
             },
+            Credential::Task { repo_id, .. } => Viewer {
+                user: Some(*id),
+                site_admin: false,
+                only: Some(vec![*repo_id]),
+            },
             _ => Viewer {
                 user: Some(*id),
                 site_admin: *is_site_admin,
@@ -45,6 +50,17 @@ fn viewer(subject: &Subject) -> Viewer {
             },
         },
         _ => Viewer::default(),
+    }
+}
+
+/// The repository of a task token: nothing else exists for it.
+fn task_repo(subject: &Subject) -> Option<slath_core::ids::RepoId> {
+    match subject {
+        Subject::User {
+            credential: Credential::Task { repo_id, .. },
+            ..
+        } => Some(*repo_id),
+        _ => None,
     }
 }
 
@@ -75,7 +91,8 @@ impl Services {
                     .repo
                     .id,
             ),
-            None => None,
+            // A task token searches its own repository only.
+            None => task_repo(subject),
         };
         if q.is_empty() {
             return Ok(Vec::new());
@@ -102,6 +119,18 @@ impl Services {
         let q = clean(q);
         if q.is_empty() {
             return Ok(Vec::new());
+        }
+        if let Some(id) = task_repo(subject) {
+            let Some(own) = slath_db::repos::get(&self.pool, id).await? else {
+                return Ok(Vec::new());
+            };
+            let mut hits =
+                slath_db::search::repos(&self.pool, &viewer(subject), &q, 0, 201).await?;
+            hits.retain(|h| h.namespace == own.namespace && h.name == own.name);
+            return Ok(hits
+                .into_iter()
+                .skip(usize::try_from(offset.max(0)).unwrap_or(0))
+                .collect());
         }
         Ok(slath_db::search::repos(
             &self.pool,

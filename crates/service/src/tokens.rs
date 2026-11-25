@@ -234,6 +234,9 @@ impl Services {
     /// tokens and tokens of inactive users all give `None`. A token whose
     /// prefix or checksum is wrong is rejected before any database lookup.
     pub async fn authenticate_token(&self, raw: &str) -> Result<Option<TokenAuth>> {
+        if token::token_kind(raw) == Some(CredentialKind::TaskToken) {
+            return self.authenticate_task_token(raw).await;
+        }
         let Some(kind @ (CredentialKind::PersonalAccessToken | CredentialKind::BotToken)) =
             token::token_kind(raw)
         else {
@@ -282,6 +285,47 @@ impl Services {
             },
             user_id: user.id,
             token_id: row.id,
+        }))
+    }
+
+    /// Authenticates a work order's task token: unrevoked, unexpired, its
+    /// order open and within its time, and its bot active and not frozen.
+    /// The subject is the bot, confined to the order.
+    async fn authenticate_task_token(&self, raw: &str) -> Result<Option<TokenAuth>> {
+        let Some(t) =
+            slath_db::work_orders::find_task_token(&self.pool, &token::storage_hash(raw)).await?
+        else {
+            return Ok(None);
+        };
+        let Some(bot) = slath_db::users::get(&self.pool, t.bot_id).await? else {
+            return Ok(None);
+        };
+        if bot.state != UserState::Active || bot.kind != UserKind::Bot {
+            return Ok(None);
+        }
+        // While a freeze covers the bot, its orders are paused.
+        if self.bot_frozen(bot.id, bot.kind).await? {
+            return Ok(None);
+        }
+        if t.last_used_at
+            .is_none_or(|u| OffsetDateTime::now_utc() - u > time::Duration::minutes(1))
+        {
+            slath_db::work_orders::touch_task_token(&self.pool, t.id).await?;
+        }
+        Ok(Some(TokenAuth {
+            subject: Subject::User {
+                id: bot.id,
+                kind: bot.kind,
+                state: bot.state,
+                is_site_admin: false,
+                credential: Credential::Task {
+                    id: t.id,
+                    order_id: t.order_id,
+                    repo_id: t.repo_id,
+                },
+            },
+            user_id: bot.id,
+            token_id: TokenId::from_uuid(t.id),
         }))
     }
 }

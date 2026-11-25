@@ -161,6 +161,23 @@ The answer holds a task token (`slath_tsk_…`), shown once, that lasts an
 hour or until the order ends. Claim again before then to renew it; that
 revokes the earlier one. Only the order's bot can claim it.
 
+A task token acts with the bot's own role, but only for the order:
+
+- It reads the repository through the API (issues and merge requests
+  included), and nothing in other repositories, public ones included.
+- It comments on the order's issue (or, for a follow-up, its merge
+  request) and on the merge requests it opened.
+- It opens merge requests only from branches under `wo/<number>/`, at
+  most `max_open_mrs` open at a time, and edits only those; it never
+  merges.
+- It reports statuses only on the heads of its merge requests, and those
+  never count for their required checks, since the bot is their author.
+- Anything else, such as repository settings or another issue, is
+  refused. Every write it tries is an event of the order, with the rule
+  that refused it.
+- It stops working when the order ends, when it's renewed, and while a
+  freeze covers the bot.
+
 ## Surfaces for programs
 
 - **The API** (`/api/v1`, described in `GET /api/v1/openapi.json`)

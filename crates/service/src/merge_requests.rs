@@ -434,6 +434,21 @@ impl Services {
     ) -> Result<MergeRequest> {
         let a = self.mrs_access(subject, ns, repo, Action::RepoRead).await?;
         let src = self.mr_source(subject, &a, Some(&m.source_repo)).await?;
+        // A task token opens merge requests only from its order's branches.
+        let a = if src.is_none() {
+            let repo_id = a.repo.id;
+            self.task_clear(
+                subject,
+                a,
+                crate::work_orders::TaskItem::NewMr {
+                    source_repo: repo_id,
+                    branch: m.source_branch.trim(),
+                },
+            )
+            .await?
+        } else {
+            a
+        };
         let action = if src.is_some() {
             Action::MrCreateFork
         } else if m.by_push {
@@ -679,6 +694,10 @@ impl Services {
         let m = slath_db::merge_requests::get(&self.pool, a.repo.id, number)
             .await?
             .ok_or(ServiceError::NotFound)?;
+        // A task token writes only on its order's merge requests.
+        let a = self
+            .task_clear(subject, a, crate::work_orders::TaskItem::Mr(&m))
+            .await?;
         Ok((a, m))
     }
 

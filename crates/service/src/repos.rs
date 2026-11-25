@@ -189,6 +189,7 @@ impl Services {
             state: repo.state,
             role,
             allow_forking: repo.allow_forking,
+            task_actions: &[],
         };
         Ok(RepoAccess { repo, ctx })
     }
@@ -776,7 +777,7 @@ impl Services {
                     Credential::Token {
                         repo_ids: Some(_),
                         ..
-                    }
+                    } | Credential::Task { .. }
                 );
                 (
                     if restricted { None } else { Some(*id) },
@@ -798,6 +799,13 @@ impl Services {
         } = subject
         {
             repos.retain(|r| r.visibility == Visibility::Public || ids.contains(&r.id));
+        }
+        if let Subject::User {
+            credential: Credential::Task { repo_id, .. },
+            ..
+        } = subject
+        {
+            repos.retain(|r| r.id == *repo_id);
         }
         Ok(repos)
     }
@@ -866,6 +874,7 @@ impl Services {
                     repo_ids: Some(ids),
                     ..
                 } => (None, false, Some(ids.clone())),
+                Credential::Task { repo_id, .. } => (None, false, Some(vec![*repo_id])),
                 _ => (Some(*id), *is_site_admin, None),
             },
             _ => (None, false, None),
@@ -889,6 +898,14 @@ impl Services {
             }
             None => slath_db::repos::list_visible(&self.pool, viewer, admin, offset, limit).await?,
         };
+        // Other repositories, public ones too, don't exist for a task token.
+        if let Subject::User {
+            credential: Credential::Task { repo_id, .. },
+            ..
+        } = subject
+        {
+            repos.retain(|r| r.id == *repo_id);
+        }
         repos.retain(|r| r.state != RepoState::Deleting);
         Ok(repos)
     }

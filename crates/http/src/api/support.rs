@@ -112,12 +112,49 @@ pub async fn api_context(State(state): State<AppState>, req: Request, next: Next
         set_limits(res.headers_mut());
         return res;
     }
+    // Every write a task token tries becomes an event of its order.
+    let task_write = matches!(
+        &subject,
+        Subject::User {
+            credential: slath_core::authz::Credential::Task { .. },
+            ..
+        }
+    ) && !matches!(parts.method, Method::GET | Method::HEAD | Method::OPTIONS);
+    let action = task_write.then(|| {
+        let route = parts
+            .extensions
+            .get::<axum::extract::MatchedPath>()
+            .map_or_else(|| parts.uri.path().to_owned(), |m| m.as_str().to_owned());
+        let route = route
+            .strip_prefix("/api/v1/repos/{ns}/{repo}")
+            .unwrap_or(&route)
+            .to_owned();
+        (
+            format!("{} {route}", parts.method),
+            parts.uri.path().to_owned(),
+        )
+    });
     let req = Request::from_parts(parts, body);
-    let mut res = match idempotency_key(req.headers()) {
-        Ok(None) => next.run(req).await,
-        Ok(Some(key)) => with_idempotency(&state, &subject, key, req, next).await,
-        Err(e) => e.into_response(),
+    let policy = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let run = async {
+        match idempotency_key(req.headers()) {
+            Ok(None) => next.run(req).await,
+            Ok(Some(key)) => with_idempotency(&state, &subject, key, req, next).await,
+            Err(e) => e.into_response(),
+        }
     };
+    let mut res = slath_service::work_orders::ORDER_POLICY
+        .scope(policy.clone(), run)
+        .await;
+    if let Some((action, target)) = action {
+        let status = res.status();
+        let noted = policy.lock().ok().and_then(|p| *p);
+        let policy = noted.or((status == StatusCode::FORBIDDEN).then_some("role"));
+        state
+            .services
+            .record_task_request(&subject, &action, status.as_u16() < 400, policy, &target)
+            .await;
+    }
     set_limits(res.headers_mut());
     res
 }

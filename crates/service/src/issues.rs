@@ -183,6 +183,10 @@ impl Services {
         let issue = slath_db::issues::get(&self.pool, a.repo.id, number)
             .await?
             .ok_or(ServiceError::NotFound)?;
+        // A task token writes only on its order's issue.
+        let a = self
+            .task_clear(subject, a, crate::work_orders::TaskItem::Issue(issue.id))
+            .await?;
         Ok((a, issue))
     }
 
@@ -417,13 +421,12 @@ impl Services {
             .filter(|c| c.repo_id == a.repo.id && c.deleted_at.is_none())
             .ok_or(ServiceError::NotFound)?;
         // A comment on an issue or a merge request: that feature must be on.
-        let on_mr = slath_db::merge_requests::get_by_id(
+        let mr = slath_db::merge_requests::get_by_id(
             &self.pool,
             slath_core::ids::MergeRequestId::from_uuid(c.subject_id),
         )
-        .await?
-        .is_some();
-        let enabled = if on_mr {
+        .await?;
+        let enabled = if mr.is_some() {
             slath_db::repos::mr_settings(&self.pool, a.repo.id).await?.0
         } else {
             slath_db::repos::issues_enabled(&self.pool, a.repo.id).await?
@@ -431,6 +434,12 @@ impl Services {
         if !enabled {
             return Err(ServiceError::NotFound);
         }
+        // A task token edits only its comments on its order's items.
+        let item = match &mr {
+            Some(m) => crate::work_orders::TaskItem::Mr(m),
+            None => crate::work_orders::TaskItem::Issue(c.subject_id),
+        };
+        let a = self.task_clear(subject, a, item).await?;
         Ok((a, c))
     }
 

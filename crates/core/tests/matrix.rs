@@ -62,16 +62,22 @@ fn parse_rows(csv: &str) -> Vec<Row> {
             };
             let repo_id = RepoId::new();
             let mut allow_forking = true;
+            // A task token on an item of its own order, or on another one.
+            let task_actions: &'static [Action] = if f[5] == "task" {
+                slath_core::authz::TASK_ACTIONS
+            } else {
+                &[]
+            };
             let credential = match f[5] {
                 "session" => Credential::Session,
                 "session-noforks" => {
                     allow_forking = false;
                     Credential::Session
                 }
-                "task" | "task-other" => Credential::Task {
+                "task" | "task-elsewhere" | "task-other" => Credential::Task {
                     id: uuid::Uuid::now_v7(),
                     order_id: uuid::Uuid::now_v7(),
-                    repo_id: if f[5] == "task" {
+                    repo_id: if f[5] != "task-other" {
                         repo_id
                     } else {
                         RepoId::new()
@@ -124,6 +130,7 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                     state,
                     role,
                     allow_forking,
+                    task_actions,
                 },
                 subject,
                 expect,

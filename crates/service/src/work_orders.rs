@@ -15,10 +15,11 @@
 
 use serde::Deserialize;
 use slath_core::Secret;
-use slath_core::authz::{Action, Credential, Role, Subject, UserKind, UserState};
+use slath_core::authz::{self, Action, Credential, Role, Subject, UserKind, UserState};
 use slath_core::credential::CredentialKind;
 use slath_core::ids::UserId;
 use slath_core::sensitive_paths::invalid_glob;
+use slath_db::merge_requests::MergeRequest;
 use slath_db::work_orders::{Event, NewWorkOrder, WorkOrder};
 use time::OffsetDateTime;
 
@@ -100,6 +101,35 @@ impl OrderView {
     }
 }
 
+/// What a task token acts on, for [`Services::task_scope`].
+#[derive(Debug, Clone, Copy)]
+pub enum TaskItem<'a> {
+    /// An issue, by ID.
+    Issue(uuid::Uuid),
+    Mr(&'a MergeRequest),
+    /// Opening a merge request from `branch` (a short name) of a repository.
+    NewMr {
+        source_repo: slath_core::ids::RepoId,
+        branch: &'a str,
+    },
+    /// Reporting a status on a commit.
+    Commit(&'a str),
+}
+
+tokio::task_local! {
+    /// The rule that refused a task token's request, for its order event.
+    pub static ORDER_POLICY: std::sync::Arc<std::sync::Mutex<Option<&'static str>>>;
+}
+
+/// Notes the rule that refused the current task token request.
+fn note_policy(policy: &'static str) {
+    let _ = ORDER_POLICY.try_with(|p| {
+        if let Ok(mut p) = p.lock() {
+            *p = Some(policy);
+        }
+    });
+}
+
 /// A task token from a claim, shown once.
 #[derive(Debug)]
 pub struct Claim {
@@ -177,6 +207,28 @@ impl Services {
             }
         }
         Ok(out)
+    }
+
+    /// [`Services::create_work_order`] from a JSON body, read only once
+    /// the subject may delegate, so a refused caller learns nothing from
+    /// how its body was judged.
+    pub async fn create_work_order_json(
+        &self,
+        subject: &Subject,
+        (ns, repo): (&str, &str),
+        body: &[u8],
+    ) -> Result<OrderView> {
+        human(subject)?;
+        self.repo_access(subject, ns, repo, Action::WorkOrderCreate)
+            .await?;
+        let o: NewOrder = serde_json::from_slice(body).map_err(|e| {
+            ServiceError::invalid(
+                "body",
+                "invalid",
+                format!("This isn't a valid work order: {e}."),
+            )
+        })?;
+        self.create_work_order(subject, (ns, repo), &o).await
     }
 
     /// Delegates an issue or a merge request to a bot. People with write
@@ -699,6 +751,125 @@ impl Services {
         )
         .await;
         Ok(Claim { token, expires_at })
+    }
+
+    /// For a task token, the writes its order allows on `item`, set on
+    /// `a`; every other subject gets `a` back as it is. An item outside
+    /// the order leaves `a` without them, so the caller's check refuses,
+    /// and notes the deciding rule for the request's order event.
+    pub(crate) async fn task_clear(
+        &self,
+        subject: &Subject,
+        mut a: RepoAccess,
+        item: TaskItem<'_>,
+    ) -> Result<RepoAccess> {
+        let Subject::User {
+            credential: Credential::Task { order_id, .. },
+            ..
+        } = subject
+        else {
+            return Ok(a);
+        };
+        let order = slath_db::work_orders::get_by_id(&self.pool, *order_id)
+            .await?
+            .filter(|o| o.state == "open")
+            .ok_or(ServiceError::Unauthenticated)?;
+        let prefix = format!("refs/heads/{}", branch_prefix(order.number));
+        let own_mr = |m: &MergeRequest| {
+            m.repo_id == order.repo_id
+                && m.source_repo_id == Some(order.repo_id)
+                && m.source_ref.starts_with(prefix.as_bytes())
+        };
+        let cleared: Result<&'static [Action], &'static str> = match item {
+            TaskItem::Issue(id) if order.issue_id == Some(id) => Ok(authz::TASK_ON_TARGET),
+            TaskItem::Issue(_) => Err("order.target"),
+            TaskItem::Mr(m) if own_mr(m) => Ok(authz::TASK_ON_OWN_MR),
+            TaskItem::Mr(m) if order.mr_id == Some(*m.id.as_uuid()) => Ok(authz::TASK_ON_TARGET),
+            TaskItem::Mr(_) => Err("order.target"),
+            TaskItem::NewMr {
+                source_repo,
+                branch,
+            } => {
+                if source_repo != order.repo_id
+                    || !format!("refs/heads/{branch}").starts_with(&prefix)
+                {
+                    Err("order.prefix")
+                } else {
+                    let (open, _) = slath_db::work_orders::order_mr_usage(
+                        &self.pool,
+                        order.repo_id,
+                        prefix.as_bytes(),
+                    )
+                    .await?;
+                    if open >= i64::from(order.max_open_mrs) {
+                        note_policy("order.budget.open_mrs");
+                        return Err(ServiceError::Conflict(format!(
+                            "Work order {} may have at most {} open merge request{}. Close one first.",
+                            order.number,
+                            order.max_open_mrs,
+                            if order.max_open_mrs == 1 { "" } else { "s" }
+                        )));
+                    }
+                    Ok(authz::TASK_NEW_MR)
+                }
+            }
+            TaskItem::Commit(oid) => {
+                if slath_db::work_orders::is_order_head(
+                    &self.pool,
+                    order.repo_id,
+                    prefix.as_bytes(),
+                    oid,
+                )
+                .await?
+                {
+                    Ok(authz::TASK_STATUS)
+                } else {
+                    Err("order.target")
+                }
+            }
+        };
+        match cleared {
+            Ok(actions) => a.ctx.task_actions = actions,
+            Err(policy) => {
+                note_policy(policy);
+                a.ctx.task_actions = &[];
+            }
+        }
+        Ok(a)
+    }
+
+    /// Records what a task token's request did: `action` (such as
+    /// `POST /issues/{number}/comments`), allowed or denied, the rule that
+    /// denied it, and the target (the request's path).
+    pub async fn record_task_request(
+        &self,
+        subject: &Subject,
+        action: &str,
+        allowed: bool,
+        policy: Option<&str>,
+        target: &str,
+    ) {
+        let Subject::User {
+            id,
+            credential: Credential::Task { order_id, .. },
+            ..
+        } = subject
+        else {
+            return;
+        };
+        let action: String = action.chars().take(64).collect();
+        let target: String = target.chars().take(1024).collect();
+        if let Err(e) = slath_db::work_orders::insert_event(
+            &self.pool,
+            *order_id,
+            (&action, if allowed { "allowed" } else { "denied" }, policy),
+            Some(&target),
+            Some(*id),
+        )
+        .await
+        {
+            tracing::error!(error = %e, "recording a work order event failed");
+        }
     }
 
     /// The open order of an issue or merge request, for showing it there.

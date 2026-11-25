@@ -414,3 +414,46 @@ pub async fn touch_task_token(exec: impl PgExecutor<'_>, id: uuid::Uuid) -> Resu
     .await?;
     Ok(())
 }
+
+/// How many merge requests of the repository whose source is a branch
+/// under `prefix` (a full ref name such as `refs/heads/wo/3/`) are open,
+/// and how many revisions all of them have, open or not.
+pub async fn order_mr_usage(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    prefix: &[u8],
+) -> Result<(i64, i64), DbError> {
+    let r = sqlx::query!(
+        r#"SELECT count(*) FILTER (WHERE m.state = 'open') AS "open!",
+                  coalesce(sum((SELECT count(*) FROM mr_revisions r WHERE r.mr_id = m.id)), 0)::bigint
+                    AS "revisions!"
+             FROM merge_requests m
+            WHERE m.repo_id = $1 AND m.source_repo_id = $1 AND position($2::bytea in m.source_ref) = 1"#,
+        repo.as_uuid(),
+        prefix
+    )
+    .fetch_one(exec)
+    .await?;
+    Ok((r.open, r.revisions))
+}
+
+/// Whether `oid` is the head of a revision of a merge request whose
+/// source is a branch under `prefix` in the repository.
+pub async fn is_order_head(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    prefix: &[u8],
+    oid: &str,
+) -> Result<bool, DbError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+             SELECT 1 FROM mr_revisions r JOIN merge_requests m ON m.id = r.mr_id
+              WHERE m.repo_id = $1 AND m.source_repo_id = $1
+                AND position($2::bytea in m.source_ref) = 1 AND r.head_oid = $3) AS "e!""#,
+        repo.as_uuid(),
+        prefix,
+        oid
+    )
+    .fetch_one(exec)
+    .await?)
+}
