@@ -137,7 +137,7 @@ Closes #12.</pre>
 <dl class="contract">
   <dt>Purpose</dt><dd>Every diff, rendered by the same code: each file in its frame, folded files with their reason, changed characters marked (not by color alone), line numbers fixed while long lines scroll, links (or n and p while the diff has focus) to the previous and next change, and links that show the unchanged lines hidden above, between, and below the changes (in place, or the file alone without JavaScript). On merge requests, each file and each change has a viewed toggle. Side by side only where there's room.</dd>
   <dt>Markup</dt><dd><code>repo/diff_files.html</code> with the page's diff view.</dd>
-  <dt>Variants</dt><dd>Unified; side by side (wide screens); folded; binary; renamed; with threads; with hidden lines shown; a text such as a change's description compared across versions (<code>pre.commit-body.description-diff</code>, a <code>span</code> per line, <code>diff-del</code> and <code>diff-add</code> with a hidden marker and "Removed:" or "Added:").</dd>
+  <dt>Variants</dt><dd>Unified; side by side (wide screens); folded; binary; renamed; with threads; with hidden lines shown; a text such as a change's description compared across versions (<code>pre.commit-body.description-diff</code>, a <code>span</code> per line, <code>diff-del</code> and <code>diff-add</code>, each line starting with a fixed-width <code>span.description-marker</code> (−, +, or empty, hidden from screen readers) and "Removed:" or "Added:" as hidden text).</dd>
   <dt>Accessibility</dt><dd>A real table with line numbers as row headers, added and removed lines announced as words, and a "skip to the next file" link per file.</dd>
   <dt>Not for</dt><dd>Code without a change (a code view).</dd>
 </dl>
@@ -146,7 +146,7 @@ Closes #12.</pre>
 {% include "repo/diff_files.html" %}
 {%- endcall %}
 {%- call cat::example("A description compared across two versions.") %}
-<pre class="commit-body description-diff"><span class="diff-del"><span aria-hidden="true">− </span><span class="visually-hidden">Removed: </span>Add notes</span><span class="diff-add"><span aria-hidden="true">+ </span><span class="visually-hidden">Added: </span>Add notes, reworded</span><span><span aria-hidden="true">  </span></span><span><span aria-hidden="true">  </span>Kept as it is.</span></pre>
+<pre class="commit-body description-diff"><span class="diff-del"><span class="description-marker" aria-hidden="true">−</span><span class="visually-hidden">Removed: </span>Add notes</span><span class="diff-add"><span class="description-marker" aria-hidden="true">+</span><span class="visually-hidden">Added: </span>Add notes, reworded</span><span><span class="description-marker" aria-hidden="true"></span></span><span><span class="description-marker" aria-hidden="true"></span>Kept as it is.</span></pre>
 {%- endcall %}
 {%- endcall %}
 

@@ -1087,6 +1087,14 @@ main > .repo-context {
   min-height: 1.5em;
   padding-inline: var(--space-1);
 }
+/* The same width on every line, empty on unchanged ones, so all lines'
+   text starts at one position whatever the font. */
+.description-marker {
+  display: inline-block;
+  inline-size: 1em;
+  margin-inline-end: var(--space-2);
+  text-align: center;
+}
 .file-actions a {
   display: inline-flex;
   min-height: var(--target-min);

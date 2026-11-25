@@ -946,7 +946,7 @@ fn conf_agent_15_descriptions_compare_between_versions() {
         "<span class=\"visually-hidden\">Added: </span>Add a, carefully</span>",
         "<span class=\"visually-hidden\">Removed: </span>Old body</span>",
         "<span class=\"visually-hidden\">Added: </span>A new line</span>",
-        "<span aria-hidden=\"true\">  </span>Keep this</span>",
+        "<span class=\"description-marker\" aria-hidden=\"true\"></span>Keep this</span>",
     ] {
         assert!(reworded.contains(line), "{line}\n{reworded}");
     }
