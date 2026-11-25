@@ -17,7 +17,9 @@ slath admin apply seed.toml --output json
 
 Applying is **idempotent**: whatever already exists is left as it is, and
 only what's missing is created, so running the same file again reports
-`0 changes`. Nothing is ever deleted or renamed. If an entry can't be
+`0 changes`. The one exception is a bot's `work_orders_only`: when the
+file sets it, an existing bot is changed to match. Nothing is ever
+deleted or renamed. If an entry can't be
 applied, `apply` stops with an error; what it applied before that stays,
 and running it again after fixing the file picks up from there.
 

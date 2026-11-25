@@ -44,7 +44,13 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" http://127.0.0.1:3080/api/v1/user
 
 To add accounts, bots, or repositories, edit `seed.toml` (the format is in
 [Setting up an instance from a file](../admin/bootstrap.md)) and run
-`docker compose up -d` again; nothing that exists is changed. The ports
+`docker compose up -d` again; nothing that exists is changed.
+
+The sandbox's bot pushes and writes with its own token, so the commands
+above work as they are. To try the stricter setup where it writes only
+through [work orders](#work-orders-delegating-one-task), add
+`work_orders_only = true` to its `[[bots]]` entry in `seed.toml`, give its
+token the `work_orders:claim` scope, and run `docker compose up -d` again. The ports
 can be changed with `SANDBOX_HTTP_PORT` and `SANDBOX_SSH_PORT`.
 `docker compose down -v` and deleting `secrets/*` start over.
 
