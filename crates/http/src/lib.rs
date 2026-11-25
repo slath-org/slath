@@ -112,6 +112,10 @@ pub fn router(state: AppState) -> axum::Router {
             state.clone(),
             middleware::maintenance_guard,
         ))
+        .layer(from_fn_with_state(
+            state.clone(),
+            api::content_trust::content_trust,
+        ))
         .layer(from_fn_with_state(state.clone(), api::support::api_context))
         .layer(from_fn_with_state(state.clone(), middleware::render_errors))
         .layer(DefaultBodyLimit::max(body_limit));

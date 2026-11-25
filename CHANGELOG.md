@@ -30,6 +30,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Work orders reach agents by the `work_order` webhook event, the pull API, and MCP read tools; an order's merge requests show their order in the iteration endpoint.
 - A work order's or merge request's state comes in one read (API and MCP): goal, change versions, checks, verdicts, open threads, and blockers, each linked to its record.
 - Issues and merge requests have Delegate to a bot for writers; a work order's page shows its limits, merge requests, and events, and can stop it.
+- A work order's task token reads only text from members (or, if chosen, writers or everyone); other text reaches it as a placeholder, on the API and MCP.
+- A work order's target and a finding's thread now say who wrote them (`origin`, `reporter`).
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.

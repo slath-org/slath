@@ -20,23 +20,33 @@ use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 use slath_service::work_orders::OrderView;
 
-/// What an order is for.
-#[derive(Serialize, Deserialize, ToSchema)]
+/// What a new order is for.
+#[derive(Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OrderTarget {
     /// The number of the issue, or of the merge request for a follow-up.
     pub issue: Option<i32>,
     pub merge_request: Option<i32>,
-    /// Its title (in responses).
-    #[serde(default, skip_deserializing)]
-    pub title: Option<String>,
+}
+
+/// What an order is for, with the target's title.
+#[derive(Serialize, ToSchema)]
+pub struct OrderTargetBody {
+    /// The number of the issue, or of the merge request for a follow-up.
+    pub issue: Option<i32>,
+    pub merge_request: Option<i32>,
+    pub title: String,
+    /// Always `true`: the title is user-generated.
+    pub untrusted_content: bool,
+    /// Who wrote the title.
+    pub origin: super::TextOrigin,
 }
 
 /// A work order.
 #[derive(Serialize, ToSchema)]
 pub struct OrderBody {
     pub number: i32,
-    pub target: OrderTarget,
+    pub target: OrderTargetBody,
     /// The bot doing the work, and who delegated it.
     pub bot: String,
     pub creator: Option<String>,
@@ -82,10 +92,12 @@ impl From<OrderView> for OrderBody {
         let issue = o.issue_id.is_some().then_some(v.target_number);
         Self {
             number: o.number,
-            target: OrderTarget {
+            target: OrderTargetBody {
                 merge_request: issue.is_none().then_some(v.target_number),
                 issue,
-                title: Some(v.target_title),
+                title: v.target_title,
+                untrusted_content: true,
+                origin: v.target_origin.into(),
             },
             bot: v.bot,
             creator: v.creator,

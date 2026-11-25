@@ -15679,7 +15679,7 @@
             "description": "`open` or `ended`."
           },
           "target": {
-            "$ref": "#/components/schemas/OrderTarget"
+            "$ref": "#/components/schemas/OrderTargetBody"
           },
           "untrusted_content": {
             "type": "boolean",
@@ -15709,7 +15709,7 @@
       },
       "OrderTarget": {
         "type": "object",
-        "description": "What an order is for.",
+        "description": "What a new order is for.",
         "properties": {
           "issue": {
             "type": [
@@ -15728,6 +15728,43 @@
           }
         },
         "additionalProperties": false
+      },
+      "OrderTargetBody": {
+        "type": "object",
+        "description": "What an order is for, with the target's title.",
+        "required": [
+          "title",
+          "untrusted_content",
+          "origin"
+        ],
+        "properties": {
+          "issue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The number of the issue, or of the merge request for a follow-up."
+          },
+          "merge_request": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin",
+            "description": "Who wrote the title."
+          },
+          "title": {
+            "type": "string"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "Always `true`: the title is user-generated."
+          }
+        }
       },
       "Org": {
         "type": "object",
@@ -17055,6 +17092,13 @@
           "origin": {
             "$ref": "#/components/schemas/TextOrigin",
             "description": "Who wrote it."
+          },
+          "reporter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who reported the status (a user or bot); `null` once that account\nis gone."
           },
           "severity": {
             "type": "string",

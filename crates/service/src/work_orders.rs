@@ -16,9 +16,10 @@
 use serde::Deserialize;
 use slath_core::Secret;
 use slath_core::authz::{self, Action, Credential, Role, Subject, UserKind, UserState};
+use slath_core::content_trust::Filter;
 use slath_core::credential::CredentialKind;
 use slath_core::ids::UserId;
-use slath_core::origin::ContentTrust;
+use slath_core::origin::{ContentTrust, Origin};
 use slath_core::sensitive_paths::invalid_glob;
 use slath_db::merge_requests::MergeRequest;
 use slath_db::work_orders::{Event, NewWorkOrder, WorkOrder};
@@ -91,6 +92,8 @@ pub struct OrderView {
     /// The target's number and title.
     pub target_number: i32,
     pub target_title: String,
+    /// Who wrote the target's title.
+    pub target_origin: Origin,
     pub bot: String,
     pub creator: Option<String>,
     pub reviewers: Vec<String>,
@@ -491,6 +494,47 @@ impl Services {
         self.order_view(&a, order).await
     }
 
+    /// What the subject may read under its work order's content trust:
+    /// `None` unless it's a task token whose order withholds something.
+    /// An order that can't be found withholds everything below writers.
+    pub async fn content_trust_filter(&self, subject: &Subject) -> Result<Option<Filter>> {
+        let Subject::User {
+            credential: Credential::Task { order_id, .. },
+            ..
+        } = subject
+        else {
+            return Ok(None);
+        };
+        let Some(order) = slath_db::work_orders::get_by_id(&self.pool, *order_id).await? else {
+            return Ok(Some(Filter {
+                level: ContentTrust::Writers,
+                ..Filter::default()
+            }));
+        };
+        let level = ContentTrust::parse(&order.content_trust).unwrap_or(ContentTrust::Writers);
+        if level == ContentTrust::All {
+            return Ok(None);
+        }
+        let repo = slath_db::repos::get(&self.pool, order.repo_id)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
+        let mut bots = std::collections::HashMap::new();
+        for name in slath_db::bots::names_with_access(&self.pool, repo.id).await? {
+            if let Some(u) = slath_db::users::get_by_name(&self.pool, &name).await? {
+                let s = crate::notifications::user_subject(u.id, &u);
+                let role = self.effective_role(&s, &repo).await?;
+                bots.insert(name, Origin::of_bot(role));
+            }
+        }
+        Ok(Some(Filter {
+            level,
+            namespace: repo.namespace.clone(),
+            repo: repo.name.clone(),
+            bots,
+            withheld_mrs: std::collections::BTreeMap::new(),
+        }))
+    }
+
     /// The view of `order`, with names resolved.
     pub(crate) async fn order_view(&self, a: &RepoAccess, order: WorkOrder) -> Result<OrderView> {
         let name = |id: Option<UserId>| async move {
@@ -499,19 +543,18 @@ impl Services {
                 None => None,
             })
         };
-        let (target_number, target_title) = match (order.issue_id, order.mr_id) {
+        let gone = || (0, String::new(), Origin::Anonymous);
+        let (target_number, target_title, target_origin) = match (order.issue_id, order.mr_id) {
             (Some(i), _) => slath_db::issues::get_by_id(&self.pool, i)
                 .await?
-                .map(|i| (i.number, i.title))
-                .unwrap_or_default(),
+                .map_or_else(gone, |i| (i.number, i.title, i.origin)),
             (_, Some(m)) => slath_db::merge_requests::get_by_id(
                 &self.pool,
                 slath_core::ids::MergeRequestId::from_uuid(m),
             )
             .await?
-            .map(|m| (m.number, m.title))
-            .unwrap_or_default(),
-            _ => (0, String::new()),
+            .map_or_else(gone, |m| (m.number, m.title, m.origin)),
+            _ => gone(),
         };
         let mut reviewers = Vec::new();
         for id in &order.reviewer_ids {
@@ -524,6 +567,7 @@ impl Services {
             repo: a.repo.name.clone(),
             target_number,
             target_title,
+            target_origin,
             bot: name(Some(order.bot_id)).await?.unwrap_or_default(),
             creator: name(order.creator_id).await?,
             ended_by: name(order.ended_by).await?,

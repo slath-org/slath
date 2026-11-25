@@ -415,7 +415,12 @@ pub(crate) async fn run(
         req.headers_mut()
             .insert(header::AUTHORIZATION, auth.clone());
     }
+    // Content trust applies to the operation's own response, as in the API.
     let api = super::router()
+        .layer(from_fn_with_state(
+            state.clone(),
+            super::content_trust::content_trust,
+        ))
         .layer(from_fn_with_state(
             state.clone(),
             crate::middleware::render_errors,

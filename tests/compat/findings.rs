@@ -377,13 +377,13 @@ fn conf_agent_02_findings_land_only_on_the_matching_revision() {
     assert_eq!(f[0]["position"]["state"], "current");
     assert_eq!(
         f[0]["finding"],
-        json!({"context": "lint", "severity": "warning", "category": "other",
+        json!({"context": "lint", "severity": "warning", "category": "other", "reporter": "lint",
                "untrusted_content": true, "origin": "bot"})
     );
     assert_eq!(message(&f[0]), "Unused variable");
     assert_eq!(
         f[1]["finding"],
-        json!({"context": "lint", "severity": "failure", "category": "security",
+        json!({"context": "lint", "severity": "failure", "category": "security", "reporter": "lint",
                "untrusted_content": true, "origin": "bot"})
     );
     assert_eq!(

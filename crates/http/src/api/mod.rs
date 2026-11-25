@@ -8,6 +8,7 @@
 pub mod bot_freeze;
 pub mod bots;
 pub mod change_briefs;
+pub mod content_trust;
 pub mod context_records;
 pub mod issues;
 pub mod labels;

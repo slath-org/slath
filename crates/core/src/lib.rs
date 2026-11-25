@@ -10,6 +10,7 @@ pub mod authz;
 pub mod change_identity;
 pub mod change_source;
 pub mod config;
+pub mod content_trust;
 pub mod context_record;
 pub mod credential;
 pub mod entire_import;

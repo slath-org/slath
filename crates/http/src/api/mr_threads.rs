@@ -100,6 +100,9 @@ pub struct ThreadFinding {
     pub untrusted_content: bool,
     /// Who wrote it.
     pub origin: super::TextOrigin,
+    /// Who reported the status (a user or bot); `null` once that account
+    /// is gone.
+    pub reporter: Option<String>,
     /// The status context that reported it.
     pub context: String,
     /// `notice`, `warning`, or `failure`.
@@ -155,6 +158,7 @@ impl From<ThreadView> for ThreadBody {
             .comments
             .first()
             .map_or(slath_core::origin::Origin::Anonymous, |c| c.origin);
+        let reporter = t.author.clone();
         Self {
             id: t.id.to_string(),
             revision: t.revision_seq,
@@ -186,6 +190,7 @@ impl From<ThreadView> for ThreadBody {
             finding: t.finding.map(|f| ThreadFinding {
                 untrusted_content: true,
                 origin: finding_origin.into(),
+                reporter,
                 context: f.context,
                 severity: f.severity,
                 category: f.category,

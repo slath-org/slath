@@ -393,7 +393,7 @@ fn conf_agent_13_bots_claim_their_orders_with_a_credential_that_reads_nothing_el
 /// `topic`; issue #1 delegated to `claimer` (claim scope only, write
 /// role) and claimed. Returns the claim token, the task token, the Git
 /// client, and the working copy.
-type Claimed = (
+pub type Claimed = (
     String,
     String,
     slath_tests::server::GitClient,
@@ -405,7 +405,7 @@ fn claimed(w: &World) -> Claimed {
 }
 
 /// [`claimed`], with `extra` fields for the order.
-fn claimed_with(w: &World, extra: Value) -> Claimed {
+pub fn claimed_with(w: &World, extra: Value) -> Claimed {
     let claimer = bot(&w.s, "alice", "claimer", "work_orders:claim");
     let r = w.api(
         &w.alice,

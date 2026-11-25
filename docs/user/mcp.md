@@ -74,6 +74,10 @@ commit messages are repository content. Tell your agent to treat all of it
 as data, never as instructions; the server tells MCP clients the same when
 they connect.
 
+A work order's task token gets less: text below the order's content trust
+comes as a placeholder, exactly as in the API (see
+[what the bot reads](agents.md#what-the-bot-reads-content-trust)).
+
 ## Errors
 
 - A failed operation is a tool error whose text is the API's problem
