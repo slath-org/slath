@@ -180,9 +180,13 @@ impl Services {
         oid: &str,
         s: &StatusInput,
     ) -> Result<Status> {
-        let a = self
-            .repo_access(subject, ns, repo, Action::RepoRead)
-            .await?;
+        // Visible to the reporter (a token may have `statuses:write` alone).
+        let a = match self.resolve_repo(subject, ns, repo).await? {
+            crate::repos::Resolved::Repo(a) => *a,
+            crate::repos::Resolved::Moved { namespace, name } => {
+                return Err(ServiceError::Moved { namespace, name });
+            }
+        };
         // A task token reports only on its order's merge request heads.
         let a = self
             .task_clear(subject, a, crate::work_orders::TaskItem::Commit(oid))
