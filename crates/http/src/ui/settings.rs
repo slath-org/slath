@@ -688,6 +688,8 @@ fn scope_choices(is_admin: bool, chosen: &[String]) -> Vec<(&'static str, &'stat
     slath_core::authz::Scope::ALL
         .iter()
         .filter(|s| is_admin || **s != slath_core::authz::Scope::Admin)
+        // Only bots claim work orders.
+        .filter(|s| **s != slath_core::authz::Scope::WorkOrdersClaim)
         .map(|s| {
             (
                 s.as_str(),

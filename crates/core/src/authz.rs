@@ -82,6 +82,10 @@ pub enum Scope {
     UserWrite,
     #[serde(rename = "admin")]
     Admin,
+    /// A bot's standing credential for claiming its work orders: lists and
+    /// reads the orders assigned to it and exchanges them for task tokens.
+    #[serde(rename = "work_orders:claim")]
+    WorkOrdersClaim,
 }
 
 /// Error for an unknown scope string.
@@ -99,6 +103,7 @@ impl Scope {
         Self::UserRead,
         Self::UserWrite,
         Self::Admin,
+        Self::WorkOrdersClaim,
     ];
 
     #[must_use]
@@ -112,6 +117,7 @@ impl Scope {
             Self::UserRead => "user:read",
             Self::UserWrite => "user:write",
             Self::Admin => "admin",
+            Self::WorkOrdersClaim => "work_orders:claim",
         }
     }
 
@@ -127,6 +133,7 @@ impl Scope {
             Self::UserRead => "Read your profile, keys, and tokens",
             Self::UserWrite => "Change your profile and SSH keys",
             Self::Admin => "Site administration (site administrators only)",
+            Self::WorkOrdersClaim => "Claim work orders assigned to this bot (bots only)",
         }
     }
 
@@ -173,7 +180,38 @@ pub enum Credential {
         /// `None` means all repositories the user can access.
         repo_ids: Option<Vec<crate::ids::RepoId>>,
     },
+    /// A work order's task token: the bot's own role, narrowed to the
+    /// order's repository and to [`TASK_ACTIONS`]. Which branch, issue, or
+    /// merge request an action may touch is checked by the service.
+    Task {
+        id: uuid::Uuid,
+        order_id: uuid::Uuid,
+        repo_id: crate::ids::RepoId,
+    },
 }
+
+/// What a task token may do at all, within its order's repository.
+pub const TASK_ACTIONS: &[Action] = &[
+    Action::RepoRead,
+    Action::RepoPush,
+    Action::MrCreate,
+    Action::MrCreateByPush,
+    Action::MrEditOwn,
+    Action::MrComment,
+    Action::CommentCreate,
+    Action::CommentEditOwn,
+    Action::StatusWrite,
+];
+
+/// The scopes a task token counts as having (for checks outside
+/// repositories, such as which API routes it reaches).
+const TASK_SCOPES: &[Scope] = &[
+    Scope::RepoRead,
+    Scope::RepoWrite,
+    Scope::IssuesWrite,
+    Scope::MrsWrite,
+    Scope::StatusesWrite,
+];
 
 /// The authenticated principal of a request.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,6 +246,10 @@ impl Subject {
                 credential: Credential::Token { scopes, .. },
                 ..
             } => scopes.iter().any(|s| s.implies(scope)),
+            Self::User {
+                credential: Credential::Task { .. },
+                ..
+            } => TASK_SCOPES.contains(&scope),
             _ => true,
         }
     }
@@ -264,6 +306,12 @@ pub enum Action {
     RepoDelete,
     RepoTransfer,
     RepoVisibility,
+    /// Delegating an issue or a merge request to a bot.
+    WorkOrderCreate,
+    /// Ending a work order before its time.
+    WorkOrderStop,
+    /// A bot exchanging its claim credential for an order's task token.
+    WorkOrderClaim,
 }
 
 impl Action {
@@ -309,6 +357,9 @@ impl Action {
         Self::RepoDelete,
         Self::RepoTransfer,
         Self::RepoVisibility,
+        Self::WorkOrderCreate,
+        Self::WorkOrderStop,
+        Self::WorkOrderClaim,
     ];
 
     #[must_use]
@@ -355,6 +406,9 @@ impl Action {
             Self::RepoDelete => "repo.delete",
             Self::RepoTransfer => "repo.transfer",
             Self::RepoVisibility => "repo.visibility",
+            Self::WorkOrderCreate => "work_order.create",
+            Self::WorkOrderStop => "work_order.stop",
+            Self::WorkOrderClaim => "work_order.claim",
         }
     }
 }
@@ -460,7 +514,8 @@ impl Action {
             | A::MrComment
             | A::MrReview
             | A::MrSuggest
-            | A::MrEditOwn => Needs::SignedIn,
+            | A::MrEditOwn
+            | A::WorkOrderClaim => Needs::SignedIn,
             A::RepoPush
             | A::RepoPushProtected
             | A::RepoPushMaintainerEdit
@@ -476,7 +531,9 @@ impl Action {
             | A::StatusWrite
             | A::CiApproveExternalRun
             | A::CiRerun
-            | A::CiCancel => Needs::Role(Role::Write),
+            | A::CiCancel
+            | A::WorkOrderCreate
+            | A::WorkOrderStop => Needs::Role(Role::Write),
             A::TagMoveOrDelete | A::CommentModerate | A::LabelsManage | A::MilestonesManage => {
                 Needs::Role(Role::Maintain)
             }
@@ -520,6 +577,7 @@ impl Action {
             | A::MrUpdateBranch
             | A::MrApplySuggestion => Scope::MrsWrite,
             A::StatusWrite => Scope::StatusesWrite,
+            A::WorkOrderClaim => Scope::WorkOrdersClaim,
             _ => Scope::RepoWrite,
         }
     }
@@ -596,6 +654,16 @@ pub fn check(subject: &Subject, action: Action, res: &ResourceCtx) -> Decision {
                     } else {
                         (res.role, true, Some(scopes.as_slice()))
                     }
+                }
+                Credential::Task { repo_id, .. } => {
+                    if *repo_id != res.repo_id {
+                        // Other repositories don't exist for it.
+                        return HIDDEN;
+                    }
+                    if !TASK_ACTIONS.contains(&action) {
+                        return Decision::Deny { visible: true };
+                    }
+                    (res.role, true, None)
                 }
             }
         }

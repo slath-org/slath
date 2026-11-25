@@ -520,6 +520,9 @@ impl Services {
                 .trim()
                 .parse()
                 .map_err(|_| invalid("tokens", format!("Unknown scope {raw:?}.")))?;
+            if s == Scope::WorkOrdersClaim {
+                return Err(invalid("tokens", "Only bot tokens can claim work orders."));
+            }
             if s == Scope::Admin && !is_admin {
                 return Err(invalid(
                     "tokens",

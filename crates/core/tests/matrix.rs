@@ -68,6 +68,15 @@ fn parse_rows(csv: &str) -> Vec<Row> {
                     allow_forking = false;
                     Credential::Session
                 }
+                "task" | "task-other" => Credential::Task {
+                    id: uuid::Uuid::now_v7(),
+                    order_id: uuid::Uuid::now_v7(),
+                    repo_id: if f[5] == "task" {
+                        repo_id
+                    } else {
+                        RepoId::new()
+                    },
+                },
                 c => {
                     let (kind, scope) = c
                         .split_once(':')

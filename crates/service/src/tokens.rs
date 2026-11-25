@@ -91,6 +91,13 @@ impl Services {
                 "Choose at least one scope.",
             ));
         }
+        if scopes.contains(&Scope::WorkOrdersClaim) {
+            errors.push(FieldError::new(
+                "scopes",
+                "bots_only",
+                "Only bot tokens can claim work orders.",
+            ));
+        }
         if scopes.contains(&Scope::Admin) && !session.row.is_admin {
             errors.push(FieldError::new(
                 "scopes",
@@ -296,6 +303,8 @@ pub fn user_with_scope(subject: &Subject, scope: Scope) -> Result<UserId> {
             Credential::SshKey { .. } => Err(ServiceError::Forbidden),
             Credential::Token { scopes, .. } if scopes.iter().any(|s| s.implies(scope)) => Ok(*id),
             Credential::Token { .. } => Err(ServiceError::Forbidden),
+            // A task token acts only within its work order.
+            Credential::Task { .. } => Err(ServiceError::Forbidden),
         },
         Subject::User { .. } | Subject::Anonymous => Err(ServiceError::Unauthenticated),
         // A deploy key belongs to a repository, not to an account.

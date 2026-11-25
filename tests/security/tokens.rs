@@ -141,6 +141,29 @@ fn conf_rbac_02_admin_scope_is_for_site_admins_only() {
 }
 
 #[test]
+fn conf_agent_13_people_get_no_work_order_claim_tokens() {
+    let s = TestServer::start_with(&[]);
+    s.create_user("alice", PW, false);
+    let mut a = s.login("alice", PW);
+    // The form doesn't offer the scope, and a posted one is refused.
+    let form = a.get("/-/settings/tokens");
+    assert!(!form.body.contains("work_orders:claim"), "{}", form.body);
+    let r = submit(
+        &mut a,
+        "/-/settings/tokens",
+        "/-/settings/tokens",
+        &[("name", "x"), ("expires", "30"), ("scopes", "work_orders:claim")],
+    );
+    assert_eq!(r.status, 422);
+    assert!(
+        r.body.contains("Only bot tokens can claim work orders."),
+        "{}",
+        r.body
+    );
+    assert!(!r.body.contains("value=\"slath_pat_"));
+}
+
+#[test]
 fn conf_auth_05_creating_tokens_needs_sudo() {
     let s = TestServer::start_with(&[]);
     s.create_user("alice", PW, false);
