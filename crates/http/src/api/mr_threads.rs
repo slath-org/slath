@@ -73,6 +73,24 @@ pub struct ThreadBody {
     /// comment is the reporter's plain-text message. Findings stay on
     /// their revision and never count as verdicts or requirements.
     pub finding: Option<ThreadFinding>,
+    /// Set for a thread on a field of a change's brief (no path then).
+    pub brief: Option<ThreadBrief>,
+}
+
+/// The brief field a thread is on.
+#[derive(Serialize, ToSchema)]
+pub struct ThreadBrief {
+    /// The brief's edit (see `…/changes/{change}/briefs`).
+    pub id: String,
+    /// The change's display ID, and the number of its version.
+    pub change: String,
+    pub version: Option<usize>,
+    /// `intent`, `approach`, `verification`, or `gaps`.
+    pub field: String,
+    /// The edit is still the brief of the change's latest version; once a
+    /// newer edit or version replaces it, the thread is on an earlier
+    /// brief.
+    pub current: bool,
 }
 
 /// What a finding thread came from.
@@ -123,6 +141,13 @@ impl From<ThreadView> for ThreadBody {
                 from_revision: from,
             },
         };
+        let brief = v.brief.map(|b| ThreadBrief {
+            id: b.brief_id.to_string(),
+            change: b.change,
+            version: b.version,
+            field: b.field,
+            current: b.current,
+        });
         let t = v.thread;
         // A finding's text comes from its status; its first comment has
         // the reporter's origin.
@@ -157,6 +182,7 @@ impl From<ThreadView> for ThreadBody {
                 })
                 .collect(),
             created_at: ts(t.created_at),
+            brief,
             finding: t.finding.map(|f| ThreadFinding {
                 untrusted_content: true,
                 origin: finding_origin.into(),
@@ -215,10 +241,22 @@ pub struct NewThreadBody {
     /// Keep it in your pending review until you submit it.
     #[serde(default)]
     pub pending: bool,
+    /// A field of a change brief's edit, in place of a path.
+    pub brief: Option<NewThreadBrief>,
 }
 
-/// Starts a thread on lines of a revision's diff, or on the whole merge
-/// request.
+/// The brief field a new thread is on.
+#[derive(Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NewThreadBrief {
+    /// The brief's edit.
+    pub id: uuid::Uuid,
+    /// `intent`, `approach`, `verification`, or `gaps`.
+    pub field: String,
+}
+
+/// Starts a thread on lines of a revision's diff, on a field of a change's
+/// brief, or on the whole merge request.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/threads", tag = "merge requests", security(("token" = ["mrs:write"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)), request_body = NewThreadBody,
     responses((status = 201, body = ThreadBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_thread(
@@ -241,6 +279,7 @@ pub async fn create_thread(
                 revision: b.revision,
                 commit: b.commit,
                 pending: b.pending,
+                brief: b.brief.map(|x| (x.id, x.field)),
             },
         )
         .await?;

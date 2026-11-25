@@ -8225,7 +8225,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Starts a thread on lines of a revision's diff, or on the whole merge\nrequest.",
+        "summary": "Starts a thread on lines of a revision's diff, on a field of a change's\nbrief, or on the whole merge request.",
         "operationId": "create_thread",
         "parameters": [
           {
@@ -14384,6 +14384,17 @@
           "body": {
             "type": "string"
           },
+          "brief": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NewThreadBrief",
+                "description": "A field of a change brief's edit, in place of a path."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "commit": {
             "type": [
               "string",
@@ -14432,6 +14443,26 @@
             "description": "`old` or `new` (default)."
           }
         }
+      },
+      "NewThreadBrief": {
+        "type": "object",
+        "description": "The brief field a new thread is on.",
+        "required": [
+          "id",
+          "field"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "`intent`, `approach`, `verification`, or `gaps`."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The brief's edit."
+          }
+        },
+        "additionalProperties": false
       },
       "NotificationJson": {
         "type": "object",
@@ -15645,6 +15676,17 @@
               "null"
             ]
           },
+          "brief": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThreadBrief",
+                "description": "Set for a thread on a field of a change's brief (no path then)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "comments": {
             "type": "array",
             "items": {
@@ -15710,6 +15752,41 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ThreadBrief": {
+        "type": "object",
+        "description": "The brief field a thread is on.",
+        "required": [
+          "id",
+          "change",
+          "field",
+          "current"
+        ],
+        "properties": {
+          "change": {
+            "type": "string",
+            "description": "The change's display ID, and the number of its version."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The edit is still the brief of the change's latest version; once a\nnewer edit or version replaces it, the thread is on an earlier\nbrief."
+          },
+          "field": {
+            "type": "string",
+            "description": "`intent`, `approach`, `verification`, or `gaps`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The brief's edit (see `…/changes/{change}/briefs`)."
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
           }
         }
       },

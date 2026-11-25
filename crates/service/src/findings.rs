@@ -99,6 +99,7 @@ impl Services {
                             line_end: Some(a.line_end),
                             line_hash: Some(hash_lines(&p.lines)),
                             context: p.context.clone(),
+                            ..Anchor::default()
                         };
                         let thread = slath_db::mr_threads::insert_thread(
                             &mut *tx, t.mr, t.seq, &anchor, r.reporter,

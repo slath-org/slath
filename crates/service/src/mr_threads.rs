@@ -34,6 +34,32 @@ pub struct NewThread {
     pub commit: Option<String>,
     /// Part of the author's pending review.
     pub pending: bool,
+    /// A field of a change brief's edit (its ID and `intent`, `approach`,
+    /// `verification`, or `gaps`), in place of a path and lines.
+    pub brief: Option<(uuid::Uuid, String)>,
+}
+
+/// A thread on a brief, as the change's page lists it.
+#[derive(Debug, Clone)]
+pub struct BriefThread {
+    pub id: uuid::Uuid,
+    pub field: String,
+    pub author: Option<String>,
+    pub comments: usize,
+    pub resolved: bool,
+}
+
+/// Where a thread on a brief is: the change, the version, and the field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BriefPlace {
+    pub brief_id: uuid::Uuid,
+    /// The change's display ID.
+    pub change: String,
+    /// The number of the change's first version with the brief's commit.
+    pub version: Option<usize>,
+    pub field: String,
+    /// The edit is still the brief of the change's latest version.
+    pub current: bool,
 }
 
 /// Where a thread shows in the current revision.
@@ -61,6 +87,8 @@ pub struct ThreadView {
     pub thread: Thread,
     pub comments: Vec<ThreadComment>,
     pub position: Position,
+    /// For a thread on a brief, where it is.
+    pub brief: Option<BriefPlace>,
 }
 
 pub(crate) fn hash_lines(lines: &[Vec<u8>]) -> String {
@@ -140,9 +168,17 @@ impl Services {
                 "Choose an existing revision.",
             ));
         }
-        let anchor = match &t.path {
-            None => Anchor::default(),
-            Some(path) => self.anchor(&m, seq, t, path).await?,
+        let anchor = match (&t.path, &t.brief) {
+            (Some(_), Some(_)) => {
+                return Err(ServiceError::invalid(
+                    "brief",
+                    "invalid",
+                    "Put a thread on a file or on a brief, not both.",
+                ));
+            }
+            (None, None) => Anchor::default(),
+            (Some(path), None) => self.anchor(&m, seq, t, path).await?,
+            (None, Some((id, field))) => self.brief_anchor(&m, *id, field).await?,
         };
         let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
@@ -256,7 +292,122 @@ impl Services {
             line_end: Some(end),
             line_hash: Some(hash_lines(&lines)),
             context: serde_json::json!({"before": text(&before), "lines": text(&lines), "after": text(&after)}),
+            ..Anchor::default()
         })
+    }
+
+    /// The anchor on a field of brief edit `id` of `m`, with the field's
+    /// text as the anchored lines.
+    async fn brief_anchor(&self, m: &MergeRequest, id: uuid::Uuid, field: &str) -> Result<Anchor> {
+        let b = slath_db::change_briefs::get(&self.pool, id)
+            .await?
+            .filter(|b| b.mr_id == m.id)
+            .ok_or_else(|| {
+                ServiceError::invalid("brief", "invalid", "Choose a brief of this merge request.")
+            })?;
+        let text = match field {
+            "intent" => Some(b.intent.as_str()),
+            "approach" => b.approach.as_deref(),
+            "verification" => b.verification.as_deref(),
+            "gaps" => b.gaps.as_deref(),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            ServiceError::invalid(
+                "brief",
+                "invalid",
+                "Choose a field the brief has: intent, approach, verification, or gaps.",
+            )
+        })?;
+        let lines: Vec<Vec<u8>> = text.lines().map(|l| l.as_bytes().to_vec()).collect();
+        Ok(Anchor {
+            line_hash: Some(hash_lines(&lines)),
+            context: serde_json::json!({"lines": text.lines().collect::<Vec<_>>()}),
+            brief_id: Some(b.id),
+            brief_field: Some(field.to_owned()),
+            ..Anchor::default()
+        })
+    }
+
+    /// Where each brief of `m` is: its edit's change, version, and whether
+    /// it's still the brief of the change's latest version.
+    async fn brief_places(
+        &self,
+        m: &MergeRequest,
+    ) -> Result<std::collections::HashMap<uuid::Uuid, (String, Option<usize>, bool)>> {
+        let briefs = slath_db::change_briefs::for_mr(&self.pool, m.id).await?;
+        let mut out = std::collections::HashMap::new();
+        if briefs.is_empty() {
+            return Ok(out);
+        }
+        let changes = slath_db::mr_changes::changes(&self.pool, m.id).await?;
+        let versions = slath_db::mr_changes::versions(&self.pool, m.id).await?;
+        for b in &briefs {
+            let mine: Vec<&slath_db::mr_changes::Version> = versions
+                .iter()
+                .filter(|v| v.change_id == Some(b.change_id))
+                .collect();
+            let version = mine
+                .iter()
+                .position(|v| v.commit_oid == b.commit_oid)
+                .map(|i| i + 1);
+            let latest = mine.last().map(|v| v.commit_oid.as_str());
+            // The newest edit of the latest version (briefs are oldest first).
+            let newest = briefs
+                .iter()
+                .rev()
+                .find(|x| x.change_id == b.change_id && Some(x.commit_oid.as_str()) == latest)
+                .map(|x| x.id);
+            let display = changes
+                .iter()
+                .find(|c| c.id == b.change_id)
+                .map(|c| c.display_id.clone())
+                .unwrap_or_default();
+            out.insert(b.id, (display, version, newest == Some(b.id)));
+        }
+        Ok(out)
+    }
+
+    /// The threads on fields of brief edit `brief` of `m` that the viewer
+    /// sees (published, or their own pending ones), oldest first: each
+    /// thread's ID, field, starter, number of comments, and whether it's
+    /// resolved. No code positions are computed.
+    pub async fn brief_threads(
+        &self,
+        subject: &Subject,
+        m: &MergeRequest,
+        brief: uuid::Uuid,
+    ) -> Result<Vec<BriefThread>> {
+        let viewer = match subject {
+            Subject::User { id, .. } => Some(*id),
+            _ => None,
+        };
+        let comments = db::comments(&self.pool, m.id).await?;
+        let mut out = Vec::new();
+        for t in db::threads(&self.pool, m.id).await? {
+            if t.anchor.brief_id != Some(brief) {
+                continue;
+            }
+            let n = comments
+                .iter()
+                .filter(|c| {
+                    c.thread_id == t.id
+                        && c.deleted_at.is_none()
+                        && (!c.pending || (viewer.is_some() && c.author_id == viewer))
+                })
+                .count();
+            if n == 0 {
+                continue;
+            }
+            out.push(BriefThread {
+                id: t.id,
+                field: t.anchor.brief_field.clone().unwrap_or_default(),
+                author: t.author.clone(),
+                comments: n,
+                resolved: t.resolved_at.is_some(),
+            });
+        }
+        Ok(out)
     }
 
     /// Adds a comment to a thread. With `resolve`, the reply also resolves
@@ -488,6 +639,7 @@ impl Services {
             _ => None,
         };
         let comments = db::comments(&self.pool, m.id).await?;
+        let places = self.brief_places(m).await?;
         let mut out = Vec::new();
         let current = if m.revisions > 0 {
             Some(self.revision_diff(m, m.revisions).await?)
@@ -515,10 +667,25 @@ impl Services {
                 Some(cur) => self.position(m, &t, cur).await?,
                 None => Position::Outdated,
             };
+            let brief = match (t.anchor.brief_id, &t.anchor.brief_field) {
+                (Some(id), Some(field)) => {
+                    places
+                        .get(&id)
+                        .map(|(change, version, current)| BriefPlace {
+                            brief_id: id,
+                            change: change.clone(),
+                            version: *version,
+                            field: field.clone(),
+                            current: *current,
+                        })
+                }
+                _ => None,
+            };
             out.push(ThreadView {
                 thread: t,
                 comments: visible,
                 position,
+                brief,
             });
         }
         Ok(out)

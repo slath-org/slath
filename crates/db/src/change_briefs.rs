@@ -104,3 +104,26 @@ pub async fn list(
     .map(|r| brief!(r))
     .collect())
 }
+
+/// One edit by ID.
+pub async fn get(exec: impl PgExecutor<'_>, id: uuid::Uuid) -> Result<Option<Brief>, DbError> {
+    Ok(
+        sqlx::query!("SELECT * FROM change_briefs WHERE id = $1", id)
+            .fetch_optional(exec)
+            .await?
+            .map(|r| brief!(r)),
+    )
+}
+
+/// Every edit of a merge request's briefs, oldest first.
+pub async fn for_mr(exec: impl PgExecutor<'_>, mr: MergeRequestId) -> Result<Vec<Brief>, DbError> {
+    Ok(sqlx::query!(
+        "SELECT * FROM change_briefs WHERE mr_id = $1 ORDER BY created_at, id",
+        mr.as_uuid()
+    )
+    .fetch_all(exec)
+    .await?
+    .into_iter()
+    .map(|r| brief!(r))
+    .collect())
+}

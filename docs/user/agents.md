@@ -205,6 +205,11 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **Secrets are refused** like in context records: a finding rejects the
   brief with its place (such as `/verification`, line 2) and keeps
   nothing.
+- **Threads on a field:** to comment on what a brief says, start a
+  thread with `"brief": {"id": "<the edit's id>", "field": "approach"}`
+  in place of `path` on `POST …/merge-requests/12/threads`. Threads list
+  it as `brief` with the change, the version, and `current`, which turns
+  false once a newer edit or version replaces that brief.
 
 ## Context records: how a change was made
 

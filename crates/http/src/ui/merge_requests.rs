@@ -3843,6 +3843,7 @@ async fn new_thread(
         revision: f.revision.trim().parse().ok(),
         commit: f.commit.filter(|c| !c.is_empty()),
         pending: f.mode == "pending",
+        brief: None,
     };
     match state
         .services

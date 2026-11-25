@@ -422,3 +422,74 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
     assert!(!bob.get(&page).body.contains("Edit the brief"));
     assert_eq!(bob.get(&form).status, 404);
 }
+
+/// Starts a thread on `field` of brief edit `brief` as `token`.
+fn on_field(w: &World, token: &str, brief: &str, field: &str) -> slath_tests::http::Resp {
+    w.api(
+        token,
+        "POST",
+        &format!("/merge-requests/{}/threads", w.n),
+        Some(json!({"body": "Which lines?", "brief": {"id": brief, "field": field}})),
+    )
+}
+
+fn threads(w: &World) -> Vec<Value> {
+    let r = w.api(
+        &w.alice,
+        "GET",
+        &format!("/merge-requests/{}/threads", w.n),
+        None,
+    );
+    r.json().as_array().unwrap().clone()
+}
+
+#[test]
+fn conf_agent_15_threads_anchor_to_brief_fields() {
+    let w = World::start();
+    let (id, _) = w.change();
+    let b = w.write(&w.alice, &id, brief("Add a")).json();
+    let brief_id = b["id"].as_str().unwrap().to_owned();
+
+    // A reader comments on a field; the thread keeps the field's text.
+    let r = on_field(&w, &w.carol, &brief_id, "approach");
+    assert_eq!(r.status, 201, "{}", r.body);
+    let t = r.json();
+    assert_eq!(t["path"], Value::Null);
+    assert_eq!(t["brief"]["id"], brief_id.as_str());
+    assert_eq!(t["brief"]["change"], id.as_str());
+    assert_eq!(t["brief"]["version"], 1);
+    assert_eq!(t["brief"]["field"], "approach");
+    assert_eq!(t["brief"]["current"], true);
+    let kept = w.s.db.query_one(&format!(
+        "SELECT context->>'lines' FROM mr_threads WHERE id = '{}'",
+        t["id"].as_str().unwrap()
+    ));
+    assert_eq!(kept, r#"["Line one", "Line two"]"#);
+
+    // Refused: a field the edit lacks, an unknown field, a path as well,
+    // and a brief of another merge request.
+    let path = json!({"body": "x", "path": "a.txt", "line_start": 1, "line_end": 1,
+                      "brief": {"id": brief_id, "field": "intent"}});
+    for r in [
+        on_field(&w, &w.carol, &brief_id, "gaps"),
+        on_field(&w, &w.carol, &brief_id, "risks"),
+        on_field(&w, &w.carol, &uuid::Uuid::now_v7().to_string(), "intent"),
+        w.api(
+            &w.carol,
+            "POST",
+            &format!("/merge-requests/{}/threads", w.n),
+            Some(path),
+        ),
+    ] {
+        assert_eq!(r.status, 422, "{}", r.body);
+        assert!(r.body.contains("\"field\":\"brief\""), "{}", r.body);
+    }
+    // Who can't read the merge request gets 404.
+    let dave = token(&w.s, "dave", &["repo:write", "mrs:write"]);
+    assert_eq!(on_field(&w, &dave, &brief_id, "intent").status, 404);
+    assert_eq!(threads(&w).len(), 1);
+
+    // A newer edit replaces the brief: the thread is on an earlier one.
+    assert_eq!(w.write(&w.bob, &id, brief("Add a, edited")).status, 201);
+    assert_eq!(threads(&w)[0]["brief"]["current"], false);
+}

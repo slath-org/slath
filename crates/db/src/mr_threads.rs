@@ -20,6 +20,9 @@ pub struct Anchor {
     pub line_end: Option<i32>,
     pub line_hash: Option<String>,
     pub context: serde_json::Value,
+    /// A field of a change brief's edit, in place of a path and lines.
+    pub brief_id: Option<uuid::Uuid>,
+    pub brief_field: Option<String>,
 }
 
 /// A thread.
@@ -74,8 +77,8 @@ pub async fn insert_thread(
     let id = uuid::Uuid::now_v7();
     sqlx::query!(
         "INSERT INTO mr_threads (id, mr_id, revision_seq, old_oid, new_oid, path, side, line_start, line_end,
-             line_hash, context, author_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+             line_hash, context, author_id, brief_id, brief_field)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         id,
         mr.as_uuid(),
         revision_seq,
@@ -87,7 +90,9 @@ pub async fn insert_thread(
         a.line_end,
         a.line_hash,
         if a.context.is_null() { serde_json::json!({}) } else { a.context.clone() },
-        author.as_uuid()
+        author.as_uuid(),
+        a.brief_id,
+        a.brief_field
     )
     .execute(exec)
     .await?;
@@ -132,7 +137,8 @@ pub async fn threads(
                   (au.kind = 'bot') IS TRUE AS "author_bot!", t.resolved_at,
                   rn.name::text AS resolved_by, t.addressed_by AS addressed_by_id,
                   dn.name::text AS addressed_by, t.addressed_at, t.created_at, f.context AS "finding_context?",
-                  f.severity AS "finding_severity?", f.category AS "finding_category?"
+                  f.severity AS "finding_severity?", f.category AS "finding_category?",
+                  t.brief_id, t.brief_field
            FROM mr_threads t
            LEFT JOIN mr_thread_findings f ON f.thread_id = t.id
            LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'
@@ -160,6 +166,8 @@ pub async fn threads(
                 line_end: r.line_end,
                 line_hash: r.line_hash,
                 context: r.context,
+                brief_id: r.brief_id,
+                brief_field: r.brief_field,
             },
             author_id: r.author_id.map(UserId::from_uuid),
             author: r.author,
