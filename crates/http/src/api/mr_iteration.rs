@@ -47,6 +47,9 @@ pub struct IterationBody {
     pub threads: Vec<ThreadBody>,
     /// As `…/mergeability` returns it.
     pub mergeability: MergeabilityBody,
+    /// The work order the merge request belongs to (its source is a branch
+    /// under `wo/<n>/`), as `…/work-orders/{n}` returns it; else `null`.
+    pub work_order: Option<super::work_orders::OrderBody>,
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -82,6 +85,7 @@ pub async fn get_iteration(
         failing_checks: it.failing_checks.into_iter().map(Into::into).collect(),
         threads: it.threads.into_iter().map(Into::into).collect(),
         mergeability: it.mergeability.into(),
+        work_order: it.work_order.map(Into::into),
     }))
 }
 

@@ -37,6 +37,8 @@ pub struct Iteration {
     /// The unresolved threads the subject may see.
     pub threads: Vec<ThreadView>,
     pub mergeability: Mergeability,
+    /// The work order the merge request belongs to, if any.
+    pub work_order: Option<crate::work_orders::OrderView>,
 }
 
 impl Services {
@@ -94,12 +96,17 @@ impl Services {
             .filter(|t| t.thread.resolved_at.is_none())
             .collect();
         let mergeability = self.mr_mergeability(&a, &m).await?;
+        let work_order = match self.order_of_mr(&m).await? {
+            Some(o) => Some(self.order_view(&a, self.expire_if_due(o).await?).await?),
+            None => None,
+        };
         Ok(Iteration {
             revision,
             interdiff,
             failing_checks,
             threads,
             mergeability,
+            work_order,
         })
     }
 }

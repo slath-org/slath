@@ -36,6 +36,7 @@ pub const EVENTS: &[&str] = &[
     "issue_comment",
     "status",
     "repo",
+    "work_order",
 ];
 /// Attempts per delivery.
 pub const MAX_ATTEMPTS: i32 = 8;
@@ -130,7 +131,7 @@ impl Payload {
 }
 
 /// A text cut to [`TEXT_MAX`] bytes, marked if it was cut.
-fn text(s: &str) -> serde_json::Value {
+pub(crate) fn text(s: &str) -> serde_json::Value {
     if s.len() <= TEXT_MAX {
         return s.into();
     }
@@ -884,7 +885,7 @@ impl Services {
 }
 
 impl Services {
-    fn web_base(&self) -> String {
+    pub(crate) fn web_base(&self) -> String {
         self.config
             .server
             .public_url

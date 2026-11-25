@@ -1006,6 +1006,120 @@
         "type": "object"
       },
       "name": "get_context_record"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "The open work orders assigned to the calling bot, oldest first, in the\nrepositories its token names (the pull API).\n\nRuns `GET /api/v1/user/work-orders`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "name": "list_assigned_work_orders"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A repository's work orders, newest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/work-orders`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "state": {
+            "description": "`open` or `ended`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo"
+        ],
+        "type": "object"
+      },
+      "name": "list_work_orders"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "One work order: for the repository's readers, and for its bot with the\n`work_orders:claim` scope alone.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/work-orders/{number}`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_work_order"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "What was decided under a work order, oldest first: every claim, push,\nand other action its task tokens tried, allowed or denied, with the\nrule that decided. Kept as long as the repository.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/work-orders/{number}/events`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "The `next_cursor` of the previous page.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "list_work_order_events"
     }
   ]
 }

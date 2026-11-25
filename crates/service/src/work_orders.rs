@@ -481,6 +481,8 @@ impl Services {
             serde_json::json!({"number": order.number, "bot": bot.name}),
         )
         .await;
+        self.webhook_work_order(Some(creator), order.id, "created")
+            .await;
         self.order_view(&a, order).await
     }
 
@@ -660,6 +662,9 @@ impl Services {
             .await?;
         }
         tx.commit().await.map_err(ServiceError::internal)?;
+        if ended {
+            self.webhook_work_order(by, o.id, "ended").await;
+        }
         Ok(ended)
     }
 
@@ -771,6 +776,8 @@ impl Services {
             serde_json::json!({"number": number}),
         )
         .await;
+        self.webhook_work_order(Some(bot), view.order.id, "claimed")
+            .await;
         Ok(Claim { token, expires_at })
     }
 
@@ -1134,6 +1141,79 @@ impl Services {
         if let Err(e) = r {
             tracing::error!(error = %e, "requesting a work order's reviewers failed");
         }
+    }
+
+    /// Webhook deliveries for `order`: `created`, `claimed`, or `ended`.
+    /// The object has what the order's endpoint returns, with its text
+    /// marked as untrusted. Failures are logged by the emitter.
+    pub(crate) async fn webhook_work_order(
+        &self,
+        actor: Option<UserId>,
+        order_id: uuid::Uuid,
+        action: &str,
+    ) {
+        let Ok(Some(o)) = slath_db::work_orders::get_by_id(&self.pool, order_id).await else {
+            return;
+        };
+        let Ok(Some(repo)) = slath_db::repos::get(&self.pool, o.repo_id).await else {
+            return;
+        };
+        let name = |id: Option<UserId>| async move {
+            match id {
+                Some(id) => slath_db::users::get(&self.pool, id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|u| u.name),
+                None => None,
+            }
+        };
+        let (ns, rn) = (&repo.namespace, &repo.name);
+        let base = self.web_base();
+        let target = match (o.issue_id, o.mr_id) {
+            (Some(i), _) => slath_db::issues::get_by_id(&self.pool, i)
+                .await
+                .ok()
+                .flatten()
+                .map(|i| serde_json::json!({"issue": i.number})),
+            (_, Some(m)) => slath_db::merge_requests::get_by_id(
+                &self.pool,
+                slath_core::ids::MergeRequestId::from_uuid(m),
+            )
+            .await
+            .ok()
+            .flatten()
+            .map(|m| serde_json::json!({"merge_request": m.number})),
+            _ => None,
+        };
+        let object = serde_json::json!({
+            "number": o.number,
+            "target": target,
+            "bot": name(Some(o.bot_id)).await,
+            "creator": name(o.creator_id).await,
+            "branch_prefix": branch_prefix(o.number),
+            "goal": crate::webhooks::text(&o.goal),
+            "instructions": o.instructions.as_deref().map(crate::webhooks::text),
+            "scope": o.scope,
+            "max_revisions": o.max_revisions,
+            "max_open_mrs": o.max_open_mrs,
+            "expires_at": o.expires_at.format(&time::format_description::well_known::Rfc3339).ok(),
+            "required_checks": o.required_checks,
+            "state": o.state,
+            "end_reason": o.end_reason,
+            "untrusted_content": true,
+            "origin": o.origin,
+            "html_url": format!("{base}/{ns}/{rn}/work-orders/{}", o.number),
+            "api_url": format!("{base}/api/v1/repos/{ns}/{rn}/work-orders/{}", o.number),
+        });
+        self.emit_webhook(
+            o.repo_id,
+            actor,
+            ("work_order", Some(action)),
+            crate::webhooks::Needs::Repo,
+            serde_json::json!({"work_order": object}),
+        )
+        .await;
     }
 
     /// The open order of an issue or merge request, for showing it there.

@@ -52,7 +52,12 @@ impl World {
     /// alice/demo (private) with bob a writer, carol a reader, and alice's
     /// bot `agent` a writer; issue #1 is open.
     pub fn start() -> Self {
-        let s = TestServer::start();
+        Self::start_with("")
+    }
+
+    /// [`World::start`] with extra server configuration.
+    pub fn start_with(config: &str) -> Self {
+        let s = TestServer::start_full(&[slath_tests::server::DEMO], config);
         for u in ["bob", "carol", "dave"] {
             s.create_user(u, PASSWORD, false);
         }
@@ -1016,4 +1021,91 @@ fn conf_agent_13_work_orders_only_bots_write_only_through_orders() {
     assert!(ok, "{out}{err}");
     assert_eq!(comment(), 201);
     git.ok(dir.path(), &["push", "-q", &url_with(&w, &w.agent), "main"]);
+}
+
+#[test]
+fn conf_agent_13_orders_reach_agents_by_webhook_mcp_and_iteration() {
+    let w =
+        World::start_with("[webhooks]\nallow_http = true\nallow_networks = [\"127.0.0.0/8\"]\n");
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/webhooks",
+        Some(json!({"url": "http://127.0.0.1:9/hook", "events": ["work_order"]})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let (claimer, task, _git, _dir) = claimed(&w);
+
+    // Webhook: created and claimed, with the order and its text marked.
+    let deliveries = || {
+        w.s.db.query_one(
+            "SELECT coalesce(string_agg(payload->>'action', ',' ORDER BY created_at), '')
+                   FROM webhook_deliveries WHERE event = 'work_order'",
+        )
+    };
+    assert_eq!(deliveries(), "created,claimed");
+    let payload: Value = serde_json::from_str(&w.s.db.query_one(
+        "SELECT payload::text FROM webhook_deliveries WHERE event = 'work_order' LIMIT 1",
+    ))
+    .unwrap();
+    let o = &payload["work_order"];
+    assert_eq!(o["number"], 1, "{payload}");
+    assert_eq!(o["target"]["issue"], 1);
+    assert_eq!(o["bot"], "claimer");
+    assert_eq!(o["branch_prefix"], "wo/1/");
+    assert_eq!(o["untrusted_content"], true);
+    assert_eq!(o["origin"], "writer");
+
+    // MCP: the claim token finds and reads its order there too.
+    let call = |token: &str, name: &str, arguments: Value| {
+        w.s.client().api_with(
+            "POST",
+            "/api/mcp",
+            Some(token),
+            Some(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                         "params": {"name": name, "arguments": arguments}})),
+            &[
+                ("accept", "application/json, text/event-stream"),
+                ("mcp-protocol-version", "2025-06-18"),
+            ],
+        )
+    };
+    let r = call(&claimer, "list_assigned_work_orders", json!({}));
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("Fix the parser"), "{}", r.body);
+    assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
+    let r = call(
+        &claimer,
+        "get_work_order",
+        json!({"ns": "alice", "repo": "demo", "number": 1}),
+    );
+    assert!(r.body.contains("wo/1/"), "{}", r.body);
+    assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
+
+    // Iteration: the order's merge request names its order.
+    let r = w.api(
+        &task,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "wo/1/fix", "title": "Fix the parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let it = w
+        .api(
+            &task,
+            "GET",
+            &format!("/merge-requests/{n}/iteration"),
+            None,
+        )
+        .json();
+    assert_eq!(it["work_order"]["number"], 1, "{it}");
+    assert_eq!(it["work_order"]["state"], "open");
+
+    // Ended: one more delivery.
+    assert_eq!(
+        w.api(&w.bob, "POST", "/work-orders/1/stop", None).status,
+        200
+    );
+    assert_eq!(deliveries(), "created,claimed,ended");
 }

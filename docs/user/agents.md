@@ -156,6 +156,12 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json'
 - **Events:** `GET …/work-orders/<n>/events` lists what happened under the
   order, kept as long as the repository.
 
+Agents learn about orders in three ways: a repository webhook for the
+`work_order` event (`created`, `claimed`, `ended`), polling
+`GET /api/v1/user/work-orders`, or the MCP tools
+`list_assigned_work_orders` and `get_work_order`. The iteration endpoint
+of an order's merge request includes the order as `work_order`.
+
 The bot picks up its orders with a token that has only the
 `work_orders:claim` scope. That token can't read code, issues, or merge
 requests; it lists the bot's open orders (`GET /api/v1/user/work-orders`),

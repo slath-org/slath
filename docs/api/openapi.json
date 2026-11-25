@@ -14068,6 +14068,17 @@
               "$ref": "#/components/schemas/ThreadBody"
             },
             "description": "The unresolved threads, as `…/threads?resolved=false` returns them."
+          },
+          "work_order": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderBody",
+                "description": "The work order the merge request belongs to (its source is a branch\nunder `wo/<n>/`), as `…/work-orders/{n}` returns it; else `null`."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

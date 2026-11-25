@@ -49,6 +49,7 @@ The same is available in the API under
 | `status` | a check reports a status on a commit (`action`: the state; the `status` object includes its `annotations`) |
 | `fork` | someone forks the repository |
 | `repo` | the repository is `created`, `renamed`, `deleted`, or changes `visibility` |
+| `work_order` | a [work order](agents.md#work-orders-delegating-one-task) is `created`, `claimed`, or `ended` (the `work_order` object says why in `end_reason`) |
 | `ping` | you send a ping |
 
 Every payload is JSON with `event`, `action` (where the event has one),

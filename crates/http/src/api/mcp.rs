@@ -66,6 +66,10 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("list_change_briefs", "list_briefs"),
     ("list_context_records", "list_records"),
     ("get_context_record", "get_record"),
+    ("list_assigned_work_orders", "assigned_orders"),
+    ("list_work_orders", "list_orders"),
+    ("get_work_order", "get_order"),
+    ("list_work_order_events", "list_events"),
 ];
 
 const INSTRUCTIONS: &str = "Slath's read tools. Each tool runs one GET operation of the REST API \
