@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.display_name, u.state,\n                  u.bot_owner_kind AS \"owner_kind!\", u.bot_owner_id AS \"owner_id!\",\n                  o.name::text AS \"owner_name!\", u.created_at, u.stopped_at\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           JOIN namespaces o ON o.id = CASE u.bot_owner_kind\n                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)\n                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END\n           WHERE u.kind = 'bot' AND u.state <> 'deleted'\n           ORDER BY n.name LIMIT 1000",
+  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.display_name, u.state,\n                  u.bot_owner_kind AS \"owner_kind!\", u.bot_owner_id AS \"owner_id!\",\n                  o.name::text AS \"owner_name!\", u.created_at, u.stopped_at, u.work_orders_only\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           JOIN namespaces o ON o.id = CASE u.bot_owner_kind\n                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)\n                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END\n           WHERE u.kind = 'bot' AND u.state <> 'deleted'\n           ORDER BY n.name LIMIT 1000",
   "describe": {
     "columns": [
       {
@@ -102,6 +102,17 @@
             "name": "stopped_at"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "work_orders_only",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "work_orders_only"
+          }
+        }
       }
     ],
     "parameters": {
@@ -117,8 +128,9 @@
       true,
       null,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "55c4c9b644192e3d95e89425c427f2dabed171fc1c276bedd488c10be5b740f9"
+  "hash": "26529da5f5bbfffd308ecbde8065cec8459bdababe7a9cb8ecfbf44a7628f40c"
 }

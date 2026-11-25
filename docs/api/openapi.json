@@ -198,6 +198,78 @@
             ]
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "bots"
+        ],
+        "summary": "Changes a bot you manage (`user:write`).",
+        "operationId": "update_bot",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bot"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "user:write"
+            ]
+          }
+        ]
       }
     },
     "/api/v1/bots/{name}/keys": {
@@ -12183,7 +12255,8 @@
           "username",
           "owner",
           "state",
-          "created_at"
+          "created_at",
+          "work_orders_only"
         ],
         "properties": {
           "created_at": {
@@ -12214,6 +12287,10 @@
           },
           "username": {
             "type": "string"
+          },
+          "work_orders_only": {
+            "type": "boolean",
+            "description": "Its own tokens and SSH keys only read and claim work orders."
           }
         }
       },
@@ -12360,6 +12437,20 @@
             "minimum": 0
           }
         }
+      },
+      "BotUpdate": {
+        "type": "object",
+        "description": "A change to a bot.",
+        "properties": {
+          "work_orders_only": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Its own tokens and SSH keys only read and claim work orders; it\nwrites only through an order's task token."
+          }
+        },
+        "additionalProperties": false
       },
       "BriefBody": {
         "type": "object",

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.display_name, u.state,\n                  u.bot_owner_kind AS \"owner_kind!\", u.bot_owner_id AS \"owner_id!\",\n                  o.name::text AS \"owner_name!\", u.created_at, u.stopped_at\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           JOIN namespaces o ON o.id = CASE u.bot_owner_kind\n                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)\n                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END\n           WHERE u.kind = 'bot' AND u.bot_owner_kind = $1 AND u.bot_owner_id = $2\n           ORDER BY n.name LIMIT 1000",
+  "query": "SELECT u.id, u.namespace_id, n.name::text AS \"name!\", u.display_name, u.state,\n                  u.bot_owner_kind AS \"owner_kind!\", u.bot_owner_id AS \"owner_id!\",\n                  o.name::text AS \"owner_name!\", u.created_at, u.stopped_at, u.work_orders_only\n           FROM users u JOIN namespaces n ON n.id = u.namespace_id\n           JOIN namespaces o ON o.id = CASE u.bot_owner_kind\n                WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)\n                ELSE (SELECT namespace_id FROM organizations WHERE id = u.bot_owner_id) END\n           WHERE u.kind = 'bot' AND u.bot_owner_kind = $1 AND u.bot_owner_id = $2\n           ORDER BY n.name LIMIT 1000",
   "describe": {
     "columns": [
       {
@@ -102,6 +102,17 @@
             "name": "stopped_at"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "work_orders_only",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "work_orders_only"
+          }
+        }
       }
     ],
     "parameters": {
@@ -120,8 +131,9 @@
       true,
       null,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "e6b051e3508a27b168b2783282e3a36089b178b8b37ce26075e8048640da393a"
+  "hash": "621512a6c1dde816a3b3b38eb36cfeb66ed73fa915fb1a1e063fe96c169df982"
 }

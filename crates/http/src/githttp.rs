@@ -127,6 +127,8 @@ enum Denied {
     NotFound,
     /// The user can read the repository but not push to it.
     Forbidden,
+    /// A work-orders-only bot pushing with its own token.
+    WorkOrdersOnly,
     Internal,
 }
 
@@ -141,6 +143,11 @@ impl IntoResponse for Denied {
             Self::Forbidden => (
                 StatusCode::FORBIDDEN,
                 "you don't have permission to push to this repository\n",
+            )
+                .into_response(),
+            Self::WorkOrdersOnly => (
+                StatusCode::FORBIDDEN,
+                "this bot works only through work orders; claim one and push with its task token\n",
             )
                 .into_response(),
             Self::Internal => {
@@ -214,6 +221,16 @@ async fn authorize(
             Err(Denied::Unauthorized)
         }
         Err(ServiceError::NotFound) => Err(Denied::NotFound),
+        Err(ServiceError::Forbidden)
+            if write
+                && state
+                    .services
+                    .works_only_through_orders(subject)
+                    .await
+                    .unwrap_or(false) =>
+        {
+            Err(Denied::WorkOrdersOnly)
+        }
         Err(ServiceError::Forbidden) => Err(Denied::Forbidden),
         Err(e) => {
             tracing::error!(error = %e, "git transport authorization failed");

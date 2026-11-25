@@ -38,6 +38,8 @@ pub struct Bot {
     pub created_at: String,
     /// When it was stopped, while it is.
     pub stopped_at: Option<String>,
+    /// Its own tokens and SSH keys only read and claim work orders.
+    pub work_orders_only: bool,
 }
 
 impl From<slath_db::bots::Bot> for Bot {
@@ -62,8 +64,18 @@ impl From<slath_db::bots::Bot> for Bot {
             .to_owned(),
             created_at: crate::ui::Time::from(b.created_at).iso,
             stopped_at: b.stopped_at.map(|t| crate::ui::Time::from(t).iso),
+            work_orders_only: b.work_orders_only,
         }
     }
+}
+
+/// A change to a bot.
+#[derive(Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BotUpdate {
+    /// Its own tokens and SSH keys only read and claim work orders; it
+    /// writes only through an order's task token.
+    pub work_orders_only: Option<bool>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -183,6 +195,39 @@ pub async fn get_bot(
         .services
         .managed_bot(&subject, &name, Scope::UserRead)
         .await?;
+    Ok(Json(bot.into()))
+}
+
+/// Changes a bot you manage (`user:write`).
+#[utoipa::path(patch, path = "/api/v1/bots/{name}", tag = "bots", security(("token" = ["user:write"])), params(("name" = String, Path)), request_body = BotUpdate,
+    responses((status = 200, body = Bot), (status = 401, body = super::Problem), (status = 404, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn update_bot(
+    State(state): State<AppState>,
+    ApiUser(subject): ApiUser,
+    Path(name): Path<String>,
+    body: axum::body::Bytes,
+) -> Result<Json<Bot>, AppError> {
+    // Who may change it is decided before the body is read.
+    let bot = state
+        .services
+        .managed_bot(&subject, &name, Scope::UserWrite)
+        .await?;
+    let b: BotUpdate = serde_json::from_slice(&body).map_err(|e| {
+        slath_service::ServiceError::invalid(
+            "body",
+            "invalid",
+            format!("This isn't a bot change: {e}."),
+        )
+    })?;
+    let bot = match b.work_orders_only {
+        Some(on) => {
+            state
+                .services
+                .set_bot_work_orders_only(&subject, &name, on)
+                .await?
+        }
+        None => bot,
+    };
     Ok(Json(bot.into()))
 }
 
@@ -455,7 +500,11 @@ pub fn router() -> Router<AppState> {
             Access::Resource,
             get(list_org_bots).post(create_org_bot),
         )
-        .route_as("/api/v1/bots/{name}", Access::Resource, get(get_bot))
+        .route_as(
+            "/api/v1/bots/{name}",
+            Access::Resource,
+            get(get_bot).patch(update_bot),
+        )
         .route_as(
             "/api/v1/bots/{name}/tokens",
             Access::Resource,

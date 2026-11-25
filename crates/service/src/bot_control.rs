@@ -182,6 +182,22 @@ impl Services {
                 "slath: push rejected: bots are frozen here".to_owned(),
             )));
         }
+        // A work-orders-only bot pushes only with an order's task token.
+        let task = matches!(
+            subject,
+            Subject::User {
+                credential: slath_core::authz::Credential::Task { .. },
+                ..
+            }
+        );
+        if !task && slath_db::bots::work_orders_only(&self.pool, *id).await? {
+            return Ok(Some((
+                DenyReason::NoPermission,
+                "slath: push rejected: this bot works only through work orders; \
+                 claim one and push with its task token"
+                    .to_owned(),
+            )));
+        }
         let per_hour = self.config.limits.bot_pushes_per_hour;
         if let Err(wait) = self.bot_push_limiter.take(*id, per_hour) {
             return Ok(Some((

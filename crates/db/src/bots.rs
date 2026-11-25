@@ -46,6 +46,8 @@ pub struct Bot {
     pub created_at: OffsetDateTime,
     /// Set while it's stopped by a manager or an administrator.
     pub stopped_at: Option<OffsetDateTime>,
+    /// Its own tokens and SSH keys only read and claim work orders.
+    pub work_orders_only: bool,
 }
 
 /// Creates the namespace and the bot; run it in a transaction. A taken or
@@ -102,6 +104,7 @@ macro_rules! to_bot {
             owner_name: $r.owner_name,
             created_at: $r.created_at,
             stopped_at: $r.stopped_at,
+            work_orders_only: $r.work_orders_only,
         }
     };
 }
@@ -111,7 +114,7 @@ pub async fn find(exec: impl PgExecutor<'_>, name: &str) -> Result<Option<Bot>, 
     let r = sqlx::query!(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
                   u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
-                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at, u.work_orders_only
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            JOIN namespaces o ON o.id = CASE u.bot_owner_kind
                 WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
@@ -148,7 +151,7 @@ pub async fn list_for_owner(
     let rows = sqlx::query!(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
                   u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
-                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at, u.work_orders_only
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            JOIN namespaces o ON o.id = CASE u.bot_owner_kind
                 WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
@@ -168,7 +171,7 @@ pub async fn list_all(exec: impl PgExecutor<'_>) -> Result<Vec<Bot>, DbError> {
     let rows = sqlx::query!(
         r#"SELECT u.id, u.namespace_id, n.name::text AS "name!", u.display_name, u.state,
                   u.bot_owner_kind AS "owner_kind!", u.bot_owner_id AS "owner_id!",
-                  o.name::text AS "owner_name!", u.created_at, u.stopped_at
+                  o.name::text AS "owner_name!", u.created_at, u.stopped_at, u.work_orders_only
            FROM users u JOIN namespaces n ON n.id = u.namespace_id
            JOIN namespaces o ON o.id = CASE u.bot_owner_kind
                 WHEN 'user' THEN (SELECT namespace_id FROM users WHERE id = u.bot_owner_id)
@@ -425,4 +428,32 @@ pub async fn recent_pushes(
             at: r.created_at,
         })
         .collect())
+}
+
+/// Sets whether a bot's own credentials only read and claim work orders.
+pub async fn set_work_orders_only(
+    exec: impl PgExecutor<'_>,
+    bot: UserId,
+    on: bool,
+) -> Result<bool, DbError> {
+    let r = sqlx::query!(
+        "UPDATE users SET work_orders_only = $2 WHERE id = $1 AND kind = 'bot'
+           AND work_orders_only IS DISTINCT FROM $2",
+        bot.as_uuid(),
+        on
+    )
+    .execute(exec)
+    .await?;
+    Ok(r.rows_affected() == 1)
+}
+
+/// Whether a bot's own credentials only read and claim work orders.
+pub async fn work_orders_only(exec: impl PgExecutor<'_>, bot: UserId) -> Result<bool, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT work_orders_only FROM users WHERE id = $1",
+        bot.as_uuid()
+    )
+    .fetch_optional(exec)
+    .await?
+    .unwrap_or(false))
 }

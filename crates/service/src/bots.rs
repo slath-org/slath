@@ -217,6 +217,43 @@ impl Services {
         Ok(())
     }
 
+    /// Whether `subject` is a work-orders-only bot acting with its own
+    /// credential (not a task token).
+    pub async fn works_only_through_orders(&self, subject: &Subject) -> Result<bool> {
+        match subject {
+            Subject::User {
+                id,
+                kind: UserKind::Bot,
+                credential,
+                ..
+            } if !matches!(credential, slath_core::authz::Credential::Task { .. }) => {
+                Ok(slath_db::bots::work_orders_only(&self.pool, *id).await?)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Sets whether the bot's own tokens and SSH keys only read and claim
+    /// work orders (its managers). Audited when it changes.
+    pub async fn set_bot_work_orders_only(
+        &self,
+        subject: &Subject,
+        name: &str,
+        on: bool,
+    ) -> Result<Bot> {
+        let bot = self.managed_bot(subject, name, Scope::UserWrite).await?;
+        if slath_db::bots::set_work_orders_only(&self.pool, bot.id, on).await? {
+            self.audit(
+                subject,
+                "bot.update",
+                Target::new("user", Some(*bot.id.as_uuid())),
+                serde_json::json!({"name": bot.name, "work_orders_only": on}),
+            )
+            .await;
+        }
+        self.managed_bot(subject, name, Scope::UserWrite).await
+    }
+
     /// A bot the subject manages: its owner, or for an organization's bot,
     /// one of the organization's owners. Everyone else gets "not found".
     pub async fn managed_bot(&self, subject: &Subject, name: &str, scope: Scope) -> Result<Bot> {

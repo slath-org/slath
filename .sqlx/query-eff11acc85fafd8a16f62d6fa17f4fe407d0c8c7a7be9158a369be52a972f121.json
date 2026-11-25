@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET work_orders_only = $2 WHERE id = $1 AND kind = 'bot'\n           AND work_orders_only IS DISTINCT FROM $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eff11acc85fafd8a16f62d6fa17f4fe407d0c8c7a7be9158a369be52a972f121"
+}

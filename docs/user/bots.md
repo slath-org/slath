@@ -239,6 +239,17 @@ current hour. Merge requests and pushes in repositories you can't read
 aren't counted or listed. The request count comes from the server process
 that answers, so behind several Slath processes it's that process's share.
 
+## Only through work orders
+
+A bot can be set so that its own tokens and SSH keys only read and claim
+[work orders](agents.md#work-orders-delegating-one-task): everything they
+would write is refused, pushes included, and the bot writes only with an
+order's task token, confined to that order. Its managers set it with
+`PATCH /api/v1/bots/<name>` and `{"work_orders_only": true}` (a token with
+`user:write`), or with `work_orders_only = true` in a
+[bootstrap file](../admin/bootstrap.md). Use it for agents that should
+only ever work on what someone delegated to them.
+
 ## Stopping a bot
 
 If a bot misbehaves or one of its credentials may have leaked, stop it

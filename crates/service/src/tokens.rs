@@ -265,7 +265,19 @@ impl Services {
         {
             slath_db::tokens::touch(&self.pool, row.id).await?;
         }
-        let scopes = parse_scopes(&row.scopes);
+        let mut scopes = parse_scopes(&row.scopes);
+        // A work-orders-only bot's own tokens read and claim, nothing more.
+        if bot_token && slath_db::bots::work_orders_only(&self.pool, user.id).await? {
+            scopes = scopes
+                .into_iter()
+                .filter_map(|s| match s {
+                    Scope::RepoWrite => Some(Scope::RepoRead),
+                    Scope::RepoRead | Scope::UserRead | Scope::WorkOrdersClaim => Some(s),
+                    _ => None,
+                })
+                .collect();
+            scopes.dedup();
+        }
         // Site-admin power through a token needs the admin scope (and,
         // with require_mfa_for_admins, an account with a second factor).
         let is_site_admin = user.is_admin

@@ -13,7 +13,8 @@ pub struct World {
     pub alice: String,
     pub bob: String,
     pub carol: String,
-    /// The bot's standing token (`repo:write` on alice/demo).
+    /// The bot's standing token (`repo:write`, `issues:write`, and
+    /// `mrs:write` on alice/demo).
     pub agent: String,
 }
 
@@ -60,7 +61,7 @@ impl World {
             alice: token(&s, "alice", &all),
             bob: token(&s, "bob", &all),
             carol: token(&s, "carol", &all),
-            agent: bot(&s, "alice", "agent", "repo:write"),
+            agent: bot(&s, "alice", "agent", "repo:write,issues:write,mrs:write"),
             s,
         };
         for (who, role) in [("bob", "write"), ("carol", "read"), ("agent", "write")] {
@@ -952,4 +953,67 @@ fn conf_agent_13_order_merge_requests_need_its_checks_and_ask_its_reviewers() {
     assert_eq!(r.status, 201, "{}", r.body);
     let other = mergeability(r.json()["number"].as_i64().unwrap());
     assert!(!other.to_string().contains("agent/tests"), "{other}");
+}
+
+#[test]
+fn conf_agent_13_work_orders_only_bots_write_only_through_orders() {
+    let w = World::start();
+    let alice_admin = token(&w.s, "alice", &["user:write"]);
+    let set = |token: &str, on: bool| {
+        w.s.client().api(
+            "PATCH",
+            "/api/v1/bots/agent",
+            Some(token),
+            Some(&json!({"work_orders_only": on})),
+        )
+    };
+    // Only its managers change it.
+    let bob_admin = token(&w.s, "bob", &["user:write"]);
+    assert_eq!(set(&bob_admin, true).status, 404);
+    let r = set(&alice_admin, true);
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["work_orders_only"], true);
+
+    // Its own token reads, but writes nothing, pushes included.
+    let comment = || {
+        w.api(
+            &w.agent,
+            "POST",
+            "/issues/1/comments",
+            Some(json!({"body": "Hi"})),
+        )
+        .status
+    };
+    assert_eq!(w.api(&w.agent, "GET", "/issues/1", None).status, 200);
+    assert_eq!(comment(), 403);
+    let git = slath_tests::server::GitClient::new();
+    let dir = tempfile::tempdir().unwrap();
+    git.ok(dir.path(), &["init", "-q", "-b", "main"]);
+    std::fs::write(dir.path().join("README"), "x\n").unwrap();
+    git.ok(dir.path(), &["add", "-A"]);
+    git.ok(dir.path(), &["commit", "-q", "-m", "init"]);
+    let out = git
+        .cmd(dir.path())
+        .args(["push", &url_with(&w, &w.agent), "main"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "a work-orders-only bot pushed");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("works only through work orders"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // `slath admin apply` sets it too; off, the bot writes again.
+    let plan = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+        plan.path(),
+        "[[bots]]\nname = \"agent\"\nowner = \"alice\"\nwork_orders_only = false\n",
+    )
+    .unwrap();
+    let (ok, out, err) =
+        w.s.slath(&["admin", "apply", plan.path().to_str().unwrap()], None);
+    assert!(ok, "{out}{err}");
+    assert_eq!(comment(), 201);
+    git.ok(dir.path(), &["push", "-q", &url_with(&w, &w.agent), "main"]);
 }

@@ -75,6 +75,9 @@ pub struct PlanBot {
     /// A user or organization.
     pub owner: String,
     pub display_name: Option<String>,
+    /// Its own tokens and keys only read and claim work orders.
+    #[serde(default)]
+    pub work_orders_only: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,6 +309,12 @@ impl Services {
                     .await?;
                     changes.push(Change::new("bot", b.name.trim(), "created"));
                 }
+            }
+            if let Some(on) = b.work_orders_only
+                && let Some(bot) = slath_db::bots::find(&self.pool, b.name.trim()).await?
+                && slath_db::bots::set_work_orders_only(&self.pool, bot.id, on).await?
+            {
+                changes.push(Change::new("bot", b.name.trim(), "updated"));
             }
         }
 

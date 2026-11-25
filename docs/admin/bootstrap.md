@@ -42,6 +42,7 @@ members = []
 [[bots]]
 name = "acme-agent"
 owner = "acme"                        # a user or an organization
+work_orders_only = true               # its own credentials only read and claim work orders
 
 [[repos]]
 namespace = "acme"
