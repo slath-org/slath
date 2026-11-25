@@ -105,6 +105,15 @@
 </div>
 </section>
 
+<section class="section" aria-labelledby="work-orders-heading">
+<h2 id="work-orders-heading">Work orders</h2>
+<form method="post" action="/-/bots/{{ bot.name }}/work-orders" class="form-layout" novalidate>
+  <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+  {%- call f::option("checkbox", "work-orders-only", "only", "1", "Only through work orders", bot.work_orders_only, "Its own tokens and SSH keys then only read and claim work orders; it writes only with an order's task token.") %}{% endcall %}
+  {%- call f::buttons() %}<button type="submit" class="button">Save</button>{% endcall %}
+</form>
+</section>
+
 <section class="section" aria-labelledby="tokens-heading">
 <h2 id="tokens-heading">Tokens</h2>
 <p>Bot tokens start with <code>slath_bot_</code>, work only for the repositories they name, and expire after at most {{ max_days }} days. The bot also needs a role on those repositories.</p>

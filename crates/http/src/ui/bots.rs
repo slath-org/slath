@@ -36,6 +36,7 @@ fn message(s: Option<&str>) -> Option<&'static str> {
         "key-added" => "SSH key added.",
         "key-removed" => "SSH key removed.",
         "profile-saved" => "Profile saved.",
+        "work-orders-saved" => "Work order setting saved.",
         "avatar-saved" => "Avatar saved.",
         "avatar-removed" => "Avatar removed. The generated avatar is shown again.",
         "stopped" => {
@@ -66,6 +67,8 @@ struct BotView {
     state: &'static str,
     stopped_at: Option<Time>,
     frozen: bool,
+    /// Its own tokens and keys only read and claim work orders.
+    work_orders_only: bool,
     open_mrs: i64,
     mrs: Vec<slath_db::bots::OpenMr>,
     pushes: Vec<PushView>,
@@ -99,6 +102,7 @@ impl BotView {
             display_name: b.display_name,
             owner: b.owner_name,
             frozen: o.frozen,
+            work_orders_only: b.work_orders_only,
             open_mrs: o.open_mr_count,
             mrs: o.open_mrs,
             pushes: o
@@ -729,6 +733,30 @@ async fn save_profile(
     }
 }
 
+#[derive(Deserialize)]
+struct WorkOrdersForm {
+    /// `1` when checked; absent otherwise.
+    #[serde(default)]
+    only: Option<String>,
+}
+
+async fn save_work_orders(
+    State(state): State<AppState>,
+    RequireSession(s): RequireSession,
+    Path(name): Path<String>,
+    Form(f): Form<WorkOrdersForm>,
+) -> Result<Response, AppError> {
+    state
+        .services
+        .set_bot_work_orders_only(&s.subject, &name, f.only.is_some())
+        .await
+        .map_err(hide)?;
+    Ok(Redirect::to(&format!(
+        "/-/bots/{name}?status=work-orders-saved#work-orders-heading"
+    ))
+    .into_response())
+}
+
 /// Uploads (multipart field `avatar`) or removes a bot's avatar.
 async fn save_avatar(
     State(state): State<AppState>,
@@ -932,6 +960,11 @@ pub fn router() -> Router<AppState> {
             "/-/bots/{name}/profile",
             Access::Resource,
             post(save_profile),
+        )
+        .route_as(
+            "/-/bots/{name}/work-orders",
+            Access::Resource,
+            post(save_work_orders),
         )
         .route_as("/-/bots/{name}/avatar", Access::Resource, post(save_avatar))
         .route_as(

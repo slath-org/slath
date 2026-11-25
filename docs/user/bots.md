@@ -245,8 +245,9 @@ A bot can be set so that its own tokens and SSH keys only read and claim
 [work orders](agents.md#work-orders-delegating-one-task): everything they
 would write is refused, pushes included, and the bot writes only with an
 order's task token, confined to that order. Its managers set it with
+**Only through work orders** under **Work orders** on the bot's page,
 `PATCH /api/v1/bots/<name>` and `{"work_orders_only": true}` (a token with
-`user:write`), or with `work_orders_only = true` in a
+`user:write`), or `work_orders_only = true` in a
 [bootstrap file](../admin/bootstrap.md). Use it for agents that should
 only ever work on what someone delegated to them.
 

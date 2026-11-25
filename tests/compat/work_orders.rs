@@ -1240,3 +1240,52 @@ fn conf_agent_25_the_state_read_equals_the_individual_endpoints() {
     assert!(r.body.contains("change_version"), "{}", r.body);
     assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
 }
+
+#[test]
+fn conf_agent_13_the_bot_page_sets_work_orders_only() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let page = "/-/bots/agent";
+    let mut alice = w.s.login("alice", PASSWORD);
+    let shown = alice.get(page).body;
+    assert!(shown.contains("id=\"work-orders-only\""), "{shown}");
+    assert!(!shown.contains("value=\"1\" checked"), "{shown}");
+    let r = submit(
+        &mut alice,
+        page,
+        "/-/bots/agent/work-orders",
+        &[("only", "1")],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let back = r.header("location").unwrap().to_owned();
+    assert!(
+        back.starts_with("/-/bots/agent?status=work-orders-saved"),
+        "{back}"
+    );
+    let shown = alice.get(&back).body;
+    assert!(shown.contains("Work order setting saved."), "{shown}");
+    assert!(
+        shown.contains("name=\"only\" value=\"1\" checked"),
+        "{shown}"
+    );
+    assert_eq!(
+        w.s.db
+            .query_one("SELECT work_orders_only::text FROM users WHERE kind = 'bot'"),
+        "true"
+    );
+    // Unchecked turns it off; someone who doesn't manage the bot can't.
+    let r = submit(&mut alice, page, "/-/bots/agent/work-orders", &[]);
+    assert_eq!(r.status, 303, "{}", r.body);
+    let mut bob = w.s.login("bob", PASSWORD);
+    let token = slath_tests::http::csrf_token(&bob.get("/").body).unwrap();
+    let r = bob.post_form(
+        "/-/bots/agent/work-orders",
+        &[("_csrf", &token), ("only", "1")],
+    );
+    assert_eq!(r.status, 404, "{}", r.body);
+    assert_eq!(
+        w.s.db
+            .query_one("SELECT work_orders_only::text FROM users WHERE kind = 'bot'"),
+        "false"
+    );
+}
