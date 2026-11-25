@@ -1082,6 +1082,15 @@ fn conf_agent_13_orders_reach_agents_by_webhook_mcp_and_iteration() {
     assert!(r.body.contains("wo/1/"), "{}", r.body);
     assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
 
+    // The task token reads its repository through MCP, and nothing else.
+    let r = call(&task, "get_repo", json!({"ns": "alice", "repo": "demo"}));
+    assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
+    let mut c = w.s.login("alice", PASSWORD);
+    slath_tests::http::create_repo(&mut c, "alice", "open", "public");
+    let r = call(&task, "get_repo", json!({"ns": "alice", "repo": "open"}));
+    assert!(r.body.contains("\"isError\":true"), "{}", r.body);
+    assert!(r.body.contains("404"), "{}", r.body);
+
     // Iteration: the order's merge request names its order.
     let r = w.api(
         &task,
@@ -1108,4 +1117,126 @@ fn conf_agent_13_orders_reach_agents_by_webhook_mcp_and_iteration() {
         200
     );
     assert_eq!(deliveries(), "created,claimed,ended");
+}
+
+/// Whether `value` is what `record` returns for it: the whole body, one
+/// of its items, or one of its requirements.
+fn found_in(body: &Value, value: &Value) -> bool {
+    if body == value {
+        return true;
+    }
+    let lists = [
+        body.as_array(),
+        body["items"].as_array(),
+        body["entries"].as_array(),
+        body["requirements"].as_array(),
+    ];
+    lists.into_iter().flatten().any(|l| l.contains(value))
+}
+
+#[test]
+fn conf_agent_25_the_state_read_equals_the_individual_endpoints() {
+    let w = World::start();
+    let (_, task, _git, _dir) = claimed(&w);
+    let r = w.api(
+        &task,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "wo/1/fix", "title": "Fix the parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    wait_revisions(&w, n, 1);
+    let head = w
+        .api(&w.alice, "GET", &format!("/merge-requests/{n}"), None)
+        .json()["head_oid"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // A status, a thread, and a review to read back.
+    let r = w.api(
+        &task,
+        "POST",
+        &format!("/statuses/{head}"),
+        Some(json!({"state": "success", "context": "agent/tests"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = w.api(
+        &w.carol,
+        "POST",
+        &format!("/merge-requests/{n}/threads"),
+        Some(json!({"body": "Why this way?"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let r = w.api(
+        &w.bob,
+        "POST",
+        &format!("/merge-requests/{n}/reviews"),
+        Some(json!({"verdict": "approve", "body": "Fine"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+
+    for path in [
+        format!("/merge-requests/{n}/state"),
+        "/work-orders/1/state".to_owned(),
+    ] {
+        let state = w.api(&w.carol, "GET", &path, None);
+        assert_eq!(state.status, 200, "{path}: {}\n{}", state.body, w.s.log());
+        let items = state.json()["items"].as_array().unwrap().clone();
+        let kinds: Vec<&str> = items.iter().filter_map(|i| i["kind"].as_str()).collect();
+        for want in [
+            "merge_request",
+            "change_version",
+            "status",
+            "approval",
+            "open_thread",
+        ] {
+            assert!(kinds.contains(&want), "{path}: no {want} in {kinds:?}");
+        }
+        assert_eq!(kinds.contains(&"goal"), path.starts_with("/work-orders"));
+        for i in &items {
+            // Each item is what its record returns, with its evidence class.
+            let record = i["record"].as_str().unwrap();
+            let rel = record.strip_prefix("/api/v1/repos/alice/demo").unwrap();
+            let rel = if i["kind"] == "open_thread" {
+                format!("{rel}?resolved=false")
+            } else {
+                rel.to_owned()
+            };
+            let body = w.api(&w.carol, "GET", &rel, None).json();
+            assert!(found_in(&body, &i["value"]), "{path}: {i} not in {record}");
+            let evidence = match i["kind"].as_str().unwrap() {
+                "status" => "reported",
+                "approval" | "verdict" => "decided",
+                "goal" | "open_thread" => "claimed",
+                _ => "observed",
+            };
+            assert_eq!(i["evidence"], evidence, "{i}");
+        }
+    }
+    // The same authorization as the individual endpoints.
+    let dave = token(&w.s, "dave", &["repo:read"]);
+    for path in [
+        "/work-orders/1/state".to_owned(),
+        format!("/merge-requests/{n}/state"),
+    ] {
+        assert_eq!(w.api(&dave, "GET", &path, None).status, 404, "{path}");
+    }
+    // Through MCP too.
+    let r = w.s.client().api_with(
+        "POST",
+        "/api/mcp",
+        Some(&w.carol),
+        Some(
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "get_merge_request_state",
+            "arguments": {"ns": "alice", "repo": "demo", "number": n}}}),
+        ),
+        &[
+            ("accept", "application/json, text/event-stream"),
+            ("mcp-protocol-version", "2025-06-18"),
+        ],
+    );
+    assert!(r.body.contains("change_version"), "{}", r.body);
+    assert!(!r.body.contains("\"isError\":true"), "{}", r.body);
 }

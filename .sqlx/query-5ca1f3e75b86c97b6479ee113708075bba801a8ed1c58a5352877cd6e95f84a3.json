@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT number FROM merge_requests\n          WHERE repo_id = $1 AND source_repo_id = $1 AND position($2::bytea in source_ref) = 1\n          ORDER BY number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "number"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5ca1f3e75b86c97b6479ee113708075bba801a8ed1c58a5352877cd6e95f84a3"
+}

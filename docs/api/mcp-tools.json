@@ -1120,6 +1120,62 @@
         "type": "object"
       },
       "name": "list_work_order_events"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A work order's state in one read: its goal (the order itself), then\nthe items of each of its merge requests as `…/merge-requests/{n}/state`\nreturns them.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/work-orders/{number}/state`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_work_order_state"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "A merge request's state in one read: the merge request, its change\nversions, the statuses on its exact head, approvals and other verdicts\n(with `stale`), open threads, and what blocks merging. Each item is\nwhat its `record` returns for it, with the same authorization.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/state`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_merge_request_state"
     }
   ]
 }

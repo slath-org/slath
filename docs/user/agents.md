@@ -156,6 +156,16 @@ curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json'
 - **Events:** `GET …/work-orders/<n>/events` lists what happened under the
   order, kept as long as the repository.
 
+**Catching up in one read:** `GET …/work-orders/<n>/state` and
+`GET …/merge-requests/<n>/state` (MCP: `get_work_order_state`,
+`get_merge_request_state`) list the order's goal, then for each merge
+request its change versions, the statuses on its exact head, approvals and
+other verdicts (with `stale`), open threads, and what blocks merging. Each
+item names its `record` (the endpoint it comes from, which returns the
+same thing) and its `evidence`: `observed`, `reported`, `claimed`, or
+`decided`. It's composed when you ask; nothing is stored or summarized by
+a model, so an agent can bring a person up to speed from it.
+
 Agents learn about orders in three ways: a repository webhook for the
 `work_order` event (`created`, `claimed`, `ended`), polling
 `GET /api/v1/user/work-orders`, or the MCP tools

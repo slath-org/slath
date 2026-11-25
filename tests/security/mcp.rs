@@ -112,6 +112,39 @@ fn setup(s: &TestServer, token: &str, dir: &Path) -> Fixture {
     );
     assert_eq!(r.status, 201, "{}", r.body);
     let issue = r.json()["number"].as_u64().unwrap();
+    // The issue delegated to a bot with write access, as work order 1.
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "proj-agent",
+            "--token-scopes",
+            "repo:read",
+            "--repo",
+            "alice/proj",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let r = c.api(
+        "PUT",
+        "/api/v1/repos/alice/proj/collaborators/proj-agent",
+        Some(token),
+        Some(&json!({"role": "write"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    let r = c.api(
+        "POST",
+        "/api/v1/repos/alice/proj/work-orders",
+        Some(token),
+        Some(&json!({"target": {"issue": issue}, "bot": "proj-agent", "goal": "Fix the crash"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
     Fixture { head, issue }
 }
 
@@ -278,6 +311,36 @@ fn calls(f: &Fixture) -> Vec<(&'static str, Value, String)> {
             repo(json!({"id": "0190d3a4-0000-7000-8000-000000000001"})),
             format!("{r}/context-records/0190d3a4-0000-7000-8000-000000000001"),
         ),
+        (
+            "list_assigned_work_orders",
+            json!({}),
+            "/api/v1/user/work-orders".to_owned(),
+        ),
+        (
+            "list_work_orders",
+            repo(json!({})),
+            format!("{r}/work-orders"),
+        ),
+        (
+            "get_work_order",
+            repo(json!({"number": 1})),
+            format!("{r}/work-orders/1"),
+        ),
+        (
+            "list_work_order_events",
+            repo(json!({"number": 1})),
+            format!("{r}/work-orders/1/events"),
+        ),
+        (
+            "get_work_order_state",
+            repo(json!({"number": 1})),
+            format!("{r}/work-orders/1/state"),
+        ),
+        (
+            "get_merge_request_state",
+            mr(json!({})),
+            format!("{r}/merge-requests/1/state"),
+        ),
     ]
 }
 
@@ -412,6 +475,14 @@ fn replay(visibility: &str) {
                 &admin["slath_pat_".len().."slath_pat_".len() + 8]
             ));
             tokens.push((role, "token:admin".to_owned(), admin));
+            // Nobody creates a person's claim token; the matrix still has
+            // the cell, so make one the same way.
+            let claim = create_token(&mut web, "claim", &["user:read"]);
+            s.db.execute(&format!(
+                "UPDATE access_tokens SET scopes = ARRAY['work_orders:claim'] WHERE token_prefix = '{}'",
+                &claim["slath_pat_".len().."slath_pat_".len() + 8]
+            ));
+            tokens.push((role, "token:work_orders:claim".to_owned(), claim));
             let other = create_token(&mut web, "other", &["repo:write"]);
             s.db.execute(&format!(
                 "UPDATE access_tokens SET repo_ids = ARRAY[(SELECT id FROM repositories WHERE name = 'other')] \
@@ -433,7 +504,13 @@ fn replay(visibility: &str) {
         // Deleting and locked repositories are covered by the API's own
         // tests; flipping to them here would start their jobs. Suspended
         // accounts have no working tokens.
-        if vis != visibility || !matches!(state, "active" | "archived") || subject == "suspended" {
+        // Task tokens (subject `bot`) exist only for a claimed work order;
+        // the work order tests read through MCP with one.
+        if vis != visibility
+            || !matches!(state, "active" | "archived")
+            || subject == "suspended"
+            || subject == "bot"
+        {
             continue;
         }
         s.db.execute(&format!(

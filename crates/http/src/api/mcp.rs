@@ -15,7 +15,7 @@
 use std::sync::LazyLock;
 
 use axum::body::Bytes;
-use axum::extract::{MatchedPath, State};
+use axum::extract::State;
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -70,6 +70,8 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("list_work_orders", "list_orders"),
     ("get_work_order", "get_order"),
     ("list_work_order_events", "list_events"),
+    ("get_work_order_state", "get_order_state"),
+    ("get_merge_request_state", "get_mr_state"),
 ];
 
 const INSTRUCTIONS: &str = "Slath's read tools. Each tool runs one GET operation of the REST API \
@@ -382,7 +384,7 @@ async fn call(state: &AppState, parts: &Parts, params: &Value) -> Result<Value, 
 
 /// Runs `GET uri` through the API router with the caller's request context
 /// (subject, request ID, peer address).
-async fn run(
+pub(crate) async fn run(
     state: &AppState,
     parts: &Parts,
     uri: &str,
@@ -394,9 +396,21 @@ async fn run(
         .header(header::ACCEPT, "application/json, text/plain")
         .body(axum::body::Body::empty())
         .map_err(|e| e.to_string())?;
-    let mut ext = parts.extensions.clone();
-    ext.remove::<MatchedPath>();
-    *req.extensions_mut() = ext;
+    // Only what describes the caller: the outer route's own extensions
+    // (its matched path and path parameters) would confuse the inner one.
+    let ext = req.extensions_mut();
+    if let Some(s) = parts.extensions.get::<super::ApiSubject>() {
+        ext.insert(s.clone());
+    }
+    if let Some(id) = parts.extensions.get::<crate::middleware::RequestId>() {
+        ext.insert(id.clone());
+    }
+    if let Some(peer) = parts
+        .extensions
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
+        ext.insert(*peer);
+    }
     if let Some(auth) = parts.headers.get(header::AUTHORIZATION) {
         req.headers_mut()
             .insert(header::AUTHORIZATION, auth.clone());

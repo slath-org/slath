@@ -8108,6 +8108,70 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/state": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "A merge request's state in one read: the merge request, its change\nversions, the statuses on its exact head, approvals and other verdicts\n(with `stale`), open threads, and what blocks merging. Each item is\nwhat its `record` returns for it, with the same authorization.",
+        "operationId": "get_mr_state",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/suggestions/apply": {
       "post": {
         "tags": [
@@ -11135,6 +11199,79 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/work-orders/{number}/state": {
+      "get": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "A work order's state in one read: its goal (the order itself), then\nthe items of each of its merge requests as `…/merge-requests/{n}/state`\nreturns them.",
+        "operationId": "get_order_state",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateBody"
                 }
               }
             }
@@ -16565,6 +16702,49 @@
             ],
             "format": "int32",
             "description": "For `returned`: the revision that removed it."
+          }
+        }
+      },
+      "StateBody": {
+        "type": "object",
+        "description": "A state read.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StateItem"
+            }
+          }
+        }
+      },
+      "StateItem": {
+        "type": "object",
+        "description": "One item of a state read.",
+        "required": [
+          "kind",
+          "record",
+          "evidence",
+          "value"
+        ],
+        "properties": {
+          "evidence": {
+            "type": "string",
+            "description": "`observed` (Slath saw it), `reported` (an authenticated reporter\nsays so), `claimed` (someone states it), or `decided` (a person's\nor bot's verdict)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`goal`, `merge_request`, `change_version`, `status`, `approval`,\n`verdict`, `open_thread`, or `merge_blocker`."
+          },
+          "record": {
+            "type": "string",
+            "description": "The API path of the record it comes from."
+          },
+          "value": {
+            "type": "object",
+            "description": "What that record's endpoint returns for it."
           }
         }
       },

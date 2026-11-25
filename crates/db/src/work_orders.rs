@@ -499,3 +499,21 @@ pub async fn open_all(exec: impl PgExecutor<'_>) -> Result<Vec<WorkOrder>, DbErr
     .map(|r| order!(r))
     .collect())
 }
+
+/// The numbers of the repository's merge requests whose source is a
+/// branch under `prefix`, oldest first.
+pub async fn order_mr_numbers(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    prefix: &[u8],
+) -> Result<Vec<i32>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT number FROM merge_requests
+          WHERE repo_id = $1 AND source_repo_id = $1 AND position($2::bytea in source_ref) = 1
+          ORDER BY number",
+        repo.as_uuid(),
+        prefix
+    )
+    .fetch_all(exec)
+    .await?)
+}

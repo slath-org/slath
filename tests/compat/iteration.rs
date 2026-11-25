@@ -262,6 +262,8 @@ fn parts(s: &TestServer, token: Option<&str>, n: i64, since: Option<i64>) -> Val
         "failing_checks": failing,
         "threads": get("/threads?resolved=false").json(),
         "mergeability": get("/mergeability").json(),
+        // These merge requests belong to no work order.
+        "work_order": null,
     })
 }
 

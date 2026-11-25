@@ -1216,6 +1216,25 @@ impl Services {
         .await;
     }
 
+    /// The numbers of order `number`'s merge requests, oldest first, for
+    /// whoever may read the repository.
+    pub async fn work_order_mrs(
+        &self,
+        subject: &Subject,
+        (ns, repo): (&str, &str),
+        number: i32,
+    ) -> Result<Vec<i32>> {
+        let (a, view) = self.work_order(subject, (ns, repo), number).await?;
+        if !a.can(subject, Action::RepoRead) {
+            return Err(ServiceError::Forbidden);
+        }
+        let prefix = format!("refs/heads/{}", branch_prefix(view.order.number));
+        Ok(
+            slath_db::work_orders::order_mr_numbers(&self.pool, a.repo.id, prefix.as_bytes())
+                .await?,
+        )
+    }
+
     /// The open order of an issue or merge request, for showing it there.
     pub async fn latest_work_order(
         &self,
