@@ -109,6 +109,44 @@ them yourself.
   bot's repositories). Use this for agents you trust less, or for
   repositories the agent shouldn't push to at all.
 
+## Work orders: delegating one task
+
+A work order hands one issue, or a follow-up on a merge request, to a
+bot. You say what to do; the order keeps the bot to that task and records
+what it did.
+
+```sh
+curl -H "Authorization: Bearer $SLATH_TOKEN" -H 'Content-Type: application/json' \
+  https://slath.example.org/api/v1/repos/acme/app/work-orders -d '{
+  "target": {"issue": 42},
+  "bot": "acme-agent",
+  "goal": "Make the parser accept trailing commas.",
+  "instructions": "Keep the public API as it is.",
+  "scope": ["src/parser/**"],
+  "required_checks": ["ci/test"],
+  "reviewers": ["alice"]
+}'
+```
+
+- **Who:** anyone with write access delegates (a token with
+  `repo:write`); bots can't. The bot needs the write role on the
+  repository itself.
+- **One at a time:** an issue or merge request has at most one open
+  order. The order's number names the branches the bot works on,
+  `wo/<number>/…`.
+- **Limits:** `max_revisions` (default 20), `max_open_mrs` (default 1),
+  and `expires_in_days` (default 7, at most 30). `scope` records which
+  paths the work is meant for; pushes outside it aren't refused.
+- **Text is checked:** goal and instructions are refused if they contain
+  a secret, like briefs.
+- **Reading and stopping:** everyone who can read the repository lists
+  orders (`GET …/work-orders`) and reads one (`GET …/work-orders/<n>`).
+  The creator, anyone with write access, and the bot's managers stop one
+  with `POST …/work-orders/<n>/stop`. An order also ends when its time is
+  up.
+- **Events:** `GET …/work-orders/<n>/events` lists what happened under the
+  order, kept as long as the repository.
+
 ## Surfaces for programs
 
 - **The API** (`/api/v1`, described in `GET /api/v1/openapi.json`)

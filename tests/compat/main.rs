@@ -48,3 +48,4 @@ mod two_machines;
 mod update_branch;
 mod user_guide;
 mod viewed_hunks;
+mod work_orders;

@@ -152,7 +152,11 @@ fn conf_agent_13_people_get_no_work_order_claim_tokens() {
         &mut a,
         "/-/settings/tokens",
         "/-/settings/tokens",
-        &[("name", "x"), ("expires", "30"), ("scopes", "work_orders:claim")],
+        &[
+            ("name", "x"),
+            ("expires", "30"),
+            ("scopes", "work_orders:claim"),
+        ],
     );
     assert_eq!(r.status, 422);
     assert!(

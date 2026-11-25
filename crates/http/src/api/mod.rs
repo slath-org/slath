@@ -23,6 +23,7 @@ pub mod statuses;
 pub mod support;
 pub mod user;
 pub mod webhooks;
+pub mod work_orders;
 
 use axum::extract::FromRequestParts;
 use axum::http::header;
@@ -220,6 +221,7 @@ impl utoipa::Modify for SecurityAddon {
         statuses::create_status, statuses::list_statuses,
         mr_revisions::list_revisions, mr_revisions::get_interdiff, mr_iteration::get_iteration,
         change_briefs::create_brief, change_briefs::list_briefs,
+        work_orders::create_order, work_orders::list_orders, work_orders::get_order, work_orders::stop_order, work_orders::list_events, work_orders::assigned_orders,
         context_records::create_record, context_records::import_entire, context_records::list_records, context_records::get_record, context_records::delete_record,
         mr_groups::get_group, mr_groups::put_group, mr_groups::delete_group, mr_groups::merge_group,
         mr_threads::list_threads, mr_threads::create_thread, mr_threads::reply, mr_threads::update_thread, mr_threads::mark_addressed, mr_threads::clear_addressed,
@@ -236,7 +238,7 @@ impl utoipa::Modify for SecurityAddon {
     ),
     components(schemas(Problem, ProblemField)),
     modifiers(&SecurityAddon),
-    tags((name = "meta"), (name = "user"), (name = "bots"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"), (name = "webhooks"))
+    tags((name = "meta"), (name = "user"), (name = "bots"), (name = "orgs"), (name = "repos"), (name = "issues"), (name = "merge requests"), (name = "statuses"), (name = "webhooks"), (name = "work orders"))
 )]
 pub struct ApiDoc;
 
@@ -270,6 +272,7 @@ pub fn router() -> Router<AppState> {
         .merge(mr_iteration::router())
         .merge(mr_groups::router())
         .merge(change_briefs::router())
+        .merge(work_orders::router())
         .merge(context_records::router())
         .merge(mr_threads::router())
         .merge(labels::router())

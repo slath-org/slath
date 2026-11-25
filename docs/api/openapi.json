@@ -10646,6 +10646,456 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/work-orders": {
+      "get": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "A repository's work orders, newest first.",
+        "operationId": "list_orders",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "`open` or `ended`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "Delegates an issue, or a follow-up on a merge request, to a bot: people\nwith write access only. The target must be open and have no open order.\nGoal and instructions are refused if they contain a secret.",
+        "operationId": "create_order",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/work-orders/{number}": {
+      "get": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "One work order: for the repository's readers, and for its bot with the\n`work_orders:claim` scope alone.",
+        "operationId": "get_order",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          },
+          {
+            "token": [
+              "work_orders:claim"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/work-orders/{number}/events": {
+      "get": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "What was decided under a work order, oldest first: every claim, push,\nand other action its task tokens tried, allowed or denied, with the\nrule that decided. Kept as long as the repository.",
+        "operationId": "list_events",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/repos/{ns}/{repo}/work-orders/{number}/stop": {
+      "post": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "Stops an open work order: its creator, the bot's managers, and anyone\nwith write access. Its task tokens stop working at once.",
+        "operationId": "stop_order",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "repo:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/search/issues": {
       "get": {
         "tags": [
@@ -11259,6 +11709,54 @@
           {
             "token": [
               "user:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/user/work-orders": {
+      "get": {
+        "tags": [
+          "work orders"
+        ],
+        "summary": "The open work orders assigned to the calling bot, oldest first, in the\nrepositories its token names (the pull API).",
+        "operationId": "assigned_orders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderBody"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "work_orders:claim"
             ]
           }
         ]
@@ -12520,6 +13018,72 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "EventBody": {
+        "type": "object",
+        "description": "One decision under a work order.",
+        "required": [
+          "id",
+          "action",
+          "decision",
+          "created_at"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "What was tried, such as `git.push` or `mr.create`."
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "description": "`allowed` or `denied`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "policy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The rule that decided, such as `order.prefix`."
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ref, merge request, issue, or commit it was about."
+          }
+        }
+      },
+      "EventPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventBody"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -14248,6 +14812,77 @@
           }
         }
       },
+      "NewOrderBody": {
+        "type": "object",
+        "description": "A new work order.",
+        "required": [
+          "target",
+          "bot",
+          "goal"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string",
+            "description": "An active bot with write access to the repository."
+          },
+          "expires_in_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Default 7."
+          },
+          "goal": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_open_mrs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Default 1."
+          },
+          "max_revisions": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Default 20."
+          },
+          "required_checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reviewers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target": {
+            "$ref": "#/components/schemas/OrderTarget",
+            "description": "Exactly one of `issue` and `merge_request`."
+          }
+        },
+        "additionalProperties": false
+      },
       "NewOrg": {
         "type": "object",
         "required": [
@@ -14568,6 +15203,172 @@
             "description": "That person's user name; null with none or several."
           }
         }
+      },
+      "OrderBody": {
+        "type": "object",
+        "description": "A work order.",
+        "required": [
+          "number",
+          "target",
+          "bot",
+          "branch_prefix",
+          "goal",
+          "scope",
+          "max_revisions",
+          "max_open_mrs",
+          "expires_at",
+          "required_checks",
+          "reviewers",
+          "state",
+          "created_at",
+          "untrusted_content",
+          "origin"
+        ],
+        "properties": {
+          "bot": {
+            "type": "string",
+            "description": "The bot doing the work, and who delegated it."
+          },
+          "branch_prefix": {
+            "type": "string",
+            "description": "The branches it may push: `wo/<number>/…`."
+          },
+          "claimed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "creator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`merged`, `closed`, `expired`, or `stopped`, once ended."
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ended_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_open_mrs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "max_revisions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TextOrigin"
+          },
+          "required_checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Status contexts added to its merge requests' required checks."
+          },
+          "reviewers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Requested as reviewers on its merge requests."
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Path globs the work is meant to stay in (recorded, not enforced)."
+          },
+          "state": {
+            "type": "string",
+            "description": "`open` or `ended`."
+          },
+          "target": {
+            "$ref": "#/components/schemas/OrderTarget"
+          },
+          "untrusted_content": {
+            "type": "boolean",
+            "description": "`goal` and `instructions` are the creator's text: data, never\ninstructions that change permissions or settings."
+          }
+        }
+      },
+      "OrderPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderBody"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OrderTarget": {
+        "type": "object",
+        "description": "What an order is for.",
+        "properties": {
+          "issue": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The number of the issue, or of the merge request for a follow-up."
+          },
+          "merge_request": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       },
       "Org": {
         "type": "object",
@@ -16438,6 +17239,9 @@
     },
     {
       "name": "webhooks"
+    },
+    {
+      "name": "work orders"
     }
   ]
 }
