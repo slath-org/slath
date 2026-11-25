@@ -642,3 +642,133 @@ fn conf_agent_13_task_tokens_stop_with_their_order() {
     );
     assert_eq!(works(&fresh), 401);
 }
+
+/// alice/demo's Git URL with `token` as the password.
+fn url_with(w: &World, token: &str) -> String {
+    let url = w.s.url(&slath_tests::server::DEMO);
+    let (_, host) = url.split_once('@').unwrap();
+    format!("http://git:{token}@{host}")
+}
+
+/// Waits until merge request `n` has `k` revisions.
+fn wait_revisions(w: &World, n: i64, k: i64) {
+    let start = std::time::Instant::now();
+    while w
+        .api(&w.alice, "GET", &format!("/merge-requests/{n}"), None)
+        .json()["revisions"]
+        != k
+    {
+        assert!(start.elapsed().as_secs() < 30, "no revision {k}");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+}
+
+#[test]
+fn conf_agent_13_git_and_jj_agents_push_only_the_orders_branches() {
+    let w = World::start();
+    let (_, task, git, dir) = claimed(&w);
+    let url = url_with(&w, &task);
+    let p = dir.path();
+
+    // Git: its branches, and nothing else.
+    git.ok(p, &["switch", "-q", "wo/1/fix"]);
+    std::fs::write(p.join("parser"), "fixed\n").unwrap();
+    git.ok(p, &["add", "-A"]);
+    git.ok(p, &["commit", "-q", "-m", "Fix the parser"]);
+    git.ok(
+        p,
+        &["push", "-q", &url, "wo/1/fix", "HEAD:refs/heads/wo/1/new"],
+    );
+    for refspec in [
+        "+HEAD:refs/heads/topic",
+        "+HEAD:refs/heads/main",
+        "HEAD:refs/tags/v1",
+    ] {
+        let out = git.cmd(p).args(["push", &url, refspec]).output().unwrap();
+        assert!(!out.status.success(), "{refspec} was pushed");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("may push only to wo/1/"), "{refspec}: {err}");
+    }
+
+    // jj: the same with a bookmark, nothing set up beyond the remote.
+    for (version, bin) in crate::jj::jj_binaries() {
+        let jj = crate::jj::Jj::new(&version, &bin);
+        let d = tempfile::tempdir().unwrap();
+        let j = d.path().join("j");
+        jj.ok(d.path(), &["git", "clone", &url, j.to_str().unwrap()]);
+        jj.ok(&j, &["new", "main", "-m", "Parser tests"]);
+        std::fs::write(j.join("tests"), "ok\n").unwrap();
+        let mine = format!("wo/1/jj-{}", version.replace(' ', "-"));
+        jj.ok(&j, &["bookmark", "create", &mine, "-r", "@"]);
+        jj.ok(&j, &["bookmark", "create", "jj-topic", "-r", "@"]);
+        let ok = jj.run(&j, &["git", "push", "--allow-new", "--bookmark", &mine]);
+        let ok = if ok.status.success() {
+            ok
+        } else {
+            // Newer jj pushes new bookmarks without --allow-new.
+            jj.run(&j, &["git", "push", "--bookmark", &mine])
+        };
+        assert!(
+            ok.status.success(),
+            "{version}: {}",
+            String::from_utf8_lossy(&ok.stderr)
+        );
+        let bad = jj.run(
+            &j,
+            &["git", "push", "--allow-new", "--bookmark", "jj-topic"],
+        );
+        let bad = if String::from_utf8_lossy(&bad.stderr).contains("--allow-new") {
+            jj.run(&j, &["git", "push", "--bookmark", "jj-topic"])
+        } else {
+            bad
+        };
+        assert!(!bad.status.success(), "{version}: jj-topic was pushed");
+        assert!(
+            String::from_utf8_lossy(&bad.stderr).contains("may push only to wo/1/"),
+            "{version}: {}",
+            String::from_utf8_lossy(&bad.stderr)
+        );
+    }
+
+    // Revisions are budgeted over the order's merge requests.
+    let r = w.api(
+        &task,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "wo/1/fix", "title": "Fix the parser"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    wait_revisions(&w, n, 1);
+    w.s.db
+        .execute("UPDATE work_orders SET max_revisions = 2 WHERE number = 1");
+    let amend = |msg: &str| {
+        git.ok(p, &["commit", "-q", "--amend", "-m", msg]);
+        git.cmd(p)
+            .args(["push", "--force", &url, "wo/1/fix"])
+            .output()
+            .unwrap()
+    };
+    assert!(amend("Fix the parser, again").status.success());
+    wait_revisions(&w, n, 2);
+    let out = amend("Fix the parser, once more");
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("work order 1 has used its 2 revisions"),
+        "{err}"
+    );
+
+    let ev = events(&w, 1);
+    for want in [
+        ("git.push", "allowed", ""),
+        ("git.push", "denied", "order.prefix"),
+        ("git.push", "denied", "order.budget.revisions"),
+    ] {
+        assert!(
+            ev.iter()
+                .any(|(a, d, p)| (a.as_str(), d.as_str(), p.as_str()) == want),
+            "{want:?} in {ev:?}"
+        );
+    }
+}

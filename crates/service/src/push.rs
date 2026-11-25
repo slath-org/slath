@@ -68,6 +68,8 @@ pub enum DenyReason {
     SensitivePath,
     /// A bot over its push limit.
     RateLimited,
+    /// A work order's task token outside its order or budget.
+    WorkOrder,
 }
 
 impl DenyReason {
@@ -85,6 +87,7 @@ impl DenyReason {
             Self::Secret => "secret",
             Self::SensitivePath => "sensitive_path",
             Self::RateLimited => "rate_limited",
+            Self::WorkOrder => "work_order",
         }
     }
 }
@@ -215,6 +218,24 @@ impl Services {
             Resolved::Moved { namespace, name } => (namespace, name),
             Resolved::Repo(a) => (a.repo.namespace, a.repo.name),
         };
+        // A task token may push its order's branches; pre-receive checks
+        // each ref.
+        if write
+            && matches!(
+                subject,
+                Subject::User {
+                    credential: slath_core::authz::Credential::Task { .. },
+                    ..
+                }
+            )
+        {
+            let mut a = self
+                .repo_access(subject, &ns, &name, Action::RepoRead)
+                .await?;
+            a.ctx.task_actions = slath_core::authz::TASK_PUSH;
+            self.authorize(subject, &a, Action::RepoPush)?;
+            return Ok(a);
+        }
         match self.repo_access(subject, &ns, &name, action).await {
             Err(e @ ServiceError::Forbidden) if write => {
                 let a = self
@@ -271,6 +292,22 @@ impl Services {
             Err(e) => {
                 tracing::error!(error = %e, "pre-receive: loading the repository failed");
                 v.denied.push(DenyReason::NoPermission);
+                v.messages
+                    .push("slath: push rejected: internal error, try again".to_owned());
+                return v;
+            }
+        };
+        // A task token pushes only its order's branches, within budget.
+        let access = match self.task_push(&grant.subject, access, updates).await {
+            Ok(crate::work_orders::TaskPush::Pass(a)) => a,
+            Ok(crate::work_orders::TaskPush::Denied(why)) => {
+                v.denied.push(DenyReason::WorkOrder);
+                v.messages.push(why);
+                return v;
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "pre-receive: checking the work order failed");
+                v.denied.push(DenyReason::WorkOrder);
                 v.messages
                     .push("slath: push rejected: internal error, try again".to_owned());
                 return v;

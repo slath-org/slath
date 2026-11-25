@@ -457,3 +457,21 @@ pub async fn is_order_head(
     .fetch_one(exec)
     .await?)
 }
+
+/// The source refs of the open merge requests whose source is a branch
+/// under `prefix` in the repository.
+pub async fn open_order_sources(
+    exec: impl PgExecutor<'_>,
+    repo: RepoId,
+    prefix: &[u8],
+) -> Result<Vec<Vec<u8>>, DbError> {
+    Ok(sqlx::query_scalar!(
+        "SELECT source_ref FROM merge_requests
+          WHERE repo_id = $1 AND source_repo_id = $1 AND state = 'open'
+            AND position($2::bytea in source_ref) = 1",
+        repo.as_uuid(),
+        prefix
+    )
+    .fetch_all(exec)
+    .await?)
+}

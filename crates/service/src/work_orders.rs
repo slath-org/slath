@@ -130,6 +130,15 @@ fn note_policy(policy: &'static str) {
     });
 }
 
+/// The outcome of [`Services::task_push`].
+#[derive(Debug)]
+pub(crate) enum TaskPush {
+    /// Go on with this access (cleared for pushing, for a task token).
+    Pass(Option<RepoAccess>),
+    /// Refuse the whole push with this message.
+    Denied(String),
+}
+
 /// A task token from a claim, shown once.
 #[derive(Debug)]
 pub struct Claim {
@@ -870,6 +879,79 @@ impl Services {
         {
             tracing::error!(error = %e, "recording a work order event failed");
         }
+    }
+
+    /// The pre-receive check of a task token's push: every ref is a branch
+    /// under the order's prefix, and the revisions it would add stay
+    /// within the budget. Records the decision as an order event. Other
+    /// subjects pass through unchanged.
+    pub(crate) async fn task_push(
+        &self,
+        subject: &Subject,
+        access: Option<RepoAccess>,
+        updates: &[slath_git::ipc::RefUpdate],
+    ) -> Result<TaskPush> {
+        let Subject::User {
+            id: bot,
+            credential: Credential::Task { order_id, .. },
+            ..
+        } = subject
+        else {
+            return Ok(TaskPush::Pass(access));
+        };
+        let Some(order) = slath_db::work_orders::get_by_id(&self.pool, *order_id)
+            .await?
+            .filter(|o| o.state == "open")
+        else {
+            return Ok(TaskPush::Denied(
+                "slath: push rejected: this work order has ended".to_owned(),
+            ));
+        };
+        let n = order.number;
+        let prefix = format!("refs/heads/{}", branch_prefix(n));
+        let names: Vec<String> = updates
+            .iter()
+            .map(|u| String::from_utf8_lossy(&u.name).into_owned())
+            .collect();
+        let target = names.join(" ");
+        let event = |decision: &'static str, policy: Option<&'static str>| {
+            slath_db::work_orders::insert_event(
+                &self.pool,
+                order.id,
+                ("git.push", decision, policy),
+                Some(&target),
+                Some(*bot),
+            )
+        };
+        if let Some(bad) = names.iter().find(|r| !r.starts_with(&prefix)) {
+            event("denied", Some("order.prefix")).await?;
+            return Ok(TaskPush::Denied(format!(
+                "slath: push rejected: work order {n} may push only to wo/{n}/… (not {bad})"
+            )));
+        }
+        let (_, used) =
+            slath_db::work_orders::order_mr_usage(&self.pool, order.repo_id, prefix.as_bytes())
+                .await?;
+        let sources =
+            slath_db::work_orders::open_order_sources(&self.pool, order.repo_id, prefix.as_bytes())
+                .await?;
+        let adds = updates
+            .iter()
+            .filter(|u| !u.new.bytes().all(|b| b == b'0') && sources.contains(&u.name))
+            .count();
+        let adds = i64::try_from(adds).unwrap_or(i64::MAX);
+        if used.saturating_add(adds) > i64::from(order.max_revisions) {
+            event("denied", Some("order.budget.revisions")).await?;
+            return Ok(TaskPush::Denied(format!(
+                "slath: push rejected: work order {n} has used its {} revisions",
+                order.max_revisions
+            )));
+        }
+        event("allowed", None).await?;
+        Ok(TaskPush::Pass(access.map(|mut a| {
+            a.ctx.task_actions = authz::TASK_PUSH;
+            a
+        })))
     }
 
     /// The open order of an issue or merge request, for showing it there.

@@ -178,7 +178,10 @@ async fn subject(state: &AppState, headers: &HeaderMap) -> Result<Subject, Denie
     if user.is_empty() {
         return Err(Denied::Unauthorized);
     }
-    if !slath_auth::token::is_pat(password) {
+    // Personal and bot tokens, and a work order's task token.
+    let task = slath_auth::token::token_kind(password)
+        == Some(slath_core::credential::CredentialKind::TaskToken);
+    if !slath_auth::token::is_pat(password) && !task {
         return Err(Denied::PasswordRejected);
     }
     match state.services.authenticate_token(password).await {

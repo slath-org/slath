@@ -102,7 +102,7 @@ impl Jj {
         c
     }
 
-    fn run(&self, cwd: &Path, args: &[&str]) -> Output {
+    pub(crate) fn run(&self, cwd: &Path, args: &[&str]) -> Output {
         self.cmd(cwd).args(args).output().unwrap()
     }
 

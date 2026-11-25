@@ -165,6 +165,12 @@ A task token acts with the bot's own role, but only for the order:
 
 - It reads the repository through the API (issues and merge requests
   included), and nothing in other repositories, public ones included.
+- It pushes branches under `wo/<number>/` over HTTPS, with the token as
+  the password: plain `git push` or `jj git push`, nothing to set up. A
+  push that touches any other branch or a tag is rejected as a whole. A
+  push that would give the order's merge requests more than
+  `max_revisions` revisions in all is rejected too. SSH needs the bot's
+  own keys, not a task token.
 - It comments on the order's issue (or, for a follow-up, its merge
   request) and on the merge requests it opened.
 - It opens merge requests only from branches under `wo/<number>/`, at

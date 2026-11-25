@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT source_ref FROM merge_requests\n          WHERE repo_id = $1 AND source_repo_id = $1 AND state = 'open'\n            AND position($2::bytea in source_ref) = 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source_ref",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "merge_requests",
+            "name": "source_ref"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ec216377cc251150c14998a0fadd02fb0daf7867eeddb2cab83bcfd29f94e12"
+}
