@@ -1462,6 +1462,8 @@ struct MrHeading {
     can_push: bool,
     /// The readiness card: what to decide, and the viewer's next step.
     card: Card,
+    /// The Facts panel: what would land, as the merge box sees it.
+    facts: Option<super::facts::Panel>,
     /// A fork source head push protection held back.
     held: Option<HeldView>,
     /// `ns/name` of a fork source.
@@ -1780,6 +1782,7 @@ async fn heading(
         .map(|(_, n)| n)
         .filter(|n| *n > 0);
     let base = mr_url(&a.repo.namespace, &a.repo.name, m.number, "");
+    let facts = mb.facts.as_ref().map(super::facts::panel);
     let mut card = card(&m, mb, &viewer, since, &base);
     // A linked merge request merges with its group, in the group's box.
     if let Some(act) = card.action.as_mut()
@@ -1883,6 +1886,7 @@ async fn heading(
     };
     Ok(MrHeading {
         alone,
+        facts,
         commits,
         files,
         checkout_form,
@@ -2950,6 +2954,8 @@ struct ChangePage {
     ctx: PageCtx,
     header: RepoHeader,
     h: MrHeading,
+    /// The Facts panel of the shown version's own diff.
+    facts: Option<super::facts::Panel>,
     change: ChangeInfo,
     /// The versions, oldest first, with what the list shows of each.
     rows: Vec<VersionRow>,
@@ -3365,8 +3371,20 @@ async fn change(
         Some(&change.display_id),
     )
     .await?;
+    let facts = Some(super::facts::panel(
+        &state
+            .services
+            .mr_facts(
+                &subject,
+                (&a.repo.namespace, &a.repo.name, m.number),
+                Some(shown.revision),
+                Some(&shown.commit_oid),
+            )
+            .await?,
+    ));
     let page = ChangePage {
         context,
+        facts,
         header: RepoHeader::load(&state, &a, &subject, TAB).await,
         h: heading(&state, &subject, &a, m).await?,
         rows,

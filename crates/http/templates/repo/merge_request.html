@@ -435,6 +435,8 @@
     {% include "repo/statuses.html" %}
     {%- endif %}
   </section>
+  {%- let facts = h.facts.as_ref() %}
+  {% include "repo/facts_panel.html" %}
   {% include "repo/context_panel.html" %}
   {%- if group.is_some() || can_link %}
   <section class="details-section" aria-labelledby="side-group-heading" id="side-group">

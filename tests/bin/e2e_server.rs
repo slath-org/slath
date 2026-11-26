@@ -794,6 +794,42 @@ fn seed_outside_contribution(server: &TestServer, git: &GitClient) {
     assert_eq!(r.status, 201, "{}", r.body);
 }
 
+/// "Facts fixture": a merge request whose one change adds a lockfile with
+/// five packages and an executable script, for the Facts panel. It runs
+/// last, so it leaves the work tree on its branch.
+fn seed_facts(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
+    git.ok(w, &["switch", "-q", "-c", "facts", "main"]);
+    let lock: String = ["alpha", "bravo", "charlie", "delta", "echo"]
+        .iter()
+        .map(|n| format!("[[package]]\nname = \"{n}\"\nversion = \"1.0.0\"\n\n"))
+        .collect();
+    std::fs::write(w.join("Cargo.lock"), format!("version = 4\n\n{lock}")).unwrap();
+    std::fs::write(w.join("run.sh"), "#!/bin/sh\n").unwrap();
+    git.ok(w, &["add", "-A"]);
+    git.ok(w, &["update-index", "--chmod=+x", "run.sh"]);
+    git.ok(w, &["commit", "-q", "-m", "Add the lockfile and a script"]);
+    git.ok(w, &["push", "-q", url, "facts"]);
+    let mut alice = server.login("alice", PASSWORD);
+    let token = slath_tests::http::create_token(&mut alice, "facts", &["repo:write", "mrs:write"]);
+    let mut api = server.client();
+    let r = api.api(
+        "POST",
+        "/api/v1/repos/alice/demo/merge-requests",
+        Some(&token),
+        Some(&serde_json::json!({"source_branch": "facts", "title": "Facts fixture"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let path = format!(
+        "/api/v1/repos/alice/demo/merge-requests/{}",
+        r.json()["number"]
+    );
+    let start = std::time::Instant::now();
+    while api.api("GET", &path, Some(&token), None).json()["revisions"] != 1 {
+        assert!(start.elapsed().as_secs() < 30, "no first revision");
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 fn main() {
     // alice/demo (private) with content; accounts as in tests/e2e/fixtures.ts.
     // A host name, not an IP address: passkeys (WebAuthn) need one.
@@ -844,6 +880,7 @@ fn main() {
     seed_change_source(&server, &git, w, &url);
     // Needs e2e-agent from the merge requests.
     seed_outside_contribution(&server, &git);
+    seed_facts(&server, &git, w, &url);
     // The browser tests sign in as alice with this password.
     assert_eq!(PASSWORD, "slath test password");
     println!("SLATH_E2E_URL={origin}");

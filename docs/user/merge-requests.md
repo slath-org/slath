@@ -887,7 +887,10 @@ Facts are what Slath itself sees in a diff, as opposed to what anyone says
 about it. Slath computes them from Git for each revision's whole diff and
 for each change's own diff, so they're the same whether the changes were
 made with Git or jj. Nothing about them is stored: they're worked out
-again whenever you look.
+again whenever you look. The **Facts** panel beside the conversation
+shows them for what would be merged, and the panel on a change's page
+for that change. It starts with the size and lists only the facts that
+apply; a long list shows three items and folds the rest.
 
 - **Size:** files changed, lines added and removed.
 - **Outside the work order's scope:** for a merge request a bot opened

@@ -13,6 +13,7 @@ pub mod design;
 pub mod diff;
 pub mod editor;
 pub mod emails;
+pub mod facts;
 pub mod forks;
 pub mod identicon;
 pub mod import;

@@ -1,0 +1,32 @@
+{#- The Facts panel: what Slath itself sees in a diff, in a details column.
+    Expects `facts` (Option<facts::Panel>) and `ctx`, and the macros
+    base.html imports. Only facts that apply get an entry. -#}
+{%- if let Some(fp) = facts %}
+<section class="details-section" aria-labelledby="side-facts-heading" id="side-facts">
+  <h2 id="side-facts-heading" class="details-heading">Facts</h2>
+  <p>{{ fp.size }} {% call m::evidence("Observed") %}{% endcall %}</p>
+  {%- if !fp.rows.is_empty() %}
+  <dl class="facts">
+  {%- for r in fp.rows %}
+    <dt>{{ r.label }}</dt>
+    <dd>
+      <ul class="plain-list">
+      {%- for i in r.shown() %}
+        <li>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</li>
+      {%- endfor %}
+      </ul>
+      {%- if !r.rest().is_empty() %}
+      {%- call d::disclosure(ctx, r.more_label()) %}
+      <ul class="plain-list">
+      {%- for i in r.rest() %}
+        <li>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</li>
+      {%- endfor %}
+      </ul>
+      {%- endcall %}
+      {%- endif %}
+    </dd>
+  {%- endfor %}
+  </dl>
+  {%- endif %}
+</section>
+{%- endif %}

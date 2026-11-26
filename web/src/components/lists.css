@@ -79,6 +79,15 @@ dl.facts {
   }
 }
 
+/* In a details column, each name stands above its value. */
+.details-column dl.facts {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0;
+}
+.details-column dl.facts dd {
+  margin-block-end: var(--gap-inline);
+}
+
 /* More results: buttons for the previous and next page below the list. */
 nav.pager-nav {
   display: flex;
