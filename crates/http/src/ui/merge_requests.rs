@@ -1027,6 +1027,8 @@ struct ThreadItem {
     /// "g.txt, line 5"; `None` for a thread on the whole merge request.
     location: Option<String>,
     outdated: bool,
+    /// A finding left unresolved on an earlier revision.
+    stale: bool,
     /// Carried from this earlier revision.
     from: Option<i32>,
     revision: i32,
@@ -2177,6 +2179,7 @@ async fn thread_item(
         id: t.thread.id.to_string(),
         // A thread on a brief that a newer edit or version replaced.
         outdated: t.position == Position::Outdated || t.brief.as_ref().is_some_and(|b| !b.current),
+        stale: t.finding_state == Some("stale"),
         from: match &t.position {
             Position::Current { from, .. } => *from,
             _ => None,

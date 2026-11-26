@@ -17431,7 +17431,8 @@
           "origin",
           "context",
           "severity",
-          "category"
+          "category",
+          "state"
         ],
         "properties": {
           "category": {
@@ -17455,6 +17456,10 @@
           "severity": {
             "type": "string",
             "description": "`notice`, `warning`, or `failure`."
+          },
+          "state": {
+            "type": "string",
+            "description": "`open`, `resolved`, or `stale`: unresolved while its revision is no\nlonger the current one. A stale finding never comes back; a newer\nrevision gets findings of its own."
           },
           "untrusted_content": {
             "type": "boolean",

@@ -871,7 +871,10 @@ status's context and the severity:
   resolved.
 - Findings stay on their revision. After a new push they show in the
   conversation with their revision, not in the new diff; statuses on the
-  new head bring the new revision's findings.
+  new head bring the new revision's findings. A finding left unresolved on
+  an earlier revision is marked **Stale**: nothing reopens it, so what
+  still applies is what the new revision's statuses report. In the API, a
+  finding's `state` is `open`, `resolved`, or `stale`.
 - You can reply to and resolve findings like any thread, but they never
   count as a review or approval, send no notifications, and don't count
   for "resolved threads" in branch protection. Whether a check blocks the

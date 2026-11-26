@@ -171,6 +171,21 @@ fn seed_merge_requests(server: &TestServer, git: &GitClient, w: &Path, url: &str
         ),
     );
     assert_eq!(r.status, 201, "{}", r.body);
+    // A finding reported late on the first revision's head: left
+    // unresolved there, it's stale.
+    let first = git.ok(w, &["rev-parse", "HEAD~1"]).trim().to_owned();
+    let r = api.api(
+        "POST",
+        &format!("/api/v1/repos/alice/demo/statuses/{first}"),
+        bot["token"].as_str(),
+        Some(
+            &serde_json::json!({"state": "failure", "context": "spelling", "annotations": [
+                {"path": "review.md", "line_start": 1, "severity": "notice", "category": "docs",
+                 "message": "Draft is spelled correctly, but check the rest."}
+            ]}),
+        ),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
     // "Agent fixture": a bot's merge request with three iterations, left
     // iterating (no test marks it ready).
     let (ok, out, err) = server.slath(

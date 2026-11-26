@@ -89,6 +89,10 @@ pub struct ThreadView {
     pub position: Position,
     /// For a thread on a brief, where it is.
     pub brief: Option<BriefPlace>,
+    /// For a finding: `open`, `resolved`, or `stale` (unresolved, and its
+    /// revision is no longer the current one, so it can't come back: a
+    /// newer revision gets findings of its own).
+    pub finding_state: Option<&'static str>,
 }
 
 pub(crate) fn hash_lines(lines: &[Vec<u8>]) -> String {
@@ -681,11 +685,21 @@ impl Services {
                 }
                 _ => None,
             };
+            let finding_state = t.finding.as_ref().map(|_| {
+                if t.resolved_at.is_some() {
+                    "resolved"
+                } else if t.revision_seq == m.revisions {
+                    "open"
+                } else {
+                    "stale"
+                }
+            });
             out.push(ThreadView {
                 thread: t,
                 comments: visible,
                 position,
                 brief,
+                finding_state,
             });
         }
         Ok(out)

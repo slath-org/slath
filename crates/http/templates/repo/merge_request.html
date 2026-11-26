@@ -57,7 +57,7 @@
     <article aria-label="Thread{% if let Some(l) = t.location %} on {{ l }}{% endif %}">
       <header class="comment-header">{% call m::icon(ctx, "message-square") %}{% endcall %}{% if let Some(l) = t.location %}<code>{{ l }}</code>{% else %}On the merge request{% endif %}
         <span class="text-secondary">revision {{ t.revision }}</span>
-        {%- if let Some(fl) = t.finding %} <span class="badge">{{ fl }}</span>
+        {%- if let Some(fl) = t.finding %} <span class="badge">{{ fl }}</span>{% if t.stale %} <span class="badge">Stale</span>{% endif %}
         {%- else if t.outdated %} <span class="badge">{% if t.brief_quote.is_some() %}On an earlier brief{% else %}Outdated{% endif %}</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
         {%- if t.resolved %} <span class="badge">Resolved</span>{% if let Some(by) = t.resolved_by %} <span class="text-secondary">by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}{% endif %}

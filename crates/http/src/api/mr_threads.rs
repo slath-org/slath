@@ -108,6 +108,10 @@ pub struct ThreadFinding {
     /// `notice`, `warning`, or `failure`.
     pub severity: String,
     pub category: String,
+    /// `open`, `resolved`, or `stale`: unresolved while its revision is no
+    /// longer the current one. A stale finding never comes back; a newer
+    /// revision gets findings of its own.
+    pub state: &'static str,
 }
 
 impl From<ThreadView> for ThreadBody {
@@ -194,6 +198,7 @@ impl From<ThreadView> for ThreadBody {
                 context: f.context,
                 severity: f.severity,
                 category: f.category,
+                state: v.finding_state.unwrap_or("open"),
             }),
         }
     }

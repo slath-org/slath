@@ -322,6 +322,13 @@ test("conf_agent_02_findings_show_as_bot_threads", async ({ page }) => {
   await expect(finding.locator(".thread-comment-head").first()).toContainText("e2e-lint");
   await expect(finding.locator(".thread-comment-head").first()).toContainText("Bot");
   await expect(finding.locator(".finding-message")).toHaveText("Say what changed in the draft.\nKeep it to one line.");
+  await expect(finding).not.toContainText("Stale");
+  // One left unresolved on the first revision is stale.
+  const stale = page
+    .getByRole("article", { name: "Thread on review.md, line 1" })
+    .filter({ hasText: "Finding from spelling (notice)" });
+  await expect(stale.getByText("Stale", { exact: true })).toBeVisible();
+  await expect(stale).toContainText("revision 1");
   await expectAccessible(page);
   // The Files tab shows it under its line.
   await page.goto(page.url().replace(/#.*$/, "") + "/files");

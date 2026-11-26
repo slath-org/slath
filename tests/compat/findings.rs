@@ -378,13 +378,13 @@ fn conf_agent_02_findings_land_only_on_the_matching_revision() {
     assert_eq!(
         f[0]["finding"],
         json!({"context": "lint", "severity": "warning", "category": "other", "reporter": "lint",
-               "untrusted_content": true, "origin": "bot"})
+               "untrusted_content": true, "origin": "bot", "state": "open"})
     );
     assert_eq!(message(&f[0]), "Unused variable");
     assert_eq!(
         f[1]["finding"],
         json!({"context": "lint", "severity": "failure", "category": "security", "reporter": "lint",
-               "untrusted_content": true, "origin": "bot"})
+               "untrusted_content": true, "origin": "bot", "state": "open"})
     );
     assert_eq!(
         (f[1]["line_start"].clone(), f[1]["line_end"].clone()),
@@ -520,6 +520,70 @@ fn conf_agent_02_findings_resolve_when_no_longer_reported() {
     );
     assert_eq!(r.status, 201, "{}", r.body);
     assert_eq!(by_line(9, "tests")["comments"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn conf_agent_14_findings_go_stale_when_superseded_unresolved() {
+    let u = Setup::new(json!({"pattern": "main", "required_approvals": 0}));
+    let h1 = u.push("topic", &text(3), false);
+    let n = u.open("topic");
+    u.report(
+        &u.bot,
+        &h1,
+        "lint",
+        json!([note("src/lib.rs", 2), note("src/lib.rs", 3)]),
+    );
+    let state = |line: i64, rev: i64| {
+        u.findings(n)
+            .into_iter()
+            .find(|t| t["line_start"] == line && t["revision"] == rev)
+            .map(|t| t["finding"]["state"].as_str().unwrap().to_owned())
+            .unwrap()
+    };
+    assert_eq!((state(2, 1), state(3, 1)), ("open".into(), "open".into()));
+    let two = u
+        .findings(n)
+        .into_iter()
+        .find(|t| t["line_start"] == 2)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = api(
+        &u.s,
+        &u.alice,
+        "PATCH",
+        &format!("/merge-requests/{n}/threads/{two}"),
+        Some(json!({"resolved": true})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+
+    // A new revision: the unresolved finding goes stale, the resolved one
+    // stays resolved, and the new head's own finding is open.
+    let h2 = u.push("topic", &text(4), true);
+    u.wait(n, 2);
+    assert_eq!(state(2, 1), "resolved");
+    assert_eq!(state(3, 1), "stale");
+    u.report(&u.bot, &h2, "lint", json!([note("src/lib.rs", 3)]));
+    assert_eq!(state(3, 2), "open");
+    assert_eq!(state(3, 1), "stale", "a stale finding never comes back");
+    let page =
+        u.s.login("alice", PASSWORD)
+            .get(&format!("/alice/demo/merge-requests/{n}"))
+            .body;
+    assert_eq!(page.matches(">Stale</span>").count(), 1, "{page}");
+
+    // It stays stale once the merge request is closed.
+    let r = api(
+        &u.s,
+        &u.bob,
+        "PATCH",
+        &format!("/merge-requests/{n}"),
+        Some(json!({"state": "closed"})),
+    );
+    assert!(r.status < 300, "{}", r.body);
+    assert_eq!(state(3, 1), "stale");
+    assert_eq!(state(3, 2), "open");
 }
 
 #[test]

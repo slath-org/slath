@@ -125,7 +125,7 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>A conversation on a line, a file, or the whole merge request: where it is and on which revision, the code it's about, its comments (a suggestion under its comment), and its end: the reply box and, for those who may, "Resolve thread". One markup in the conversation and in the diff.</dd>
   <dt>Markup</dt><dd><code>li.timeline-comment.timeline-thread</code> &gt; <code>article</code> with the header, the code snippet (or, on a brief field, the field's text in <code>pre.thread-quote</code>), <code>ol.thread-comments</code>, and <code>div.thread-actions</code> holding <code>d::reply_box</code> and the <code>reply-resolve</code> button.</dd>
-  <dt>Variants</dt><dd>Current; from an earlier revision; outdated; resolved; addressed by a bot; with a finding (a bot's, in a neutral category); on a field of a change's brief, quoting it, and "On an earlier brief" once the brief changed.</dd>
+  <dt>Variants</dt><dd>Current; from an earlier revision; outdated; resolved; addressed by a bot; with a finding (a bot's, in a neutral category), and "Stale" once it was left unresolved on an earlier revision; on a field of a change's brief, quoting it, and "On an earlier brief" once the brief changed.</dd>
   <dt>Accessibility</dt><dd>An article named by its place; the code is a scrolling region; bot text carries the evidence chip and the Bot badge.</dd>
   <dt>Not for</dt><dd>Comments on the whole issue (timeline comments).</dd>
 </dl>
