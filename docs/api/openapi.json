@@ -6662,6 +6662,89 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/facts": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "The facts of a merge request revision's diff (`merge_base..head`), or\nof one change version's diff (`parent..commit`): size, paths outside\nthe work order's scope, sensitive paths, dependency changes, deleted\ntests, added binaries, mode changes, and possible secrets.",
+        "operationId": "get_facts",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "The revision (default: the current one).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "commit",
+            "in": "query",
+            "description": "A change version's commit in that revision: its own diff.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactsBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/group": {
       "get": {
         "tags": [
@@ -13423,6 +13506,240 @@
           }
         }
       },
+      "FactDependency": {
+        "type": "object",
+        "description": "A dependency manifest or lockfile the diff changes.",
+        "required": [
+          "path",
+          "ecosystem",
+          "packages",
+          "added",
+          "removed",
+          "updated"
+        ],
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactPackage"
+            }
+          },
+          "ecosystem": {
+            "type": "string",
+            "description": "`cargo`, `npm`, `go`, `python`, `ruby`, `php`, `java`, or `nix`."
+          },
+          "packages": {
+            "type": "boolean",
+            "description": "Whether its packages were compared; the lists are empty if not."
+          },
+          "path": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactPackage"
+            }
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactPackageUpdate"
+            }
+          }
+        }
+      },
+      "FactModeChange": {
+        "type": "object",
+        "description": "A file whose mode changed, or an added executable or symbolic link.",
+        "required": [
+          "path",
+          "new_mode"
+        ],
+        "properties": {
+          "new_mode": {
+            "type": "string"
+          },
+          "old_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for an added file."
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "FactPackage": {
+        "type": "object",
+        "description": "A package and its version (empty when the file names none).",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "FactPackageUpdate": {
+        "type": "object",
+        "description": "A package whose only version changed.",
+        "required": [
+          "name",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "FactSecret": {
+        "type": "object",
+        "description": "A possible secret on an added line. Its text is never included.",
+        "required": [
+          "path",
+          "line",
+          "rule",
+          "description",
+          "tier"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string",
+            "description": "The push protection rule that matched, and its description."
+          },
+          "tier": {
+            "type": "string",
+            "description": "`warn` or `block`."
+          }
+        }
+      },
+      "FactSize": {
+        "type": "object",
+        "description": "The size of a diff.",
+        "required": [
+          "files",
+          "additions",
+          "deletions"
+        ],
+        "properties": {
+          "additions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deletions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files": {
+            "type": "integer",
+            "description": "Files changed; binary files count without lines.",
+            "minimum": 0
+          }
+        }
+      },
+      "FactsBody": {
+        "type": "object",
+        "description": "What Slath itself sees in a diff (evidence class `observed`), computed\nfrom Git on every read. A list is empty when nothing applies.",
+        "required": [
+          "size",
+          "sensitive_paths",
+          "dependencies",
+          "deleted_tests",
+          "added_binaries",
+          "mode_changes",
+          "secrets",
+          "incomplete"
+        ],
+        "properties": {
+          "added_binaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Added or copied files Git treats as binary."
+          },
+          "deleted_tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Deleted files that look like tests."
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactDependency"
+            }
+          },
+          "incomplete": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What couldn't be computed exactly, in words."
+          },
+          "mode_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactModeChange"
+            }
+          },
+          "outside_scope": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Changed paths (a rename: both) that no glob of the work order's\nscope matches; null without a work order or a scope."
+          },
+          "secrets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactSecret"
+            },
+            "description": "Push protection's scanner over the added lines, without what the\ndefault branch's allowlist allows."
+          },
+          "sensitive_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Changed paths (a rename: both) on the sensitive path list."
+          },
+          "size": {
+            "$ref": "#/components/schemas/FactSize"
+          }
+        }
+      },
       "Fork": {
         "type": "object",
         "required": [
@@ -14615,6 +14932,17 @@
               {
                 "$ref": "#/components/schemas/CoverageBody",
                 "description": "What the counting approvers had viewed when they approved; absent\nwithout counting approvals."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "facts": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FactsBody",
+                "description": "The facts of what would land: the current revision's whole diff,\nor the diff up to `upto_change`; null without a revision."
               },
               {
                 "type": "null"

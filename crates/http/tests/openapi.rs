@@ -81,6 +81,11 @@ const TEXT_FIELDS: &[&str] = &[
 /// Free-text fields without origin labels, and why (spec: origin labels).
 const NOT_USER_TEXT: &[(&str, &str, &str)] = &[
     (
+        "FactSecret",
+        "description",
+        "a push protection rule's description, from the built-in or the operator's rule set",
+    ),
+    (
         "CommitDetail",
         "message",
         "Git content: commit messages have no Slath author",

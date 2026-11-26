@@ -49,6 +49,7 @@ header instead. If a client insists on OAuth, it gets `401` and stops.
 | `get_stack`, `list_revisions`, `get_interdiff` | The changes of a merge request, its revisions, and what changed between two of them |
 | `get_iteration` | Everything for the next round in one call: the current revision, the interdiff since yours, failing required checks, unresolved threads, and mergeability |
 | `get_mergeability`, `get_ledger` | What blocks a merge, and how review state came about |
+| `get_merge_request_facts` | What Slath sees in a diff: size, sensitive paths, dependency changes, deleted tests, binaries, mode changes, possible secrets ([facts](merge-requests.md#facts)) |
 | `get_group` | Merge requests linked to land together |
 | `list_threads`, `list_reviews`, `list_merge_request_comments` | Review threads, reviews, and the conversation |
 | `list_statuses` | The checks on a commit |

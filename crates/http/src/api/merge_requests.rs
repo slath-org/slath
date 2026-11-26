@@ -835,6 +835,9 @@ pub struct MergeabilityBody {
     /// The one-maintainer policy of the target's protection; null without
     /// the setting.
     pub one_maintainer: Option<OneMaintainerBody>,
+    /// The facts of what would land: the current revision's whole diff,
+    /// or the diff up to `upto_change`; null without a revision.
+    pub facts: Option<FactsBody>,
 }
 
 /// The one-maintainer policy: while exactly one person has write access,
@@ -908,6 +911,7 @@ impl From<slath_service::mr_reviews::Mergeability> for MergeabilityBody {
         MergeabilityBody {
             mergeable: mb.mergeable,
             up_to_date: mb.up_to_date,
+            facts: mb.facts.map(Into::into),
             one_maintainer: mb.one_maintainer.map(|o| OneMaintainerBody {
                 maintainer: o.maintainer.map(|(_, n)| n),
                 applies: o.applies,
@@ -1065,6 +1069,168 @@ pub async fn get_inventory(
         .mr_inventory(&s, (&ns, &repo, number), q.revision, q.commit.as_deref())
         .await?;
     Ok(Json(inv.into()))
+}
+
+/// The size of a diff.
+#[derive(Serialize, ToSchema)]
+pub struct FactSize {
+    /// Files changed; binary files count without lines.
+    pub files: usize,
+    pub additions: usize,
+    pub deletions: usize,
+}
+
+/// A package and its version (empty when the file names none).
+#[derive(Serialize, ToSchema)]
+pub struct FactPackage {
+    pub name: String,
+    pub version: String,
+}
+
+/// A package whose only version changed.
+#[derive(Serialize, ToSchema)]
+pub struct FactPackageUpdate {
+    pub name: String,
+    pub from: String,
+    pub to: String,
+}
+
+/// A dependency manifest or lockfile the diff changes.
+#[derive(Serialize, ToSchema)]
+pub struct FactDependency {
+    pub path: String,
+    /// `cargo`, `npm`, `go`, `python`, `ruby`, `php`, `java`, or `nix`.
+    pub ecosystem: String,
+    /// Whether its packages were compared; the lists are empty if not.
+    pub packages: bool,
+    pub added: Vec<FactPackage>,
+    pub removed: Vec<FactPackage>,
+    pub updated: Vec<FactPackageUpdate>,
+}
+
+/// A file whose mode changed, or an added executable or symbolic link.
+#[derive(Serialize, ToSchema)]
+pub struct FactModeChange {
+    pub path: String,
+    /// Null for an added file.
+    pub old_mode: Option<String>,
+    pub new_mode: String,
+}
+
+/// A possible secret on an added line. Its text is never included.
+#[derive(Serialize, ToSchema)]
+pub struct FactSecret {
+    pub path: String,
+    pub line: u32,
+    /// The push protection rule that matched, and its description.
+    pub rule: String,
+    pub description: String,
+    /// `warn` or `block`.
+    pub tier: String,
+}
+
+/// What Slath itself sees in a diff (evidence class `observed`), computed
+/// from Git on every read. A list is empty when nothing applies.
+#[derive(Serialize, ToSchema)]
+pub struct FactsBody {
+    pub size: FactSize,
+    /// Changed paths (a rename: both) that no glob of the work order's
+    /// scope matches; null without a work order or a scope.
+    pub outside_scope: Option<Vec<String>>,
+    /// Changed paths (a rename: both) on the sensitive path list.
+    pub sensitive_paths: Vec<String>,
+    pub dependencies: Vec<FactDependency>,
+    /// Deleted files that look like tests.
+    pub deleted_tests: Vec<String>,
+    /// Added or copied files Git treats as binary.
+    pub added_binaries: Vec<String>,
+    pub mode_changes: Vec<FactModeChange>,
+    /// Push protection's scanner over the added lines, without what the
+    /// default branch's allowlist allows.
+    pub secrets: Vec<FactSecret>,
+    /// What couldn't be computed exactly, in words.
+    pub incomplete: Vec<String>,
+}
+
+impl From<slath_service::facts::Facts> for FactsBody {
+    fn from(f: slath_service::facts::Facts) -> Self {
+        let pkg = |p: slath_core::facts::Package| FactPackage {
+            name: p.name,
+            version: p.version,
+        };
+        Self {
+            size: FactSize {
+                files: f.size.files,
+                additions: f.size.additions,
+                deletions: f.size.deletions,
+            },
+            outside_scope: f.outside_scope,
+            sensitive_paths: f.sensitive_paths,
+            dependencies: f
+                .dependencies
+                .into_iter()
+                .map(|d| FactDependency {
+                    path: d.path,
+                    ecosystem: d.ecosystem.to_owned(),
+                    packages: d.packages,
+                    added: d.changes.added.into_iter().map(pkg).collect(),
+                    removed: d.changes.removed.into_iter().map(pkg).collect(),
+                    updated: d
+                        .changes
+                        .updated
+                        .into_iter()
+                        .map(|u| FactPackageUpdate {
+                            name: u.name,
+                            from: u.from,
+                            to: u.to,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            deleted_tests: f.deleted_tests,
+            added_binaries: f.added_binaries,
+            mode_changes: f
+                .mode_changes
+                .into_iter()
+                .map(|m| FactModeChange {
+                    path: m.path,
+                    old_mode: m.old_mode,
+                    new_mode: m.new_mode,
+                })
+                .collect(),
+            secrets: f
+                .secrets
+                .into_iter()
+                .map(|x| FactSecret {
+                    path: x.path,
+                    line: x.line,
+                    rule: x.rule,
+                    description: x.description,
+                    tier: x.tier.to_owned(),
+                })
+                .collect(),
+            incomplete: f.incomplete,
+        }
+    }
+}
+
+/// The facts of a merge request revision's diff (`merge_base..head`), or
+/// of one change version's diff (`parent..commit`): size, paths outside
+/// the work order's scope, sensitive paths, dependency changes, deleted
+/// tests, added binaries, mode changes, and possible secrets.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/facts", tag = "merge requests", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), InventoryQuery),
+    responses((status = 200, body = FactsBody), (status = 404, body = super::Problem)))]
+pub async fn get_facts(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    Query(q): Query<InventoryQuery>,
+) -> Result<Json<FactsBody>, AppError> {
+    let f = state
+        .services
+        .mr_facts(&s, (&ns, &repo, number), q.revision, q.commit.as_deref())
+        .await?;
+    Ok(Json(f.into()))
 }
 
 /// Where to fetch a merge request as a branch.
@@ -1329,6 +1495,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/inventory",
             Access::Resource,
             get(get_inventory),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/facts",
+            Access::Resource,
+            get(get_facts),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/checkout",

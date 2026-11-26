@@ -881,6 +881,49 @@ status's context and the severity:
   repository. The API marks finding threads with `finding` (`context`,
   `severity`, `category`).
 
+## Facts
+
+Facts are what Slath itself sees in a diff, as opposed to what anyone says
+about it. Slath computes them from Git for each revision's whole diff and
+for each change's own diff, so they're the same whether the changes were
+made with Git or jj. Nothing about them is stored: they're worked out
+again whenever you look.
+
+- **Size:** files changed, lines added and removed.
+- **Outside the work order's scope:** for a merge request a bot opened
+  under a [work order](agents.md) with a path scope, the changed files the
+  scope doesn't cover.
+- **Sensitive paths:** changed files on the repository's
+  [sensitive path list](bots.md#sensitive-paths).
+- **Dependencies:** changed manifests and lockfiles. For `Cargo.lock`,
+  `poetry.lock`, `uv.lock`, `package-lock.json`, `npm-shrinkwrap.json`,
+  `go.mod`, and `requirements*.txt`, also the packages added, removed, and
+  updated, compared by name. These are recognized without comparing
+  packages: `Cargo.toml`, `package.json`, `yarn.lock`, `pnpm-lock.yaml`,
+  `go.sum`, `pyproject.toml`, `Pipfile`, `Pipfile.lock`, `Gemfile`,
+  `Gemfile.lock`, `composer.json`, `composer.lock`, `pom.xml`,
+  `build.gradle`, `build.gradle.kts`, `gradle.lockfile`, and `flake.lock`.
+- **Deleted tests:** deleted files in a directory named `test`, `tests`,
+  `__tests__`, `spec`, or `specs`, or named like a test (`*_test.*`,
+  `*_tests.*`, `test_*.py`, `*.test.*`, `*.spec.*`, `*Test.java`,
+  `*Tests.java`, `*Test.kt`, `*_spec.rb`).
+- **Added binaries:** new files Git treats as binary.
+- **Mode changes:** files that became executable or stopped being so, and
+  new executables and symbolic links.
+- **Possible secrets:** what push protection's scanner finds on added
+  lines, including warnings that never block a push, without what the
+  repository's allowlist allows. Only the place and the rule are shown,
+  never the text.
+
+When something can't be worked out exactly, for example a lockfile larger
+than the site's limit (`[limits] facts_file_max_bytes`, 8 MiB by default)
+or one that doesn't parse, the facts say so instead of guessing.
+
+`GET /api/v1/repos/{ns}/{repo}/merge-requests/{n}/facts` returns them for
+the current revision (`revision` for another one, `commit` for one
+change's own diff), and the mergeability API includes them as `facts`.
+MCP clients read them with `get_merge_request_facts`.
+
 ## Reading diffs
 
 Diffs look the same on commits, the compare page, and merge requests:

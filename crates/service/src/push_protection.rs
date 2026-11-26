@@ -514,7 +514,7 @@ pub fn parse_allowlist(text: &str) -> slath_core::secret_scan::Allowlist {
 impl Services {
     /// The allowlist as it stands on the default branch (never from the
     /// pushed commits, so a push can't allow itself).
-    async fn allowlist(
+    pub(crate) async fn allowlist(
         &self,
         repo: RepoId,
         default_branch: &str,

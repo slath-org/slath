@@ -7,6 +7,7 @@
 
 use slath_core::authz::Subject;
 use slath_core::ids::RepoId;
+use slath_db::merge_requests::MergeRequest;
 use slath_git::ObjectId;
 use slath_git::inventory::Inventory;
 
@@ -69,6 +70,19 @@ impl Services {
         commit: Option<&str>,
     ) -> Result<Inventory> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
+        let (base, head) = self.mr_diff_range(&m, revision, commit).await?;
+        self.diff_inventory(a.repo.id, base.as_ref(), &head).await
+    }
+
+    /// The range of revision `revision` of `m` (default: the current one):
+    /// its merge base and head, or the change version `commit`'s parent
+    /// and commit in it. 404 for a revision or version it doesn't have.
+    pub(crate) async fn mr_diff_range(
+        &self,
+        m: &MergeRequest,
+        revision: Option<i32>,
+        commit: Option<&str>,
+    ) -> Result<(Option<ObjectId>, ObjectId)> {
         let seq = revision.unwrap_or(m.revisions);
         let revs = slath_db::merge_requests::revisions(&self.pool, m.id).await?;
         let r = revs
@@ -76,7 +90,7 @@ impl Services {
             .find(|r| r.seq == seq)
             .ok_or(ServiceError::NotFound)?;
         let parse = |s: &str| ObjectId::parse(s).map_err(ServiceError::internal);
-        let (base, head) = match commit {
+        Ok(match commit {
             Some(c) => {
                 let v = slath_db::mr_changes::versions(&self.pool, m.id)
                     .await?
@@ -92,7 +106,6 @@ impl Services {
                 r.merge_base_oid.as_deref().map(parse).transpose()?,
                 parse(&r.head_oid)?,
             ),
-        };
-        self.diff_inventory(a.repo.id, base.as_ref(), &head).await
+        })
     }
 }

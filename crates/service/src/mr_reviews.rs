@@ -130,6 +130,9 @@ pub struct Mergeability {
     pub by_policy: Vec<&'static str>,
     /// Approvals nobody can give.
     pub approvals_stuck: Option<crate::one_maintainer::Stuck>,
+    /// The facts of what would land (merge base to the head, or to the
+    /// prefix's top commit); `None` without a revision.
+    pub facts: Option<crate::facts::Facts>,
 }
 
 /// One counting approval's coverage snapshot.
@@ -1277,6 +1280,7 @@ impl Services {
             }
             reqs.push(r);
         }
+        let facts = self.mr_landing_facts(&a.repo, lands).await?;
         let (checks, checks_by_policy) = self.checks_with_policy(lands, &eff, up_to_date).await?;
         if checks_by_policy {
             by_policy.push("statuses");
@@ -1341,6 +1345,7 @@ impl Services {
             one_maintainer,
             by_policy,
             approvals_stuck,
+            facts,
         })
     }
 

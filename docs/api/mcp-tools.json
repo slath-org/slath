@@ -722,6 +722,43 @@
       "annotations": {
         "readOnlyHint": true
       },
+      "description": "The facts of a merge request revision's diff (`merge_base..head`), or\nof one change version's diff (`parent..commit`): size, paths outside\nthe work order's scope, sensitive paths, dependency changes, deleted\ntests, added binaries, mode changes, and possible secrets.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/facts`; the result is its response.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "description": "A change version's commit in that revision: its own diff.",
+            "type": "string"
+          },
+          "ns": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "revision": {
+            "description": "The revision (default: the current one).",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ns",
+          "repo",
+          "number"
+        ],
+        "type": "object"
+      },
+      "name": "get_merge_request_facts"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true
+      },
       "description": "Every identity decision and effect on review state, oldest first.\n\nRuns `GET /api/v1/repos/{ns}/{repo}/merge-requests/{number}/ledger`; the result is its response.",
       "inputSchema": {
         "additionalProperties": false,

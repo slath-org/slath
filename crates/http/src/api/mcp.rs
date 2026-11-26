@@ -57,6 +57,7 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("get_interdiff", "get_interdiff"),
     ("get_iteration", "get_iteration"),
     ("get_mergeability", "get_mergeability"),
+    ("get_merge_request_facts", "get_facts"),
     ("get_ledger", "get_ledger"),
     ("get_group", "get_group"),
     ("list_threads", "list_threads"),

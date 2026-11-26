@@ -452,6 +452,8 @@ pub struct Limits {
     pub context_transcript_entries: usize,
     /// Largest change brief (the request body).
     pub brief_max_bytes: Bytes,
+    /// Largest lockfile whose packages a diff's facts compare.
+    pub facts_file_max_bytes: Bytes,
     /// Most revisions a work order may make, over all its merge requests.
     pub work_order_max_revisions: u32,
     /// Longest a work order may run, in days.
@@ -515,6 +517,7 @@ impl Default for Limits {
             context_record_max_bytes: Bytes(MIB),
             context_transcript_entries: 2000,
             brief_max_bytes: Bytes(64 * 1024),
+            facts_file_max_bytes: Bytes(8 * 1024 * 1024),
             work_order_max_revisions: 200,
             work_order_max_days: 30,
             task_token_minutes: 60,

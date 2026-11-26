@@ -638,6 +638,12 @@ fn parse_stats(stdout: &[u8]) -> Vec<CommitStat> {
 
 /// Reads " 3 files changed, 10 insertions(+), 2 deletions(-)".
 fn apply_shortstat(s: &mut CommitStat, line: &[u8]) {
+    (s.files, s.added, s.removed) = parse_shortstat(line);
+}
+
+/// Files, insertions, and deletions of a shortstat line.
+fn parse_shortstat(line: &[u8]) -> (usize, usize, usize) {
+    let mut out = (0, 0, 0);
     for part in String::from_utf8_lossy(line).split(',') {
         let mut words = part.split_whitespace();
         let (Some(n), Some(what)) = (words.next(), words.next()) else {
@@ -645,13 +651,40 @@ fn apply_shortstat(s: &mut CommitStat, line: &[u8]) {
         };
         let Ok(n) = n.parse::<usize>() else { continue };
         if what.starts_with("file") {
-            s.files = n;
+            out.0 = n;
         } else if what.starts_with("insertion") {
-            s.added = n;
+            out.1 = n;
         } else if what.starts_with("deletion") {
-            s.removed = n;
+            out.2 = n;
         }
     }
+    out
+}
+
+/// The files, insertions, and deletions of `base..commit` (renames
+/// counted once, as in [`diff`]), for when the diff is too big to read.
+pub async fn shortstat(
+    runner: &Runner,
+    git_dir: &Path,
+    base: Option<&ObjectId>,
+    commit: &ObjectId,
+) -> Result<(usize, usize, usize), GitError> {
+    let base = base.map_or(EMPTY_TREE, ObjectId::as_str);
+    let out = runner
+        .repo(git_dir)
+        .args([
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "-M",
+            "--shortstat",
+            "--end-of-options",
+            base,
+            commit.as_str(),
+        ])
+        .run()
+        .await?;
+    Ok(parse_shortstat(&out.stdout))
 }
 
 /// How many files `base..commit` changes (renames counted once, as in
