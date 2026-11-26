@@ -87,6 +87,12 @@ dl.facts {
 .details-column dl.facts dd {
   margin-block-end: var(--gap-inline);
 }
+/* A fact's entry that wraps indents its continuation, so each file name
+   starts a line of its own. */
+.details-column dl.facts .plain-list li > span {
+  padding-inline-start: var(--space-4);
+  text-indent: calc(-1 * var(--space-4));
+}
 
 /* More results: buttons for the previous and next page below the list. */
 nav.pager-nav {
@@ -101,4 +107,12 @@ nav.pager-nav {
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
+}
+/* "and N more" folding the rest in place, as the list's last item: what
+   opens continues the list at its own spacing. */
+.plain-list > li.more-in-place {
+  display: block;
+}
+.more-in-place .plain-list {
+  margin-block-end: 0;
 }

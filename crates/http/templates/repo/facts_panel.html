@@ -1,6 +1,8 @@
 {#- The Facts panel: what Slath itself sees in a diff, in a details column.
     Expects `facts` (Option<facts::Panel>) and `ctx`, and the macros
-    base.html imports. Only facts that apply get an entry. -#}
+    base.html imports. Only facts that apply get an entry; a long one
+    shows five items and folds the rest in place ("and N more"), as the
+    list's last item so what opens stays with its fact. -#}
 {%- if let Some(fp) = facts %}
 <section class="details-section" aria-labelledby="side-facts-heading" id="side-facts">
   <h2 id="side-facts-heading" class="details-heading">Facts</h2>
@@ -12,18 +14,20 @@
     <dd>
       <ul class="plain-list">
       {%- for i in r.shown() %}
-        <li>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</li>
+        <li><span>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</span></li>
       {%- endfor %}
-      </ul>
       {%- if !r.rest().is_empty() %}
-      {%- call d::disclosure(ctx, r.more_label()) %}
-      <ul class="plain-list">
-      {%- for i in r.rest() %}
-        <li>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</li>
-      {%- endfor %}
-      </ul>
-      {%- endcall %}
+        <li class="more-in-place">
+          {%- call d::disclosure(ctx, r.more_label()) %}
+          <ul class="plain-list">
+          {%- for i in r.rest() %}
+            <li><span>{% if let Some(x) = i.path %}{% call c::path(x) %}{% endcall %}{% endif %}{% if i.path.is_some() && i.note.is_some() %}: {% endif %}{% if let Some(n) = i.note %}<bdi>{{ n }}</bdi>{% endif %}</span></li>
+          {%- endfor %}
+          </ul>
+          {%- endcall %}
+        </li>
       {%- endif %}
+      </ul>
     </dd>
   {%- endfor %}
   </dl>

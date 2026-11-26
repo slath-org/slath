@@ -795,14 +795,16 @@ fn seed_outside_contribution(server: &TestServer, git: &GitClient) {
 }
 
 /// "Facts fixture": a merge request whose one change adds a lockfile with
-/// five packages and an executable script, for the Facts panel. It runs
+/// eight packages and an executable script, for the Facts panel. It runs
 /// last, so it leaves the work tree on its branch.
 fn seed_facts(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["switch", "-q", "-c", "facts", "main"]);
-    let lock: String = ["alpha", "bravo", "charlie", "delta", "echo"]
-        .iter()
-        .map(|n| format!("[[package]]\nname = \"{n}\"\nversion = \"1.0.0\"\n\n"))
-        .collect();
+    let lock: String = [
+        "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel",
+    ]
+    .iter()
+    .map(|n| format!("[[package]]\nname = \"{n}\"\nversion = \"1.0.0\"\n\n"))
+    .collect();
     std::fs::write(w.join("Cargo.lock"), format!("version = 4\n\n{lock}")).unwrap();
     std::fs::write(w.join("run.sh"), "#!/bin/sh\n").unwrap();
     git.ok(w, &["add", "-A"]);

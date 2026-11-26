@@ -2,6 +2,8 @@
 {% import "macros.html" as m %}
 {% import "components/people.html" as p %}
 {% import "components/lists.html" as l %}
+{% import "components/controls.html" as c %}
+{% import "components/disclosure.html" as d %}
 {% import "design/catalog.html" as cat %}
 {% block title %}Lists and data · Design catalog{% endblock %}
 {% block sidebar %}{% let family = "lists" %}{% include "design/sidebar.html" %}{% endblock %}
@@ -200,16 +202,26 @@
 
 {%- call cat::entry("more", "And N more", "New") %}
 <dl class="contract">
-  <dt>Purpose</dt><dd>A short list in a limited space (a details column, a card, a requirement) shows up to five items, then "and N more", which links to the full list. N is at least 2: with six items, all six show, since "and 1 more" would take the place of the item it hides.</dd>
+  <dt>Purpose</dt><dd>A short list in a limited space (a details column, a card, a requirement) shows up to five items, then "and N more", which links to the full list or, when the list has no page of its own, shows the rest in place. N is at least 2: with six items, all six show, since "and 1 more" would take the place of the item it hides.</dd>
   <dt>Markup</dt><dd>The first five items, then <code>l::more(href, n)</code>; six or fewer items without it.</dd>
-  <dt>Variants</dt><dd>None.</dd>
-  <dt>Accessibility</dt><dd>A link that says how many more there are.</dd>
+  <dt>Variants</dt><dd><strong>In place:</strong> for a list with no page of its own (a fact in the Facts panel), the list's last item is <code>li.more-in-place</code> holding <code>d::disclosure(ctx, "and N more")</code> with the rest as a <code>ul.plain-list</code>, so what opens continues the list at its spacing and stays with it.</dd>
+  <dt>Accessibility</dt><dd>A link that says how many more there are; in place, a disclosure that says it, opened by tap, click, Enter, or Space.</dd>
   <dt>Not for</dt><dd>Lists with their own page (they use the pager).</dd>
 </dl>
 {%- call cat::example("Files not viewed by an approver.") %}
 <ul class="plain-list">
   <li><code>src/main.rs</code></li><li><code>src/lib.rs</code></li><li><code>README.md</code></li><li><code>Cargo.toml</code></li><li><code>docs/guide.md</code></li>
   <li>{% call l::more("#more", 7) %}{% endcall %}</li>
+</ul>
+{%- endcall %}
+{%- call cat::example("In place: packages a lockfile adds.") %}
+<ul class="plain-list">
+  <li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added alpha 1.0.0</span></li><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added bravo 1.0.0</span></li><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added charlie 1.0.0</span></li><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added delta 1.0.0</span></li><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added echo 1.0.0</span></li>
+  <li class="more-in-place">
+    {%- call d::disclosure(ctx, "and 2 more") %}
+    <ul class="plain-list"><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added foxtrot 1.0.0</span></li><li><span>{% call c::path("Cargo.lock") %}{% endcall %}: added golf 1.0.0</span></li></ul>
+    {%- endcall %}
+  </li>
 </ul>
 {%- endcall %}
 {%- endcall %}

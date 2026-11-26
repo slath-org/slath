@@ -15,15 +15,20 @@ test("conf_agent_14_the_facts_panel_lists_what_applies", async ({ page }) => {
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Facts fixture" }));
   const p = panel(page);
-  await expect(p).toContainText("2 files, +23 −0");
+  await expect(p).toContainText("2 files, +35 −0");
   await expect(p).toContainText("Observed");
   await expect(p.getByRole("term")).toHaveText(["Dependencies", "Mode changes"]);
   await expect(p).toContainText("Cargo.lock: added alpha 1.0.0");
   await expect(p).toContainText("run.sh: new executable file");
-  // Three packages show; the other two are folded.
-  await expect(p.getByText("added delta 1.0.0")).toBeHidden();
-  await tapOrClick(page, p.getByText("2 more"));
-  await expect(p.getByText("added delta 1.0.0")).toBeVisible();
+  // Five packages show; the other three fold in place, as the list's last
+  // item, so they open within Dependencies.
+  await expect(p.getByText("added foxtrot 1.0.0")).toBeHidden();
+  await tapOrClick(page, p.getByText("and 3 more"));
+  await expect(p.getByText("added foxtrot 1.0.0")).toBeVisible();
+  const deps = p.getByRole("definition").first();
+  await expect(deps.getByText("added hotel 1.0.0")).toBeVisible();
+  // One run of text: no space between a file name and its colon.
+  await expect(deps.getByRole("listitem").first()).toHaveText("Cargo.lock: added alpha 1.0.0");
   await expectAccessible(page);
   // The change's page has the facts of the change's own diff.
   await tapOrClick(page, page.getByRole("navigation", { name: "Merge request" }).getByRole("link", { name: "Changes" }));
@@ -36,8 +41,8 @@ test("conf_agent_14_the_facts_fold_opens_with_the_keyboard", async ({ page }) =>
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");
   await tapOrClick(page, page.getByRole("link", { name: "Facts fixture" }));
-  const more = panel(page).getByText("2 more");
+  const more = panel(page).getByText("and 3 more");
   await more.focus();
   await page.keyboard.press("Enter");
-  await expect(panel(page).getByText("added echo 1.0.0")).toBeVisible();
+  await expect(panel(page).getByText("added hotel 1.0.0")).toBeVisible();
 });

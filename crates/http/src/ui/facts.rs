@@ -6,8 +6,10 @@
 
 use slath_service::facts::Facts;
 
-/// Items shown before the rest folds.
-const SHOWN: usize = 3;
+/// Items shown before the rest folds ("and N more"), as everywhere a
+/// short list stands in a small space. The rest folds only when it's at
+/// least two items: "and 1 more" would take the place of the item it hides.
+const SHOWN: usize = 5;
 
 /// One item of a fact: a path, what about it, or both.
 pub struct Item {
@@ -36,16 +38,25 @@ pub struct Row {
 }
 
 impl Row {
+    /// Where the list folds: all of it when at most one item would fold.
+    fn cut(&self) -> usize {
+        if self.items.len() <= SHOWN + 1 {
+            self.items.len()
+        } else {
+            SHOWN
+        }
+    }
+
     pub fn shown(&self) -> &[Item] {
-        &self.items[..self.items.len().min(SHOWN)]
+        &self.items[..self.cut()]
     }
 
     pub fn rest(&self) -> &[Item] {
-        &self.items[self.items.len().min(SHOWN)..]
+        &self.items[self.cut()..]
     }
 
     pub fn more_label(&self) -> String {
-        format!("{} more", self.rest().len())
+        format!("and {} more", self.rest().len())
     }
 }
 
@@ -171,12 +182,16 @@ mod tests {
         assert_eq!(p.size, "1 file, +2 −0");
         assert!(p.rows.is_empty());
         f.outside_scope = Some(Vec::new());
-        f.deleted_tests = (0..5).map(|i| format!("t{i}")).collect();
+        f.deleted_tests = (0..8).map(|i| format!("t{i}")).collect();
         let p = panel(&f);
         assert_eq!(p.rows.len(), 1);
         assert_eq!(p.rows[0].label, "Deleted tests");
-        assert_eq!(p.rows[0].shown().len(), 3);
-        assert_eq!(p.rows[0].more_label(), "2 more");
+        assert_eq!(p.rows[0].shown().len(), 5);
+        assert_eq!(p.rows[0].more_label(), "and 3 more");
+        // One more item shows instead of folding alone.
+        f.deleted_tests.truncate(6);
+        let p = panel(&f);
+        assert_eq!((p.rows[0].shown().len(), p.rows[0].rest().len()), (6, 0));
     }
 
     #[test]
