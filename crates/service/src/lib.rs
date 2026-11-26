@@ -126,6 +126,8 @@ pub struct Services {
     pub avatar_index: Arc<avatars::AvatarIndex>,
     /// The uploaded instance logos, cached.
     pub logo_cache: Arc<logos::LogoCache>,
+    /// What Git says about recent diffs, for their facts.
+    pub facts_cache: Arc<facts::FactsCache>,
 }
 
 /// One person's name as typed, pasted, or left by a picker: without
@@ -159,6 +161,7 @@ impl Services {
                 .unwrap_or_else(|_| slath_core::secret_scan::RuleSet::built_in()),
         );
         Self {
+            facts_cache: Arc::default(),
             scan_rules,
             pool,
             config,

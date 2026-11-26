@@ -454,6 +454,8 @@ pub struct Limits {
     pub brief_max_bytes: Bytes,
     /// Largest lockfile whose packages a diff's facts compare.
     pub facts_file_max_bytes: Bytes,
+    /// Diffs whose Git facts are kept in memory (0: none).
+    pub facts_cache_entries: usize,
     /// Most revisions a work order may make, over all its merge requests.
     pub work_order_max_revisions: u32,
     /// Longest a work order may run, in days.
@@ -518,6 +520,7 @@ impl Default for Limits {
             context_transcript_entries: 2000,
             brief_max_bytes: Bytes(64 * 1024),
             facts_file_max_bytes: Bytes(8 * 1024 * 1024),
+            facts_cache_entries: 512,
             work_order_max_revisions: 200,
             work_order_max_days: 30,
             task_token_minutes: 60,
