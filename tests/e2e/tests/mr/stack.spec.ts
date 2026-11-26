@@ -194,6 +194,8 @@ test("conf_agent_15_comparing_versions_shows_how_the_description_changed", async
 });
 
 test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ page }, testInfo) => {
+  // A long flow: webkit on the CI runners needs more than 30 s.
+  test.slow();
   await signIn(page, USERS.alice);
   await page.goto("/alice/demo/merge-requests");
   const p = testInfo.project.name;

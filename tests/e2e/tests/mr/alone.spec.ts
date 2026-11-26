@@ -22,6 +22,8 @@ async function saveRule(page: Page, pattern: string, policy: boolean): Promise<v
 }
 
 test("conf_review_32_review_alone_and_merge_under_the_policy", async ({ page }, info) => {
+  // A long flow: webkit on the CI runners needs more than 30 s.
+  test.slow();
   const project = info.project.name;
   const target = `solo/${project}/main`;
   await signIn(page, USERS.alice);
