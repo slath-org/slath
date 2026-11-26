@@ -14,6 +14,7 @@ pub mod content_trust;
 pub mod context_record;
 pub mod credential;
 pub mod entire_import;
+pub mod facts;
 pub mod ids;
 pub mod names;
 pub mod net;
