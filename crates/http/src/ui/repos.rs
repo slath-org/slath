@@ -1204,6 +1204,8 @@ struct ProtectionsSettings<'a> {
     checks: Vec<String>,
     /// Per rule: the bots it lets merge and push ("ci-bot, release-bot").
     bot_mergers: Vec<String>,
+    /// Per rule: what needs an approval by a person ("deletes tests").
+    fact_rules: Vec<String>,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
     pattern: String,
@@ -1253,6 +1255,16 @@ async fn protections_page(
     };
     let mut checks = Vec::new();
     let mut bot_mergers = Vec::new();
+    let fact_rules = rules
+        .iter()
+        .map(|r| {
+            r.fact_rules
+                .iter()
+                .map(|f| slath_service::protections::fact_rule_phrase(f))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .collect();
     for r in &rules {
         bot_mergers.push(state.services.bot_merger_names(r).await?.join(", "));
         let names = state.services.reporter_names(r).await?;
@@ -1275,6 +1287,7 @@ async fn protections_page(
         header: RepoHeader::load(state, a, subject, "settings").await,
         checks,
         bot_mergers,
+        fact_rules,
         rules,
         message,
         errors,
@@ -1330,6 +1343,15 @@ struct RuleForm {
     dismiss_approvals_on_new_revision: Option<String>,
     ready_waits_for_checks: Option<String>,
     single_maintainer: Option<String>,
+    /// One checkbox per fact that needs an approval by a person (a form
+    /// can't repeat a name into a list here).
+    fact_outside_scope: Option<String>,
+    fact_dependencies: Option<String>,
+    fact_deleted_tests: Option<String>,
+    fact_added_binaries: Option<String>,
+    fact_mode_changes: Option<String>,
+    fact_secrets: Option<String>,
+    require_viewed_files: Option<String>,
     /// Bot names, separated by commas or spaces.
     #[serde(default)]
     bot_merge_allowlist: String,
@@ -1389,6 +1411,19 @@ async fn save_protection(
                 dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
                 ready_waits_for_checks: f.ready_waits_for_checks.is_some(),
                 single_maintainer: f.single_maintainer.is_some(),
+                fact_rules: [
+                    ("outside_scope", &f.fact_outside_scope),
+                    ("dependencies", &f.fact_dependencies),
+                    ("deleted_tests", &f.fact_deleted_tests),
+                    ("added_binaries", &f.fact_added_binaries),
+                    ("mode_changes", &f.fact_mode_changes),
+                    ("secrets", &f.fact_secrets),
+                ]
+                .into_iter()
+                .filter(|(_, v)| v.is_some())
+                .map(|(n, _)| n.to_owned())
+                .collect(),
+                require_viewed_files: f.require_viewed_files.is_some(),
                 bot_merge_allowlist: f
                     .bot_merge_allowlist
                     .split(|c: char| c == ',' || c.is_whitespace())

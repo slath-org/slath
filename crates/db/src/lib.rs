@@ -61,7 +61,7 @@ pub use sqlx::{PgPool, Postgres, Transaction};
 /// Schema version this binary was built for: the number of the newest file
 /// in `migrations/`. `serve` refuses to start on a mismatch unless it's told
 /// to migrate.
-pub const REQUIRED_SCHEMA: i32 = 162;
+pub const REQUIRED_SCHEMA: i32 = 163;
 
 /// A stored origin label; the column's check allows only known ones, and
 /// anything else would count as the least trusted.

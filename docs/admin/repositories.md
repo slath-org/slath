@@ -150,6 +150,16 @@ For merging merge requests into a protected branch:
   it, a required check also counts statuses from a bot of that person
   that the rule names as the check's reporter, unless that bot pushed to
   the merge request.
+- **Stricter review for some changes** (folded away until opened):
+  - **Needs an approval by a person when it …** (none by default): facts
+    of the merge request's diff that need an approval by a person other
+    than the author, whatever bots' approvals count for otherwise: files
+    outside its work order's scope, dependency changes, deleted tests,
+    added binaries, mode changes, or possible secrets (see
+    [facts](../user/merge-requests.md#facts)). In the API: `fact_rules`.
+  - **Every changed file viewed by an approver** (off by default): every
+    file of the diff must have been viewed by a counting approver when
+    they approved. In the API: `require_viewed_files`.
 
 - **Required status checks:** status contexts that must report `success`
   on the commit that lands, one per line (`ci/build`). Add `by` and names

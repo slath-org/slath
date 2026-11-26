@@ -176,6 +176,9 @@ pub(crate) struct ReviewRequirements {
     /// Maintainers (by name) who approve every change, for the
     /// sensitive-path requirement.
     pub maintainers: Vec<String>,
+    /// People (not bots, by name) whose approval counts for every change,
+    /// for protection rules on facts.
+    pub people: Vec<String>,
     pub coverage: Option<Coverage>,
     /// The maintainer's review while the one-maintainer policy applies.
     pub policy: Option<crate::one_maintainer::PolicyReview>,
@@ -350,8 +353,10 @@ impl Services {
             None => n.to_owned(),
         };
         let needed = usize::try_from(eff.required_approvals).unwrap_or(0);
-        // People with the maintain role who approve every change.
+        // People who approve every change, and those of them with the
+        // maintain role.
         let mut maintainers = Vec::new();
+        let mut people = Vec::new();
         if let Some(first) = all.first() {
             for (u, _) in first.approvals.iter().filter(|(u, _)| ok(u)) {
                 if !all.iter().all(|s| s.approvals.iter().any(|(v, _)| v == u)) {
@@ -363,6 +368,7 @@ impl Services {
                 if user.kind == UserKind::Bot {
                     continue;
                 }
+                people.push(name(u));
                 let role = self
                     .repo_access_by_id(
                         &crate::notifications::user_subject(*u, &user),
@@ -397,6 +403,7 @@ impl Services {
             approvals,
             changes_requested: blockers_requirement(&judged),
             maintainers,
+            people,
             coverage,
             policy,
             by_policy,

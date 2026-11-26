@@ -16256,6 +16256,13 @@
           "dismiss_stale_approvals": {
             "type": "boolean"
           },
+          "fact_rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Facts that need an approval by a person: `outside_scope`,\n`dependencies`, `deleted_tests`, `added_binaries`, `mode_changes`,\n`secrets`; others are 422 `fact_rules`."
+          },
           "pattern": {
             "type": "string"
           },
@@ -16275,6 +16282,10 @@
           },
           "require_up_to_date": {
             "type": "boolean"
+          },
+          "require_viewed_files": {
+            "type": "boolean",
+            "description": "Every changed file must have been viewed by a counting approver."
           },
           "required_approvals": {
             "type": "integer",
@@ -16396,7 +16407,9 @@
           "dismiss_approvals_on_new_revision",
           "bot_merge_allowlist",
           "ready_waits_for_checks",
-          "single_maintainer"
+          "single_maintainer",
+          "fact_rules",
+          "require_viewed_files"
         ],
         "properties": {
           "block_deletion": {
@@ -16423,6 +16436,13 @@
             "type": "boolean",
             "description": "New changes dismiss approvals (a rebase with identical patches doesn't)."
           },
+          "fact_rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Facts of a merge request's diff that need an approval by a person:\n`outside_scope`, `dependencies`, `deleted_tests`, `added_binaries`,\n`mode_changes`, `secrets`."
+          },
           "id": {
             "type": "string"
           },
@@ -16447,6 +16467,10 @@
           "require_up_to_date": {
             "type": "boolean",
             "description": "The target must be an ancestor of the source."
+          },
+          "require_viewed_files": {
+            "type": "boolean",
+            "description": "Every changed file must have been viewed by a counting approver."
           },
           "required_approvals": {
             "type": "integer",

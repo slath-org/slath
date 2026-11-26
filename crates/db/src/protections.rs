@@ -39,6 +39,10 @@ pub struct Protection {
     /// The one-maintainer policy: while one person has write access, their
     /// own review of the exact head counts in place of approvals.
     pub single_maintainer: bool,
+    /// Facts of a merge request's diff that need an approval by a person.
+    pub fact_rules: Vec<String>,
+    /// Every changed file viewed by a counting approver.
+    pub require_viewed_files: bool,
     pub created_at: OffsetDateTime,
 }
 
@@ -60,6 +64,8 @@ pub struct NewProtection<'a> {
     pub bot_merge_allowlist: &'a [uuid::Uuid],
     pub ready_waits_for_checks: bool,
     pub single_maintainer: bool,
+    pub fact_rules: &'a [String],
+    pub require_viewed_files: bool,
 }
 
 pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Protection>, DbError> {
@@ -69,7 +75,8 @@ pub async fn list(exec: impl PgExecutor<'_>, repo: RepoId) -> Result<Vec<Protect
                 required_approvals, dismiss_stale_approvals, require_resolved_threads,
                 require_up_to_date, bots_count_as_approvers, required_status_contexts,
                 statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, bot_merge_allowlist,
-                ready_waits_for_checks, single_maintainer, created_at
+                ready_waits_for_checks, single_maintainer, fact_rules, require_viewed_files,
+                created_at
          FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
         repo.as_uuid()
     )
@@ -88,8 +95,10 @@ pub async fn upsert(
         "INSERT INTO branch_protections (id, repo_id, pattern, block_force_push, block_deletion, require_mr, push_role,
              required_approvals, dismiss_stale_approvals, require_resolved_threads, require_up_to_date,
              bots_count_as_approvers, required_status_contexts, statuses_on_head_ok, status_reporters,
-             dismiss_approvals_on_new_revision, bot_merge_allowlist, ready_waits_for_checks, single_maintainer)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+             dismiss_approvals_on_new_revision, bot_merge_allowlist, ready_waits_for_checks, single_maintainer,
+             fact_rules, require_viewed_files)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+             $20, $21)
          ON CONFLICT (repo_id, pattern) DO UPDATE SET block_force_push = EXCLUDED.block_force_push,
              block_deletion = EXCLUDED.block_deletion, require_mr = EXCLUDED.require_mr,
              push_role = EXCLUDED.push_role, required_approvals = EXCLUDED.required_approvals,
@@ -103,7 +112,9 @@ pub async fn upsert(
              dismiss_approvals_on_new_revision = EXCLUDED.dismiss_approvals_on_new_revision,
              bot_merge_allowlist = EXCLUDED.bot_merge_allowlist,
              ready_waits_for_checks = EXCLUDED.ready_waits_for_checks,
-             single_maintainer = EXCLUDED.single_maintainer
+             single_maintainer = EXCLUDED.single_maintainer,
+             fact_rules = EXCLUDED.fact_rules,
+             require_viewed_files = EXCLUDED.require_viewed_files
          RETURNING id",
         uuid::Uuid::now_v7(),
         repo.as_uuid(),
@@ -123,7 +134,9 @@ pub async fn upsert(
         p.dismiss_approvals_on_new_revision,
         p.bot_merge_allowlist,
         p.ready_waits_for_checks,
-        p.single_maintainer
+        p.single_maintainer,
+        p.fact_rules,
+        p.require_viewed_files
     )
     .fetch_one(exec)
     .await?;

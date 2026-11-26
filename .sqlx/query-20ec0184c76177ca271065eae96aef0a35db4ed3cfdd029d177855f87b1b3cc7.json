@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, bot_merge_allowlist,\n                ready_waits_for_checks, single_maintainer, created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
+  "query": "SELECT id, pattern, block_force_push, block_deletion, require_mr, push_role,\n                required_approvals, dismiss_stale_approvals, require_resolved_threads,\n                require_up_to_date, bots_count_as_approvers, required_status_contexts,\n                statuses_on_head_ok, status_reporters, dismiss_approvals_on_new_revision, bot_merge_allowlist,\n                ready_waits_for_checks, single_maintainer, fact_rules, require_viewed_files,\n                created_at\n         FROM branch_protections WHERE repo_id = $1 ORDER BY pattern",
   "describe": {
     "columns": [
       {
@@ -203,6 +203,28 @@
       },
       {
         "ordinal": 18,
+        "name": "fact_rules",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "fact_rules"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "require_viewed_files",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "branch_protections",
+            "name": "require_viewed_files"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -237,8 +259,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "ff115d522252bfde4d4a25a8dbcaa775db25935b49f5b8cf0db8dbb296725d38"
+  "hash": "20ec0184c76177ca271065eae96aef0a35db4ed3cfdd029d177855f87b1b3cc7"
 }

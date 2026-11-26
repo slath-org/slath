@@ -55,6 +55,36 @@ pub struct Effective {
     pub ready_waits_for_checks: bool,
     /// Every matching rule has the one-maintainer policy.
     pub single_maintainer: bool,
+    /// Any rule's facts that need an approval by a person, in the order of
+    /// [`FACT_RULES`].
+    pub fact_rules: Vec<String>,
+    /// Any rule's: every changed file viewed by a counting approver.
+    pub require_viewed_files: bool,
+}
+
+/// The facts a protection rule can make need an approval by a person.
+pub const FACT_RULES: [&str; 6] = [
+    "outside_scope",
+    "dependencies",
+    "deleted_tests",
+    "added_binaries",
+    "mode_changes",
+    "secrets",
+];
+
+/// What a merge request with the fact `rule` does, in words ("deletes
+/// tests"), for the form, the rules table, and the merge box.
+#[must_use]
+pub fn fact_rule_phrase(rule: &str) -> &'static str {
+    match rule {
+        "outside_scope" => "changes files outside its work order's scope",
+        "dependencies" => "changes dependencies",
+        "deleted_tests" => "deletes tests",
+        "added_binaries" => "adds binaries",
+        "mode_changes" => "changes file modes",
+        "secrets" => "adds possible secrets",
+        _ => "has a fact a rule names",
+    }
 }
 
 impl Effective {
@@ -165,6 +195,12 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.dismiss_approvals_on_new_revision |= r.dismiss_approvals_on_new_revision;
         e.ready_waits_for_checks |= r.ready_waits_for_checks;
         e.single_maintainer &= r.single_maintainer;
+        e.require_viewed_files |= r.require_viewed_files;
+        for f in &r.fact_rules {
+            if !e.fact_rules.contains(f) {
+                e.fact_rules.push(f.clone());
+            }
+        }
         let lists = reporters_of(r);
         for ctx in &r.required_status_contexts {
             let list = lists.get(ctx).filter(|l| !l.is_empty()).cloned();
@@ -197,6 +233,8 @@ pub fn effective(rules: &[Protection], branch: &[u8]) -> Effective {
         e.single_maintainer = false;
     }
     e.required_checks.sort_by(|a, b| a.context.cmp(&b.context));
+    e.fact_rules
+        .sort_by_key(|f| FACT_RULES.iter().position(|x| x == f));
     e
 }
 
@@ -241,6 +279,9 @@ pub struct RuleInput {
     pub bot_merge_allowlist: Vec<String>,
     pub ready_waits_for_checks: bool,
     pub single_maintainer: bool,
+    /// Facts that need an approval by a person (names of [`FACT_RULES`]).
+    pub fact_rules: Vec<String>,
+    pub require_viewed_files: bool,
 }
 
 /// Whether `s` is a valid status context.
@@ -302,6 +343,27 @@ impl Services {
                 "bot",
                 "Bots can't turn on the one-maintainer policy.",
             ));
+        }
+        let mut fact_rules: Vec<String> = Vec::new();
+        for f in r
+            .fact_rules
+            .iter()
+            .map(|f| f.trim())
+            .filter(|f| !f.is_empty())
+        {
+            if !FACT_RULES.contains(&f) {
+                return Err(ServiceError::invalid(
+                    "fact_rules",
+                    "invalid",
+                    format!(
+                        "“{f}” isn't a fact a rule can require: use {}.",
+                        FACT_RULES.join(", ")
+                    ),
+                ));
+            }
+            if !fact_rules.iter().any(|x| x == f) {
+                fact_rules.push(f.to_owned());
+            }
         }
         if !(0..=20).contains(&r.required_approvals) {
             return Err(ServiceError::invalid(
@@ -389,6 +451,8 @@ impl Services {
                 bot_merge_allowlist: &bot_mergers,
                 ready_waits_for_checks: r.ready_waits_for_checks,
                 single_maintainer: r.single_maintainer,
+                fact_rules: &fact_rules,
+                require_viewed_files: r.require_viewed_files,
             },
         )
         .await?;
@@ -414,6 +478,8 @@ impl Services {
                 "bot_merge_allowlist": bot_mergers,
                 "ready_waits_for_checks": r.ready_waits_for_checks,
                 "single_maintainer": r.single_maintainer,
+                "fact_rules": fact_rules,
+                "require_viewed_files": r.require_viewed_files,
             }),
         )
         .await;
@@ -519,6 +585,8 @@ mod tests {
             bot_merge_allowlist: Vec::new(),
             ready_waits_for_checks: true,
             single_maintainer: false,
+            fact_rules: Vec::new(),
+            require_viewed_files: false,
             created_at: time::OffsetDateTime::UNIX_EPOCH,
         }
     }

@@ -927,6 +927,26 @@ the current revision (`revision` for another one, `commit` for one
 change's own diff), and the mergeability API includes them as `facts`.
 MCP clients read them with `get_merge_request_facts`.
 
+A branch protection rule can make some facts need a person's review. Open
+**Stricter review for some changes** in the rule's form and, under
+**Needs an approval by a person when it**, tick what should: changes files
+outside its work order's scope, changes dependencies, deletes tests, adds
+binaries, changes file modes, or adds possible secrets. A merge request
+into a protected branch with one of those facts then needs an approval
+that counts, by a person other than its author, for every change being
+merged. Bots' approvals never count for this, even where they count
+otherwise; the readiness card says "Approval by a person required" and
+names the facts. Under the one-maintainer policy, the maintainer's own
+review counts once they've viewed every file.
+
+**Every changed file viewed by an approver**, in the same place, goes further: each file of the
+merge request's diff must be among the files a counting approver had
+viewed when they approved. An approver who views more files later
+approves again, since an approval records what was viewed at that moment.
+In the API, a rule's `fact_rules` lists the facts (`outside_scope`,
+`dependencies`, `deleted_tests`, `added_binaries`, `mode_changes`,
+`secrets`) and `require_viewed_files` the other setting.
+
 ## Reading diffs
 
 Diffs look the same on commits, the compare page, and merge requests:

@@ -28,6 +28,7 @@ pub mod deploy_keys;
 pub mod email;
 pub mod emails;
 pub mod error;
+mod fact_rules;
 pub mod facts;
 pub mod findings;
 pub mod forks;

@@ -186,7 +186,10 @@ pub(crate) fn unmet(key: &'static str, reason: impl Into<String>, fix: &str) -> 
     Requirement {
         key,
         state: "unmet",
-        tone: if matches!(key, "draft" | "iterating" | "approvals" | "sensitive_paths") {
+        tone: if matches!(
+            key,
+            "draft" | "iterating" | "approvals" | "sensitive_paths" | "facts" | "viewed_files"
+        ) {
             "waiting"
         } else {
             "blocking"
@@ -225,6 +228,8 @@ pub fn readiness_summary(m: &MergeRequest, mb: &Mergeability) -> (&'static str, 
         "iterating" => "Iterating".to_owned(),
         "approvals" => "Approval required".to_owned(),
         "sensitive_paths" => "Maintainer approval required".to_owned(),
+        "facts" => "Approval by a person required".to_owned(),
+        "viewed_files" => "Files not viewed".to_owned(),
         "changes_requested" => "Changes requested".to_owned(),
         "statuses" if r.tone == "waiting" => "Checks running".to_owned(),
         "statuses" => "Checks failing".to_owned(),
@@ -1270,6 +1275,7 @@ impl Services {
         if eff.require_up_to_date {
             reqs.push(up_req);
         }
+        let facts = self.mr_landing_facts(&a.repo, lands).await?;
         if eff.protected
             && let Some((r, policy)) = self
                 .sensitive_requirement(lands, &review.maintainers, review.policy.as_ref())
@@ -1280,7 +1286,28 @@ impl Services {
             }
             reqs.push(r);
         }
-        let facts = self.mr_landing_facts(&a.repo, lands).await?;
+        if eff.protected
+            && let Some(f) = &facts
+            && let Some((r, policy)) = crate::fact_rules::facts_requirement(
+                &eff.fact_rules,
+                f,
+                &review.people,
+                review.policy.as_ref(),
+            )
+        {
+            if policy {
+                by_policy.push("facts");
+            }
+            reqs.push(r);
+        }
+        if eff.protected && eff.require_viewed_files {
+            let (r, policy) =
+                crate::fact_rules::viewed_requirement(coverage.as_ref(), review.policy.as_ref());
+            if policy {
+                by_policy.push("viewed_files");
+            }
+            reqs.push(r);
+        }
         let (checks, checks_by_policy) = self.checks_with_policy(lands, &eff, up_to_date).await?;
         if checks_by_policy {
             by_policy.push("statuses");

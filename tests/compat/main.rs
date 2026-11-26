@@ -16,6 +16,7 @@ mod cross_references;
 mod deferring_approvals;
 mod deploy_keys;
 mod diff_highlighting;
+mod fact_rules;
 mod facts;
 mod findings;
 mod flow_parity;

@@ -929,6 +929,12 @@ pub struct ProtectionRule {
     /// The one-maintainer policy: while exactly one person has write
     /// access, their review of the exact head counts in place of approvals.
     pub single_maintainer: bool,
+    /// Facts of a merge request's diff that need an approval by a person:
+    /// `outside_scope`, `dependencies`, `deleted_tests`, `added_binaries`,
+    /// `mode_changes`, `secrets`.
+    pub fact_rules: Vec<String>,
+    /// Every changed file must have been viewed by a counting approver.
+    pub require_viewed_files: bool,
 }
 
 impl ProtectionRule {
@@ -956,6 +962,8 @@ impl From<slath_db::protections::Protection> for ProtectionRule {
             dismiss_approvals_on_new_revision: p.dismiss_approvals_on_new_revision,
             ready_waits_for_checks: p.ready_waits_for_checks,
             single_maintainer: p.single_maintainer,
+            fact_rules: p.fact_rules.clone(),
+            require_viewed_files: p.require_viewed_files,
             id: p.id.to_string(),
             pattern: p.pattern,
             block_force_push: p.block_force_push,
@@ -1193,6 +1201,14 @@ pub struct PostProtection {
     /// The one-maintainer policy (people only; bots can't turn it on).
     #[serde(default)]
     pub single_maintainer: bool,
+    /// Facts that need an approval by a person: `outside_scope`,
+    /// `dependencies`, `deleted_tests`, `added_binaries`, `mode_changes`,
+    /// `secrets`; others are 422 `fact_rules`.
+    #[serde(default)]
+    pub fact_rules: Vec<String>,
+    /// Every changed file must have been viewed by a counting approver.
+    #[serde(default)]
+    pub require_viewed_files: bool,
 }
 
 const fn one() -> i32 {
@@ -1249,6 +1265,8 @@ pub async fn post_protection(
                 bot_merge_allowlist: p.bot_merge_allowlist,
                 ready_waits_for_checks: p.ready_waits_for_checks,
                 single_maintainer: p.single_maintainer,
+                fact_rules: p.fact_rules,
+                require_viewed_files: p.require_viewed_files,
             },
         )
         .await?;

@@ -41,7 +41,7 @@
       <td data-label="Direct pushes">{% if r.push_role == "nobody" %}Nobody (merge requests only){% else if r.require_mr %}Merge requests required (admins may bypass){% else %}{{ r.push_role }} role and up{% endif %}</td>
       <td data-label="Force pushes">{% if r.block_force_push %}Blocked{% else %}Allowed{% endif %}</td>
       <td data-label="Deletion">{% if r.block_deletion %}Blocked{% else %}Allowed{% endif %}</td>
-      <td data-label="Merge requests">{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !r.ready_waits_for_checks %}, bots' merge requests don't wait for checks{% endif %}{% if r.single_maintainer %}, one-maintainer policy{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
+      <td data-label="Merge requests">{{ r.required_approvals }} approval{% if r.required_approvals != 1 %}s{% endif %}{% if r.dismiss_approvals_on_new_revision %}, every new revision dismisses them{% else if r.dismiss_stale_approvals %}, new changes dismiss them{% endif %}{% if r.require_resolved_threads %}, threads resolved{% endif %}{% if r.require_up_to_date %}, up to date{% endif %}{% if r.bots_count_as_approvers %}, bots count{% endif %}{% if !r.ready_waits_for_checks %}, bots' merge requests don't wait for checks{% endif %}{% if r.single_maintainer %}, one-maintainer policy{% endif %}{% if !fact_rules[loop.index0].is_empty() %}, a person approves when it {{ fact_rules[loop.index0] }}{% endif %}{% if r.require_viewed_files %}, every changed file viewed by an approver{% endif %}{% if !bot_mergers[loop.index0].is_empty() %}, bots that may merge: {{ bot_mergers[loop.index0] }}{% endif %}</td>
       <td data-label="Required checks">{% if checks[loop.index0].is_empty() %}None{% else %}{{ checks[loop.index0] }}{% endif %}</td>
       <td class="table-actions">
         <form method="post" action="{{ base }}/protections/{{ r.id }}/delete" class="inline-form">
@@ -90,6 +90,17 @@
   {%- call f::option("checkbox", "require_resolved_threads", "require_resolved_threads", "1", "Require resolved threads") %}{% endcall %}
   {%- call f::option("checkbox", "require_up_to_date", "require_up_to_date", "1", "Require the branch to be up to date with the target") %}{% endcall %}
   {%- call f::option("checkbox", "bots_count_as_approvers", "bots_count_as_approvers", "1", "Count approvals by bots") %}{% endcall %}
+  {%- call d::disclosure(ctx, "Stricter review for some changes", self.error("fact_rules").is_some()) %}
+    {%- call f::question("fact_rules", "Needs an approval by a person when it", "A bot's approval doesn't count for these, even where bots' approvals count otherwise.", self.error("fact_rules").unwrap_or_default()) %}
+    {%- call f::option("checkbox", "fact_outside_scope", "fact_outside_scope", "1", "Changes files outside its work order's scope") %}{% endcall %}
+    {%- call f::option("checkbox", "fact_dependencies", "fact_dependencies", "1", "Changes dependencies", false, "Manifests and lockfiles, such as Cargo.lock or package.json.") %}{% endcall %}
+    {%- call f::option("checkbox", "fact_deleted_tests", "fact_deleted_tests", "1", "Deletes tests") %}{% endcall %}
+    {%- call f::option("checkbox", "fact_added_binaries", "fact_added_binaries", "1", "Adds binaries") %}{% endcall %}
+    {%- call f::option("checkbox", "fact_mode_changes", "fact_mode_changes", "1", "Changes file modes", false, "Executables and symbolic links.") %}{% endcall %}
+    {%- call f::option("checkbox", "fact_secrets", "fact_secrets", "1", "Adds possible secrets", false, "What push protection warns about on added lines.") %}{% endcall %}
+    {%- endcall %}
+    {%- call f::option("checkbox", "require_viewed_files", "require_viewed_files", "1", "Every changed file viewed by an approver", false, "An approval records which files its approver had viewed; together they must cover every file.") %}{% endcall %}
+  {%- endcall %}
   {%- call f::option("checkbox", "single_maintainer", "single_maintainer", "1", "Only one maintainer: their own review counts", false, "While exactly one person has write access, their review of the latest revision counts in place of approvals, and for sensitive paths once they've viewed every file. Each such merge says so. A second person with write access ends it.") %}{% endcall %}
   {%- call f::field("bot_merge_allowlist", "Bots that may merge and push", "Bot names, separated by commas. Other bots can't merge into or push to these branches, whatever their role.", self.error("bot_merge_allowlist").unwrap_or_default(), true) %}
   <input id="bot_merge_allowlist" name="bot_merge_allowlist" type="text" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("bot_merge_allowlist", "x", self.error("bot_merge_allowlist").unwrap_or_default()) %}{% endcall %}>
