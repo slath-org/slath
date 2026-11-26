@@ -112,7 +112,9 @@ Repository administrators protect branches under **Settings → Branch
 protection** (or `POST /api/v1/repos/{ns}/{repo}/protections`). A rule
 names a branch or a pattern: `*` matches any characters except `/`, and
 `?` one such character (`main`, `release/*`). When several rules match a
-branch, the strictest setting of each applies.
+branch, the strictest setting of each applies. **Change** next to a rule
+opens it in the form with all its settings; saving a pattern that already
+has a rule replaces that rule.
 
 - **Block force pushes** refuses updates that don't contain the previous
   commit. The check runs on the pushed objects before Git accepts them.

@@ -1208,7 +1208,8 @@ struct ProtectionsSettings<'a> {
     fact_rules: Vec<String>,
     message: Option<&'a str>,
     errors: Vec<FieldError>,
-    pattern: String,
+    /// What the rule form shows.
+    form: RuleValues,
     /// Built-in sensitive paths.
     sensitive_defaults: &'static [&'static str],
     /// Sensitive paths the instance adds.
@@ -1228,6 +1229,127 @@ impl ProtectionsSettings<'_> {
     }
 }
 
+/// What the rule form holds: a new rule's defaults, a saved rule to
+/// change, or what was sent when saving failed, so nothing is typed
+/// twice.
+struct RuleValues {
+    /// The saved rule's pattern while changing one.
+    editing: Option<String>,
+    pattern: String,
+    push_role: String,
+    block_force_push: bool,
+    block_deletion: bool,
+    require_mr: bool,
+    required_approvals: String,
+    dismiss_stale_approvals: bool,
+    dismiss_approvals_on_new_revision: bool,
+    require_resolved_threads: bool,
+    require_up_to_date: bool,
+    bots_count_as_approvers: bool,
+    fact_rules: Vec<String>,
+    require_viewed_files: bool,
+    single_maintainer: bool,
+    bot_merge_allowlist: String,
+    /// One per line, as typed.
+    required_checks: String,
+    statuses_on_head_ok: bool,
+    ready_waits_for_checks: bool,
+}
+
+impl Default for RuleValues {
+    fn default() -> Self {
+        Self {
+            editing: None,
+            pattern: String::new(),
+            push_role: "write".to_owned(),
+            block_force_push: true,
+            block_deletion: true,
+            require_mr: false,
+            required_approvals: "1".to_owned(),
+            dismiss_stale_approvals: true,
+            dismiss_approvals_on_new_revision: false,
+            require_resolved_threads: false,
+            require_up_to_date: false,
+            bots_count_as_approvers: false,
+            fact_rules: Vec::new(),
+            require_viewed_files: false,
+            single_maintainer: false,
+            bot_merge_allowlist: String::new(),
+            required_checks: String::new(),
+            statuses_on_head_ok: true,
+            ready_waits_for_checks: true,
+        }
+    }
+}
+
+impl RuleValues {
+    /// A saved rule, with its checks (`ci/build by bob`) and bots as the
+    /// form writes them.
+    fn of(r: &slath_db::protections::Protection, checks: &[String], bots: &str) -> Self {
+        Self {
+            editing: Some(r.pattern.clone()),
+            pattern: r.pattern.clone(),
+            push_role: r.push_role.clone(),
+            block_force_push: r.block_force_push,
+            block_deletion: r.block_deletion,
+            require_mr: r.require_mr,
+            required_approvals: r.required_approvals.to_string(),
+            dismiss_stale_approvals: r.dismiss_stale_approvals,
+            dismiss_approvals_on_new_revision: r.dismiss_approvals_on_new_revision,
+            require_resolved_threads: r.require_resolved_threads,
+            require_up_to_date: r.require_up_to_date,
+            bots_count_as_approvers: r.bots_count_as_approvers,
+            fact_rules: r.fact_rules.clone(),
+            require_viewed_files: r.require_viewed_files,
+            single_maintainer: r.single_maintainer,
+            bot_merge_allowlist: bots.to_owned(),
+            required_checks: checks.join("\n"),
+            statuses_on_head_ok: r.statuses_on_head_ok,
+            ready_waits_for_checks: r.ready_waits_for_checks,
+        }
+    }
+
+    /// What was sent.
+    fn sent(f: &RuleForm, facts: Vec<String>) -> Self {
+        Self {
+            editing: None,
+            pattern: f.pattern.clone(),
+            push_role: f.push_role.clone(),
+            block_force_push: f.block_force_push.is_some(),
+            block_deletion: f.block_deletion.is_some(),
+            require_mr: f.require_mr.is_some(),
+            required_approvals: f.required_approvals.clone(),
+            dismiss_stale_approvals: f.dismiss_stale_approvals.is_some(),
+            dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
+            require_resolved_threads: f.require_resolved_threads.is_some(),
+            require_up_to_date: f.require_up_to_date.is_some(),
+            bots_count_as_approvers: f.bots_count_as_approvers.is_some(),
+            fact_rules: facts,
+            require_viewed_files: f.require_viewed_files.is_some(),
+            single_maintainer: f.single_maintainer.is_some(),
+            bot_merge_allowlist: f.bot_merge_allowlist.clone(),
+            required_checks: f.required_checks.clone(),
+            statuses_on_head_ok: f.statuses_on_head_ok.is_some(),
+            ready_waits_for_checks: f.ready_waits_for_checks.is_some(),
+        }
+    }
+
+    fn has_fact(&self, rule: &str) -> bool {
+        self.fact_rules.iter().any(|f| f == rule)
+    }
+
+    /// Whether the stricter review it asks for is shown unfolded.
+    fn stricter(&self) -> bool {
+        !self.fact_rules.is_empty() || self.require_viewed_files
+    }
+}
+
+/// The form's state: a saved rule to change (by ID), or what was sent.
+enum RuleState {
+    Edit(Option<String>),
+    Sent(RuleValues),
+}
+
 async fn protections_page(
     state: &AppState,
     ctx: PageCtx,
@@ -1235,8 +1357,8 @@ async fn protections_page(
     a: &RepoAccess,
     message: Option<&str>,
     errors: Vec<FieldError>,
-    // What the forms held: the rule's pattern, the sensitive paths.
-    (pattern, sensitive): (String, Option<String>),
+    // What the forms held: the rule, the sensitive paths.
+    (rule, sensitive): (RuleState, Option<String>),
 ) -> Result<Response, AppError> {
     let rules = state
         .services
@@ -1253,7 +1375,7 @@ async fn protections_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
-    let mut checks = Vec::new();
+    let mut check_lines: Vec<Vec<String>> = Vec::new();
     let mut bot_mergers = Vec::new();
     let fact_rules = rules
         .iter()
@@ -1268,17 +1390,24 @@ async fn protections_page(
     for r in &rules {
         bot_mergers.push(state.services.bot_merger_names(r).await?.join(", "));
         let names = state.services.reporter_names(r).await?;
-        checks.push(
+        check_lines.push(
             r.required_status_contexts
                 .iter()
                 .map(|c| match names.get(c).filter(|n| !n.is_empty()) {
                     Some(n) => format!("{c} by {}", n.join(", ")),
                     None => c.clone(),
                 })
-                .collect::<Vec<_>>()
-                .join("; "),
+                .collect::<Vec<_>>(),
         );
     }
+    let checks = check_lines.iter().map(|l| l.join("; ")).collect();
+    let form = match rule {
+        RuleState::Sent(v) => v,
+        RuleState::Edit(id) => id
+            .and_then(|id| rules.iter().position(|r| r.id.to_string() == id))
+            .map(|i| RuleValues::of(&rules[i], &check_lines[i], &bot_mergers[i]))
+            .unwrap_or_default(),
+    };
     let (alone, dead_ends) = state.services.protection_dead_ends(a, &rules).await?;
     let mut res = render(&ProtectionsSettings {
         alone,
@@ -1291,7 +1420,7 @@ async fn protections_page(
         rules,
         message,
         errors,
-        pattern,
+        form,
         sensitive_defaults: slath_core::sensitive_paths::DEFAULTS,
         sensitive_instance,
         sensitive_paths,
@@ -1300,12 +1429,19 @@ async fn protections_page(
     Ok(res)
 }
 
+#[derive(Deserialize)]
+struct ProtectionsQuery {
+    status: Option<String>,
+    /// A rule's ID: the form opens with that rule to change it.
+    edit: Option<String>,
+}
+
 async fn settings_protections_page(
     State(state): State<AppState>,
     ctx: PageCtx,
     session: MaybeSession,
     Path((ns, repo)): Path<(String, String)>,
-    Query(q): Query<StatusQuery>,
+    Query(q): Query<ProtectionsQuery>,
 ) -> Result<Response, AppError> {
     let subject = session.subject();
     let a = settings_access(&state, &subject, &ns, &repo).await?;
@@ -1316,7 +1452,7 @@ async fn settings_protections_page(
         &a,
         status_message(q.status.as_deref()),
         Vec::new(),
-        (String::new(), None),
+        (RuleState::Edit(q.edit), None),
     )
     .await
 }
@@ -1384,6 +1520,18 @@ async fn save_protection(
     Form(f): Form<RuleForm>,
 ) -> Result<Response, AppError> {
     let a = settings_access(&state, &s.subject, &ns, &repo).await?;
+    let facts: Vec<String> = [
+        ("outside_scope", &f.fact_outside_scope),
+        ("dependencies", &f.fact_dependencies),
+        ("deleted_tests", &f.fact_deleted_tests),
+        ("added_binaries", &f.fact_added_binaries),
+        ("mode_changes", &f.fact_mode_changes),
+        ("secrets", &f.fact_secrets),
+    ]
+    .into_iter()
+    .filter(|(_, v)| v.is_some())
+    .map(|(n, _)| n.to_owned())
+    .collect();
     match state
         .services
         .set_protection(
@@ -1395,7 +1543,7 @@ async fn save_protection(
                 block_force_push: f.block_force_push.is_some(),
                 block_deletion: f.block_deletion.is_some(),
                 require_mr: f.require_mr.is_some(),
-                push_role: f.push_role,
+                push_role: f.push_role.clone(),
                 // Empty is the default, 1; anything else that isn't a
                 // number from 0 to 20 is reported by the service.
                 required_approvals: match f.required_approvals.trim() {
@@ -1411,18 +1559,7 @@ async fn save_protection(
                 dismiss_approvals_on_new_revision: f.dismiss_approvals_on_new_revision.is_some(),
                 ready_waits_for_checks: f.ready_waits_for_checks.is_some(),
                 single_maintainer: f.single_maintainer.is_some(),
-                fact_rules: [
-                    ("outside_scope", &f.fact_outside_scope),
-                    ("dependencies", &f.fact_dependencies),
-                    ("deleted_tests", &f.fact_deleted_tests),
-                    ("added_binaries", &f.fact_added_binaries),
-                    ("mode_changes", &f.fact_mode_changes),
-                    ("secrets", &f.fact_secrets),
-                ]
-                .into_iter()
-                .filter(|(_, v)| v.is_some())
-                .map(|(n, _)| n.to_owned())
-                .collect(),
+                fact_rules: facts.clone(),
                 require_viewed_files: f.require_viewed_files.is_some(),
                 bot_merge_allowlist: f
                     .bot_merge_allowlist
@@ -1438,7 +1575,8 @@ async fn save_protection(
             Redirect::to(&repo_url(&a, "/settings/protections?status=rule-saved")).into_response(),
         ),
         Err(ServiceError::Invalid(errors)) => {
-            protections_page(&state, ctx, &s.subject, &a, None, errors, (f.pattern, None)).await
+            let sent = RuleState::Sent(RuleValues::sent(&f, facts));
+            protections_page(&state, ctx, &s.subject, &a, None, errors, (sent, None)).await
         }
         Err(e) => Err(e.into()),
     }
@@ -1478,7 +1616,7 @@ async fn save_sensitive_paths(
                 &a,
                 None,
                 errors,
-                (String::new(), Some(f.paths)),
+                (RuleState::Edit(None), Some(f.paths)),
             )
             .await
         }
