@@ -341,6 +341,11 @@ fn calls(f: &Fixture) -> Vec<(&'static str, Value, String)> {
             mr(json!({})),
             format!("{r}/merge-requests/1/state"),
         ),
+        (
+            "get_merge_request_facts",
+            mr(json!({})),
+            format!("{r}/merge-requests/1/facts"),
+        ),
     ]
 }
 
