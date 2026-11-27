@@ -30,8 +30,9 @@ test("conf_agent_07_link_move_and_merge_a_group", async ({ page }, info) => {
   await signIn(page, USERS.alice);
   const lib = await open(page, `linked/${project}/lib`, `Lib for ${project}`);
   const app = await open(page, `linked/${project}/app`, `App for ${project}`);
-  // Not linked yet: its own merge form, and a way to link.
-  await expect(group(page)).toContainText("None.");
+  // Not linked yet: its own merge form, and only the way to link.
+  await expect(group(page).getByRole("list")).toHaveCount(0);
+  await expect(group(page)).toContainText("Link a merge request");
   await expect(page.locator("#merge-form")).toHaveCount(1);
   await tapOrClick(page, group(page).getByText("Link a merge request"));
   await group(page).getByLabel("Merge request").fill(`alice/demo!${lib}`);
@@ -88,6 +89,6 @@ test("conf_agent_07_link_and_unlink_with_the_keyboard", async ({ page }, info) =
   await group(page).getByRole("button", { name: "Unlink this one" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Unlinked: it merges on its own again.")).toBeVisible();
-  await expect(group(page)).toContainText("None.");
+  await expect(group(page).getByRole("list")).toHaveCount(0);
   await expect(page.locator("#merge-form")).toHaveCount(1);
 });

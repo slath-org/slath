@@ -493,9 +493,9 @@
       {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "x") %}{% endcall %}Unlink this one</button>{% endcall %}
     </form>
     {%- endif %}
-    {%- else %}
-    {%- call msg::empty("None.") %}{% endcall %}
     {%- endif %}
+    {#- Without a group, the link form says what the section is for
+        (Weave rule 74). #}
     {%- if link_form %}
     {%- call d::disclosure(ctx, "Link a merge request", self.error("group").is_some()) %}
     <form method="post" action="{{ here }}/group/link" class="form-layout" novalidate>
