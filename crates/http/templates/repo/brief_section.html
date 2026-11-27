@@ -4,11 +4,14 @@
     (`BriefParts`), `header`, and `h`. -#}
 {%- macro brief_item(it) -%}
   <pre class="commit-body">{{ it.text }}</pre>
-  {%- if it.before.is_some() || it.after.is_some() %}
-  <dl class="facts">
-    {%- if let Some(v) = it.before %}<dt>Before</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
-    {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
-  </dl>
+  {#- A label over its text, at the same edge as the item's text. #}
+  {%- if let Some(v) = it.before %}
+  <p class="commit-body"><strong>Before</strong>
+{{ v }}</p>
+  {%- endif %}
+  {%- if let Some(v) = it.after %}
+  <p class="commit-body"><strong>After</strong>
+{{ v }}</p>
   {%- endif %}
   {%- if !it.places.is_empty() %}
   <p class="text-secondary">Points at {% for pl in it.places %}{% if !loop.first %}, {% endif %}{% if let Some(h) = pl.href %}<a href="{{ h }}"><code>{{ pl.text }}</code></a>{% else %}<code>{{ pl.text }}</code>{% endif %}{% endfor %}</p>

@@ -359,7 +359,7 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         "Author&#39;s claim",
         "Add the a file",
         "One line\nper letter",
-        "<dt>Before</dt><dd><pre class=\"commit-body\">No a</pre>",
+        "<p class=\"commit-body\"><strong>Before</strong>\nNo a</p>",
         "<h3 id=\"brief-item-2\">Known gap</h3>",
         "No b yet",
     ] {
