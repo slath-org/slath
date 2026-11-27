@@ -396,6 +396,8 @@ test("conf_agent_12_a_bot_marks_a_persons_thread_addressed", async ({ page }) =>
   const thread = page.getByRole("article", { name: "Thread on agent-notes.txt, line 1" });
   await expect(thread.locator(".comment-header")).toContainText(/marked as addressed by\s*e2e-agent/);
   await expect(thread.locator(".comment-header")).toContainText("Bot");
+  // What Git says about that claim: the thread's lines are still there.
+  await expect(thread.locator(".comment-header")).toContainText("the lines are unchanged");
   // Still open: a person resolves it.
   await expect(thread.getByRole("button", { name: "Resolve thread" })).toBeVisible();
   await expectAccessible(page);

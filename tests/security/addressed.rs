@@ -240,3 +240,132 @@ fn conf_agent_12_bots_mark_threads_addressed_and_people_resolve_them() {
     ok(resolve(&bot, &own, true));
     assert_eq!(get(&own)["resolved"], true);
 }
+
+#[test]
+fn conf_agent_14_addressed_shows_whether_the_lines_changed() {
+    let s = TestServer::start_full(&[DEMO], "");
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alice-agent",
+            "--token-scopes",
+            "repo:write,mrs:write",
+            "--repo",
+            "alice/demo",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let bot = serde_json::from_str::<Value>(&out).unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut c = s.login("alice", PASSWORD);
+    let alice = slath_tests::http::create_token(&mut c, "alice", &["repo:write", "mrs:write"]);
+    let call = |t: &str, method: &str, path: &str, body: Option<Value>| {
+        let r = s.client().api(
+            method,
+            &format!("/api/v1/repos/alice/demo{path}"),
+            Some(t),
+            body.as_ref(),
+        );
+        assert!(r.status < 300, "{} {}", r.status, r.body);
+        r
+    };
+    call(
+        &alice,
+        "PUT",
+        "/collaborators/alice-agent",
+        Some(json!({"role": "write"})),
+    );
+    let git = GitClient::new();
+    let d = tempfile::tempdir().unwrap();
+    let w = d.path();
+    let push = |branch: &str| {
+        let url = format!("http://git:{bot}@{}/alice/demo.git", s.addr);
+        git.ok(w, &["push", "-q", &url, branch]);
+    };
+    git.ok(w, &["init", "-q", "-b", "main"]);
+    std::fs::write(w.join("notes.txt"), "one\ntwo\nthree\nfour\nfive\nsix\n").unwrap();
+    git.ok(w, &["add", "."]);
+    git.ok(w, &["commit", "-q", "-m", "init"]);
+    push("main");
+    git.ok(w, &["switch", "-q", "-c", "fix"]);
+    std::fs::write(w.join("notes.txt"), "One\ntwo\nthree\nfour\nfive\nSix\n").unwrap();
+    git.ok(w, &["commit", "-qam", "Capitalize"]);
+    push("fix");
+    let n = call(
+        &bot,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "fix", "title": "Fix"})),
+    )
+    .json()["number"]
+        .as_i64()
+        .unwrap();
+    let mr = format!("/merge-requests/{n}");
+    let wait = |revisions: i64| {
+        let start = std::time::Instant::now();
+        while call(&alice, "GET", &mr, None).json()["revisions"] != revisions {
+            assert!(start.elapsed().as_secs() < 30, "no revision {revisions}");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    };
+    wait(1);
+    let thread = |body: Value| {
+        call(&alice, "POST", &format!("{mr}/threads"), Some(body)).json()["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    let first = thread(json!({"body": "Lower case?", "path": "notes.txt", "line_start": 1}));
+    let last = thread(json!({"body": "And this one?", "path": "notes.txt", "line_start": 6}));
+    let general = thread(json!({"body": "Why capitals?"}));
+    for id in [&first, &last, &general] {
+        call(&bot, "PUT", &format!("{mr}/threads/{id}/addressed"), None);
+    }
+    let check = |id: &str| {
+        call(&alice, "GET", &format!("{mr}/threads"), None)
+            .json()
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == id)
+            .unwrap()["addressed_check"]
+            .clone()
+    };
+    assert_eq!(check(&first), json!({"lines_changed": false}));
+    assert_eq!(check(&general), Value::Null, "no lines to compare");
+
+    // The bot's next push changes the first line only.
+    std::fs::write(w.join("notes.txt"), "one\ntwo\nthree\nfour\nfive\nSix\n").unwrap();
+    git.ok(w, &["commit", "-qam", "Lower case again"]);
+    push("fix");
+    wait(2);
+    assert_eq!(check(&first), json!({"lines_changed": true}));
+    assert_eq!(check(&last), json!({"lines_changed": false}));
+    let page = s
+        .login("alice", PASSWORD)
+        .get(&format!("/alice/demo/merge-requests/{n}"))
+        .body;
+    assert!(
+        page.contains("· the lines changed since revision 1"),
+        "{page}"
+    );
+    assert!(page.contains("· the lines are unchanged"), "{page}");
+
+    // Resolved, it's no longer a claim to check.
+    call(
+        &alice,
+        "PATCH",
+        &format!("{mr}/threads/{first}"),
+        Some(json!({"resolved": true})),
+    );
+    assert_eq!(check(&first), Value::Null);
+}

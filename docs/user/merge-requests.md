@@ -541,6 +541,12 @@ unresolved. Resolving or reopening the thread clears the mark, and so
 does an answer from anyone but whoever marked it. Bots may resolve the
 threads bots started, such as their own notes.
 
+Being marked addressed is a claim, so a thread on lines also says what Git
+shows about it: "the lines changed since revision 2" once its lines
+changed in a later revision, or "the lines are unchanged" while they're
+still there as they were. Whether the change answers the question is
+still for a person to judge.
+
 Comments can wait in your **pending review**: only you see them until you
 submit the review, and then they appear together.
 
@@ -585,7 +591,8 @@ position; `?resolved=false` lists only the unresolved ones), `POST …/threads` 
 reply when your review is submitted), and `PATCH …/threads/{id}` with
 `{"resolved": true}`. `PUT …/threads/{id}/addressed` marks a thread
 addressed (`DELETE` clears it), for whoever may resolve it; the thread
-JSON names `addressed_by` and `addressed_at`.
+JSON names `addressed_by` and `addressed_at`, and for a thread on lines
+`addressed_check: {"lines_changed": …}` while it's marked.
 
 ## Suggestions
 

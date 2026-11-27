@@ -61,7 +61,7 @@
         {%- else if t.outdated %} <span class="badge">{% if t.brief_quote.is_some() %}On an earlier brief{% else %}Outdated{% endif %}</span>{% endif %}
         {%- if let Some(r) = t.from %} <span class="text-secondary">· still current, from revision {{ r }}</span>{% endif %}
         {%- if t.resolved %} <span class="badge">Resolved</span>{% if let Some(by) = t.resolved_by %} <span class="text-secondary">by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}{% endif %}
-        {%- if let Some(by) = t.addressed_by %} <span class="text-secondary">· marked as addressed by</span> {% call p::account(ctx, by) %}{% endcall %}{% endif %}
+        {%- if let Some(by) = t.addressed_by %} <span class="text-secondary">· marked as addressed by</span> {% call p::account(ctx, by) %}{% endcall %}{% if let Some(changed) = t.addressed_check %} <span class="text-secondary">· {% if changed %}the lines changed since revision {{ t.revision }}{% else %}the lines are unchanged{% endif %}</span>{% endif %}{% endif %}
       </header>
       {%- if let Some(q) = t.brief_quote %}
       <pre class="thread-quote">{{ q }}</pre>

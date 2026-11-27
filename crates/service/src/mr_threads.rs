@@ -95,6 +95,24 @@ pub struct ThreadView {
     pub finding_state: Option<&'static str>,
 }
 
+impl ThreadView {
+    /// For a thread on lines marked addressed: whether those lines changed
+    /// since (it's outdated on the current revision). `None` when it isn't
+    /// marked, or is on the whole merge request or a brief.
+    #[must_use]
+    pub fn addressed_check(&self) -> Option<bool> {
+        let t = &self.thread;
+        if t.addressed_at.is_none() || t.resolved_at.is_some() || self.brief.is_some() {
+            return None;
+        }
+        match self.position {
+            Position::General => None,
+            Position::Outdated => Some(true),
+            Position::Current { .. } => Some(false),
+        }
+    }
+}
+
 pub(crate) fn hash_lines(lines: &[Vec<u8>]) -> String {
     let mut h = Sha256::new();
     for (i, l) in lines.iter().enumerate() {

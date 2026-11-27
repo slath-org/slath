@@ -66,6 +66,10 @@ pub struct ThreadBody {
     /// anyone else.
     pub addressed_by: Option<String>,
     pub addressed_at: Option<String>,
+    /// While it's marked addressed: what Git says about that claim.
+    /// `null` for threads on the whole merge request or on a brief, which
+    /// have no lines to compare.
+    pub addressed_check: Option<AddressedCheck>,
     pub position: ThreadPosition,
     pub comments: Vec<ThreadCommentBody>,
     pub created_at: String,
@@ -75,6 +79,14 @@ pub struct ThreadBody {
     pub finding: Option<ThreadFinding>,
     /// Set for a thread on a field of a change's brief (no path then).
     pub brief: Option<ThreadBrief>,
+}
+
+/// Whether a thread marked addressed had its lines changed.
+#[derive(Serialize, ToSchema)]
+pub struct AddressedCheck {
+    /// The lines it's on changed since its revision: it's outdated on the
+    /// current one. `false` while they're still there, unchanged.
+    pub lines_changed: bool,
 }
 
 /// The brief field a thread is on.
@@ -116,6 +128,9 @@ pub struct ThreadFinding {
 
 impl From<ThreadView> for ThreadBody {
     fn from(v: ThreadView) -> Self {
+        let addressed_check = v
+            .addressed_check()
+            .map(|lines_changed| AddressedCheck { lines_changed });
         let position = match v.position {
             Position::General => ThreadPosition {
                 state: "general",
@@ -175,6 +190,7 @@ impl From<ThreadView> for ThreadBody {
             resolved_by: t.resolved_by,
             addressed_by: t.addressed_at.and(t.addressed_by),
             addressed_at: t.addressed_at.map(ts),
+            addressed_check,
             position,
             comments: v
                 .comments

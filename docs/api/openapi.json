@@ -12167,6 +12167,19 @@
   },
   "components": {
     "schemas": {
+      "AddressedCheck": {
+        "type": "object",
+        "description": "Whether a thread marked addressed had its lines changed.",
+        "required": [
+          "lines_changed"
+        ],
+        "properties": {
+          "lines_changed": {
+            "type": "boolean",
+            "description": "The lines it's on changed since its revision: it's outdated on the\ncurrent one. `false` while they're still there, unchanged."
+          }
+        }
+      },
       "AgentBody": {
         "type": "object",
         "description": "The agent as the record claims it.",
@@ -17261,6 +17274,17 @@
               "null"
             ],
             "description": "Who marked it addressed (bots do, for threads people started); it\nisn't resolved. Cleared by resolving, reopening, or a reply by\nanyone else."
+          },
+          "addressed_check": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AddressedCheck",
+                "description": "While it's marked addressed: what Git says about that claim.\n`null` for threads on the whole merge request or on a brief, which\nhave no lines to compare."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "author": {
             "type": [
