@@ -6134,6 +6134,207 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/briefs": {
+      "get": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "A merge request's own briefs, newest first: every edit of every\nrevision's brief.",
+        "operationId": "list_mr_briefs",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "description": "Only the edits of this revision's brief.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page (1 to the instance's maximum, default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "merge requests"
+        ],
+        "summary": "Writes the merge request's own brief for a revision (its current one\nwithout `revision`), in the `slath-brief/2` schema: the behavioral view\nacross its changes, whose anchors point into the revision's diff (merge\nbase to head). The same people may write it as a change's brief, while\nit's open; writing again adds an edit.",
+        "operationId": "create_mr_brief",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "{schema: \"slath-brief/2\", items: [...], revision?}: the items as for a change's brief, with anchors into the revision's diff",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "token": [
+              "mrs:write"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs": {
       "get": {
         "tags": [
@@ -12746,7 +12947,7 @@
           },
           "commit": {
             "type": "string",
-            "description": "The version's commit, and the number of the change's first version\nwith it."
+            "description": "The version's commit, and the number of the change's first version\nwith it; for a merge request's brief, its revision's head and the\nrevision's number."
           },
           "coverage": {
             "oneOf": [
@@ -12774,6 +12975,13 @@
           },
           "origin": {
             "$ref": "#/components/schemas/TextOrigin"
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           },
           "schema": {
             "type": "string"
@@ -17507,19 +17715,21 @@
         "description": "The brief item a thread is on.",
         "required": [
           "id",
-          "change",
           "item",
           "kind",
           "current"
         ],
         "properties": {
           "change": {
-            "type": "string",
-            "description": "The change's display ID, and the number of its version."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The change's display ID, and the number of its version; `null` for\nthe merge request's own brief, which has `revision` instead."
           },
           "current": {
             "type": "boolean",
-            "description": "The change's current brief (its latest version's newest edit) still\nhas an item of this kind with this text; once it doesn't, the\nthread is on an earlier brief."
+            "description": "The current brief (the change's latest version's newest edit, or\nthe merge request's latest revision's) still has an item of this\nkind with this text; once it doesn't, the thread is on an earlier\nbrief."
           },
           "id": {
             "type": "string",
@@ -17532,6 +17742,13 @@
           },
           "kind": {
             "type": "string"
+          },
+          "revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           },
           "version": {
             "type": [

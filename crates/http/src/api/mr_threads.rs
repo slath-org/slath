@@ -94,15 +94,18 @@ pub struct AddressedCheck {
 pub struct ThreadBrief {
     /// The brief's edit (see `…/changes/{change}/briefs`).
     pub id: String,
-    /// The change's display ID, and the number of its version.
-    pub change: String,
+    /// The change's display ID, and the number of its version; `null` for
+    /// the merge request's own brief, which has `revision` instead.
+    pub change: Option<String>,
     pub version: Option<usize>,
+    pub revision: Option<i32>,
     /// The item's index in the edit's `items`, and its kind.
     pub item: usize,
     pub kind: String,
-    /// The change's current brief (its latest version's newest edit) still
-    /// has an item of this kind with this text; once it doesn't, the
-    /// thread is on an earlier brief.
+    /// The current brief (the change's latest version's newest edit, or
+    /// the merge request's latest revision's) still has an item of this
+    /// kind with this text; once it doesn't, the thread is on an earlier
+    /// brief.
     pub current: bool,
 }
 
@@ -168,6 +171,7 @@ impl From<ThreadView> for ThreadBody {
             id: b.brief_id.to_string(),
             change: b.change,
             version: b.version,
+            revision: b.revision,
             item: b.item,
             kind: b.kind.as_str().to_owned(),
             current: b.current,

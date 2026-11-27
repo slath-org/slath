@@ -24,12 +24,13 @@ use crate::repos::RepoAccess;
 
 pub use crate::brief_schema::SCHEMA;
 
-/// An earlier version's brief seen from a version without its own: its
-/// items, carried ones at their new places, and which ones carry.
+/// An earlier brief seen from a version (or revision) without its own:
+/// its items, carried ones at their new places, and which ones carry.
 #[derive(Debug, Clone)]
 pub struct Carried {
-    /// The earlier version's number, and the revision it's in.
-    pub from_version: usize,
+    /// The earlier version's number (`None` for a revision's brief), and
+    /// the revision it's in.
+    pub from_version: Option<usize>,
     pub from_revision: i32,
     pub items: Vec<Item>,
     pub carries: Vec<bool>,
@@ -42,11 +43,19 @@ pub struct ChangeBrief {
     pub items: Vec<Item>,
     pub author: Option<String>,
     pub author_is_bot: bool,
-    /// The number of the change's first version with this commit.
+    /// The number of the change's first version with this commit (change
+    /// briefs).
     pub version: Option<usize>,
     /// Which changed hunks its items point at, when one of them points at
     /// the code: the author's claim, never a requirement.
     pub coverage: Option<Coverage>,
+}
+
+/// The diff a brief describes: its base (none for a root) and head.
+type Range = (Option<String>, String);
+
+fn oid(s: &str) -> Result<slath_git::ObjectId> {
+    slath_git::ObjectId::parse(s).map_err(ServiceError::internal)
 }
 
 impl Services {
@@ -70,6 +79,68 @@ impl Services {
         m.state == "open" && Self::can_rebind(subject, a, m)
     }
 
+    /// Parses `body` for `subject` writing a brief of `m`: the permission,
+    /// the state, the size, and the schema.
+    fn brief_upload(
+        subject: &Subject,
+        a: &RepoAccess,
+        m: &MergeRequest,
+        limit: u64,
+        body: &[u8],
+    ) -> Result<Upload> {
+        if !matches!(subject, Subject::User { .. }) {
+            return Err(ServiceError::Unauthenticated);
+        }
+        if !Self::can_rebind(subject, a, m) {
+            return Err(ServiceError::Forbidden);
+        }
+        if m.state != "open" {
+            return Err(ServiceError::Conflict(
+                "This merge request isn't open, so its briefs can't change.".into(),
+            ));
+        }
+        if body.len() as u64 > limit {
+            return Err(ServiceError::invalid(
+                "body",
+                "too_large",
+                format!("Send a brief of at most {} KiB.", limit / 1024),
+            ));
+        }
+        Upload::parse(body)
+    }
+
+    /// Checks `upload`'s anchors against `range` and its texts for
+    /// secrets, and stores it as a new edit.
+    async fn store_brief(
+        &self,
+        subject: &Subject,
+        a: &RepoAccess,
+        mut upload: Upload,
+        range: &Range,
+        new: NewBrief<'_>,
+    ) -> Result<Brief> {
+        if upload.items.iter().any(|i| !i.anchors.is_empty()) {
+            let base = range.0.as_deref().map(oid).transpose()?;
+            let (diff, _, _) = self
+                .parsed_diff(a.repo.id, base.as_ref(), &oid(&range.1)?)
+                .await?;
+            upload.locate(&diff)?;
+        }
+        self.refuse_secrets(upload.texts())?;
+        let items = serde_json::to_value(&upload.items).map_err(ServiceError::internal)?;
+        let origin = self.origin_of(subject, &a.repo).await?;
+        slath_db::change_briefs::insert(
+            &self.pool,
+            &NewBrief {
+                origin: origin.as_str(),
+                items: &items,
+                ..new
+            },
+        )
+        .await
+        .map_err(Into::into)
+    }
+
     /// Writes a brief (`body` is its JSON) for a version of a change.
     pub async fn write_change_brief(
         &self,
@@ -80,37 +151,21 @@ impl Services {
     ) -> Result<ChangeBrief> {
         let (a, m) = self.mr(subject, ns, repo, number).await?;
         let (change_id, info) = self.brief_change(&m, change).await?;
-        let Subject::User { id: author, .. } = subject else {
-            return Err(ServiceError::Unauthenticated);
-        };
-        if !Self::can_rebind(subject, &a, &m) {
-            return Err(ServiceError::Forbidden);
-        }
-        if m.state != "open" {
-            return Err(ServiceError::Conflict(
-                "This merge request isn't open, so its briefs can't change.".into(),
-            ));
-        }
-        let limit = self.config.limits.brief_max_bytes.0;
-        if body.len() as u64 > limit {
+        let upload =
+            Self::brief_upload(subject, &a, &m, self.config.limits.brief_max_bytes.0, body)?;
+        if upload.revision.is_some() {
             return Err(ServiceError::invalid(
-                "body",
-                "too_large",
-                format!("Send a brief of at most {} KiB.", limit / 1024),
+                "/revision",
+                "invalid",
+                "A change's brief is for a version: send commit, not revision.",
             ));
         }
-        let mut upload = Upload::parse(body)?;
-        let commit = match &upload.commit {
-            None => info
-                .versions
-                .last()
-                .map(|v| v.commit_oid.clone())
-                .ok_or(ServiceError::NotFound)?,
+        let v = match &upload.commit {
+            None => info.versions.last().ok_or(ServiceError::NotFound)?,
             Some(c) => info
                 .versions
                 .iter()
                 .find(|v| &v.commit_oid == c)
-                .map(|v| v.commit_oid.clone())
                 .ok_or_else(|| {
                     ServiceError::invalid(
                         "/commit",
@@ -119,52 +174,87 @@ impl Services {
                     )
                 })?,
         };
+        let Subject::User { id: author, .. } = subject else {
+            return Err(ServiceError::Unauthenticated);
+        };
+        let commit = v.commit_oid.clone();
         // Anchors point into this version's own diff (parent to commit).
-        if upload.items.iter().any(|i| !i.anchors.is_empty()) {
-            let v = info
-                .versions
-                .iter()
-                .find(|v| v.commit_oid == commit)
-                .ok_or(ServiceError::NotFound)?;
-            let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
-            let base = v.parent_oid.as_deref().map(parse).transpose()?;
-            let (diff, _, _) = self
-                .parsed_diff(a.repo.id, base.as_ref(), &parse(&commit)?)
-                .await?;
-            upload.locate(&diff)?;
-        }
-        self.refuse_secrets(upload.texts())?;
-        let items = serde_json::to_value(&upload.items).map_err(ServiceError::internal)?;
-        let origin = self.origin_of(subject, &a.repo).await?;
-        let brief = slath_db::change_briefs::insert(
-            &self.pool,
-            &NewBrief {
-                mr_id: m.id,
-                change_id,
-                commit_oid: &commit,
-                author_id: *author,
-                origin: origin.as_str(),
-                items: &items,
-            },
-        )
-        .await?;
-        let mut view = [self.brief_view(&info, brief).await?];
-        self.add_coverage(&m, &info, &mut view).await?;
+        let range = (v.parent_oid.clone(), commit.clone());
+        let new = NewBrief {
+            mr_id: m.id,
+            change_id: Some(change_id),
+            revision_seq: None,
+            commit_oid: &commit,
+            author_id: *author,
+            origin: "",
+            items: &serde_json::Value::Null,
+        };
+        let brief = self.store_brief(subject, &a, upload, &range, new).await?;
+        let mut view = [self.brief_view(Some(&info), brief).await?];
+        self.add_coverage(&m, Some(&info), &mut view).await?;
         let [view] = view;
         Ok(view)
     }
 
-    async fn brief_view(&self, info: &ChangeInfo, brief: Brief) -> Result<ChangeBrief> {
+    /// Writes a merge request's brief (`body` is its JSON) for a revision
+    /// (its current one without `revision`): the behavioral view across
+    /// its changes, whose anchors point into the revision's diff.
+    pub async fn write_mr_brief(
+        &self,
+        subject: &Subject,
+        (ns, repo, number): (&str, &str, i32),
+        body: &[u8],
+    ) -> Result<ChangeBrief> {
+        let (a, m) = self.mr(subject, ns, repo, number).await?;
+        let upload =
+            Self::brief_upload(subject, &a, &m, self.config.limits.brief_max_bytes.0, body)?;
+        if upload.commit.is_some() {
+            return Err(ServiceError::invalid(
+                "/commit",
+                "invalid",
+                "A merge request's brief is for a revision: send revision, not commit.",
+            ));
+        }
+        let seq = upload.revision.unwrap_or(m.revisions);
+        if seq < 1 || seq > m.revisions {
+            return Err(ServiceError::invalid(
+                "/revision",
+                "invalid",
+                "Name one of this merge request's revisions.",
+            ));
+        }
+        let Subject::User { id: author, .. } = subject else {
+            return Err(ServiceError::Unauthenticated);
+        };
+        let range = self.revision_diff(&m, seq).await?;
+        let new = NewBrief {
+            mr_id: m.id,
+            change_id: None,
+            revision_seq: Some(seq),
+            commit_oid: &range.1,
+            author_id: *author,
+            origin: "",
+            items: &serde_json::Value::Null,
+        };
+        let brief = self.store_brief(subject, &a, upload, &range, new).await?;
+        let mut view = [self.brief_view(None, brief).await?];
+        self.add_coverage(&m, None, &mut view).await?;
+        let [view] = view;
+        Ok(view)
+    }
+
+    async fn brief_view(&self, info: Option<&ChangeInfo>, brief: Brief) -> Result<ChangeBrief> {
         let author = match brief.author_id {
             Some(id) => slath_db::users::get(&self.pool, id).await?,
             None => None,
         };
         Ok(ChangeBrief {
-            version: info
-                .versions
-                .iter()
-                .find(|v| v.commit_oid == brief.commit_oid)
-                .map(|v| v.number),
+            version: info.and_then(|info| {
+                info.versions
+                    .iter()
+                    .find(|v| v.commit_oid == brief.commit_oid)
+                    .map(|v| v.number)
+            }),
             author_is_bot: author.as_ref().is_some_and(|u| u.kind == UserKind::Bot),
             author: author.map(|u| u.name),
             items: stored_items(&brief.items),
@@ -173,75 +263,69 @@ impl Services {
         })
     }
 
+    /// The diff brief edit `b` describes: its version's (parent to commit,
+    /// from `info`) or its revision's (merge base to head).
+    async fn brief_range(
+        &self,
+        m: &MergeRequest,
+        info: Option<&ChangeInfo>,
+        b: &Brief,
+    ) -> Result<Option<Range>> {
+        if let Some(seq) = b.revision_seq {
+            return Ok(Some(self.revision_diff(m, seq).await?));
+        }
+        Ok(info
+            .and_then(|i| i.versions.iter().find(|v| v.commit_oid == b.commit_oid))
+            .map(|v| (v.parent_oid.clone(), v.commit_oid.clone())))
+    }
+
     /// The coverage of each of `briefs` whose items point at the code,
-    /// over its version's diff (each diff read once).
+    /// over the diff it describes (each diff read once).
     async fn add_coverage(
         &self,
         m: &MergeRequest,
-        info: &ChangeInfo,
+        info: Option<&ChangeInfo>,
         briefs: &mut [ChangeBrief],
     ) -> Result<()> {
-        let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
         let mut diffs = std::collections::HashMap::new();
         for b in briefs.iter_mut() {
             if b.items.iter().all(|i| i.anchors.is_empty()) {
                 continue;
             }
-            let commit = b.brief.commit_oid.clone();
-            if !diffs.contains_key(&commit) {
-                let Some(v) = info.versions.iter().find(|v| v.commit_oid == commit) else {
-                    continue;
-                };
-                let base = v.parent_oid.as_deref().map(parse).transpose()?;
+            let Some(range) = self.brief_range(m, info, &b.brief).await? else {
+                continue;
+            };
+            if !diffs.contains_key(&range) {
+                let base = range.0.as_deref().map(oid).transpose()?;
                 let d = self
-                    .diff_with_inventory(m.repo_id, base.as_ref(), &parse(&commit)?)
+                    .diff_with_inventory(m.repo_id, base.as_ref(), &oid(&range.1)?)
                     .await?;
-                diffs.insert(commit.clone(), d);
+                diffs.insert(range.clone(), d);
             }
-            if let Some((diff, inv)) = diffs.get(&commit) {
+            if let Some((diff, inv)) = diffs.get(&range) {
                 b.coverage = Some(coverage(diff, inv, &b.items));
             }
         }
         Ok(())
     }
 
-    /// For version `commit` of `change` without a brief of its own: the
-    /// brief of the newest earlier version with one, and which of its
-    /// items carry forward. An item carries when it points at the code
-    /// and every anchor survives: a file still in this version's diff, and
-    /// lines that map here (as threads' lines do) and are shown in its
-    /// diff with the same SHA-256.
-    pub async fn carried_brief(
+    /// Which of `items`, written for the diff `from`, carry to the diff
+    /// `to`, with their anchors moved there. An item carries when it
+    /// points at the code and every anchor survives: a file still in the
+    /// new diff, and lines that map there (as threads' lines do) and are
+    /// shown in it with the same SHA-256.
+    async fn carry_items(
         &self,
         m: &MergeRequest,
-        change: &str,
-        commit: &str,
-    ) -> Result<Option<Carried>> {
-        let (change_id, info) = self.brief_change(m, change).await?;
-        let Some(at) = info.versions.iter().position(|v| v.commit_oid == commit) else {
-            return Ok(None);
-        };
-        let briefs = slath_db::change_briefs::list(&self.pool, change_id, None, 1000).await?;
-        if briefs.iter().any(|b| b.commit_oid == commit) {
-            return Ok(None);
-        }
-        // The newest earlier version with a brief, and its newest edit.
-        let Some((from, brief)) = info.versions[..at].iter().rev().find_map(|v| {
-            briefs
-                .iter()
-                .find(|b| b.commit_oid == v.commit_oid)
-                .map(|b| (v, b.clone()))
-        }) else {
-            return Ok(None);
-        };
-        let to = &info.versions[at];
-        let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
-        let base = to.parent_oid.as_deref().map(parse).transpose()?;
+        mut items: Vec<Item>,
+        from: &Range,
+        to: &Range,
+    ) -> Result<(Vec<Item>, Vec<bool>)> {
+        let base = to.0.as_deref().map(oid).transpose()?;
         let (diff, _, _) = self
-            .parsed_diff(m.repo_id, base.as_ref(), &parse(&to.commit_oid)?)
+            .parsed_diff(m.repo_id, base.as_ref(), &oid(&to.1)?)
             .await?;
         let dir = self.repo_path(m.repo_id);
-        let mut items = stored_items(&brief.items);
         let mut carries = Vec::with_capacity(items.len());
         for item in &mut items {
             let mut ok = !item.anchors.is_empty();
@@ -254,12 +338,8 @@ impl Services {
                     continue;
                 };
                 let (old, new) = match a.side() {
-                    crate::brief_schema::Side::New => {
-                        (Some(from.commit_oid.as_str()), Some(to.commit_oid.as_str()))
-                    }
-                    crate::brief_schema::Side::Old => {
-                        (from.parent_oid.as_deref(), to.parent_oid.as_deref())
-                    }
+                    crate::brief_schema::Side::New => (Some(from.1.as_str()), Some(to.1.as_str())),
+                    crate::brief_schema::Side::Old => (from.0.as_deref(), to.0.as_deref()),
                 };
                 let (Some(old), Some(new)) = (old, new) else {
                     ok = false;
@@ -268,7 +348,7 @@ impl Services {
                 let mapped = slath_git::linemap::carry(
                     &self.runner,
                     &dir,
-                    (&parse(old)?, &parse(new)?),
+                    (&oid(old)?, &oid(new)?),
                     a.path.as_bytes(),
                     lines,
                 )
@@ -293,9 +373,82 @@ impl Services {
             }
             carries.push(ok);
         }
+        Ok((items, carries))
+    }
+
+    /// For version `commit` of `change` without a brief of its own: the
+    /// brief of the newest earlier version with one, and which of its
+    /// items carry forward ([`Services::carry_items`]).
+    pub async fn carried_brief(
+        &self,
+        m: &MergeRequest,
+        change: &str,
+        commit: &str,
+    ) -> Result<Option<Carried>> {
+        let (change_id, info) = self.brief_change(m, change).await?;
+        let Some(at) = info.versions.iter().position(|v| v.commit_oid == commit) else {
+            return Ok(None);
+        };
+        let briefs = slath_db::change_briefs::list(&self.pool, change_id, None, 1000).await?;
+        if briefs.iter().any(|b| b.commit_oid == commit) {
+            return Ok(None);
+        }
+        // The newest earlier version with a brief, and its newest edit.
+        let Some((from, brief)) = info.versions[..at].iter().rev().find_map(|v| {
+            briefs
+                .iter()
+                .find(|b| b.commit_oid == v.commit_oid)
+                .map(|b| (v, b.clone()))
+        }) else {
+            return Ok(None);
+        };
+        let to = &info.versions[at];
+        let (items, carries) = self
+            .carry_items(
+                m,
+                stored_items(&brief.items),
+                &(from.parent_oid.clone(), from.commit_oid.clone()),
+                &(to.parent_oid.clone(), to.commit_oid.clone()),
+            )
+            .await?;
         Ok(Some(Carried {
-            from_version: from.number,
+            from_version: Some(from.number),
             from_revision: from.revision,
+            items,
+            carries,
+        }))
+    }
+
+    /// For revision `seq` of `m` without a brief of its own: the brief of
+    /// the newest earlier revision with one, and which of its items carry
+    /// forward.
+    pub async fn carried_mr_brief(&self, m: &MergeRequest, seq: i32) -> Result<Option<Carried>> {
+        let briefs =
+            slath_db::change_briefs::list_for_revisions(&self.pool, m.id, None, 1000).await?;
+        if briefs.iter().any(|b| b.revision_seq == Some(seq)) {
+            return Ok(None);
+        }
+        // The newest earlier revision with a brief, and its newest edit
+        // (the list is newest first).
+        let Some(from_seq) = briefs
+            .iter()
+            .filter_map(|b| b.revision_seq)
+            .filter(|r| *r < seq)
+            .max()
+        else {
+            return Ok(None);
+        };
+        let Some(brief) = briefs.iter().find(|b| b.revision_seq == Some(from_seq)) else {
+            return Ok(None);
+        };
+        let from = self.revision_diff(m, from_seq).await?;
+        let to = self.revision_diff(m, seq).await?;
+        let (items, carries) = self
+            .carry_items(m, stored_items(&brief.items), &from, &to)
+            .await?;
+        Ok(Some(Carried {
+            from_version: None,
+            from_revision: from_seq,
             items,
             carries,
         }))
@@ -333,9 +486,44 @@ impl Services {
         .await?;
         let mut out = Vec::with_capacity(rows.len());
         for b in rows {
-            out.push(self.brief_view(&info, b).await?);
+            out.push(self.brief_view(Some(&info), b).await?);
         }
-        self.add_coverage(m, &info, &mut out).await?;
+        self.add_coverage(m, Some(&info), &mut out).await?;
+        Ok(out)
+    }
+
+    /// A merge request's revision briefs, newest first, for everyone who
+    /// can read it; with `revision`, only that revision's.
+    pub async fn mr_briefs(
+        &self,
+        subject: &Subject,
+        (ns, repo, number): (&str, &str, i32),
+        revision: Option<i32>,
+        want: usize,
+    ) -> Result<Vec<ChangeBrief>> {
+        let (_, m) = self.mr(subject, ns, repo, number).await?;
+        self.mr_revision_briefs(&m, revision, want).await
+    }
+
+    /// The same for a merge request the caller may read.
+    pub async fn mr_revision_briefs(
+        &self,
+        m: &MergeRequest,
+        revision: Option<i32>,
+        want: usize,
+    ) -> Result<Vec<ChangeBrief>> {
+        let rows = slath_db::change_briefs::list_for_revisions(
+            &self.pool,
+            m.id,
+            revision,
+            i64::try_from(want).unwrap_or(i64::MAX),
+        )
+        .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for b in rows {
+            out.push(self.brief_view(None, b).await?);
+        }
+        self.add_coverage(m, None, &mut out).await?;
         Ok(out)
     }
 }

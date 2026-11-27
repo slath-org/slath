@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Erich Seifert <dev@erichseifert.de>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Change briefs: `…/merge-requests/{number}/changes/{change}/briefs`.
+//! Briefs: `…/merge-requests/{number}/changes/{change}/briefs` for a
+//! change's versions, and `…/merge-requests/{number}/briefs` for the
+//! merge request's revisions.
 //! The author of a change version (an agent or a person) says what it's
 //! for, how it does it, how it was checked, and what's missing; everyone
 //! who can read the merge request reads it as that author's claim.
@@ -26,9 +28,11 @@ pub struct BriefBody {
     pub id: String,
     pub schema: String,
     /// The version's commit, and the number of the change's first version
-    /// with it.
+    /// with it; for a merge request's brief, its revision's head and the
+    /// revision's number.
     pub commit: String,
     pub version: Option<usize>,
+    pub revision: Option<i32>,
     /// Who wrote it (observed by the server).
     pub author: Option<String>,
     pub author_is_bot: bool,
@@ -125,6 +129,7 @@ impl From<slath_service::change_briefs::ChangeBrief> for BriefBody {
             schema: b.schema,
             commit: b.commit_oid,
             version: v.version,
+            revision: b.revision_seq,
             author: v.author,
             author_is_bot: v.author_is_bot,
             items: v.items.into_iter().map(BriefItemBody::from).collect(),
@@ -216,10 +221,72 @@ pub async fn list_briefs(
     Ok(page(&state, &uri, items, offset, limit))
 }
 
+/// Revision filter of a merge request's briefs.
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct MrListParams {
+    /// Only the edits of this revision's brief.
+    pub revision: Option<i32>,
+}
+
+/// Writes the merge request's own brief for a revision (its current one
+/// without `revision`), in the `slath-brief/2` schema: the behavioral view
+/// across its changes, whose anchors point into the revision's diff (merge
+/// base to head). The same people may write it as a change's brief, while
+/// it's open; writing again adds an edit.
+#[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/briefs", tag = "merge requests", security(("token" = ["mrs:write"])),
+    params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path)),
+    request_body(content = Object, description = "{schema: \"slath-brief/2\", items: [...], revision?}: the items as for a change's brief, with anchors into the revision's diff", content_type = "application/json"),
+    responses((status = 201, body = BriefBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
+pub async fn create_mr_brief(
+    State(state): State<AppState>,
+    ApiUser(s): ApiUser,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    let v = state
+        .services
+        .write_mr_brief(&s, (&ns, &repo, number), &body)
+        .await?;
+    Ok((StatusCode::CREATED, axum::Json(BriefBody::from(v))).into_response())
+}
+
+/// A merge request's own briefs, newest first: every edit of every
+/// revision's brief.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/briefs", tag = "merge requests", security((), ("token" = ["repo:read"])),
+    params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), MrListParams, PageParams),
+    responses((status = 200, body = BriefPage), (status = 404, body = super::Problem)))]
+pub async fn list_mr_briefs(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo, number)): Path<(String, String, i32)>,
+    OriginalUri(uri): OriginalUri,
+    Query(f): Query<MrListParams>,
+    Query(p): Query<PageParams>,
+) -> Result<Response, AppError> {
+    let (offset, limit) = (p.offset(&state)?, p.limit(state.config.limits.api_page_max));
+    let items = state
+        .services
+        .mr_briefs(&s, (&ns, &repo, number), f.revision, offset + limit + 1)
+        .await?;
+    let items: Vec<BriefBody> = items
+        .into_iter()
+        .skip(offset)
+        .map(BriefBody::from)
+        .collect();
+    Ok(page(&state, &uri, items, offset, limit))
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route_as(
-        "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs",
-        Access::Resource,
-        axum::routing::get(list_briefs).post(create_brief),
-    )
+    Router::new()
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs",
+            Access::Resource,
+            axum::routing::get(list_briefs).post(create_brief),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/briefs",
+            Access::Resource,
+            axum::routing::get(list_mr_briefs).post(create_mr_brief),
+        )
 }

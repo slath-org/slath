@@ -147,8 +147,10 @@ pub struct ItemDiff {
 /// An earlier version's items shown on a version without a brief: those
 /// whose lines are unchanged here, at their places here.
 pub struct CarriedView {
-    pub from: usize,
-    /// The earlier version's brief.
+    /// What it's from ("version 1", "revision 2"), and as a mark ("v1").
+    pub from: String,
+    pub mark: String,
+    /// The earlier brief.
     pub href: String,
     pub items: Vec<ItemView>,
     /// How many of its items stay there.
@@ -436,8 +438,16 @@ fn carried_view(c: &slath_service::change_briefs::Carried, page: &str) -> Carrie
         comment: false,
         open: None,
     };
+    let (from, mark) = match c.from_version {
+        Some(v) => (format!("version {v}"), format!("v{v}")),
+        None => (
+            format!("revision {}", c.from_revision),
+            format!("r{}", c.from_revision),
+        ),
+    };
     CarriedView {
-        from: c.from_version,
+        from,
+        mark,
         href: format!("{page}?rev={}#brief", c.from_revision),
         items: item_views(&c.items, |i| c.carries[i], &[], page, &viewer),
         left: c.carries.iter().filter(|x| !**x).count(),

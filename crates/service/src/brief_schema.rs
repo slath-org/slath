@@ -234,9 +234,12 @@ impl Item {
 pub struct Upload {
     pub schema: String,
     pub items: Vec<Item>,
-    /// Where it belongs (a version's commit for change briefs).
+    /// Where it belongs: a version's commit for change briefs, a
+    /// revision's number for merge request briefs.
     #[serde(default)]
     pub commit: Option<String>,
+    #[serde(default)]
+    pub revision: Option<i32>,
 }
 
 /// Text with empty counting as absent, trailing whitespace dropped.

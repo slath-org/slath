@@ -47,6 +47,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Brief items can point at files or lines of the version's diff; places outside it are refused with what the diff shows, and the page links each place to its hunk.
 - A brief that points at the code says which changed hunks none of its items points at, as its author's claim, and those hunks say so in the diff.
 - A new version without a brief shows the earlier brief's items whose lines are unchanged, at their new places; writing one starts from that brief.
+- A merge request can have its own brief per revision through the API, whose items point into the whole revision's diff, across its changes; MCP reads it.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.
 - Requirements nobody can meet say so: a merge request stuck on approvals names what helps, and branch protection warns about such rules while one person has write access.

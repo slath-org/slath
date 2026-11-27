@@ -222,7 +222,7 @@ impl utoipa::Modify for SecurityAddon {
         merge_requests::get_mergeability, merge_requests::merge, merge_requests::update_branch, merge_requests::put_auto_merge, merge_requests::apply_suggestions, merge_requests::checkout, merge_requests::get_inventory, merge_requests::get_facts, merge_requests::delete_auto_merge, merge_requests::get_ledger,
         statuses::create_status, statuses::list_statuses,
         mr_revisions::list_revisions, mr_revisions::get_interdiff, mr_iteration::get_iteration,
-        change_briefs::create_brief, change_briefs::list_briefs,
+        change_briefs::create_brief, change_briefs::list_briefs, change_briefs::create_mr_brief, change_briefs::list_mr_briefs,
         work_orders::create_order, work_orders::list_orders, work_orders::get_order, work_orders::stop_order, work_orders::list_events, work_orders::claim_order, work_orders::assigned_orders, state::get_mr_state, state::get_order_state,
         context_records::create_record, context_records::import_entire, context_records::list_records, context_records::get_record, context_records::delete_record,
         mr_groups::get_group, mr_groups::put_group, mr_groups::delete_group, mr_groups::merge_group,

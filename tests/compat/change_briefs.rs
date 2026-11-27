@@ -1088,3 +1088,104 @@ fn conf_agent_17_items_carry_forward_only_when_their_lines_survive_exactly() {
         r.body
     );
 }
+
+#[test]
+fn conf_agent_17_a_merge_request_brief_points_across_its_changes() {
+    let w = World::start();
+    // A second change on top: the stack has a.txt and b.txt.
+    w.commit("b.txt", "b\n", "Add b");
+    w.push("topic");
+    w.wait_revisions(2);
+    let path = format!("/merge-requests/{}/briefs", w.n);
+    let brief = json!({"schema": "slath-brief/2", "items": [
+        {"kind": "motivation", "text": "Add a and b"},
+        {"kind": "effect", "text": "Both files", "anchors": [
+            {"path": "a.txt", "start": 1}, {"path": "b.txt"}]}]});
+    let r = w.api(&w.alice, "POST", &path, Some(brief.clone()));
+    assert_eq!(r.status, 201, "{}", r.body);
+    let b = r.json();
+    assert_eq!(b["revision"], 2);
+    assert_eq!(b["version"], Value::Null);
+    assert_eq!(b["coverage"]["hunks"], 2);
+    assert_eq!(b["coverage"]["covered"], 2);
+    let id = b["id"].as_str().unwrap().to_owned();
+
+    // Places are checked against the revision's diff; revisions, not
+    // commits, name where it belongs.
+    for (bad, field) in [
+        (json!({"path": "README"}), "/items/1/anchors/0"),
+        (json!({"path": "b.txt", "start": 2}), "/items/1/anchors/0"),
+    ] {
+        let mut x = brief.clone();
+        x["items"][1]["anchors"] = json!([bad]);
+        let r = w.api(&w.alice, "POST", &path, Some(x));
+        assert_eq!(r.status, 422, "{}", r.body);
+        assert!(r.body.contains(field), "{}", r.body);
+    }
+    let mut x = brief.clone();
+    x["commit"] = json!("0".repeat(40));
+    assert!(
+        w.api(&w.alice, "POST", &path, Some(x))
+            .body
+            .contains("/commit")
+    );
+    let mut x = brief.clone();
+    x["revision"] = json!(9);
+    assert!(
+        w.api(&w.alice, "POST", &path, Some(x))
+            .body
+            .contains("/revision")
+    );
+    // Revision 1 had only a.txt.
+    let mut x = brief.clone();
+    x["revision"] = json!(1);
+    let r = w.api(&w.alice, "POST", &path, Some(x));
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("b.txt isn't in this diff."), "{}", r.body);
+
+    // The same people as for change briefs; readers read them.
+    assert_eq!(
+        w.api(&w.carol, "POST", &path, Some(brief.clone())).status,
+        403
+    );
+    let dave = token(&w.s, "dave", &["repo:write", "mrs:write"]);
+    assert_eq!(w.api(&dave, "GET", &path, None).status, 404);
+    let r = w.api(&w.carol, "GET", &format!("{path}?revision=2"), None);
+    assert_eq!(r.json()["items"].as_array().unwrap().len(), 1, "{}", r.body);
+    assert_eq!(r.json()["items"][0]["untrusted_content"], true);
+    // Change briefs don't list it, nor it them.
+    let (cid, _) = w.change();
+    assert!(w.list(&w.alice, &cid, "").is_empty());
+
+    // A thread on one of its items is located by the revision.
+    let t = on_item(&w, &w.carol, &id, 1).json();
+    assert_eq!(t["brief"]["change"], Value::Null);
+    assert_eq!(t["brief"]["revision"], 2);
+    assert_eq!(t["brief"]["current"], true);
+    let conv =
+        w.s.login("carol", PASSWORD)
+            .get(&format!("/alice/demo/merge-requests/{}", w.n))
+            .body;
+    assert!(conv.contains("Brief of revision 2: Effect"), "{conv}");
+
+    // MCP reads them as untrusted text.
+    let r = w.s.client().api_with(
+        "POST",
+        "/api/mcp",
+        Some(&w.carol),
+        Some(
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+            "name": "list_merge_request_briefs",
+            "arguments": {"ns": "alice", "repo": "demo", "number": w.n}}}),
+        ),
+        &[
+            ("accept", "application/json, text/event-stream"),
+            ("mcp-protocol-version", "2025-06-18"),
+        ],
+    );
+    assert!(
+        r.body.contains("Both files") && r.body.contains("untrusted_content"),
+        "{}",
+        r.body
+    );
+}

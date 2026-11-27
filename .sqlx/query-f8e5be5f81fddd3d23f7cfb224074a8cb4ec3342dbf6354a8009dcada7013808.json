@@ -101,6 +101,17 @@
             "name": "items"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "revision_seq",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "change_briefs",
+            "name": "revision_seq"
+          }
+        }
       }
     ],
     "parameters": {
@@ -111,13 +122,14 @@
     "nullable": [
       false,
       false,
-      false,
+      true,
       false,
       true,
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
   "hash": "f8e5be5f81fddd3d23f7cfb224074a8cb4ec3342dbf6354a8009dcada7013808"

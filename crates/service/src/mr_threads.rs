@@ -54,10 +54,12 @@ pub struct BriefThread {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BriefPlace {
     pub brief_id: uuid::Uuid,
-    /// The change's display ID.
-    pub change: String,
+    /// The change's display ID; `None` for the merge request's own brief.
+    pub change: Option<String>,
     /// The number of the change's first version with the brief's commit.
     pub version: Option<usize>,
+    /// The merge request's brief: its revision.
+    pub revision: Option<i32>,
     /// The item's index in its edit, its kind, and its name ("Effect 2").
     pub item: usize,
     pub kind: crate::brief_schema::Kind,
@@ -70,19 +72,22 @@ pub struct BriefPlace {
 /// A merge request's brief edits, for locating threads on them.
 #[derive(Debug, Default)]
 struct BriefPlaces {
-    /// Each edit: its change, the change's display ID, the version, and
-    /// its items.
-    edits: std::collections::HashMap<
-        uuid::Uuid,
-        (
-            uuid::Uuid,
-            String,
-            Option<usize>,
-            Vec<crate::brief_schema::Item>,
-        ),
-    >,
-    /// Each change's current brief's items.
-    current: std::collections::HashMap<uuid::Uuid, Vec<crate::brief_schema::Item>>,
+    edits: std::collections::HashMap<uuid::Uuid, BriefEdit>,
+    /// The current brief's items of each change, and of the merge request
+    /// (`None`).
+    current: std::collections::HashMap<Option<uuid::Uuid>, Vec<crate::brief_schema::Item>>,
+}
+
+/// One brief edit, as threads on it are located.
+#[derive(Debug)]
+struct BriefEdit {
+    /// Its change (`None` for the merge request's own brief), the change's
+    /// display ID, and its version; or its revision.
+    change_id: Option<uuid::Uuid>,
+    change: Option<String>,
+    version: Option<usize>,
+    revision: Option<i32>,
+    items: Vec<crate::brief_schema::Item>,
 }
 
 impl BriefPlaces {
@@ -90,21 +95,23 @@ impl BriefPlaces {
     fn place(&self, t: &Thread) -> Option<BriefPlace> {
         let id = t.anchor.brief_id?;
         let idx = usize::try_from(t.anchor.brief_item?).ok()?;
-        let (change_id, change, version, items) = self.edits.get(&id)?;
+        let e = self.edits.get(&id)?;
+        let items = &e.items;
         let item = items.get(idx)?;
         let name = crate::brief_schema::numbered(items)
             .into_iter()
             .nth(idx)
             .map(|(_, n)| n)
             .unwrap_or_default();
-        let current = self.current.get(change_id).is_some_and(|cur| {
+        let current = self.current.get(&e.change_id).is_some_and(|cur| {
             cur.iter()
                 .any(|x| x.kind == item.kind && Some(x.hash()) == t.anchor.line_hash)
         });
         Some(BriefPlace {
             brief_id: id,
-            change: change.clone(),
-            version: *version,
+            change: e.change.clone(),
+            version: e.version,
+            revision: e.revision,
             item: idx,
             kind: item.kind,
             name,
@@ -403,27 +410,48 @@ impl Services {
         let changes = slath_db::mr_changes::changes(&self.pool, m.id).await?;
         let versions = slath_db::mr_changes::versions(&self.pool, m.id).await?;
         for b in &briefs {
+            let items = crate::brief_schema::stored_items(&b.items);
+            // A revision's brief: the merge request's, current while it's
+            // the latest revision's (briefs are oldest first, so the last
+            // one seen is the newest).
+            let Some(change_id) = b.change_id else {
+                if b.revision_seq == Some(m.revisions) {
+                    out.current.insert(None, items.clone());
+                }
+                let edit = BriefEdit {
+                    change_id: None,
+                    change: None,
+                    version: None,
+                    revision: b.revision_seq,
+                    items,
+                };
+                out.edits.insert(b.id, edit);
+                continue;
+            };
             let mine: Vec<&slath_db::mr_changes::Version> = versions
                 .iter()
-                .filter(|v| v.change_id == Some(b.change_id))
+                .filter(|v| v.change_id == Some(change_id))
                 .collect();
             let version = mine
                 .iter()
                 .position(|v| v.commit_oid == b.commit_oid)
                 .map(|i| i + 1);
             let latest = mine.last().map(|v| v.commit_oid.as_str());
-            let display = changes
+            let change = changes
                 .iter()
-                .find(|c| c.id == b.change_id)
-                .map(|c| c.display_id.clone())
-                .unwrap_or_default();
-            let items = crate::brief_schema::stored_items(&b.items);
-            // Briefs are oldest first, so the last one seen is the newest.
+                .find(|c| c.id == change_id)
+                .map(|c| c.display_id.clone());
             if Some(b.commit_oid.as_str()) == latest {
-                out.current.insert(b.change_id, items.clone());
+                out.current.insert(Some(change_id), items.clone());
             }
-            out.edits
-                .insert(b.id, (b.change_id, display, version, items));
+            let edit = BriefEdit {
+                change_id: Some(change_id),
+                change,
+                version,
+                revision: None,
+                items,
+            };
+            out.edits.insert(b.id, edit);
         }
         Ok(out)
     }

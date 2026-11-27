@@ -195,13 +195,13 @@
 </section>
 {%- else if let Some(c) = brief.carried %}
 {%- if c.items.is_empty() %}
-<p id="brief" class="text-secondary">This version has no brief of its own; <a href="{{ c.href }}">version {{ c.from }} has one</a>.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+<p id="brief" class="text-secondary">This version has no brief of its own; <a href="{{ c.href }}">{{ c.from }} has one</a>.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
 {%- else %}
 <section class="section" id="brief" aria-labelledby="brief-heading">
   <h2 id="brief-heading">Brief</h2>
-  <p class="text-secondary">This version has no brief of its own. From <a href="{{ c.href }}">version {{ c.from }}'s brief</a>, the items whose lines are unchanged here{% if c.left > 0 %}; {{ c.left }} more stay there{% endif %}.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+  <p class="text-secondary">This version has no brief of its own. From <a href="{{ c.href }}">{{ c.from }}'s brief</a>, the items whose lines are unchanged here{% if c.left > 0 %}; {{ c.left }} more stay there{% endif %}.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
   {%- for it in c.items %}
-  <h3>{{ it.name }} <span class="text-secondary">· from v{{ c.from }}</span></h3>
+  <h3>{{ it.name }} <span class="text-secondary">· from {{ c.mark }}</span></h3>
   {%- call brief_item(it) %}{% endcall %}
   {%- endfor %}
 </section>

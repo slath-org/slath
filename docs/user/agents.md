@@ -392,6 +392,13 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **Secrets are refused** like in context records: a finding rejects the
   brief with its place (such as `/items/2/text`, line 2) and keeps
   nothing.
+- **A brief for the whole merge request:** for a stack, the behavioral
+  view across its changes goes in the merge request's own brief, one per
+  revision: `POST …/merge-requests/12/briefs` with the same items, whose
+  places point into the revision's diff (from the merge base to its head),
+  so one effect can name code of several changes. Send `"revision"` for
+  an earlier one. Read them with `GET …/briefs` or the MCP tool
+  `list_merge_request_briefs`; each has `revision` in place of `version`.
 - **Threads on an item:** to comment on what a brief says, start a thread
   with `"brief": {"id": "<the edit's id>", "item": 1}` (the item's index,
   from 0) in place of `path` on `POST …/merge-requests/12/threads`.

@@ -2078,11 +2078,13 @@ async fn thread_item(
     };
     let anchor = &t.thread.anchor;
     let brief_location = t.brief.as_ref().map(|b| {
-        let short: String = b.change.chars().take(8).collect();
         let item = &b.name;
-        match b.version {
-            Some(v) => format!("Brief of change {short}, version {v}: {item}"),
-            None => format!("Brief of change {short}: {item}"),
+        let short: Option<String> = b.change.as_ref().map(|c| c.chars().take(8).collect());
+        match (short, b.version, b.revision) {
+            (Some(short), Some(v), _) => format!("Brief of change {short}, version {v}: {item}"),
+            (Some(short), None, _) => format!("Brief of change {short}: {item}"),
+            (None, _, Some(r)) => format!("Brief of revision {r}: {item}"),
+            (None, _, None) => format!("Brief: {item}"),
         }
     });
     let location = brief_location.or_else(|| {
