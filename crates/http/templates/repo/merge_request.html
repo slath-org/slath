@@ -361,9 +361,16 @@
         {%- endfor %}
       </select>
       {%- endcall %}
-      {%- call f::field("commit_message", "Commit message", "For a merge commit or a squash.", "", true) %}
-      <textarea id="commit_message" name="commit_message" rows="3" autocomplete="off"{% call f::described("commit_message", "x", "") %}{% endcall %}></textarea>
+      {#- Only strategies that write a commit take its message: the field
+          is left out without one, and hidden while another is chosen
+          (Weave rule 74). #}
+      {%- if mf.writes_message %}
+      <div data-commit-message>
+      {%- call f::field("commit_message", "Commit message", "", "", true) %}
+      <textarea id="commit_message" name="commit_message" rows="3" autocomplete="off"></textarea>
       {%- endcall %}
+      </div>
+      {%- endif %}
       <div class="option"><input id="delete_source" type="checkbox" name="delete_source" value="1"{% if mf.delete_source %} checked{% endif %}><label for="delete_source">Delete <code>{% call c::path(h.source) %}{% endcall %}</code> after merging</label></div>
       {%- call f::buttons() %}<button type="submit" class="button">{% call m::icon(ctx, "git-merge") %}{% endcall %}Merge</button>{% endcall %}
     </form>

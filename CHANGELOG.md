@@ -109,6 +109,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 
 ### Changed
 
+- Forms and pages leave out what doesn't apply (Freeze bots without bots, who may allow findings unless pushes are blocked, a commit message for strategies that write none) and say shared hints once.
 - A bot of an organization whose only owner is a merge request's author counts as the author's bot: its statuses no longer satisfy that merge request's required checks.
 
 ### Fixed

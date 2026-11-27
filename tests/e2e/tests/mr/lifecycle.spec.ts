@@ -176,6 +176,13 @@ test("conf_a11y_01_merge_box_review_form_and_review_requests", async ({ page }, 
   // the repository's strategies.
   await expect(box.getByRole("link", { name: "Merge" })).toHaveAttribute("href", /#merge-form$/);
   await expect(page.getByLabel("Merge with")).toBeVisible();
+  // A commit message only for strategies that write a commit.
+  const strategies = await page.getByLabel("Merge with").locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  for (const s of strategies) {
+    await page.getByLabel("Merge with").selectOption(s);
+    const writes = s === "merge-commit" || s === "squash";
+    await expect(page.getByLabel("Commit message")).toBeVisible({ visible: writes });
+  }
   await expect(page.getByRole("button", { name: "Merge", exact: true })).toBeVisible();
   // One primary action per page.
   await expect(page.locator(".button-primary")).toHaveCount(1);

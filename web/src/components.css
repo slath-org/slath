@@ -2070,3 +2070,11 @@ input[type="file"] {
   border-radius: var(--radius-sm);
   border: var(--border-width) solid var(--border);
 }
+
+/* The merge box's commit message applies only to strategies that write a
+   commit (a merge commit, a squash): hidden while another is chosen.
+   Without :has() it shows, as the field is optional. */
+#merge-form:has(#strategy option:checked:not([value="merge-commit"], [value="squash"])) [data-commit-message] {
+  display: none;
+}
+

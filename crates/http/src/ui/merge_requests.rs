@@ -1975,6 +1975,9 @@ struct MergeForm {
     strategies: Vec<(String, &'static str)>,
     head: String,
     delete_source: bool,
+    /// One of the strategies writes a commit (a merge commit or a squash),
+    /// so the form asks for its message.
+    writes_message: bool,
 }
 
 /// Merge when ready: the form while it isn't set, or what is set.
@@ -2487,6 +2490,9 @@ async fn mr_page_showing(
             .collect();
         strategies.sort_by_key(|(x, _)| *x != default);
         Some(MergeForm {
+            writes_message: strategies
+                .iter()
+                .any(|(x, _)| matches!(x.as_str(), "merge-commit" | "squash")),
             strategies,
             head: m.head_oid.clone().unwrap_or_default(),
             delete_source: m.delete_source_on_merge,
