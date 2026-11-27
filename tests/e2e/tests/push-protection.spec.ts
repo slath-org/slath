@@ -16,3 +16,19 @@ test("conf_a11y_01_secret_allowance_page_accessible", async ({ page }) => {
   await expect(page.getByRole("table", { name: "Allowances in force" })).toContainText(fingerprint);
   await expectAccessible(page);
 });
+
+test("conf_sec_08_who_may_allow_findings_shows_while_pushes_are_blocked", async ({ page }) => {
+  await signIn(page, USERS.alice);
+  await page.goto("/alice/demo/settings/general");
+  const mode = page.getByRole("group", { name: "When a push contains a secret" });
+  const admins = page.getByLabel("Only administrators may allow findings");
+  // Findings are allowed from a rejected push's link: the choice belongs
+  // to Block. Nothing here is saved.
+  await mode.getByRole("radio", { name: /^Block/ }).check();
+  await expect(admins).toBeVisible();
+  await expectAccessible(page);
+  await mode.getByRole("radio", { name: /^Warn/ }).check();
+  await expect(admins).toBeHidden();
+  await mode.getByRole("radio", { name: /^Off/ }).check();
+  await expect(admins).toBeHidden();
+});

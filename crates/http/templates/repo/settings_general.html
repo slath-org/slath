@@ -47,11 +47,14 @@
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   {%- let pp_hint %}{% if push_protection_minimum != "off" %}This server applies at least {{ push_protection_minimum }} to every repository.{% endif %}{% endlet %}
   {%- call f::question("push_protection", "When a push contains a secret", pp_hint) %}
-  {%- call f::option("radio", "pp-block", "mode", "block", "Block (recommended)", push_protection == "block", "The push is rejected and says how to remove the secret.") %}{% endcall %}
+  {#- Findings are allowed from a rejected push's link, so who may allow
+      them matters only while pushes are blocked (Weave rule 74). #}
+  {%- call f::option_follow_up("radio", "pp-block", "mode", "block", "Block (recommended)", push_protection == "block", "The push is rejected and says how to remove the secret.") %}
+  {%- call f::option("checkbox", "pp-admins", "admins_allow", "1", "Only administrators may allow findings", admins_allow, "Otherwise any writer can, from the link in a rejected push.") %}{% endcall %}
+  {%- endcall %}
   {%- call f::option("radio", "pp-warn", "mode", "warn", "Warn", push_protection == "warn", "The push is accepted with a warning.") %}{% endcall %}
   {%- call f::option("radio", "pp-off", "mode", "off", "Off", push_protection == "off", "Pushes aren't scanned.") %}{% endcall %}
   {%- endcall %}
-  {%- call f::option("checkbox", "pp-admins", "admins_allow", "1", "Only administrators may allow findings", admins_allow, "Otherwise any writer can, from the link in a rejected push.") %}{% endcall %}
   {%- call f::buttons() %}<button type="submit" class="button">Save push protection</button>{% endcall %}
 </form>
 </section>
