@@ -375,6 +375,9 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   version starts without one. Writing again adds an edit, and the newest
   edit is the version's brief. Earlier edits stay readable, and comparing
   two versions on the change's page marks items new, updated, or removed.
+  Until a new version gets its own brief, its page shows the earlier
+  brief's items whose places survive in it exactly (same lines, same
+  text), marked "from v1"; they aren't a brief of that version.
 - **Who:** the merge request's author (with `mrs:write`) and anyone who
   can push to the repository (with `repo:write`), while it's open.
   Everyone who can read the merge request reads its briefs, with

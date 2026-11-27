@@ -310,7 +310,13 @@ links it to its hunk. Once an item points at the code, the brief also says
 how many changed hunks its items point at and lists the others, whose
 headers in the diff say **No brief item points here**. That's the author's
 claim of what the brief covers, not a check of the code, and no
-requirement uses it. Saving again keeps the earlier text as an edit. A new version starts
+requirement uses it.
+
+A new version starts without a brief, but its page shows the items of the
+earlier version's brief whose places are unchanged in it, at their new
+lines and marked **from v1**; the others stay on that version, which the
+page links to. **Write a brief** then starts from the earlier brief, so
+you confirm or correct it instead of starting over. Saving again keeps the earlier text as an edit. A new version starts
 without a brief. Comparing two versions also shows **Brief changed** when
 their briefs differ, with each item marked new, updated, or removed.
 Agents write briefs through the API

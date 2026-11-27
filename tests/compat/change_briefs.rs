@@ -470,6 +470,14 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         !v2.contains("brief-heading"),
         "a new version starts without one"
     );
+    // Nothing of version 1's brief points at the code, so nothing carries
+    // over: one line says where it is.
+    assert!(
+        v2.contains(&format!(
+            "<p id=\"brief\" class=\"text-secondary\">This version has no brief of its own; <a href=\"{page}?rev=1#brief\">version 1 has one</a>."
+        )),
+        "{v2}"
+    );
     let v2_brief = json!({"schema": "slath-brief/2", "items": [
         {"kind": "motivation", "text": "Add the a file, carefully"},
         {"kind": "effect", "text": "Only now"},
@@ -1001,5 +1009,82 @@ fn conf_agent_17_coverage_lists_the_hunks_no_item_points_at() {
         !mergeability.body.contains("brief"),
         "{}",
         mergeability.body
+    );
+}
+
+#[test]
+fn conf_agent_17_items_carry_forward_only_when_their_lines_survive_exactly() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let id = w.amend_into_hunks();
+    let b = json!({"schema": "slath-brief/2", "items": [
+        {"kind": "motivation", "text": "Add the files"},
+        {"kind": "effect", "text": "Early lines", "anchors": [{"path": "big.txt", "start": 3, "end": 5}]},
+        {"kind": "effect", "text": "Line twenty", "anchors": [{"path": "big.txt", "start": 19, "end": 21}]},
+        {"kind": "risk", "text": "README grows", "anchors": [{"path": "README"}]}]});
+    assert_eq!(w.write(&w.alice, &id, b).status, 201);
+
+    // A new version: a line on top of big.txt, and line 20 changed. It's
+    // still the same change, inferred from its content.
+    let wd = w.w.path();
+    let mut big: Vec<String> = (1..=30).map(|i| format!("line {i}")).collect();
+    big[19] = "line twenty".into();
+    big.insert(0, "line 0".into());
+    std::fs::write(wd.join("big.txt"), big.join("\n") + "\n").unwrap();
+    w.git.ok(wd, &["add", "-A"]);
+    w.git.ok(wd, &["commit", "-q", "--amend", "--no-edit"]);
+    w.push("topic");
+    w.wait_revisions(3);
+    assert_eq!(w.change().0, id, "the same change");
+
+    // Items whose places survive show at their new places, marked; the
+    // others stay on version 1.
+    let page = format!("/alice/demo/merge-requests/{}/changes/{id}", w.n);
+    let mut bob = w.s.login("bob", PASSWORD);
+    let shown = bob.get(&page).body;
+    for text in [
+        "This version has no brief of its own.",
+        &format!(
+            "From <a href=\"{page}?rev=2#brief\">version 1's brief</a>, the items whose lines are unchanged here; 2 more stay there."
+        ),
+        "<h3>Effect 1 <span class=\"text-secondary\">· from v1</span></h3>",
+        "<code>big.txt:4–6</code>",
+        "<h3>Risk <span class=\"text-secondary\">· from v1</span></h3>",
+    ] {
+        assert!(shown.contains(text), "{text}\n{shown}");
+    }
+    for gone in ["Line twenty", "Add the files", "brief_comment="] {
+        assert!(!shown.contains(gone), "{gone}\n{shown}");
+    }
+    // Carried items aren't a brief of this version.
+    assert!(w.list(&w.alice, &id, "").iter().all(|b| b["version"] == 1));
+    let v1 = bob.get(&format!("{page}?rev=2")).body;
+    assert!(v1.contains("Line twenty"), "{v1}");
+
+    // Writing one starts from version 1's items, carried ones moved.
+    let form = format!("{page}/brief");
+    let f = bob.get(&form).body;
+    assert!(f.contains("Write a brief for change"), "{f}");
+    for text in [
+        ">Line twenty</textarea>",
+        ">big.txt:4-6</textarea>",
+        ">big.txt:19-21</textarea>",
+    ] {
+        assert!(f.contains(text), "{text}\n{f}");
+    }
+    // Saving it as it is checks every place again: 19-21 changed here.
+    let fields = [
+        ("item-motivation-0-text", "Add the files"),
+        ("item-effect-0-text", "Early lines"),
+        ("item-effect-0-anchors", "big.txt:4-6"),
+        ("item-effect-1-text", "Line twenty"),
+        ("item-effect-1-anchors", "big.txt:40"),
+    ];
+    let r = submit(&mut bob, &form, &form, &fields);
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("id=\"item-effect-1-anchors-error\""),
+        "{}",
+        r.body
     );
 }

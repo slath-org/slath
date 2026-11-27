@@ -144,10 +144,23 @@ pub struct ItemDiff {
     pub diff: Result<Vec<super::merge_requests::DescriptionLine>, ()>,
 }
 
+/// An earlier version's items shown on a version without a brief: those
+/// whose lines are unchanged here, at their places here.
+pub struct CarriedView {
+    pub from: usize,
+    /// The earlier version's brief.
+    pub href: String,
+    pub items: Vec<ItemView>,
+    /// How many of its items stay there.
+    pub left: usize,
+}
+
 /// What the change's page shows of briefs.
 pub struct BriefParts {
     /// The shown version's brief, when not comparing.
     pub shown: Option<BriefView>,
+    /// Without one: what carries forward from an earlier version's.
+    pub carried: Option<CarriedView>,
     /// The items that differ when comparing two versions, and how many
     /// are the same.
     pub changed: Vec<ItemDiff>,
@@ -164,6 +177,9 @@ impl BriefParts {
     /// Links each place of the shown brief to its hunk in `diff` (or to
     /// its file, when the hunk isn't loaded).
     pub fn link(&mut self, diff: &mut super::diff::DiffView) {
+        if let Some(c) = &mut self.carried {
+            link_places(&mut c.items, diff);
+        }
         let Some(b) = &mut self.shown else { return };
         // Hunks no item points at say so in their header, and the brief
         // links to them.
@@ -185,24 +201,7 @@ impl BriefParts {
                 }
             }
         }
-        for p in b.items.iter_mut().flat_map(|i| i.places.iter_mut()) {
-            let Some(f) = diff.files.iter().find(|f| f.path == p.anchor.path) else {
-                continue;
-            };
-            let hunk = p.anchor.lines().and_then(|(start, _)| {
-                let start = start.to_string();
-                f.hunks.iter().position(|h| {
-                    h.lines.iter().any(|l| match p.anchor.side() {
-                        Side::New => l.kind != "del" && l.new_no == start,
-                        Side::Old => l.kind != "add" && l.old_no == start,
-                    })
-                })
-            });
-            p.href = Some(match hunk {
-                Some(k) => format!("#{}-h{k}", f.anchor),
-                None => format!("#{}", f.anchor),
-            });
-        }
+        link_places(&mut b.items, diff);
     }
 
     /// "1 new, 1 updated, 3 unchanged" for a comparison.
@@ -220,6 +219,29 @@ impl BriefParts {
         .map(|(n, what)| format!("{n} {what}"))
         .collect::<Vec<_>>()
         .join(", ")
+    }
+}
+
+/// Links each place of `items` to its hunk in `diff` (or to its file,
+/// when the hunk isn't loaded).
+fn link_places(items: &mut [ItemView], diff: &super::diff::DiffView) {
+    for p in items.iter_mut().flat_map(|i| i.places.iter_mut()) {
+        let Some(f) = diff.files.iter().find(|f| f.path == p.anchor.path) else {
+            continue;
+        };
+        let hunk = p.anchor.lines().and_then(|(start, _)| {
+            let start = start.to_string();
+            f.hunks.iter().position(|h| {
+                h.lines.iter().any(|l| match p.anchor.side() {
+                    Side::New => l.kind != "del" && l.new_no == start,
+                    Side::Old => l.kind != "add" && l.old_no == start,
+                })
+            })
+        });
+        p.href = Some(match hunk {
+            Some(k) => format!("#{}-h{k}", f.anchor),
+            None => format!("#{}", f.anchor),
+        });
     }
 }
 
@@ -260,6 +282,14 @@ pub async fn parts(
     });
     let Some(from) = from else {
         let page = format!("/{ns}/{repo}/merge-requests/{}/changes/{change}", m.number);
+        let carried = match of(shown) {
+            Some(_) => None,
+            None => state
+                .services
+                .carried_brief(m, change, shown)
+                .await?
+                .map(|c| carried_view(&c, &page)),
+        };
         let shown = match of(shown) {
             None => None,
             Some(v) => {
@@ -291,6 +321,7 @@ pub async fn parts(
         };
         return Ok(BriefParts {
             shown,
+            carried,
             changed: Vec::new(),
             unchanged: 0,
             write,
@@ -324,6 +355,7 @@ pub async fn parts(
     }
     Ok(BriefParts {
         shown: None,
+        carried: None,
         changed,
         unchanged,
         write: None,
@@ -339,45 +371,76 @@ fn view(
     page: &str,
     viewer: &Viewer<'_>,
 ) -> BriefView {
-    let names = numbered(&v.items);
     BriefView {
         id: v.brief.id.to_string(),
         author: Who::account(v.author.clone()),
         created: v.brief.created_at.into(),
         edits,
         coverage: v.coverage.as_ref().map(CoverageView::new),
-        items: shown_order(&v.items)
-            .into_iter()
-            .map(|i| {
-                let it = &v.items[i];
-                let reveal = |s: &str| slath_markup::reveal_bidi(s).into_owned();
-                ItemView {
-                    index: i,
-                    name: names[i].1.clone(),
-                    text: reveal(&it.text),
-                    before: it.before.as_deref().map(reveal),
-                    after: it.after.as_deref().map(reveal),
-                    places: it.anchors.iter().map(Place::new).collect(),
-                    threads: threads
-                        .iter()
-                        .filter(|t| t.item == i)
-                        .map(|t| {
-                            (
-                                t.id.to_string(),
-                                Who::account(t.author.clone()),
-                                t.comments,
-                                t.resolved,
-                            )
-                        })
-                        .collect(),
-                    comment_href: viewer
-                        .comment
-                        .then(|| format!("{page}?brief_comment={i}#brief-item-{i}")),
-                    form_open: viewer.comment && viewer.open == Some(i),
-                    checks: None,
-                }
-            })
-            .collect(),
+        items: item_views(&v.items, |_| true, threads, page, viewer),
+    }
+}
+
+/// The items of `items` that `keep` keeps, in the order a brief shows
+/// them, with their threads and, for `viewer`, links to comment.
+fn item_views(
+    items: &[Item],
+    keep: impl Fn(usize) -> bool,
+    threads: &[slath_service::mr_threads::BriefThread],
+    page: &str,
+    viewer: &Viewer<'_>,
+) -> Vec<ItemView> {
+    let names = numbered(items);
+    shown_order(items)
+        .into_iter()
+        .filter(|i| keep(*i))
+        .map(|i| {
+            let it = &items[i];
+            let reveal = |s: &str| slath_markup::reveal_bidi(s).into_owned();
+            ItemView {
+                index: i,
+                name: names[i].1.clone(),
+                text: reveal(&it.text),
+                before: it.before.as_deref().map(reveal),
+                after: it.after.as_deref().map(reveal),
+                places: it.anchors.iter().map(Place::new).collect(),
+                threads: threads
+                    .iter()
+                    .filter(|t| t.item == i)
+                    .map(|t| {
+                        (
+                            t.id.to_string(),
+                            Who::account(t.author.clone()),
+                            t.comments,
+                            t.resolved,
+                        )
+                    })
+                    .collect(),
+                comment_href: viewer
+                    .comment
+                    .then(|| format!("{page}?brief_comment={i}#brief-item-{i}")),
+                form_open: viewer.comment && viewer.open == Some(i),
+                checks: None,
+            }
+        })
+        .collect()
+}
+
+/// What carries forward from an earlier version's brief, without threads
+/// or comments: they belong to the brief they were written on.
+fn carried_view(c: &slath_service::change_briefs::Carried, page: &str) -> CarriedView {
+    let nobody = slath_core::authz::Subject::Anonymous;
+    let viewer = Viewer {
+        subject: &nobody,
+        write: false,
+        comment: false,
+        open: None,
+    };
+    CarriedView {
+        from: c.from_version,
+        href: format!("{page}?rev={}#brief", c.from_revision),
+        items: item_views(&c.items, |i| c.carries[i], &[], page, &viewer),
+        left: c.carries.iter().filter(|x| !**x).count(),
     }
 }
 
@@ -598,7 +661,22 @@ async fn form_page(
     let (slots, commit, errors, focus) = match values {
         Some(v) => v,
         None => {
-            let mut slots = Slots::of_items(current.as_ref().map_or(&[][..], |c| &c.items));
+            // Without a brief of its own, the latest version starts from
+            // the newest earlier one's, carried items at their new places.
+            let earlier = match &current {
+                Some(_) => None,
+                None => state
+                    .services
+                    .carried_brief(&m, &info.display_id, &latest.commit_oid)
+                    .await?
+                    .map(|c| c.items),
+            };
+            let items = current
+                .as_ref()
+                .map(|c| c.items.as_slice())
+                .or(earlier.as_deref())
+                .unwrap_or_default();
+            let mut slots = Slots::of_items(items);
             // A new brief starts with what the change is for.
             if let Some((_, first)) = slots.0.first_mut()
                 && first.is_empty()

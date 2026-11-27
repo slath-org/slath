@@ -24,6 +24,17 @@ use crate::repos::RepoAccess;
 
 pub use crate::brief_schema::SCHEMA;
 
+/// An earlier version's brief seen from a version without its own: its
+/// items, carried ones at their new places, and which ones carry.
+#[derive(Debug, Clone)]
+pub struct Carried {
+    /// The earlier version's number, and the revision it's in.
+    pub from_version: usize,
+    pub from_revision: i32,
+    pub items: Vec<Item>,
+    pub carries: Vec<bool>,
+}
+
 /// A brief as its readers see it.
 #[derive(Debug, Clone)]
 pub struct ChangeBrief {
@@ -192,6 +203,102 @@ impl Services {
             }
         }
         Ok(())
+    }
+
+    /// For version `commit` of `change` without a brief of its own: the
+    /// brief of the newest earlier version with one, and which of its
+    /// items carry forward. An item carries when it points at the code
+    /// and every anchor survives: a file still in this version's diff, and
+    /// lines that map here (as threads' lines do) and are shown in its
+    /// diff with the same SHA-256.
+    pub async fn carried_brief(
+        &self,
+        m: &MergeRequest,
+        change: &str,
+        commit: &str,
+    ) -> Result<Option<Carried>> {
+        let (change_id, info) = self.brief_change(m, change).await?;
+        let Some(at) = info.versions.iter().position(|v| v.commit_oid == commit) else {
+            return Ok(None);
+        };
+        let briefs = slath_db::change_briefs::list(&self.pool, change_id, None, 1000).await?;
+        if briefs.iter().any(|b| b.commit_oid == commit) {
+            return Ok(None);
+        }
+        // The newest earlier version with a brief, and its newest edit.
+        let Some((from, brief)) = info.versions[..at].iter().rev().find_map(|v| {
+            briefs
+                .iter()
+                .find(|b| b.commit_oid == v.commit_oid)
+                .map(|b| (v, b.clone()))
+        }) else {
+            return Ok(None);
+        };
+        let to = &info.versions[at];
+        let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
+        let base = to.parent_oid.as_deref().map(parse).transpose()?;
+        let (diff, _, _) = self
+            .parsed_diff(m.repo_id, base.as_ref(), &parse(&to.commit_oid)?)
+            .await?;
+        let dir = self.repo_path(m.repo_id);
+        let mut items = stored_items(&brief.items);
+        let mut carries = Vec::with_capacity(items.len());
+        for item in &mut items {
+            let mut ok = !item.anchors.is_empty();
+            for a in &mut item.anchors {
+                if !ok {
+                    break;
+                }
+                let Some(lines) = a.lines() else {
+                    ok = diff.files.iter().any(|f| f.path() == a.path.as_bytes());
+                    continue;
+                };
+                let (old, new) = match a.side() {
+                    crate::brief_schema::Side::New => {
+                        (Some(from.commit_oid.as_str()), Some(to.commit_oid.as_str()))
+                    }
+                    crate::brief_schema::Side::Old => {
+                        (from.parent_oid.as_deref(), to.parent_oid.as_deref())
+                    }
+                };
+                let (Some(old), Some(new)) = (old, new) else {
+                    ok = false;
+                    continue;
+                };
+                let mapped = slath_git::linemap::carry(
+                    &self.runner,
+                    &dir,
+                    (&parse(old)?, &parse(new)?),
+                    a.path.as_bytes(),
+                    lines,
+                )
+                .await
+                .map_err(ServiceError::internal)?;
+                let Some((path, s, e)) = mapped else {
+                    ok = false;
+                    continue;
+                };
+                let mut moved = crate::brief_schema::Anchor {
+                    path: String::from_utf8_lossy(&path).into_owned(),
+                    start: Some(s),
+                    end: (e != s).then_some(e),
+                    line_hash: None,
+                    ..a.clone()
+                };
+                ok = crate::brief_schema::locate(&diff, &mut moved).is_ok()
+                    && moved.line_hash == a.line_hash;
+                if ok {
+                    *a = moved;
+                }
+            }
+            carries.push(ok);
+        }
+        Ok(Some(Carried {
+            from_version: from.number,
+            from_revision: from.revision,
+            items,
+            carries,
+        }))
     }
 
     /// A change's briefs, newest first, for everyone who can read the

@@ -1,5 +1,17 @@
 {% extends "repo/layout.html" %}
 {% block title %}Change {{ change.display_id[..8] }} · !{{ h.mr.number }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{%- macro brief_item(it) -%}
+  <pre class="commit-body">{{ it.text }}</pre>
+  {%- if it.before.is_some() || it.after.is_some() %}
+  <dl class="facts">
+    {%- if let Some(v) = it.before %}<dt>Before</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+    {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+  </dl>
+  {%- endif %}
+  {%- if !it.places.is_empty() %}
+  <p class="text-secondary">Points at {% for pl in it.places %}{% if !loop.first %}, {% endif %}{% if let Some(h) = pl.href %}<a href="{{ h }}"><code>{{ pl.text }}</code></a>{% else %}<code>{{ pl.text }}</code>{% endif %}{% endfor %}</p>
+  {%- endif %}
+{%- endmacro -%}
 {% block content %}
 <div class="page">
 {% include "repo/header.html" %}
@@ -151,16 +163,7 @@
   {%- endif %}
   {%- for it in b.items %}
   <h3 id="brief-item-{{ it.index }}">{{ it.name }}</h3>
-  <pre class="commit-body">{{ it.text }}</pre>
-  {%- if it.before.is_some() || it.after.is_some() %}
-  <dl class="facts">
-    {%- if let Some(v) = it.before %}<dt>Before</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
-    {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
-  </dl>
-  {%- endif %}
-  {%- if !it.places.is_empty() %}
-  <p class="text-secondary">Points at {% for pl in it.places %}{% if !loop.first %}, {% endif %}{% if let Some(h) = pl.href %}<a href="{{ h }}"><code>{{ pl.text }}</code></a>{% else %}<code>{{ pl.text }}</code>{% endif %}{% endfor %}</p>
-  {%- endif %}
+  {%- call brief_item(it) %}{% endcall %}
   {%- if let Some(checks) = it.checks %}
   {%- if checks.is_empty() %}
   {%- call msg::empty("No checks on this commit.") %}{% endcall %}
@@ -190,6 +193,19 @@
   {%- endif %}
   {%- endfor %}
 </section>
+{%- else if let Some(c) = brief.carried %}
+{%- if c.items.is_empty() %}
+<p id="brief" class="text-secondary">This version has no brief of its own; <a href="{{ c.href }}">version {{ c.from }} has one</a>.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+{%- else %}
+<section class="section" id="brief" aria-labelledby="brief-heading">
+  <h2 id="brief-heading">Brief</h2>
+  <p class="text-secondary">This version has no brief of its own. From <a href="{{ c.href }}">version {{ c.from }}'s brief</a>, the items whose lines are unchanged here{% if c.left > 0 %}; {{ c.left }} more stay there{% endif %}.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+  {%- for it in c.items %}
+  <h3>{{ it.name }} <span class="text-secondary">· from v{{ c.from }}</span></h3>
+  {%- call brief_item(it) %}{% endcall %}
+  {%- endfor %}
+</section>
+{%- endif %}
 {%- else if let Some((href, _)) = brief.write %}
 <p id="brief"><a href="{{ href }}">Write a brief</a> <span class="text-secondary">for reviewers: what this version is for and how it was checked.</span></p>
 {%- endif %}

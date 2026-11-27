@@ -412,7 +412,7 @@ fn ranges(rs: &[(u32, u32)]) -> String {
 
 /// Checks `a` against `diff` and records its lines' SHA-256, or says
 /// what's there instead.
-fn locate(diff: &slath_git::diff::Diff, a: &mut Anchor) -> std::result::Result<(), String> {
+pub fn locate(diff: &slath_git::diff::Diff, a: &mut Anchor) -> std::result::Result<(), String> {
     let Some(f) = diff.files.iter().find(|f| f.path() == a.path.as_bytes()) else {
         return Err(format!("{} isn't in this diff.", a.path));
     };
