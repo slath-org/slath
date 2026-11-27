@@ -282,3 +282,89 @@ fn without_email_resets_are_hidden() {
         403
     );
 }
+
+#[test]
+fn conf_auth_03_admin_password_reset_signs_out_and_is_audited() {
+    let smtp = SmtpServer::start();
+    let s = TestServer::start_full(&[], &smtp.config());
+    s.create_user("alice", PW, false);
+    let mut alice = s.login("alice", PW);
+
+    // A generated password, printed once; the old one stops working and
+    // every session ends on the next request.
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "reset-password",
+            "--username",
+            "alice",
+            "--output",
+            "json",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let generated = v["password"].as_str().unwrap().to_owned();
+    assert_eq!(generated.len(), 24);
+    assert_eq!(alice.get("/-/settings/profile").status, 401);
+    assert_eq!(login(&mut s.client(), "alice", PW).status, 401);
+    assert_eq!(
+        s.login("alice", &generated)
+            .get("/-/settings/profile")
+            .status,
+        200
+    );
+    assert_eq!(
+        s.db.query_one("SELECT data->>'by' FROM audit_events WHERE action = 'password.reset'"),
+        "admin"
+    );
+    let _ = smtp.wait_for_text("administrator set a new password", Duration::from_secs(20));
+
+    // A chosen password must meet the policy; nothing changes otherwise.
+    let (ok, _, err) = s.slath(
+        &[
+            "admin",
+            "reset-password",
+            "--username",
+            "alice",
+            "--password-stdin",
+        ],
+        Some("short"),
+    );
+    assert!(!ok && err.contains("password"), "{err}");
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "reset-password",
+            "--username",
+            "alice",
+            "--password-stdin",
+        ],
+        Some(NEW_PW),
+    );
+    assert!(ok && !out.contains(NEW_PW), "{out}{err}");
+    assert_eq!(login(&mut s.client(), "alice", &generated).status, 401);
+    assert_eq!(s.login("alice", NEW_PW).get("/").status, 200);
+
+    // Bots and unknown users are refused.
+    let (ok, out, err) = s.slath(
+        &[
+            "admin",
+            "create-bot",
+            "--owner",
+            "alice",
+            "--name",
+            "alice-agent",
+        ],
+        None,
+    );
+    assert!(ok, "{out}{err}");
+    let (ok, _, err) = s.slath(
+        &["admin", "reset-password", "--username", "alice-agent"],
+        None,
+    );
+    assert!(!ok && err.contains("Bots don't sign in"), "{err}");
+    let (ok, _, err) = s.slath(&["admin", "reset-password", "--username", "nobody"], None);
+    assert!(!ok && err.contains("no user named"), "{err}");
+}

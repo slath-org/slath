@@ -129,6 +129,24 @@ fn conf_ops_08_admin_commands_print_schema_valid_json() {
         .0
     );
 
+    let reset = ["admin", "reset-password", "--username"];
+    let (_, v) = run(
+        &s,
+        "admin-reset-password",
+        &[&reset[..], &["ada"]].concat(),
+        None,
+    );
+    assert!(v["password"].is_string(), "{v}");
+    assert!(
+        !run(
+            &s,
+            "admin-reset-password",
+            &[&reset[..], &["nobody"]].concat(),
+            None
+        )
+        .0
+    );
+
     let mail = ["admin", "send-test-email", "--to", "ada@example.org"];
     assert!(run(&s, "admin-send-test-email", &mail, None).0);
 

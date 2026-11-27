@@ -159,6 +159,56 @@ impl Services {
         }))
     }
 
+    /// `slath admin reset-password`: sets `new` as `username`'s password,
+    /// for instances without email or a user who lost their address.
+    /// Signs out every session, audits, and notifies the user; second
+    /// factors stay. Bots are refused, as they don't sign in with
+    /// passwords.
+    pub async fn admin_reset_password(
+        &self,
+        subject: &Subject,
+        username: &str,
+        new: Secret<String>,
+    ) -> Result<()> {
+        match subject {
+            Subject::System => {}
+            s => self.require_site_admin(s)?,
+        }
+        let user = slath_db::users::get_by_name(&self.pool, username)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
+        if user.kind == slath_core::authz::UserKind::Bot {
+            return Err(ServiceError::invalid(
+                "username",
+                "bot",
+                "Bots don't sign in with passwords; give them a token instead.",
+            ));
+        }
+        let new = password::normalize(new.expose());
+        if let Err(e) = password::check_policy(&new, &user.name, user.email.as_deref()) {
+            return Err(ServiceError::invalid("password", "policy", e.to_string()));
+        }
+        let hash = hash_password(new).await?;
+        let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
+        slath_db::users::set_password_hash(&mut *tx, user.id, &hash).await?;
+        slath_db::sessions::delete_all_for_user(&mut *tx, user.id, None).await?;
+        tx.commit().await.map_err(ServiceError::internal)?;
+        self.audit(
+            subject,
+            "password.reset",
+            crate::audit::Target::new("user", Some(*user.id.as_uuid())),
+            serde_json::json!({"by": "admin", "username": user.name}),
+        )
+        .await;
+        self.notify_security_change(
+            user.id,
+            "An administrator set a new password for your account, and all sessions were signed \
+             out. Ask them for it, and change it under Settings → Security.",
+        )
+        .await;
+        Ok(())
+    }
+
     /// Sets a new password with a reset token. Users with a second factor
     /// must give a valid code. Signs out every session.
     pub async fn reset_password(

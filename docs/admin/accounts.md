@@ -130,6 +130,23 @@ This also signs the user out everywhere. It's recorded in the audit log, and
 the user gets an email. They then sign in with their password and set up
 two-factor authentication again.
 
+### Forgotten passwords
+
+Users reset a forgotten password themselves through the link on the sign-in
+page, which Slath emails to their primary address. Without email, or when
+they can't reach their address, an administrator sets a new one:
+
+```sh
+slath admin reset-password --username alice
+```
+
+This prints a generated password once; pass `--password-stdin` to choose one
+instead (it must meet the usual rules: 12 characters or more, not the
+username or email address). The user is signed out everywhere, the reset is
+recorded in the audit log, and the user gets an email when email is on.
+Their second factors stay; remove those with `reset-mfa`. Bots don't have
+passwords and are refused.
+
 ### Email addresses
 
 An account can have several email addresses and chooses one of them as

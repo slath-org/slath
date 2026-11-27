@@ -281,6 +281,21 @@ enum AdminCommand {
         #[arg(long, value_enum, default_value_t)]
         output: OutputFormat,
     },
+    /// Set a new password for a user (instances without email, or a lost
+    /// address) and sign them out. Without --password-stdin, a random
+    /// password is generated and printed once. Audited; the user is
+    /// notified by email. Second factors stay.
+    ResetPassword {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        username: String,
+        /// Read the password from standard input.
+        #[arg(long)]
+        password_stdin: bool,
+        #[arg(long, value_enum, default_value_t)]
+        output: OutputFormat,
+    },
     /// Add a confirmed email address to an account, for instances without
     /// email; it becomes the primary one if the account has none. Commits
     /// with the address show as the account. Audited.
@@ -557,6 +572,20 @@ fn main() -> ExitCode {
                     output,
                 },
         } => admin::reset_mfa(&config::resolve_path(config), &username, output),
+        Command::Admin {
+            command:
+                AdminCommand::ResetPassword {
+                    config,
+                    username,
+                    password_stdin,
+                    output,
+                },
+        } => admin::reset_password(
+            &config::resolve_path(config),
+            &username,
+            password_stdin,
+            output,
+        ),
         Command::Admin {
             command:
                 AdminCommand::AddEmail {

@@ -732,6 +732,61 @@ pub fn add_email(path: &Path, username: &str, email: &str, format: OutputFormat)
     }
 }
 
+/// `slath admin reset-password --username NAME [--password-stdin]`:
+/// without `--password-stdin`, a generated password is printed once.
+pub fn reset_password(
+    path: &Path,
+    username: &str,
+    password_stdin: bool,
+    format: OutputFormat,
+) -> ExitCode {
+    let (password, generated) = if password_stdin {
+        let mut s = String::new();
+        if let Err(e) = std::io::stdin().read_to_string(&mut s) {
+            return fail(format, &format!("cannot read the password from stdin: {e}"));
+        }
+        (s.trim_end_matches(['\r', '\n']).to_owned(), false)
+    } else {
+        match random_password() {
+            Ok(p) => (p, true),
+            Err(e) => return fail(format, &e),
+        }
+    };
+    let rt = match runtime() {
+        Ok(rt) => rt,
+        Err(e) => return fail(format, &e),
+    };
+    let result = rt.block_on(async {
+        let svc = services(path).await?;
+        svc.admin_reset_password(&Subject::System, username, Secret::new(password.clone()))
+            .await
+            .map_err(|e| match e {
+                ServiceError::NotFound => format!("no user named {username}"),
+                other => describe(&other),
+            })
+    });
+    match result {
+        Ok(()) => {
+            match format {
+                OutputFormat::Text => {
+                    println!("set a new password for {username} and signed them out");
+                    if generated {
+                        println!("password: {password}");
+                        println!("Store it now; it can't be shown again.");
+                    }
+                }
+                OutputFormat::Json => print_json(&json!({
+                    "ok": true,
+                    "username": username,
+                    "password": if generated { Some(password) } else { None },
+                })),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => fail(format, &e),
+    }
+}
+
 /// `slath admin reset-mfa --username NAME`.
 pub fn reset_mfa(path: &Path, username: &str, format: OutputFormat) -> ExitCode {
     let rt = match runtime() {

@@ -18,6 +18,7 @@ upgrade note.
 | `slath admin create-bot` | [admin-create-bot.schema.json](admin-create-bot.schema.json) |
 | `slath admin create-user` | [admin-create-user.schema.json](admin-create-user.schema.json) |
 | `slath admin reset-mfa` | [admin-reset-mfa.schema.json](admin-reset-mfa.schema.json) |
+| `slath admin reset-password` | [admin-reset-password.schema.json](admin-reset-password.schema.json) |
 | `slath admin send-test-email` | [admin-send-test-email.schema.json](admin-send-test-email.schema.json) |
 | `slath admin rotate-key` | [admin-rotate-key.schema.json](admin-rotate-key.schema.json) |
 | `slath admin bot` | [admin-bot.schema.json](admin-bot.schema.json) |
