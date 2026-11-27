@@ -67,14 +67,17 @@
   <textarea id="description" name="description" rows="12" autocomplete="off"{% call f::described("description", "x", self.error("description").unwrap_or_default()) %}{% endcall %}>{{ form.description }}</textarea>
   </slath-editor>
   {%- endcall %}
-  {%- call f::field("reviewers", "Reviewers", "Usernames, separated by commas. Reviews are requested once the merge request is ready.", self.error("reviewers").unwrap_or_default(), true) %}
-  <input id="reviewers" name="reviewers" type="text" value="{{ form.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("reviewers", "x", self.error("reviewers").unwrap_or_default()) %}{% endcall %}>
+  {#- One hint for the names fields, said once (Weave rule 73). #}
+  {%- call f::field_group("People and labels") %}
+  <p class="hint" id="names-hint">Separate several names with commas.</p>
+  {%- call f::field("reviewers", "Reviewers", "Reviews are requested once the merge request is ready.", self.error("reviewers").unwrap_or_default(), true) %}
+  <input id="reviewers" name="reviewers" type="text" value="{{ form.reviewers }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}" aria-describedby="names-hint reviewers-hint{% if self.error("reviewers").is_some() %} reviewers-error{% endif %}"{% if self.error("reviewers").is_some() %} aria-invalid="true"{% endif %}>
   {%- endcall %}
-  {%- call f::field("assignees", "Assignees", "Usernames, separated by commas.", self.error("assignees").unwrap_or_default(), true) %}
-  <input id="assignees" name="assignees" type="text" value="{{ form.assignees }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}"{% call f::described("assignees", "x", self.error("assignees").unwrap_or_default()) %}{% endcall %}>
+  {%- call f::field("assignees", "Assignees", "", self.error("assignees").unwrap_or_default(), true) %}
+  <input id="assignees" name="assignees" type="text" value="{{ form.assignees }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names data-suggest-users="{{ header.namespace }}/{{ header.name }}" aria-describedby="names-hint{% if self.error("assignees").is_some() %} assignees-error{% endif %}"{% if self.error("assignees").is_some() %} aria-invalid="true"{% endif %}>
   {%- endcall %}
-  {%- call f::field("labels", "Labels", "Label names, separated by commas.", self.error("labels").unwrap_or_default(), true) %}
-  <input id="labels" name="labels" type="text" value="{{ form.labels }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names="labels"{% call f::described("labels", "x", self.error("labels").unwrap_or_default()) %}{% endcall %}>
+  {%- call f::field("labels", "Labels", "", self.error("labels").unwrap_or_default(), true) %}
+  <input id="labels" name="labels" type="text" value="{{ form.labels }}" autocapitalize="none" spellcheck="false" autocomplete="off" data-names="labels" aria-describedby="names-hint{% if self.error("labels").is_some() %} labels-error{% endif %}"{% if self.error("labels").is_some() %} aria-invalid="true"{% endif %}>
   {%- endcall %}
   {%- if !milestones.is_empty() %}
   {%- call f::field("milestone", "Milestone", "", "", true) %}
@@ -86,6 +89,7 @@
   </select>
   {%- endcall %}
   {%- endif %}
+  {%- endcall %}
   {%- call f::option("checkbox", "draft", "draft", "1", "Create as draft", form.draft.is_some(), "A draft can't be merged, and no reviews are requested until you mark it as ready.") %}{% endcall %}
   {%- if !source_repo.is_empty() %}
   {%- let edits_hint %}People who can write to {{ here }} can push to {{ source }} in {{ source_repo }} while this merge request is open.{% endlet %}
