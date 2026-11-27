@@ -53,6 +53,23 @@ pub struct BriefItemBody {
     pub before: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after: Option<String>,
+    /// Where in the version's diff it points, as written (checked on
+    /// saving: a file of the diff, or lines one of its hunks shows).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<BriefAnchorBody>,
+}
+
+/// A place an item points at: a whole file, or lines on one side.
+#[derive(Serialize, ToSchema)]
+pub struct BriefAnchorBody {
+    pub path: String,
+    /// `new` or `old` (removed lines); left out for `new`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub side: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end: Option<u32>,
 }
 
 impl From<slath_service::brief_schema::Item> for BriefItemBody {
@@ -62,6 +79,17 @@ impl From<slath_service::brief_schema::Item> for BriefItemBody {
             text: i.text,
             before: i.before,
             after: i.after,
+            anchors: i
+                .anchors
+                .into_iter()
+                .map(|a| BriefAnchorBody {
+                    side: (a.side() == slath_service::brief_schema::Side::Old)
+                        .then(|| "old".to_owned()),
+                    path: a.path,
+                    start: a.start,
+                    end: a.end,
+                })
+                .collect(),
         }
     }
 }
@@ -104,7 +132,7 @@ pub struct ListParams {
 /// edit. Secrets are refused with each finding's JSON pointer and line.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs", tag = "merge requests", security(("token" = ["mrs:write"])),
     params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("change" = String, Path, description = "The change's display ID, its first 8 characters, or a version's commit")),
-    request_body(content = Object, description = "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, and only effects have before and after", content_type = "application/json"),
+    request_body(content = Object, description = "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?, anchors?: [{path, side?, start?, end?}]}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, only effects have before and after, and anchors must be in the version's diff", content_type = "application/json"),
     responses((status = 201, body = BriefBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_brief(
     State(state): State<AppState>,

@@ -12,7 +12,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
 use slath_db::merge_requests::MergeRequest;
-use slath_service::brief_schema::{Compared, Item, Kind, SCHEMA, compare, numbered};
+use slath_service::brief_schema::{Anchor, Compared, Item, Kind, SCHEMA, Side, compare, numbered};
 use slath_service::change_briefs::ChangeBrief;
 use slath_service::{FieldError, ServiceError};
 
@@ -43,6 +43,8 @@ pub struct ItemView {
     pub text: String,
     pub before: Option<String>,
     pub after: Option<String>,
+    /// Where it points, as links into the diff below once they're found.
+    pub places: Vec<Place>,
     /// Each thread's ID, starter, number of comments, and whether it's
     /// resolved.
     pub threads: Vec<(String, Who, usize, bool)>,
@@ -55,6 +57,27 @@ pub struct ItemView {
     /// claims can be held against them, and never statuses of another
     /// commit.
     pub checks: Option<Vec<(String, String, Who)>>,
+}
+
+/// A place an item points at.
+pub struct Place {
+    /// As written: `src/a.rs:10–20`.
+    pub text: String,
+    anchor: Anchor,
+    /// The hunk (or the file) in the page's diff.
+    pub href: Option<String>,
+}
+
+impl Place {
+    fn new(a: &Anchor) -> Self {
+        Self {
+            text: a
+                .notation()
+                .replacen('-', "–", usize::from(a.lines().is_some())),
+            anchor: a.clone(),
+            href: None,
+        }
+    }
 }
 
 /// Who views the change's page, as the brief section needs it.
@@ -92,6 +115,30 @@ pub struct BriefParts {
 }
 
 impl BriefParts {
+    /// Links each place of the shown brief to its hunk in `diff` (or to
+    /// its file, when the hunk isn't loaded).
+    pub fn link(&mut self, diff: &super::diff::DiffView) {
+        let Some(b) = &mut self.shown else { return };
+        for p in b.items.iter_mut().flat_map(|i| i.places.iter_mut()) {
+            let Some(f) = diff.files.iter().find(|f| f.path == p.anchor.path) else {
+                continue;
+            };
+            let hunk = p.anchor.lines().and_then(|(start, _)| {
+                let start = start.to_string();
+                f.hunks.iter().position(|h| {
+                    h.lines.iter().any(|l| match p.anchor.side() {
+                        Side::New => l.kind != "del" && l.new_no == start,
+                        Side::Old => l.kind != "add" && l.old_no == start,
+                    })
+                })
+            });
+            p.href = Some(match hunk {
+                Some(k) => format!("#{}-h{k}", f.anchor),
+                None => format!("#{}", f.anchor),
+            });
+        }
+    }
+
     /// "1 new, 1 updated, 3 unchanged" for a comparison.
     #[must_use]
     pub fn summary(&self) -> String {
@@ -243,6 +290,7 @@ fn view(
                     text: reveal(&it.text),
                     before: it.before.as_deref().map(reveal),
                     after: it.after.as_deref().map(reveal),
+                    places: it.anchors.iter().map(Place::new).collect(),
                     threads: threads
                         .iter()
                         .filter(|t| t.item == i)
@@ -283,6 +331,8 @@ struct SlotView {
     id: String,
     name: String,
     text: String,
+    /// Where it points, one place per line.
+    places: String,
     extra: Vec<(String, &'static str, String)>,
 }
 
@@ -312,9 +362,9 @@ impl FormPage {
 }
 
 /// The form's items: for each kind, its items in order (text, before,
-/// after).
+/// after, and the places it points at, one per line).
 #[derive(Default, Clone)]
-struct Slots(Vec<(Kind, Vec<[String; 3]>)>);
+struct Slots(Vec<(Kind, Vec<[String; 4]>)>);
 
 impl Slots {
     fn of_items(items: &[Item]) -> Self {
@@ -330,6 +380,11 @@ impl Slots {
                                 it.text.clone(),
                                 it.before.clone().unwrap_or_default(),
                                 it.after.clone().unwrap_or_default(),
+                                it.anchors
+                                    .iter()
+                                    .map(Anchor::notation)
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
                             ]
                         })
                         .collect();
@@ -339,7 +394,7 @@ impl Slots {
         )
     }
 
-    /// Reads `item-<kind>-<n>-<text|before|after>` fields.
+    /// Reads `item-<kind>-<n>-<text|before|after|anchors>` fields.
     fn of_form(fields: &[(String, String)]) -> Self {
         let mut out = Self::of_items(&[]);
         for (key, value) in fields {
@@ -358,6 +413,7 @@ impl Slots {
                 "text" => 0,
                 "before" => 1,
                 "after" => 2,
+                "anchors" => 3,
                 _ => continue,
             };
             // A form names at most a few dozen items per kind.
@@ -380,14 +436,19 @@ impl Slots {
         let mut items = Vec::new();
         let mut ids = Vec::new();
         for (kind, slots) in &self.0 {
-            for (n, [text, before, after]) in slots.iter().enumerate() {
-                if text.trim().is_empty() && before.trim().is_empty() && after.trim().is_empty() {
+            for (n, slot) in slots.iter().enumerate() {
+                if slot.iter().all(|v| v.trim().is_empty()) {
                     continue;
                 }
+                let [text, before, after, places] = slot;
                 let mut v = serde_json::json!({"kind": kind.as_str(), "text": text});
                 if *kind == Kind::Effect {
                     v["before"] = before.clone().into();
                     v["after"] = after.clone().into();
+                }
+                let anchors: Vec<Anchor> = places.lines().filter_map(Anchor::parse).collect();
+                if !anchors.is_empty() {
+                    v["anchors"] = serde_json::to_value(anchors).unwrap_or_default();
                 }
                 items.push(v);
                 ids.push(format!("item-{}-{n}", kind.as_str()));
@@ -414,7 +475,7 @@ impl Slots {
                     items: slots
                         .iter()
                         .enumerate()
-                        .map(|(n, [text, before, after])| {
+                        .map(|(n, [text, before, after, places])| {
                             let id = format!("item-{}-{n}", kind.as_str());
                             SlotView {
                                 name: if slots.len() > 1 {
@@ -423,6 +484,7 @@ impl Slots {
                                     label.to_owned()
                                 },
                                 text: text.clone(),
+                                places: places.clone(),
                                 extra: if *kind == Kind::Effect {
                                     vec![
                                         (format!("{id}-before"), "Before", before.clone()),

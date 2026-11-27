@@ -3296,6 +3296,10 @@ async fn change(
         }
         None => None,
     };
+    let mut brief = brief;
+    if let Some(d) = &diff {
+        brief.link(d);
+    }
     let ledger = state.services.mr_ledger(&m).await?;
     let mine: Vec<&slath_db::mr_ledger::Entry> = ledger
         .iter()

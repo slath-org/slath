@@ -355,6 +355,13 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   `rollout` (a step for deploying it), and `verification` (how it was
   checked). Only effects take `before` and `after`. The page groups items
   by kind and names them "Effect 2" when a kind has several.
+- **Pointing at the code:** an item can carry `anchors`: `{"path":
+  "src/login.rs"}` for a whole file, or `{"path": "src/login.rs", "start":
+  10, "end": 20}` for lines (add `"side": "old"` for removed lines). Each
+  place must be in the version's diff: the file in it, the lines shown in
+  one of its hunks. Otherwise the brief is refused with the place's pointer
+  (`/items/1/anchors/0`) and what the diff shows there. A place only says
+  where a claim points; it doesn't make the claim true.
 - **Which change:** `<change>` is the change's ID as its page shows it (the
   first 8 characters are enough) or the commit of one of its versions.
   The brief goes to the change's latest version; send `"commit"` to

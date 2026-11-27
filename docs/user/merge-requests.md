@@ -303,7 +303,10 @@ author and anyone who can push to the repository can **Write a brief**
 (or **Edit the brief**) on the latest version while the merge request is
 open: the form starts with Motivation, and each kind has its own button,
 such as **Add an effect**, for one more item; an item you empty is left
-out. Saving again keeps the earlier text as an edit. A new version starts
+out. Under **Points at**, an item can name the code it's about, one place
+per line: a file (`src/a.rs`), lines (`src/a.rs:10-20`), or removed lines
+(`src/a.rs:old 10-20`). Each must be in the version's diff, and the brief
+links it to its hunk. Saving again keeps the earlier text as an edit. A new version starts
 without a brief. Comparing two versions also shows **Brief changed** when
 their briefs differ, with each item marked new, updated, or removed.
 Agents write briefs through the API

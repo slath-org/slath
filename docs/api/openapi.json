@@ -6277,7 +6277,7 @@
           }
         ],
         "requestBody": {
-          "description": "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, and only effects have before and after",
+          "description": "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?, anchors?: [{path, side?, start?, end?}]}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, only effects have before and after, and anchors must be in the version's diff",
           "content": {
             "application/json": {
               "schema": {
@@ -12685,6 +12685,41 @@
         },
         "additionalProperties": false
       },
+      "BriefAnchorBody": {
+        "type": "object",
+        "description": "A place an item points at: a whole file, or lines on one side.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
+          },
+          "side": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`new` or `old` (removed lines); left out for `new`."
+          },
+          "start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "BriefBody": {
         "type": "object",
         "description": "One edit of a change version's brief. The newest edit of a version is\nits brief.",
@@ -12758,6 +12793,13 @@
               "string",
               "null"
             ]
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefAnchorBody"
+            },
+            "description": "Where in the version's diff it points, as written (checked on\nsaving: a file of the diff, or lines one of its hunks shows)."
           },
           "before": {
             "type": [

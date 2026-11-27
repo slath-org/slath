@@ -155,6 +155,9 @@
     {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
   </dl>
   {%- endif %}
+  {%- if !it.places.is_empty() %}
+  <p class="text-secondary">Points at {% for pl in it.places %}{% if !loop.first %}, {% endif %}{% if let Some(h) = pl.href %}<a href="{{ h }}"><code>{{ pl.text }}</code></a>{% else %}<code>{{ pl.text }}</code>{% endif %}{% endfor %}</p>
+  {%- endif %}
   {%- if let Some(checks) = it.checks %}
   {%- if checks.is_empty() %}
   {%- call msg::empty("No checks on this commit.") %}{% endcall %}

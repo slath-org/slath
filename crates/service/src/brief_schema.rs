@@ -107,6 +107,101 @@ pub struct Item {
     pub before: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after: Option<String>,
+    /// Where in the diff it points.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<Anchor>,
+}
+
+/// The side of a diff lines are on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Side {
+    New,
+    Old,
+}
+
+/// Where an item points: a whole file of the diff, or lines of one of its
+/// hunks on one side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Anchor {
+    /// The file's new path, or its old path when it's deleted.
+    pub path: String,
+    /// `new` (the default) or `old`, for removed lines.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<Side>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end: Option<u32>,
+    /// The SHA-256 of the lines, computed by Slath when it's saved (never
+    /// sent by the author, never shown in the API).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_hash: Option<String>,
+}
+
+/// The most lines one anchor covers.
+pub const ANCHOR_MAX_LINES: u32 = 500;
+
+impl Anchor {
+    #[must_use]
+    pub fn side(&self) -> Side {
+        self.side.unwrap_or(Side::New)
+    }
+
+    /// Its lines, first and last, if it points at lines.
+    #[must_use]
+    pub fn lines(&self) -> Option<(u32, u32)> {
+        self.start.map(|s| (s, self.end.unwrap_or(s)))
+    }
+
+    /// As the brief shows it, and its form takes it: `src/a.rs`,
+    /// `src/a.rs:10`, `src/a.rs:10-20`, `src/a.rs:old 10-20`.
+    #[must_use]
+    pub fn notation(&self) -> String {
+        let old = if self.side() == Side::Old { "old " } else { "" };
+        match self.lines() {
+            None => self.path.clone(),
+            Some((s, e)) if s == e => format!("{}:{old}{s}", self.path),
+            Some((s, e)) => format!("{}:{old}{s}-{e}", self.path),
+        }
+    }
+
+    /// Reads [`Anchor::notation`]; `None` for what isn't one. A path
+    /// whose last colon isn't followed by line numbers is a whole file.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        if s.is_empty() {
+            return None;
+        }
+        let whole = || Self {
+            path: s.to_owned(),
+            side: None,
+            start: None,
+            end: None,
+            line_hash: None,
+        };
+        let Some((path, lines)) = s.rsplit_once(':') else {
+            return Some(whole());
+        };
+        let (side, lines) = match lines.trim().strip_prefix("old ") {
+            Some(rest) => (Some(Side::Old), rest.trim()),
+            None => (None, lines.trim()),
+        };
+        let (a, b) = lines.split_once('-').unwrap_or((lines, lines));
+        let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>()) else {
+            // `old x` must be lines; anything else is a file name.
+            return side.is_none().then(whole);
+        };
+        Some(Self {
+            path: path.trim().to_owned(),
+            side,
+            start: Some(a),
+            end: (b != a).then_some(b),
+            line_hash: None,
+        })
+    }
 }
 
 impl Item {
@@ -198,6 +293,28 @@ impl Upload {
                     }
                 }
             }
+            for (j, a) in item.anchors.iter().enumerate() {
+                let at = format!("/items/{i}/anchors/{j}");
+                let msg = if a.path.trim().is_empty() {
+                    Some("Name a file of the diff.".to_owned())
+                } else if a.line_hash.is_some() {
+                    Some("Leave out line_hash: Slath computes it.".to_owned())
+                } else if a.start.is_none() && (a.end.is_some() || a.side.is_some()) {
+                    Some("Give start with end or side, or neither for the whole file.".to_owned())
+                } else {
+                    match a.lines() {
+                        Some((0, _)) => Some("Lines start at 1.".to_owned()),
+                        Some((s, e)) if e < s => Some("End before start.".to_owned()),
+                        Some((s, e)) if e - s >= ANCHOR_MAX_LINES => {
+                            Some(format!("Point at {ANCHOR_MAX_LINES} lines at most."))
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(msg) = msg {
+                    errors.push(FieldError::new(&at, "anchor", msg));
+                }
+            }
         }
         for (pointer, text) in self.texts() {
             if text.len() > TEXT_MAX_BYTES {
@@ -206,6 +323,29 @@ impl Upload {
                     "too_long",
                     format!("Keep it to {} KiB.", TEXT_MAX_BYTES / 1024),
                 ));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ServiceError::Invalid(errors))
+        }
+    }
+
+    /// Checks every anchor against `diff`, the diff the brief describes,
+    /// and records each line anchor's SHA-256: the file must be in it, and
+    /// lines must be shown in one of its hunks on their side.
+    pub fn locate(&mut self, diff: &slath_git::diff::Diff) -> Result<()> {
+        let mut errors = Vec::new();
+        for (i, item) in self.items.iter_mut().enumerate() {
+            for (j, a) in item.anchors.iter_mut().enumerate() {
+                if let Err(msg) = locate(diff, a) {
+                    errors.push(FieldError::new(
+                        &format!("/items/{i}/anchors/{j}"),
+                        "anchor",
+                        msg,
+                    ));
+                }
             }
         }
         if errors.is_empty() {
@@ -226,9 +366,99 @@ impl Upload {
                     out.push((format!("/items/{i}/{name}"), v.as_str()));
                 }
             }
+            for (j, a) in item.anchors.iter().enumerate() {
+                out.push((format!("/items/{i}/anchors/{j}/path"), a.path.as_str()));
+            }
         }
         out
     }
+}
+
+/// The lines of one hunk on one side: first, last, and each line's text.
+fn hunk_lines(h: &slath_git::diff::Hunk, side: Side) -> Vec<(u32, &[u8])> {
+    use slath_git::diff::LineKind;
+    h.lines
+        .iter()
+        .filter_map(|l| match (side, l.kind) {
+            (_, LineKind::NoNewline) => None,
+            (Side::New, LineKind::Context | LineKind::Added) => l.new_no.map(|n| (n, &l.text[..])),
+            (Side::Old, LineKind::Context | LineKind::Removed) => {
+                l.old_no.map(|n| (n, &l.text[..]))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// "1–8 and 40–52".
+fn ranges(rs: &[(u32, u32)]) -> String {
+    let one = |(s, e): &(u32, u32)| {
+        if s == e {
+            s.to_string()
+        } else {
+            format!("{s}–{e}")
+        }
+    };
+    match rs {
+        [] => String::new(),
+        [only] => one(only),
+        [rest @ .., last] => format!(
+            "{} and {}",
+            rest.iter().map(one).collect::<Vec<_>>().join(", "),
+            one(last)
+        ),
+    }
+}
+
+/// Checks `a` against `diff` and records its lines' SHA-256, or says
+/// what's there instead.
+fn locate(diff: &slath_git::diff::Diff, a: &mut Anchor) -> std::result::Result<(), String> {
+    let Some(f) = diff.files.iter().find(|f| f.path() == a.path.as_bytes()) else {
+        return Err(format!("{} isn't in this diff.", a.path));
+    };
+    let Some((s, e)) = a.lines() else {
+        return Ok(());
+    };
+    let side = a.side();
+    let hunks: Vec<Vec<(u32, &[u8])>> = f
+        .hunks
+        .iter()
+        .map(|h| hunk_lines(h, side))
+        .filter(|l| !l.is_empty())
+        .collect();
+    let side_name = match side {
+        Side::New => "new",
+        Side::Old => "old",
+    };
+    for lines in &hunks {
+        let (first, last) = (lines[0].0, lines[lines.len() - 1].0);
+        if first <= s && e <= last {
+            let picked: Vec<Vec<u8>> = lines
+                .iter()
+                .filter(|(n, _)| (s..=e).contains(n))
+                .map(|(_, t)| t.to_vec())
+                .collect();
+            a.line_hash = Some(crate::mr_threads::hash_lines(&picked));
+            return Ok(());
+        }
+    }
+    let (what, are) = if s == e {
+        (format!("Line {s}"), "isn't")
+    } else {
+        (format!("Lines {s}–{e}"), "aren't")
+    };
+    if hunks.is_empty() {
+        return Err(format!(
+            "{what} of {} ({side_name}) {are} in this diff: it shows no {side_name} lines of the file; point at the whole file.",
+            a.path
+        ));
+    }
+    let shown: Vec<(u32, u32)> = hunks.iter().map(|l| (l[0].0, l[l.len() - 1].0)).collect();
+    Err(format!(
+        "{what} of {} ({side_name}) {are} in this diff; its hunks there show lines {}.",
+        a.path,
+        ranges(&shown)
+    ))
 }
 
 /// The items of a stored brief (checked when they were written).
@@ -385,6 +615,7 @@ mod tests {
             text: text.to_owned(),
             before: None,
             after: None,
+            anchors: Vec::new(),
         };
         let items = [
             item(Kind::Effect, "a"),
@@ -408,6 +639,7 @@ mod tests {
             text: text.to_owned(),
             before: None,
             after: None,
+            anchors: Vec::new(),
         };
         let old = [
             item(Kind::Motivation, "why"),
@@ -434,5 +666,104 @@ mod tests {
         assert_eq!(compare(&old, &old).len(), 4);
         assert_eq!(compare(&[], &new[..1]), [Compared::New(0)]);
         assert_eq!(compare(&old[..1], &[]), [Compared::Removed(0)]);
+    }
+
+    #[test]
+    fn anchors_are_written_and_read_in_one_notation() {
+        for text in [
+            "src/a.rs",
+            "src/a.rs:10",
+            "src/a.rs:10-20",
+            "src/a.rs:old 3-4",
+            "a:b.rs",
+        ] {
+            assert_eq!(Anchor::parse(text).unwrap().notation(), text);
+        }
+        let a = Anchor::parse(" dir/x y.txt : old 7 - 9 ").unwrap();
+        assert_eq!(
+            (a.path.as_str(), a.side(), a.lines()),
+            ("dir/x y.txt", Side::Old, Some((7, 9)))
+        );
+        assert_eq!(Anchor::parse("x:old y"), None);
+        assert_eq!(Anchor::parse("  "), None);
+    }
+
+    #[test]
+    fn anchor_shapes_are_checked_by_pointer() {
+        let e = parse(
+            r#"{"schema":"slath-brief/2","items":[{"kind":"risk","text":"x","anchors":[
+                {"path":"a"},{"path":" "},{"path":"a","start":0},{"path":"a","start":5,"end":4},
+                {"path":"a","start":1,"end":600},{"path":"a","end":3},{"path":"a","line_hash":"x"}]}]}"#,
+        )
+        .unwrap_err();
+        assert_eq!(
+            pointers(e),
+            (1..=6)
+                .map(|j| format!("/items/0/anchors/{j}"))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn anchors_must_be_in_the_diff_and_keep_their_lines_hash() {
+        let raw = b"diff --git a/a.txt b/a.txt
+index 1111111..2222222 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,4 @@
+ one
+-two
++TWO
++three
+ four
+@@ -10,2 +11,2 @@ ctx
+ ten
+-eleven
++ELEVEN
+diff --git a/gone.txt b/gone.txt
+deleted file mode 100644
+index 3333333..0000000
+--- a/gone.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-bye
+";
+        let diff = slath_git::diff::parse(raw, 100, 10_000);
+        let brief = |anchors: &str| {
+            Upload::parse(
+                format!(
+                    r#"{{"schema":"slath-brief/2","items":[{{"kind":"effect","text":"x","anchors":[{anchors}]}}]}}"#
+                )
+                .as_bytes(),
+            )
+            .unwrap()
+        };
+        let mut ok = brief(
+            r#"{"path":"a.txt","start":2,"end":3},{"path":"a.txt"},{"path":"a.txt","side":"old","start":2},{"path":"gone.txt","side":"old","start":1},{"path":"gone.txt"}"#,
+        );
+        ok.locate(&diff).unwrap();
+        let a = &ok.items[0].anchors;
+        assert_eq!(
+            a[0].line_hash.as_deref(),
+            Some(crate::mr_threads::hash_lines(&[b"TWO".to_vec(), b"three".to_vec()]).as_str())
+        );
+        assert_eq!(a[1].line_hash, None);
+        assert!(a[2].line_hash.is_some());
+        let mut bad = brief(
+            r#"{"path":"nope.txt"},{"path":"a.txt","start":5,"end":12},{"path":"gone.txt","start":1}"#,
+        );
+        let ServiceError::Invalid(errors) = bad.locate(&diff).unwrap_err() else {
+            panic!()
+        };
+        let msgs: Vec<&str> = errors.iter().map(|e| e.message.as_str()).collect();
+        assert_eq!(
+            msgs,
+            [
+                "nope.txt isn't in this diff.",
+                "Lines 5–12 of a.txt (new) aren't in this diff; its hunks there show lines 1–4 and 11–12.",
+                "Line 1 of gone.txt (new) isn't in this diff: it shows no new lines of the file; point at the whole file.",
+            ]
+        );
+        assert_eq!(errors[1].field, "/items/0/anchors/1");
     }
 }

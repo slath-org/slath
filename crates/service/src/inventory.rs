@@ -18,14 +18,14 @@ use crate::error::{Result, ServiceError};
 const MAX_DIFF_BYTES: usize = 64 * 1024 * 1024;
 
 impl Services {
-    /// The inventory of `base..head` in `repo` (from the empty tree without
-    /// a base); generated files are read from `head`'s `.gitattributes`.
-    pub async fn diff_inventory(
+    /// The diff `base..head` in `repo` as the diff views parse it (within
+    /// the diff limits), and whether the raw diff was cut.
+    pub(crate) async fn parsed_diff(
         &self,
         repo: RepoId,
         base: Option<&ObjectId>,
         head: &ObjectId,
-    ) -> Result<Inventory> {
+    ) -> Result<(slath_git::diff::Diff, Vec<u8>, bool)> {
         let dir = self.repo_path(repo);
         let (raw, cut) = slath_git::browse::diff(
             &self.runner,
@@ -39,6 +39,20 @@ impl Services {
         .map_err(ServiceError::internal)?;
         let limits = &self.config.limits;
         let diff = slath_git::diff::parse(&raw, limits.diff_max_files, limits.diff_max_lines);
+        Ok((diff, raw, cut))
+    }
+
+    /// The inventory of `base..head` in `repo` (from the empty tree without
+    /// a base); generated files are read from `head`'s `.gitattributes`.
+    pub async fn diff_inventory(
+        &self,
+        repo: RepoId,
+        base: Option<&ObjectId>,
+        head: &ObjectId,
+    ) -> Result<Inventory> {
+        let dir = self.repo_path(repo);
+        let limits = &self.config.limits;
+        let (diff, raw, cut) = self.parsed_diff(repo, base, head).await?;
         let total = if cut {
             slath_git::browse::changed_file_count(&self.runner, &dir, base, head)
                 .await

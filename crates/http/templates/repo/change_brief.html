@@ -1,5 +1,12 @@
 {% extends "repo/layout.html" %}
 {% block title %}{{ heading }} · {{ header.namespace }}/{{ header.name }}{% endblock %}
+{%- macro places(it) -%}
+{%- let aid = format!("{}-anchors", it.id) %}
+{%- let aerror = self.error(aid).unwrap_or_default() %}
+{%- call f::field(aid, "Points at", "", aerror, true) %}
+<textarea id="{{ aid }}" name="{{ aid }}" rows="1" autocomplete="off" spellcheck="false"{% call f::described(aid, "", aerror) %}{% endcall %}>{{ it.places }}</textarea>
+{%- endcall %}
+{%- endmacro -%}
 {% block content %}
 <div class="page">
 {% include "repo/header.html" %}
@@ -7,6 +14,7 @@
 <header class="page-head">
   <div class="page-head-row"><h1>{{ heading }}</h1></div>
   <p class="page-head-intro">What this version of the change is for, as you see it, one item at a time. Reviewers read it next to the code as your claim; it's plain text. Saving again keeps the earlier text as an edit. An item you empty is left out.</p>
+  <p class="page-head-intro">An item can point at the code it's about, one place per line under <strong>Points at</strong>: a file (<code>src/a.rs</code>), lines (<code>src/a.rs:10-20</code>), or removed lines (<code>src/a.rs:old 10-20</code>). Each place must be in this version's diff.</p>
 </header>
 <form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
 {% include "settings/errors.html" %}
@@ -30,11 +38,16 @@
     <textarea id="{{ pid }}" name="{{ pid }}" rows="2" autocomplete="off"{% call f::described(pid, "", perror) %}{% endcall %}>{{ value }}</textarea>
     {%- endcall %}
     {%- endfor %}
+    {%- call places(it) %}{% endcall %}
   </fieldset>
   {%- else %}
-  {%- call f::field(tid, it.name, "", terror) %}
-  <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
-  {%- endcall %}
+  <fieldset class="field-group">
+    <legend class="visually-hidden">{{ it.name }}</legend>
+    {%- call f::field(tid, it.name, "", terror) %}
+    <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
+    {%- endcall %}
+    {%- call places(it) %}{% endcall %}
+  </fieldset>
   {%- endif %}
   {%- endfor %}
   <div class="cluster"><button type="submit" name="add" value="{{ g.kind }}" class="button button-quiet">{{ g.add }}</button></div>

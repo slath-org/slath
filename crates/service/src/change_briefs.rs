@@ -85,7 +85,7 @@ impl Services {
                 format!("Send a brief of at most {} KiB.", limit / 1024),
             ));
         }
-        let upload = Upload::parse(body)?;
+        let mut upload = Upload::parse(body)?;
         let commit = match &upload.commit {
             None => info
                 .versions
@@ -105,6 +105,20 @@ impl Services {
                     )
                 })?,
         };
+        // Anchors point into this version's own diff (parent to commit).
+        if upload.items.iter().any(|i| !i.anchors.is_empty()) {
+            let v = info
+                .versions
+                .iter()
+                .find(|v| v.commit_oid == commit)
+                .ok_or(ServiceError::NotFound)?;
+            let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
+            let base = v.parent_oid.as_deref().map(parse).transpose()?;
+            let (diff, _, _) = self
+                .parsed_diff(a.repo.id, base.as_ref(), &parse(&commit)?)
+                .await?;
+            upload.locate(&diff)?;
+        }
         self.refuse_secrets(upload.texts())?;
         let items = serde_json::to_value(&upload.items).map_err(ServiceError::internal)?;
         let origin = self.origin_of(subject, &a.repo).await?;
