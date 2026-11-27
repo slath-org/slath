@@ -17,7 +17,8 @@
 {%- let admin_view = true %}
 {% include "bots_table.html" %}
 {%- endif %}
-{%- if freeze.since.is_none() %}
+{#- Freezing means something only once there are bots. #}
+{%- if freeze.since.is_none() && !bots.is_empty() %}
 {% include "bots_freeze.html" %}
 {%- endif %}
 {% endblock %}

@@ -83,6 +83,14 @@ test("conf_agent_10_freeze_an_organizations_bots", async ({ page }) => {
   await tapOrClick(page, page.getByRole("button", { name: "Create organization" }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(org);
   await page.goto(`/${org}/-/bots`);
+  // Without bots there's nothing to freeze.
+  await expect(page.getByText("No bots yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Freeze the bots of ${org}` })).toHaveCount(0);
+  const bot = `${org.slice(0, 30)}-bot`;
+  await page.getByLabel("Username").fill(bot);
+  await tapOrClick(page, page.getByRole("button", { name: "Create bot" }));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(bot);
+  await page.goto(`/${org}/-/bots`);
   await expect(page.getByRole("heading", { name: `Freeze the bots of ${org}` })).toBeVisible();
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("button", { name: "Freeze bots" }));
