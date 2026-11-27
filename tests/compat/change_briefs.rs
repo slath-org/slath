@@ -574,3 +574,58 @@ fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
             .contains("On an earlier brief")
     );
 }
+
+#[test]
+fn conf_agent_14_a_briefs_verification_shows_the_checks_on_its_commit() {
+    let w = World::start();
+    let (id, v1) = w.change();
+    let r = w.write(&w.alice, &id, brief("Add a"));
+    assert_eq!(r.status, 201, "{}", r.body);
+    let page = format!("/alice/demo/merge-requests/{}/changes/{id}", w.n);
+    let mut carol = w.s.login("carol", PASSWORD);
+    let shown = carol.get(&page).body;
+    assert!(shown.contains("Ran the tests"), "{shown}");
+    assert!(shown.contains("No checks on this commit."), "{shown}");
+
+    let ci = token(&w.s, "bob", &["statuses:write"]);
+    let report = |oid: &str, context: &str, state: &str| {
+        let r = w.api(
+            &ci,
+            "POST",
+            &format!("/statuses/{oid}"),
+            Some(json!({"state": state, "context": context})),
+        );
+        assert_eq!(r.status, 201, "{}", r.body);
+    };
+    report(&v1, "ci", "pending");
+    report(&v1, "ci", "success");
+    report(&v1, "lint", "failure");
+    let shown = carol.get(&page).body;
+    // The latest status of each context, with its reporter.
+    assert!(
+        shown.contains("Checks on this commit: <code>ci</code> success by"),
+        "{shown}"
+    );
+    assert!(shown.contains("<code>lint</code> failure by"), "{shown}");
+    assert!(!shown.contains("pending"), "{shown}");
+
+    // A new version: its own commit's checks, never the earlier one's.
+    w.git.ok(
+        w.w.path(),
+        &["commit", "-q", "--amend", "-m", "Add a, again"],
+    );
+    w.push("topic");
+    w.wait_revisions(2);
+    let (_, v2) = w.change();
+    let r = w.write(&w.alice, &id, brief("Version two"));
+    assert_eq!(r.status, 201, "{}", r.body);
+    let shown = carol.get(&page).body;
+    assert!(shown.contains("No checks on this commit."), "{shown}");
+    report(&v2, "e2e", "error");
+    let shown = carol.get(&page).body;
+    assert!(shown.contains("<code>e2e</code> error by"), "{shown}");
+    assert!(!shown.contains("<code>lint</code>"), "{shown}");
+    let first = carol.get(&format!("{page}?rev=1")).body;
+    assert!(first.contains("<code>lint</code> failure by"), "{first}");
+    assert!(!first.contains("<code>e2e</code>"), "{first}");
+}

@@ -223,10 +223,14 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await expectAccessible(page);
   const intent = `Reworded notes, checked in ${testInfo.project.name}`;
   await page.getByLabel("Intent").fill(intent);
+  await page.getByLabel("Verification").fill("Read it twice");
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
   const brief = page.getByRole("region", { name: "Brief", exact: true });
   await expect(brief).toContainText("Author's claim");
   await expect(brief).toContainText(intent);
+  // What it says it checked stands next to the checks on its commit.
+  await expect(brief).toContainText("Read it twice");
+  await expect(brief).toContainText("No checks on this commit.");
   await expect(brief.getByRole("link", { name: "Edit the brief" })).toBeVisible();
   await expectAccessible(page);
   // A comment on one field opens a form under it and starts a thread.

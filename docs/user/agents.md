@@ -361,7 +361,10 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **Plain text:** `intent` is required, the other fields are optional,
   each up to 16 KiB and the whole brief up to 64 KiB
   (`[limits] brief_max_bytes`). Slath shows them as plain text and checks
-  nothing they say.
+  nothing they say, but it shows the verification field next to the
+  checks reported on that version's own commit ("Checks on this commit:
+  ci success by ci-bot", or "No checks on this commit."), never those of
+  another commit.
 - **Secrets are refused** like in context records: a finding rejects the
   brief with its place (such as `/verification`, line 2) and keeps
   nothing.

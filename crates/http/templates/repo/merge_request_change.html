@@ -148,6 +148,13 @@
   {%- for fv in b.fields %}
   <h3 id="brief-{{ fv.id }}">{{ fv.label }}</h3>
   <pre class="commit-body">{{ fv.text }}</pre>
+  {%- if let Some(checks) = fv.checks %}
+  {%- if checks.is_empty() %}
+  {%- call msg::empty("No checks on this commit.") %}{% endcall %}
+  {%- else %}
+  <p class="text-secondary">Checks on this commit: {% for (context, st, who) in checks %}{% if !loop.first %}; {% endif %}<code>{{ context }}</code> {{ st }} by {% call p::who(ctx, who, false) %}{% endcall %}{% endfor %} {% call m::evidence("Observed") %}{% endcall %}</p>
+  {%- endif %}
+  {%- endif %}
   {%- if !fv.threads.is_empty() || (fv.comment_href.is_some() && !fv.form_open) %}
   <p class="text-secondary">
     {%- for (tid, who, n, resolved) in fv.threads %}{% if !loop.first %} · {% endif %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}#thread-{{ tid }}">Thread</a> by {% call p::who(ctx, who, false) %}{% endcall %} ({{ n }} comment{% if *n != 1 %}s{% endif %}{% if *resolved %}, resolved{% endif %}){% endfor %}

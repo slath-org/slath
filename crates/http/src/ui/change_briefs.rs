@@ -77,6 +77,10 @@ pub struct FieldView {
     pub comment_href: Option<String>,
     /// The comment form is open here.
     pub form_open: bool,
+    /// For the verification field: the checks reported on the version's
+    /// own commit (context, state, reporter), since what it claims can be
+    /// held against them, and never statuses of another commit.
+    pub checks: Option<Vec<(String, String, Who)>>,
 }
 
 /// Who views the change's page, as the brief section needs it.
@@ -144,7 +148,21 @@ pub async fn parts(
                     .services
                     .brief_threads(viewer.subject, m, v.brief.id)
                     .await?;
-                Some(view(v, edits(shown), &threads, &page, viewer))
+                let mut b = view(v, edits(shown), &threads, &page, viewer);
+                if let Some(f) = b.fields.iter_mut().find(|f| f.id == "verification") {
+                    let mut statuses = state
+                        .services
+                        .commit_statuses(viewer.subject, (ns, repo), shown)
+                        .await?;
+                    statuses.sort_by(|a, b| a.context.cmp(&b.context));
+                    f.checks = Some(
+                        statuses
+                            .into_iter()
+                            .map(|st| (st.context, st.state, Who::account(st.reporter)))
+                            .collect(),
+                    );
+                }
+                Some(b)
             }
         };
         return Ok(BriefParts {
@@ -212,6 +230,7 @@ fn view(
                         .comment
                         .then(|| format!("{page}?brief_comment={id}#brief-{id}")),
                     form_open: viewer.comment && viewer.open == Some(*id),
+                    checks: None,
                 })
             })
             .collect(),
