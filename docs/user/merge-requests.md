@@ -306,7 +306,10 @@ such as **Add an effect**, for one more item; an item you empty is left
 out. Under **Points at**, an item can name the code it's about, one place
 per line: a file (`src/a.rs`), lines (`src/a.rs:10-20`), or removed lines
 (`src/a.rs:old 10-20`). Each must be in the version's diff, and the brief
-links it to its hunk. Once an item points at the code, the brief also says
+links it to its hunk. **Places in this diff**, above the items, lists them
+all: each file and the lines of its hunks. As you type in Points at, the
+matching ones are suggested (Down shows them all on an empty line; Enter,
+Tab, or a tap takes one). Once an item points at the code, the brief also says
 how many changed hunks its items point at and lists the others, whose
 headers in the diff say **No brief item points here**. That's the author's
 claim of what the brief covers, not a check of the code, and no

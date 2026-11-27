@@ -489,6 +489,40 @@ pub fn numbered(items: &[Item]) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// Every place of a diff an item can point at, in the brief's notation:
+/// each file, and each hunk's lines on the new side (unless it adds
+/// none) and on the old side when it removes lines.
+#[must_use]
+pub fn places(diff: &slath_git::diff::Diff) -> Vec<String> {
+    use slath_git::diff::LineKind;
+    let mut out = Vec::new();
+    for f in &diff.files {
+        let path = String::from_utf8_lossy(f.path()).into_owned();
+        let mut lines = Vec::new();
+        for h in &f.hunks {
+            for (side, changed) in [(Side::New, LineKind::Added), (Side::Old, LineKind::Removed)] {
+                let shown = hunk_lines(h, side);
+                let (Some(first), Some(last)) = (shown.first(), shown.last()) else {
+                    continue;
+                };
+                if side == Side::Old && !h.lines.iter().any(|l| l.kind == changed) {
+                    continue;
+                }
+                lines.push(Anchor {
+                    path: path.clone(),
+                    side: (side == Side::Old).then_some(Side::Old),
+                    start: Some(first.0),
+                    end: (last.0 != first.0).then_some(last.0),
+                    line_hash: None,
+                });
+            }
+        }
+        out.push(path);
+        out.extend(lines.iter().map(Anchor::notation));
+    }
+    out
+}
+
 /// A hunk of the diff, by its lines on both sides.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HunkPlace {
@@ -900,5 +934,48 @@ Binary files a/c.bin and b/c.bin differ
                 new_lines: 1
             }]
         );
+    }
+
+    #[test]
+    fn a_diffs_places_are_its_files_and_hunks() {
+        let raw = b"diff --git a/a.txt b/a.txt
+index 1111111..2222222 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,3 +1,4 @@
+ one
+-two
++TWO
++three
+ four
+@@ -10,1 +11,2 @@
+ ten
++eleven
+diff --git a/gone.txt b/gone.txt
+deleted file mode 100644
+index 3333333..0000000
+--- a/gone.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-bye
+-now
+";
+        let diff = slath_git::diff::parse(raw, 100, 10_000);
+        assert_eq!(
+            places(&diff),
+            [
+                "a.txt",
+                "a.txt:1-4",
+                "a.txt:old 1-3",
+                "a.txt:11-12",
+                "gone.txt",
+                "gone.txt:old 1-2"
+            ]
+        );
+        // Every place it lists is one the check accepts.
+        for p in places(&diff) {
+            let mut a = Anchor::parse(&p).unwrap();
+            assert!(locate(&diff, &mut a).is_ok(), "{p}");
+        }
     }
 }

@@ -454,6 +454,29 @@ impl Services {
         }))
     }
 
+    /// The places a brief can point at, in its notation: those of the
+    /// latest version's diff of `change`, or of the current revision's
+    /// diff for the merge request's own brief.
+    pub async fn brief_diff_places(
+        &self,
+        m: &MergeRequest,
+        change: Option<&str>,
+    ) -> Result<Vec<String>> {
+        let range = match change {
+            Some(c) => {
+                let (_, info) = self.brief_change(m, c).await?;
+                let v = info.versions.last().ok_or(ServiceError::NotFound)?;
+                (v.parent_oid.clone(), v.commit_oid.clone())
+            }
+            None => self.revision_diff(m, m.revisions).await?,
+        };
+        let base = range.0.as_deref().map(oid).transpose()?;
+        let (diff, _, _) = self
+            .parsed_diff(m.repo_id, base.as_ref(), &oid(&range.1)?)
+            .await?;
+        Ok(crate::brief_schema::places(&diff))
+    }
+
     /// A change's briefs, newest first, for everyone who can read the
     /// merge request; with `commit`, only that version's.
     pub async fn change_briefs(

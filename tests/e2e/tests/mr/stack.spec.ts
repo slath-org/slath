@@ -276,7 +276,20 @@ test("conf_agent_17_a_merge_request_brief_is_written_on_its_page", async ({ page
   await expectAccessible(page);
   const why = `Both steps, briefed in ${p}`;
   await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(why);
-  await page.getByRole("textbox", { name: "Points at" }).first().fill(`mrbrief-${p}-two.md`);
+  // The form lists the diff's places, and Points at suggests them.
+  await expect(page.locator("[data-brief-places]")).toContainText(`mrbrief-${p}-two.md`);
+  const points = page.getByRole("textbox", { name: "Points at" }).first();
+  await points.fill("");
+  await points.pressSequentially("two");
+  const option = page.getByRole("listbox", { name: "Places in this diff" }).getByRole("option", { name: `mrbrief-${p}-two.md`, exact: true });
+  await expect(option).toBeVisible();
+  await expectAccessible(page);
+  if (testInfo.project.name.includes("touch")) {
+    await tapOrClick(page, option);
+  } else {
+    await points.press("Enter");
+  }
+  await expect(points).toHaveValue(`mrbrief-${p}-two.md`);
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
   const brief = page.getByRole("region", { name: "Brief", exact: true });
   await expect(brief).toContainText(why);

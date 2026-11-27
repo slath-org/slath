@@ -865,6 +865,12 @@ fn conf_agent_17_the_form_points_at_the_code_and_the_page_links_there() {
     let form = format!("{page}/brief");
     let mut bob = w.s.login("bob", PASSWORD);
 
+    // The form lists the diff's places, each one the check accepts.
+    let f = bob.get(&form).body;
+    assert!(
+        f.contains("<pre data-brief-places>README\nREADME:1-2\na.txt\na.txt:1\nbig.txt\nbig.txt:1-30\n</pre>"),
+        "{f}"
+    );
     // A wrong place is refused at the item's Points at, keeping it.
     let r = submit(
         &mut bob,

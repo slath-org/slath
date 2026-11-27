@@ -45,6 +45,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A thread marked addressed says whether its lines changed since, or are unchanged.
 - A brief's verification items show the checks reported on that version's own commit.
 - Brief items can point at files or lines of the version's diff; places outside it are refused with what the diff shows, and the page links each place to its hunk.
+- The brief form lists the places of the diff an item can point at and suggests them while you type.
 - A brief that points at the code says which changed hunks none of its items points at, as its author's claim, and those hunks say so in the diff.
 - A new version without a brief shows the earlier brief's items whose lines are unchanged, at their new places; writing one starts from that brief.
 - A merge request with several changes can have its own brief per revision, written on its page or through the API, whose items point across its changes; MCP reads it.

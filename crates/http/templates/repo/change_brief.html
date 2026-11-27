@@ -4,7 +4,7 @@
 {%- let aid = format!("{}-anchors", it.id) %}
 {%- let aerror = self.error(aid).unwrap_or_default() %}
 {%- call f::field(aid, "Points at", "", aerror, true) %}
-<textarea id="{{ aid }}" name="{{ aid }}" rows="1" autocomplete="off" spellcheck="false"{% call f::described(aid, "", aerror) %}{% endcall %}>{{ it.places }}</textarea>
+<textarea id="{{ aid }}" name="{{ aid }}" rows="1" autocomplete="off" spellcheck="false" autocapitalize="none" data-places{% call f::described(aid, "", aerror) %}{% endcall %}>{{ it.places }}</textarea>
 {%- endcall %}
 {%- endmacro -%}
 {% block content %}
@@ -16,6 +16,13 @@
   <p class="page-head-intro">{{ intro }} Reviewers read it next to the code as your claim; it's plain text. Saving again keeps the earlier text as an edit. An item you empty is left out.</p>
   <p class="page-head-intro">An item can point at the code it's about, one place per line under <strong>Points at</strong>: a file (<code>src/a.rs</code>), lines (<code>src/a.rs:10-20</code>), or removed lines (<code>src/a.rs:old 10-20</code>). Each place must be in this {{ what }}'s diff.</p>
 </header>
+{%- if !places.is_empty() %}
+{%- call d::disclosure(ctx, "Places in this diff") %}
+<p class="text-secondary">Each file, and the lines of each of its hunks. Points at suggests them as you type.</p>
+<pre data-brief-places>{% for p in places %}{{ p }}
+{% endfor %}</pre>
+{%- endcall %}
+{%- endif %}
 <form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
 {% include "settings/errors.html" %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">

@@ -578,6 +578,8 @@ struct FormPage {
     what: &'static str,
     /// Where the brief belongs: a version's commit, or a revision.
     at: String,
+    /// Every place of the diff an item can point at, in the notation.
+    places: Vec<String>,
     groups: Vec<GroupView>,
     /// The field to focus (the item just added).
     focus: Option<String>,
@@ -825,7 +827,9 @@ async fn form_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
+    let places = state.services.brief_diff_places(&m, change).await?;
     let mut res = render(&FormPage {
+        places,
         header: RepoHeader::load(state, &a, s, "merge-requests").await,
         heading: if current.is_some() {
             format!("Edit the brief of {name}")
