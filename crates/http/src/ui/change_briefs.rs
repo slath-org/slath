@@ -547,9 +547,15 @@ struct GroupView {
     kind: &'static str,
     heading: &'static str,
     hint: &'static str,
-    /// "Add an effect".
-    add: String,
     items: Vec<SlotView>,
+}
+
+/// A kind in the form's "Add an item" choice: its value, its text ("Risk —
+/// what could go wrong, and where"), and whether it's the one chosen.
+struct KindChoice {
+    value: &'static str,
+    text: String,
+    chosen: bool,
 }
 
 /// One item in the form: its fields' ID prefix (`item-effect-0`), its
@@ -581,6 +587,7 @@ struct FormPage {
     /// Every place of the diff an item can point at, in the notation.
     places: Vec<String>,
     groups: Vec<GroupView>,
+    kinds: Vec<KindChoice>,
     /// The field to focus (the item just added).
     focus: Option<String>,
     errors: Vec<FieldError>,
@@ -692,21 +699,44 @@ impl Slots {
         (items, ids)
     }
 
+    /// The kinds to choose a new item from, in order, the first one
+    /// without items chosen (it's the likeliest next one).
+    fn kinds(&self) -> Vec<KindChoice> {
+        let first_empty = self
+            .0
+            .iter()
+            .find(|(_, slots)| slots.is_empty())
+            .map_or(Kind::ALL[0], |(k, _)| *k);
+        Kind::ALL
+            .iter()
+            .map(|k| {
+                let hint = k.hint().trim_end_matches('.');
+                let mut c = hint.chars();
+                let hint = c
+                    .next()
+                    .map(|f| f.to_lowercase().chain(c).collect::<String>())
+                    .unwrap_or_default();
+                KindChoice {
+                    value: k.as_str(),
+                    text: format!("{} — {hint}", k.label()),
+                    chosen: *k == first_empty,
+                }
+            })
+            .collect()
+    }
+
+    /// The groups of the kinds that have items; the others are a choice
+    /// away in "Add an item".
     fn groups(&self) -> Vec<GroupView> {
         self.0
             .iter()
+            .filter(|(_, slots)| !slots.is_empty())
             .map(|(kind, slots)| {
                 let label = kind.label();
-                let article = if label.starts_with(['A', 'E', 'I', 'O', 'U']) {
-                    "an"
-                } else {
-                    "a"
-                };
                 GroupView {
                     kind: kind.as_str(),
                     heading: kind.heading(),
                     hint: kind.hint(),
-                    add: format!("Add {article} {}", label.to_lowercase()),
                     items: slots
                         .iter()
                         .enumerate()
@@ -850,6 +880,7 @@ async fn form_page(
         back: page_url,
         at,
         groups: slots.groups(),
+        kinds: slots.kinds(),
         focus,
         errors,
         ctx,
@@ -949,9 +980,12 @@ async fn save(
     };
     let at = field("at");
     let mut slots = Slots::of_form(fields);
-    // "Add …" shows the form again with one more empty item, saving
-    // nothing.
-    if let Some(kind) = Kind::parse(&field("add")) {
+    // Add shows the form again with one more empty item of the chosen
+    // kind, saving nothing.
+    if let Some(kind) = (!field("add").is_empty())
+        .then(|| Kind::parse(&field("add_kind")))
+        .flatten()
+    {
         let mut focus = None;
         if let Some((_, items)) = slots.0.iter_mut().find(|(k, _)| *k == kind) {
             focus = Some(format!("item-{}-{}-text", kind.as_str(), items.len()));
@@ -1067,13 +1101,25 @@ mod tests {
         assert_eq!(field_of("/items/2/text", &ids), "item-effect-1-text");
         assert_eq!(field_of("/items/1/before", &ids), "item-effect-0-before");
         assert_eq!(field_of("/items", &ids), "item-motivation-0-text");
-        let names: Vec<String> = slots.groups()[1]
-            .items
-            .iter()
-            .map(|s| s.name.clone())
-            .collect();
+        // Only kinds with items have a group (an empty one the form sent
+        // still counts, so nothing typed vanishes).
+        let groups = slots.groups();
+        let kinds: Vec<&str> = groups.iter().map(|g| g.kind).collect();
+        assert_eq!(kinds, ["motivation", "effect", "risk"]);
+        let names: Vec<String> = groups[1].items.iter().map(|s| s.name.clone()).collect();
         assert_eq!(names, ["Effect 1", "Effect 2"]);
-        assert_eq!(slots.groups()[1].add, "Add an effect");
-        assert_eq!(slots.groups()[2].add, "Add a risk");
+        // The first kind without items is chosen for the next one.
+        let choice = slots.kinds();
+        assert_eq!(choice.len(), 6);
+        assert_eq!(
+            choice[1].text,
+            "Effect — what behaves differently, with what happened before and after"
+        );
+        let chosen: Vec<&str> = choice
+            .iter()
+            .filter(|k| k.chosen)
+            .map(|k| k.value)
+            .collect();
+        assert_eq!(chosen, ["gap"]);
     }
 }

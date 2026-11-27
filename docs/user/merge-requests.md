@@ -301,9 +301,9 @@ checked (Verification). It shows as **Brief** above the change's diff,
 grouped by kind and marked as its author's claim. The merge request's
 author and anyone who can push to the repository can **Write a brief**
 (or **Edit the brief**) on the latest version while the merge request is
-open: the form starts with Motivation, and each kind has its own button,
-such as **Add an effect**, for one more item; an item you empty is left
-out. Under **Points at**, an item can name the code it's about, one place
+open: the form starts with Motivation and shows only the kinds that have
+items. For another one, choose its **Kind** under **Add an item** (each says
+what it's for) and press **Add**; an item you empty is left out. Under **Points at**, an item can name the code it's about, one place
 per line: a file (`src/a.rs`), lines (`src/a.rs:10-20`), or removed lines
 (`src/a.rs:old 10-20`). Each must be in the version's diff, and the brief
 links it to its hunk. **Places in this diff**, above the items, lists them

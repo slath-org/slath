@@ -216,7 +216,9 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await expectAccessible(page);
   // A kind's Add button shows one more empty item there, saving nothing;
   // an effect's Before without its text says what's missing and keeps it.
-  await tapOrClick(page, page.getByRole("button", { name: "Add an effect" }));
+  // Kinds without items are one choice away: New item, then Add.
+  await page.getByLabel("Kind", { exact: true }).selectOption("effect");
+  await tapOrClick(page, page.getByRole("button", { name: "Add", exact: true }));
   const effect = page.getByRole("group", { name: /^Effect( \d+)?$/ }).last();
   const before = `Slow before, seen in ${p}`;
   await effect.getByRole("textbox", { name: "Before" }).fill(before);
@@ -227,7 +229,8 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   const intent = `Reworded notes, checked in ${p}`;
   await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(intent);
   await page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: /^Effect( \d+)?$/ }).fill("Reads well");
-  await tapOrClick(page, page.getByRole("button", { name: "Add a verification" }));
+  await page.getByLabel("Kind", { exact: true }).selectOption("verification");
+  await tapOrClick(page, page.getByRole("button", { name: "Add", exact: true }));
   await page.getByRole("textbox", { name: /^Verification( \d+)?$/ }).last().fill("Read it twice");
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
   const brief = page.getByRole("region", { name: "Brief", exact: true });

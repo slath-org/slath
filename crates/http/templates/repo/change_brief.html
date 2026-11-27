@@ -57,9 +57,18 @@
   </fieldset>
   {%- endif %}
   {%- endfor %}
-  <div class="cluster"><button type="submit" name="add" value="{{ g.kind }}" class="button button-quiet">{{ g.add }}</button></div>
   {%- endcall %}
   {%- endfor %}
+  {%- call f::field_group("Add an item") %}
+  {%- call f::field("add-kind", "Kind") %}
+  <select id="add-kind" name="add_kind">
+    {%- for k in kinds %}
+    <option value="{{ k.value }}"{% if k.chosen %} selected{% endif %}>{{ k.text }}</option>
+    {%- endfor %}
+  </select>
+  {%- endcall %}
+  <div class="cluster"><button type="submit" name="add" value="1" class="button">Add</button></div>
+  {%- endcall %}
   {%- call f::buttons() %}<button type="submit" class="button button-primary">Save brief</button><a class="button button-quiet" href="{{ back }}">Cancel</a>{% endcall %}
 </form>
 </div>

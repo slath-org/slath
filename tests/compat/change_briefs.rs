@@ -371,16 +371,24 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
     let f = bob.get(&form);
     assert!(f.body.contains("Edit the brief of change"), "{}", f.body);
     assert!(f.body.contains(">No b yet</textarea>"), "{}", f.body);
-    // A kind without items offers only its Add button; Add shows the form
-    // again with an empty item there, focused, and saves nothing.
+    // A kind without items isn't shown: New item offers it, the first
+    // such kind chosen; Add shows the form again with an empty item of
+    // the chosen kind, focused, and saves nothing.
     assert!(!f.body.contains("item-risk-0-text"), "{}", f.body);
+    assert!(!f.body.contains("<legend>Risks</legend>"), "{}", f.body);
+    assert!(
+        f.body.contains("<option value=\"risk\" selected>Risk — what could go wrong, and where</option>"),
+        "{}",
+        f.body
+    );
     let r = submit(
         &mut bob,
         &form,
         &form,
         &[
             ("item-motivation-0-text", "Typed, not saved"),
-            ("add", "risk"),
+            ("add_kind", "risk"),
+            ("add", "1"),
         ],
     );
     assert_eq!(r.status, 200, "{}", r.body);
