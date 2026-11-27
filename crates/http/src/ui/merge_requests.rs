@@ -3297,7 +3297,8 @@ async fn change(
         None => None,
     };
     let mut brief = brief;
-    if let Some(d) = &diff {
+    let mut diff = diff;
+    if let Some(d) = &mut diff {
         brief.link(d);
     }
     let ledger = state.services.mr_ledger(&m).await?;

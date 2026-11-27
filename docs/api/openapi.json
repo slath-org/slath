@@ -12748,6 +12748,17 @@
             "type": "string",
             "description": "The version's commit, and the number of the change's first version\nwith it."
           },
+          "coverage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BriefCoverageBody",
+                "description": "Which changed hunks the items point at, when one of them points at\nthe code (`null` otherwise): the author's claim, which no\nrequirement accepts."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string"
           },
@@ -12777,6 +12788,67 @@
               "null"
             ],
             "minimum": 0
+          }
+        }
+      },
+      "BriefCoverageBody": {
+        "type": "object",
+        "description": "Claimed coverage: content hunks of the version's diff (whitespace-only\nhunks and folded files aside) and those no anchor overlaps.",
+        "required": [
+          "hunks",
+          "covered",
+          "uncovered"
+        ],
+        "properties": {
+          "covered": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hunks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uncovered": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefHunkBody"
+            }
+          }
+        }
+      },
+      "BriefHunkBody": {
+        "type": "object",
+        "description": "A hunk by its lines on both sides.",
+        "required": [
+          "path",
+          "old_start",
+          "old_lines",
+          "new_start",
+          "new_lines"
+        ],
+        "properties": {
+          "new_lines": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "new_start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "old_lines": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "old_start": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
           }
         }
       },

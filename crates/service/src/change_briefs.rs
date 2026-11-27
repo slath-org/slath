@@ -17,7 +17,7 @@ use slath_db::change_briefs::{Brief, NewBrief};
 use slath_db::merge_requests::MergeRequest;
 
 use crate::Services;
-use crate::brief_schema::{Item, Upload, stored_items};
+use crate::brief_schema::{Coverage, Item, Upload, coverage, stored_items};
 use crate::error::{Result, ServiceError};
 use crate::mr_changes::ChangeInfo;
 use crate::repos::RepoAccess;
@@ -33,6 +33,9 @@ pub struct ChangeBrief {
     pub author_is_bot: bool,
     /// The number of the change's first version with this commit.
     pub version: Option<usize>,
+    /// Which changed hunks its items point at, when one of them points at
+    /// the code: the author's claim, never a requirement.
+    pub coverage: Option<Coverage>,
 }
 
 impl Services {
@@ -134,7 +137,10 @@ impl Services {
             },
         )
         .await?;
-        self.brief_view(&info, brief).await
+        let mut view = [self.brief_view(&info, brief).await?];
+        self.add_coverage(&m, &info, &mut view).await?;
+        let [view] = view;
+        Ok(view)
     }
 
     async fn brief_view(&self, info: &ChangeInfo, brief: Brief) -> Result<ChangeBrief> {
@@ -151,8 +157,41 @@ impl Services {
             author_is_bot: author.as_ref().is_some_and(|u| u.kind == UserKind::Bot),
             author: author.map(|u| u.name),
             items: stored_items(&brief.items),
+            coverage: None,
             brief,
         })
+    }
+
+    /// The coverage of each of `briefs` whose items point at the code,
+    /// over its version's diff (each diff read once).
+    async fn add_coverage(
+        &self,
+        m: &MergeRequest,
+        info: &ChangeInfo,
+        briefs: &mut [ChangeBrief],
+    ) -> Result<()> {
+        let parse = |s: &str| slath_git::ObjectId::parse(s).map_err(ServiceError::internal);
+        let mut diffs = std::collections::HashMap::new();
+        for b in briefs.iter_mut() {
+            if b.items.iter().all(|i| i.anchors.is_empty()) {
+                continue;
+            }
+            let commit = b.brief.commit_oid.clone();
+            if !diffs.contains_key(&commit) {
+                let Some(v) = info.versions.iter().find(|v| v.commit_oid == commit) else {
+                    continue;
+                };
+                let base = v.parent_oid.as_deref().map(parse).transpose()?;
+                let d = self
+                    .diff_with_inventory(m.repo_id, base.as_ref(), &parse(&commit)?)
+                    .await?;
+                diffs.insert(commit.clone(), d);
+            }
+            if let Some((diff, inv)) = diffs.get(&commit) {
+                b.coverage = Some(coverage(diff, inv, &b.items));
+            }
+        }
+        Ok(())
     }
 
     /// A change's briefs, newest first, for everyone who can read the
@@ -189,6 +228,7 @@ impl Services {
         for b in rows {
             out.push(self.brief_view(&info, b).await?);
         }
+        self.add_coverage(m, &info, &mut out).await?;
         Ok(out)
     }
 }

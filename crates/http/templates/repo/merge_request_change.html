@@ -146,6 +146,9 @@
 <section class="section" id="brief" aria-labelledby="brief-heading">
   <h2 id="brief-heading">Brief</h2>
   <p class="text-secondary">{% call p::who(ctx, b.author) %}{% endcall %} {% call m::evidence("Author's claim") %}{% endcall %} · {% call c::time(b.created) %}{% endcall %}{% if b.edits > 1 %} · Edited ({{ b.edits }} edits){% endif %}{% if let Some((href, _)) = brief.write %} · <a href="{{ href }}">Edit the brief</a>{% endif %}</p>
+  {%- if let Some(cov) = b.coverage %}
+  <p class="text-secondary">Items point at {{ cov.covered }} of {{ cov.hunks }} changed hunk{% if cov.hunks != 1 %}s{% endif %} {% call m::evidence("Author's claim") %}{% endcall %}{% if !cov.uncovered.is_empty() %}. None points at {% for (name, href) in cov.uncovered %}{% if !loop.first %}; {% endif %}{% if let Some(h) = href %}<a href="{{ h }}">{{ name }}</a>{% else %}{{ name }}{% endif %}{% endfor %}{% if cov.more > 0 %}; and {{ cov.more }} more{% endif %}{% endif %}.</p>
+  {%- endif %}
   {%- for it in b.items %}
   <h3 id="brief-item-{{ it.index }}">{{ it.name }}</h3>
   <pre class="commit-body">{{ it.text }}</pre>

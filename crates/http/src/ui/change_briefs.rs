@@ -33,6 +33,52 @@ pub struct BriefView {
     pub edits: usize,
     /// Its items, by kind in the order a brief shows them.
     pub items: Vec<ItemView>,
+    /// When an item points at the code: how many changed hunks they point
+    /// at, of how many, and the others.
+    pub coverage: Option<CoverageView>,
+}
+
+/// Claimed coverage as the brief shows it.
+pub struct CoverageView {
+    pub covered: usize,
+    pub hunks: usize,
+    /// The first hunks no item points at ("big.txt, lines 1–30"), with
+    /// links into the diff once found, and how many more there are.
+    pub uncovered: Vec<(String, Option<String>)>,
+    pub more: usize,
+    places: Vec<slath_service::brief_schema::HunkPlace>,
+}
+
+/// The most uncovered hunks the brief lists by name.
+const UNCOVERED_LISTED: usize = 10;
+
+impl CoverageView {
+    fn new(c: &slath_service::brief_schema::Coverage) -> Self {
+        let name = |h: &slath_service::brief_schema::HunkPlace| {
+            let (start, n, removed) = if h.new_lines > 0 {
+                (h.new_start, h.new_lines, "")
+            } else {
+                (h.old_start, h.old_lines, " (removed)")
+            };
+            if n <= 1 {
+                format!("{}, line {start}{removed}", h.path)
+            } else {
+                format!("{}, lines {start}–{}{removed}", h.path, start + n - 1)
+            }
+        };
+        Self {
+            covered: c.covered,
+            hunks: c.hunks,
+            uncovered: c
+                .uncovered
+                .iter()
+                .take(UNCOVERED_LISTED)
+                .map(|h| (name(h), None))
+                .collect(),
+            more: c.uncovered.len().saturating_sub(UNCOVERED_LISTED),
+            places: c.uncovered.clone(),
+        }
+    }
 }
 
 /// One item of the shown brief, with the threads on it.
@@ -117,8 +163,28 @@ pub struct BriefParts {
 impl BriefParts {
     /// Links each place of the shown brief to its hunk in `diff` (or to
     /// its file, when the hunk isn't loaded).
-    pub fn link(&mut self, diff: &super::diff::DiffView) {
+    pub fn link(&mut self, diff: &mut super::diff::DiffView) {
         let Some(b) = &mut self.shown else { return };
+        // Hunks no item points at say so in their header, and the brief
+        // links to them.
+        if let Some(c) = &mut b.coverage {
+            for (i, h) in c.places.iter().enumerate() {
+                let head = format!("@@ -{} +{} @@", h.old_start, h.new_start);
+                let Some(f) = diff.files.iter_mut().find(|f| f.path == h.path) else {
+                    continue;
+                };
+                let found = f.hunks.iter().position(|x| x.head.starts_with(&head));
+                if let Some(k) = found {
+                    f.hunks[k].unbriefed = true;
+                }
+                if let Some(entry) = c.uncovered.get_mut(i) {
+                    entry.1 = Some(match found {
+                        Some(k) => format!("#{}-h{k}", f.anchor),
+                        None => format!("#{}", f.anchor),
+                    });
+                }
+            }
+        }
         for p in b.items.iter_mut().flat_map(|i| i.places.iter_mut()) {
             let Some(f) = diff.files.iter().find(|f| f.path == p.anchor.path) else {
                 continue;
@@ -279,6 +345,7 @@ fn view(
         author: Who::account(v.author.clone()),
         created: v.brief.created_at.into(),
         edits,
+        coverage: v.coverage.as_ref().map(CoverageView::new),
         items: shown_order(&v.items)
             .into_iter()
             .map(|i| {

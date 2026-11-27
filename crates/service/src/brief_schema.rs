@@ -486,6 +486,73 @@ pub fn numbered(items: &[Item]) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// A hunk of the diff, by its lines on both sides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HunkPlace {
+    pub path: String,
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+}
+
+/// Which changed hunks a brief's items point at: claimed coverage, never
+/// a requirement.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Coverage {
+    /// Content hunks of content files (not whitespace-only, not folded).
+    pub hunks: usize,
+    pub covered: usize,
+    pub uncovered: Vec<HunkPlace>,
+}
+
+/// The coverage of `items` over `diff`, whose inventory is `inv` (its
+/// files in the diff's order).
+#[must_use]
+pub fn coverage(
+    diff: &slath_git::diff::Diff,
+    inv: &slath_git::inventory::Inventory,
+    items: &[Item],
+) -> Coverage {
+    use slath_git::inventory::{FileClass, HunkClass};
+    let anchors: Vec<&Anchor> = items.iter().flat_map(|i| i.anchors.iter()).collect();
+    let mut out = Coverage::default();
+    for (f, entry) in diff.files.iter().zip(&inv.files) {
+        if entry.class != FileClass::Content {
+            continue;
+        }
+        let path = String::from_utf8_lossy(f.path()).into_owned();
+        let mine: Vec<&&Anchor> = anchors.iter().filter(|a| a.path == path).collect();
+        for (h, class) in f.hunks.iter().zip(&entry.hunks) {
+            if *class != HunkClass::Content {
+                continue;
+            }
+            out.hunks += 1;
+            let span = |side| {
+                let l = hunk_lines(h, side);
+                l.first().zip(l.last()).map(|(a, b)| (a.0, b.0))
+            };
+            let covered = mine.iter().any(|a| match a.lines() {
+                None => true,
+                Some((s, e)) => span(a.side()).is_some_and(|(hs, he)| s <= he && hs <= e),
+            });
+            if covered {
+                out.covered += 1;
+            } else {
+                let count = |side| hunk_lines(h, side).len() as u32;
+                out.uncovered.push(HunkPlace {
+                    path: path.clone(),
+                    old_start: h.old_start,
+                    old_lines: count(Side::Old),
+                    new_start: h.new_start,
+                    new_lines: count(Side::New),
+                });
+            }
+        }
+    }
+    out
+}
+
 /// How an item of one brief compares with another brief's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Compared {
@@ -765,5 +832,70 @@ index 3333333..0000000
             ]
         );
         assert_eq!(errors[1].field, "/items/0/anchors/1");
+    }
+
+    #[test]
+    fn coverage_counts_content_hunks_no_anchor_overlaps() {
+        let raw = b"diff --git a/a.txt b/a.txt
+index 1111111..2222222 100644
+--- a/a.txt
++++ b/a.txt
+@@ -1,2 +1,2 @@
+-one
++ONE
+ two
+@@ -10,2 +10,2 @@
+-x  = 1
++x = 1
+ y
+@@ -20,1 +20,1 @@
+-old
++new
+diff --git a/b.txt b/b.txt
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/b.txt
+@@ -0,0 +1 @@
++b
+diff --git a/c.bin b/c.bin
+index 1111111..2222222 100644
+Binary files a/c.bin and b/c.bin differ
+";
+        let diff = slath_git::diff::parse(raw, 100, 10_000);
+        let inv = slath_git::inventory::inventory(&diff, 3, 100, &Default::default());
+        let with = |anchors: Vec<Anchor>| {
+            vec![Item {
+                kind: Kind::Effect,
+                text: "x".into(),
+                before: None,
+                after: None,
+                anchors,
+            }]
+        };
+        // The whitespace-only hunk and the binary file aren't counted.
+        let none = coverage(&diff, &inv, &with(vec![]));
+        assert_eq!((none.hunks, none.covered, none.uncovered.len()), (3, 0, 3));
+        // An old-side line of the first hunk, and b.txt as a whole.
+        let some = coverage(
+            &diff,
+            &inv,
+            &with(vec![
+                Anchor::parse("a.txt:old 1").unwrap(),
+                Anchor::parse("b.txt").unwrap(),
+                Anchor::parse("a.txt:5-9").unwrap(),
+            ]),
+        );
+        assert_eq!((some.hunks, some.covered), (3, 2));
+        assert_eq!(
+            some.uncovered,
+            [HunkPlace {
+                path: "a.txt".into(),
+                old_start: 20,
+                old_lines: 1,
+                new_start: 20,
+                new_lines: 1
+            }]
+        );
     }
 }

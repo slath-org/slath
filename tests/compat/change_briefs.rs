@@ -947,3 +947,59 @@ fn conf_agent_17_instructions_in_a_brief_change_nothing() {
     );
     assert_eq!(w.write(&w.carol, &id, brief("x")).status, 403);
 }
+
+#[test]
+fn conf_agent_17_coverage_lists_the_hunks_no_item_points_at() {
+    let w = World::start();
+    let id = w.amend_into_hunks();
+    // Without a place, there's no coverage to claim.
+    let r = w.write(&w.alice, &id, brief("Add the files"));
+    assert_eq!(r.json()["coverage"], Value::Null, "{}", r.body);
+
+    // README, a.txt, and big.txt have one hunk each; big.txt is covered.
+    let r = w.write(
+        &w.alice,
+        &id,
+        pointing(json!([{"path": "big.txt", "start": 3, "end": 5}])),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    assert_eq!(
+        r.json()["coverage"],
+        json!({"hunks": 3, "covered": 1, "uncovered": [
+            {"path": "README", "old_start": 1, "old_lines": 1, "new_start": 1, "new_lines": 2},
+            {"path": "a.txt", "old_start": 0, "old_lines": 0, "new_start": 1, "new_lines": 1}]})
+    );
+    assert_eq!(w.list(&w.carol, &id, "")[0]["coverage"]["covered"], 1);
+
+    // The brief names them with links, and their hunks say so.
+    let page = format!("/alice/demo/merge-requests/{}/changes/{id}", w.n);
+    let shown = w.s.login("carol", PASSWORD).get(&page).body;
+    for text in [
+        "Items point at 1 of 3 changed hunks",
+        "None points at <a href=\"#diff-0-h0\">README, lines 1–2</a>; <a href=\"#diff-1-h0\">a.txt, line 1</a>.",
+    ] {
+        assert!(shown.contains(text), "{text}\n{shown}");
+    }
+    assert_eq!(shown.matches("No brief item points here").count(), 2);
+
+    // A whole-file place covers the file's hunks; it's never a fact or a
+    // requirement.
+    let r = w.write(
+        &w.alice,
+        &id,
+        pointing(json!([{"path": "big.txt"}, {"path": "README"}, {"path": "a.txt"}])),
+    );
+    assert_eq!(r.json()["coverage"]["uncovered"], json!([]));
+    let mergeability = w.api(
+        &w.carol,
+        "GET",
+        &format!("/merge-requests/{}/mergeability", w.n),
+        None,
+    );
+    assert_eq!(mergeability.status, 200);
+    assert!(
+        !mergeability.body.contains("brief"),
+        "{}",
+        mergeability.body
+    );
+}

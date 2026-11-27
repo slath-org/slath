@@ -74,7 +74,7 @@
   <div class="diff-hunk" id="{{ f.anchor }}-h{{ loop.index0 }}">
   <div class="code-wrap diff-unified{% if diff.split %} diff-has-split{% endif %}" tabindex="0" role="region" aria-label="Changes in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table">
-    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col">New</th><th scope="col"><span class="visually-hidden">Change</span></th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}{% if h.unbriefed %} <span class="text-secondary">· No brief item points here</span>{% endif %}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
     {%- call expand_row(ctx, diff, f, hi, h.expand) %}{% endcall %}
     {%- call context_rows(h.above) %}{% endcall %}
@@ -101,7 +101,7 @@
   {%- if diff.split %}
   <div class="code-wrap diff-split" tabindex="0" role="region" aria-label="Changes side by side in {{ f.path }}, {{ h.head }}">
   <table class="code-view diff-table diff-split-table">
-    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
+    <thead><tr><th scope="col">Old</th><th scope="col"><span class="visually-hidden">Old text</span></th><th scope="col">New</th><th scope="col" class="diff-hunk-head"><span class="diff-hunk-title">{{ h.head }}{% if h.unbriefed %} <span class="text-secondary">· No brief item points here</span>{% endif %}</span>{% call hunk_nav(f.anchor, loop.index0, loop.first, loop.last, f.index + 1 < diff.files.len(), f.index + 1) %}{% endcall %}{% if let Some(r) = diff.review %}{% call hunk_viewed(ctx, r, f, h, hi, last_hunk, f.index + 1 < diff.files.len()) %}{% endcall %}{% endif %}</th></tr></thead>
     <tbody>
     {%- call expand_row(ctx, diff, f, hi, h.expand) %}{% endcall %}
     {%- call context_split_rows(h.above_rows) %}{% endcall %}

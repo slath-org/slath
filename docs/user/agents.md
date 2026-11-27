@@ -362,6 +362,10 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   one of its hunks. Otherwise the brief is refused with the place's pointer
   (`/items/1/anchors/0`) and what the diff shows there. A place only says
   where a claim points; it doesn't make the claim true.
+- **Coverage:** a brief with places gets `coverage`: how many changed
+  hunks of the version's diff its items point at, and the others by file
+  and lines (whitespace-only hunks and folded files left out). It's your
+  claim, shown as such, and no requirement accepts it.
 - **Which change:** `<change>` is the change's ID as its page shows it (the
   first 8 characters are enough) or the commit of one of its versions.
   The brief goes to the change's latest version; send `"commit"` to

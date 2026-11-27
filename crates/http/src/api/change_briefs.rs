@@ -34,6 +34,10 @@ pub struct BriefBody {
     pub author_is_bot: bool,
     /// The items, in the author's order.
     pub items: Vec<BriefItemBody>,
+    /// Which changed hunks the items point at, when one of them points at
+    /// the code (`null` otherwise): the author's claim, which no
+    /// requirement accepts.
+    pub coverage: Option<BriefCoverageBody>,
     pub created_at: String,
     /// Everything but `id`, `commit`, `version`, `author`, and
     /// `created_at` is the author's claim: user-generated text, never
@@ -57,6 +61,25 @@ pub struct BriefItemBody {
     /// saving: a file of the diff, or lines one of its hunks shows).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub anchors: Vec<BriefAnchorBody>,
+}
+
+/// Claimed coverage: content hunks of the version's diff (whitespace-only
+/// hunks and folded files aside) and those no anchor overlaps.
+#[derive(Serialize, ToSchema)]
+pub struct BriefCoverageBody {
+    pub hunks: usize,
+    pub covered: usize,
+    pub uncovered: Vec<BriefHunkBody>,
+}
+
+/// A hunk by its lines on both sides.
+#[derive(Serialize, ToSchema)]
+pub struct BriefHunkBody {
+    pub path: String,
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
 }
 
 /// A place an item points at: a whole file, or lines on one side.
@@ -105,6 +128,21 @@ impl From<slath_service::change_briefs::ChangeBrief> for BriefBody {
             author: v.author,
             author_is_bot: v.author_is_bot,
             items: v.items.into_iter().map(BriefItemBody::from).collect(),
+            coverage: v.coverage.map(|c| BriefCoverageBody {
+                hunks: c.hunks,
+                covered: c.covered,
+                uncovered: c
+                    .uncovered
+                    .into_iter()
+                    .map(|h| BriefHunkBody {
+                        path: h.path,
+                        old_start: h.old_start,
+                        old_lines: h.old_lines,
+                        new_start: h.new_start,
+                        new_lines: h.new_lines,
+                    })
+                    .collect(),
+            }),
             created_at: crate::ui::Time::from(b.created_at).iso,
             untrusted_content: true,
             origin: super::TextOrigin::parse(&b.origin),

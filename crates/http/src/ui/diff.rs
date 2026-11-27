@@ -95,6 +95,9 @@ pub struct HunkView {
     pub key: String,
     /// Merge request diffs: the viewer marked it viewed.
     pub viewed: bool,
+    /// A change's diff whose brief points at the code: no item points at
+    /// this hunk (claimed coverage).
+    pub unbriefed: bool,
 }
 
 pub struct FileView {
@@ -1066,6 +1069,7 @@ pub fn view(
                             lines,
                             key: key.clone(),
                             viewed: false,
+                            unbriefed: false,
                             expand: Vec::new(),
                             above: Vec::new(),
                             below: Vec::new(),
@@ -1365,6 +1369,7 @@ mod tests {
             rows: Vec::new(),
             key: String::new(),
             viewed: false,
+            unbriefed: false,
             expand: Vec::new(),
             above: Vec::new(),
             below: Vec::new(),

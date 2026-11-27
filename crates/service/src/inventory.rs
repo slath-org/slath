@@ -50,6 +50,17 @@ impl Services {
         base: Option<&ObjectId>,
         head: &ObjectId,
     ) -> Result<Inventory> {
+        Ok(self.diff_with_inventory(repo, base, head).await?.1)
+    }
+
+    /// The parsed diff `base..head` and its inventory (its files in the
+    /// diff's order).
+    pub(crate) async fn diff_with_inventory(
+        &self,
+        repo: RepoId,
+        base: Option<&ObjectId>,
+        head: &ObjectId,
+    ) -> Result<(slath_git::diff::Diff, Inventory)> {
         let dir = self.repo_path(repo);
         let limits = &self.config.limits;
         let (diff, raw, cut) = self.parsed_diff(repo, base, head).await?;
@@ -66,12 +77,9 @@ impl Services {
         let generated = slath_git::browse::generated_paths(&self.runner, &dir, head, &paths)
             .await
             .unwrap_or_default();
-        Ok(slath_git::inventory::inventory(
-            &diff,
-            total,
-            limits.diff_max_files,
-            &generated,
-        ))
+        let inventory =
+            slath_git::inventory::inventory(&diff, total, limits.diff_max_files, &generated);
+        Ok((diff, inventory))
     }
 
     /// The inventory of a merge request's revision `revision` (default:
