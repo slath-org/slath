@@ -563,7 +563,11 @@ struct KindChoice {
 /// value).
 struct SlotView {
     id: String,
+    /// The item's name ("Effect 2"), its group's legend, and its text's
+    /// label: the name when the kind has several items, else "Text", as
+    /// the group's heading already names it.
     name: String,
+    label: String,
     text: String,
     /// Where it points, one place per line.
     places: String,
@@ -742,12 +746,18 @@ impl Slots {
                         .enumerate()
                         .map(|(n, [text, before, after, places])| {
                             let id = format!("item-{}-{n}", kind.as_str());
+                            let name = if slots.len() > 1 {
+                                format!("{label} {}", n + 1)
+                            } else {
+                                label.to_owned()
+                            };
                             SlotView {
-                                name: if slots.len() > 1 {
-                                    format!("{label} {}", n + 1)
+                                label: if slots.len() > 1 {
+                                    name.clone()
                                 } else {
-                                    label.to_owned()
+                                    "Text".to_owned()
                                 },
+                                name,
                                 text: text.clone(),
                                 places: places.clone(),
                                 extra: if *kind == Kind::Effect {
@@ -1108,6 +1118,9 @@ mod tests {
         assert_eq!(kinds, ["motivation", "effect", "risk"]);
         let names: Vec<String> = groups[1].items.iter().map(|s| s.name.clone()).collect();
         assert_eq!(names, ["Effect 1", "Effect 2"]);
+        // A kind's only item is labelled "Text": its group names it.
+        assert_eq!(groups[0].items[0].label, "Text");
+        assert_eq!(groups[1].items[1].label, "Effect 2");
         // The first kind without items is chosen for the next one.
         let choice = slots.kinds();
         assert_eq!(choice.len(), 6);

@@ -227,11 +227,11 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await expect(page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: "Before" })).toHaveValue(before);
   await expectAccessible(page);
   const intent = `Reworded notes, checked in ${p}`;
-  await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(intent);
-  await page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: /^Effect( \d+)?$/ }).fill("Reads well");
+  await page.getByRole("group", { name: "Motivation", exact: true }).last().getByRole("textbox", { name: /^(Text|Motivation 1)$/ }).fill(intent);
+  await page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: /^(Text|Effect \d+)$/ }).fill("Reads well");
   await page.getByLabel("Kind", { exact: true }).selectOption("verification");
   await tapOrClick(page, page.getByRole("button", { name: "Add", exact: true }));
-  await page.getByRole("textbox", { name: /^Verification( \d+)?$/ }).last().fill("Read it twice");
+  await page.getByRole("group", { name: "Verification", exact: true }).getByRole("textbox", { name: /^(Text|Verification \d+)$/ }).last().fill("Read it twice");
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
   const brief = page.getByRole("region", { name: "Brief", exact: true });
   await expect(brief).toContainText("Author's claim");
@@ -278,7 +278,7 @@ test("conf_agent_17_a_merge_request_brief_is_written_on_its_page", async ({ page
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/brief .*!\d+$/);
   await expectAccessible(page);
   const why = `Both steps, briefed in ${p}`;
-  await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(why);
+  await page.getByRole("group", { name: "Motivation", exact: true }).last().getByRole("textbox", { name: /^(Text|Motivation 1)$/ }).fill(why);
   // The form lists the diff's places, and Points at suggests them.
   await expect(page.locator("[data-brief-places]")).toContainText(`mrbrief-${p}-two.md`);
   const points = page.getByRole("textbox", { name: "Points at" }).first();

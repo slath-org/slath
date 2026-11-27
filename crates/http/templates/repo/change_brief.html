@@ -36,7 +36,7 @@
   {%- if Self::is_effect(g.kind) %}
   <fieldset class="field-group">
     <legend class="visually-hidden">{{ it.name }}</legend>
-    {%- call f::field(tid, it.name, "", terror) %}
+    {%- call f::field(tid, it.label, "", terror) %}
     <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
     {%- endcall %}
     {%- for (pid, label, value) in it.extra %}
@@ -50,7 +50,7 @@
   {%- else %}
   <fieldset class="field-group">
     <legend class="visually-hidden">{{ it.name }}</legend>
-    {%- call f::field(tid, it.name, "", terror) %}
+    {%- call f::field(tid, it.label, "", terror) %}
     <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
     {%- endcall %}
     {%- call places(it) %}{% endcall %}
