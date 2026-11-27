@@ -377,7 +377,9 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
     assert!(!f.body.contains("item-risk-0-text"), "{}", f.body);
     assert!(!f.body.contains("<legend>Risks</legend>"), "{}", f.body);
     assert!(
-        f.body.contains("<option value=\"risk\" selected>Risk — what could go wrong, and where</option>"),
+        f.body.contains(
+            "<option value=\"risk\" selected>Risk — what could go wrong, and where</option>"
+        ),
         "{}",
         f.body
     );
