@@ -19,11 +19,15 @@
 {%- call msg::error_summary() %}{% endcall %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   {%- let logo_hint %}SVG, PNG, or WebP, at most {{ max_kib }} KiB; a square image fits best. An SVG may only draw: scripts, styles sheets, links, and references to other files are refused. PNG and WebP images are stored again as PNG, at most 512 pixels wide.{% endlet %}
-  {%- call f::field("logo_light", "Logo for the light theme", logo_hint, self.error("logo_light").unwrap_or_default(), true) %}
-  <input id="logo_light" name="logo_light" type="file" accept="image/svg+xml,image/png,image/webp"{% call f::described("logo_light", logo_hint, self.error("logo_light").unwrap_or_default()) %}{% endcall %}>
+  {#- The format applies to both files: said once (Weave rule 73). #}
+  {%- call f::field_group("Upload a new logo") %}
+  <p class="hint" id="logo-hint">{{ logo_hint }}</p>
+  {%- for (id, label) in [("logo_light", "Logo for the light theme"), ("logo_dark", "Logo for the dark theme")] %}
+  {%- let error = self.error(id).unwrap_or_default() %}
+  {%- call f::field(id, label, "", error, true) %}
+  <input id="{{ id }}" name="{{ id }}" type="file" accept="image/svg+xml,image/png,image/webp" aria-describedby="logo-hint{% if !error.is_empty() %} {{ id }}-error{% endif %}"{% if !error.is_empty() %} aria-invalid="true"{% endif %}>
   {%- endcall %}
-  {%- call f::field("logo_dark", "Logo for the dark theme", "Shown on dark backgrounds.", self.error("logo_dark").unwrap_or_default(), true) %}
-  <input id="logo_dark" name="logo_dark" type="file" accept="image/svg+xml,image/png,image/webp"{% call f::described("logo_dark", "Shown on dark backgrounds.", self.error("logo_dark").unwrap_or_default()) %}{% endcall %}>
+  {%- endfor %}
   {%- endcall %}
   {%- call f::buttons() %}<button type="submit" class="button button-primary">Save logo</button>{% endcall %}
 </form>
