@@ -2258,9 +2258,13 @@ async fn mr_page_showing(
         .render_markdown(subject, Some(&rc), &m.description)
         .await?;
     let summaries = state.services.revision_summaries(&m).await?;
-    let changes = summaries.get(&m.revisions).map_or(0, |r| {
-        r.unchanged + r.modified + r.added + r.returned + r.unresolved
-    });
+    // Only those who may write a brief need to know whether it's a stack.
+    let may_brief = slath_service::Services::may_write_brief(subject, &a, &m);
+    let changes = if may_brief {
+        state.services.mr_stack(&m).await?.entries.len()
+    } else {
+        0
+    };
     let brief = super::change_briefs::mr_parts(
         state,
         &m,
@@ -2268,7 +2272,7 @@ async fn mr_page_showing(
         changes,
         &super::change_briefs::Viewer {
             subject,
-            write: slath_service::Services::may_write_brief(subject, &a, &m),
+            write: may_brief,
             comment: matches!(subject, Subject::User { .. })
                 && a.can(subject, slath_core::authz::Action::MrComment),
             open: brief_open,

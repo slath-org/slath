@@ -1313,3 +1313,34 @@ fn conf_agent_17_the_merge_request_page_shows_and_writes_its_brief() {
     );
     assert!(page.contains("· from r2</span>"), "{page}");
 }
+
+#[test]
+fn conf_agent_17_a_stack_opened_at_once_offers_its_brief() {
+    let w = World::start();
+    // A second merge request opened with two commits: one revision only.
+    let wd = w.w.path();
+    w.git.ok(wd, &["switch", "-q", "-c", "pair", "main"]);
+    w.commit("x.txt", "x\n", "Add x");
+    w.commit("y.txt", "y\n", "Add y");
+    w.push("pair");
+    let r = w.api(
+        &w.alice,
+        "POST",
+        "/merge-requests",
+        Some(json!({"source_branch": "pair", "title": "Add x and y"})),
+    );
+    assert_eq!(r.status, 201, "{}", r.body);
+    let n = r.json()["number"].as_i64().unwrap();
+    let mr = format!("/alice/demo/merge-requests/{n}");
+    let mut bob = w.s.login("bob", PASSWORD);
+    let start = std::time::Instant::now();
+    while !bob.get(&mr).body.contains("revision 1") {
+        assert!(start.elapsed().as_secs() < 30, "no revision");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    let page = bob.get(&mr).body;
+    assert!(
+        page.contains(&format!("<a href=\"{mr}/brief\">Write a brief</a>")),
+        "{page}"
+    );
+}
