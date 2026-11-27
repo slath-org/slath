@@ -114,8 +114,8 @@
 <dl class="contract">
   <dt>Purpose</dt><dd>Two or more fields that belong together, under a legend in the subsection heading's style; its fields keep the items distance, and the group is the groups distance from what's around it.</dd>
   <dt>Markup</dt><dd><code>f::field_group(legend)</code> around the fields, inside a form.</dd>
-  <dt>Variants</dt><dd>None.</dd>
-  <dt>Accessibility</dt><dd>A <code>fieldset</code> named by its legend.</dd>
+  <dt>Variants</dt><dd>Nested: a group inside a group, for one item made of several fields (an effect with its before and after), the groups distance from its neighbors; written as <code>&lt;fieldset class="field-group"&gt;</code> with its legend, which is <code>visually-hidden</code> when its first field's label already names it.</dd>
+  <dt>Accessibility</dt><dd>A <code>fieldset</code> named by its legend, also when the legend is visually hidden.</dd>
   <dt>Not for</dt><dd>One question (a question); a whole form (its section heading names it).</dd>
 </dl>
 {%- call cat::example("A field, then a group of two.") %}
@@ -126,6 +126,22 @@
   {%- call f::field("demo-pass", "Password or token", "", "", true) %}<input id="demo-pass" type="password">{% endcall %}
   {%- endcall %}
   {%- call f::buttons() %}<button type="button" class="button button-primary">Import repository</button>{% endcall %}
+</div>
+{%- endcall %}
+{%- call cat::example("Nested groups: two items of several fields each.") %}
+<div class="form-layout">
+  {%- call f::field_group("Effects") %}
+  <fieldset class="field-group">
+    <legend class="visually-hidden">Effect 1</legend>
+    {%- call f::field("demo-effect-1", "Effect 1") %}<textarea id="demo-effect-1" rows="2"></textarea>{% endcall %}
+    {%- call f::field("demo-effect-1-before", "Before", "", "", true) %}<textarea id="demo-effect-1-before" rows="1"></textarea>{% endcall %}
+  </fieldset>
+  <fieldset class="field-group">
+    <legend class="visually-hidden">Effect 2</legend>
+    {%- call f::field("demo-effect-2", "Effect 2") %}<textarea id="demo-effect-2" rows="2"></textarea>{% endcall %}
+    {%- call f::field("demo-effect-2-before", "Before", "", "", true) %}<textarea id="demo-effect-2-before" rows="1"></textarea>{% endcall %}
+  </fieldset>
+  {%- endcall %}
 </div>
 {%- endcall %}
 {%- endcall %}

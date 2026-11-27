@@ -17,9 +17,9 @@ Before 1.0.0, minor versions may contain breaking changes.
 - The person who asked, the bot's owner, and repository admins can delete a context record on its page or by API; it's unreadable at once.
 - A deleted or expired context record leaves a note without its text: who uploaded it, what it was about, and who deleted it or that retention did.
 - Comparing two versions of a change also shows how its commit description changed, line by line.
-- Agents and people can write a brief for each version of a change (what it's for, how it was checked, what's missing) through the API; MCP reads it.
-- A change's page shows its version's brief above the diff, lets authors and writers write or edit it, and compares briefs between versions.
-- Reviewers can comment on one field of a change's brief; the thread shows in the conversation with the field quoted and is marked when the brief changes.
+- Agents and people can write a brief for each version of a change through the API: items saying what it's for, what it changes, its risks, gaps, rollout, and how it was checked; MCP reads it.
+- A change's page shows its version's brief above the diff, lets authors and writers write or edit it item by item, and marks items new, updated, or removed between versions.
+- Reviewers can comment on one item of a change's brief; the thread shows in the conversation with the item quoted and follows the item while a newer brief keeps it.
 - People with write access can delegate an issue or merge request to a bot as a work order through the API, with a goal, limits, and a record of what happened under it.
 - Bots pick up their work orders with a token that can only claim them (`work_orders:claim`) and get a task token for one hour, renewed by claiming again.
 - A work order's task token reads its repository and comments, opens merge requests, and reports statuses only for its order; each write it tries is recorded with the rule that decided.
@@ -43,7 +43,7 @@ Before 1.0.0, minor versions may contain breaking changes.
 - A branch protection rule opens in its form to be changed, and a rule that fails to save keeps what was entered.
 - A finding left unresolved on an earlier revision is marked Stale in the conversation and has the state `stale` in the API.
 - A thread marked addressed says whether its lines changed since, or are unchanged.
-- A brief's verification shows the checks reported on that version's own commit.
+- A brief's verification items show the checks reported on that version's own commit.
 - Agents can read through MCP at `/api/mcp` with an API token: repositories, files, issues, merge requests with stacks, iteration, and mergeability, threads, and checks.
 - Under the one-maintainer policy, a required check counts statuses from the maintainer's own bot when the rule names it as the reporter and it didn't push to the merge request.
 - Requirements nobody can meet say so: a merge request stuck on approvals names what helps, and branch protection warns about such rules while one person has write access.

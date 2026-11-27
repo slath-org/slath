@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO change_briefs (id, mr_id, change_id, commit_oid, author_id, origin, schema,\n             intent, approach, verification, gaps)\n         VALUES ($1, $2, $3, $4, $5, $6, 'slath-brief/1', $7, $8, $9, $10)\n         RETURNING *",
+  "query": "INSERT INTO change_briefs (id, mr_id, change_id, commit_oid, author_id, origin, schema,\n             items)\n         VALUES ($1, $2, $3, $4, $5, $6, 'slath-brief/2', $7)\n         RETURNING *",
   "describe": {
     "columns": [
       {
@@ -82,56 +82,23 @@
       },
       {
         "ordinal": 7,
-        "name": "intent",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "change_briefs",
-            "name": "intent"
-          }
-        }
-      },
-      {
-        "ordinal": 8,
-        "name": "approach",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "change_briefs",
-            "name": "approach"
-          }
-        }
-      },
-      {
-        "ordinal": 9,
-        "name": "verification",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "change_briefs",
-            "name": "verification"
-          }
-        }
-      },
-      {
-        "ordinal": 10,
-        "name": "gaps",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "change_briefs",
-            "name": "gaps"
-          }
-        }
-      },
-      {
-        "ordinal": 11,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
             "table": "change_briefs",
             "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "items",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "change_briefs",
+            "name": "items"
           }
         }
       }
@@ -144,10 +111,7 @@
         "Text",
         "Uuid",
         "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text"
+        "Jsonb"
       ]
     },
     "nullable": [
@@ -159,11 +123,8 @@
       false,
       false,
       false,
-      true,
-      true,
-      true,
       false
     ]
   },
-  "hash": "24f61270393e7bdc40d94f436620e268204b35d220a757639a10d76e5952552a"
+  "hash": "e0db5ca2de7b3a72adc4a5e4fcdcbfc3f5db5984d60fdf8ef3bc3fe6f899df19"
 }

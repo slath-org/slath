@@ -32,17 +32,26 @@ test("conf_design_03_options_regular_legends_aligned", async ({ page }) => {
 
 test("conf_design_03_field_group_stands_apart", async ({ page }) => {
   await page.goto("/-/design/forms");
-  const gaps = await page.locator("section[aria-labelledby=field-group] .form-layout").evaluate((el) => {
+  const gaps = await page.locator("section[aria-labelledby=field-group] .form-layout").first().evaluate((el) => {
     const k = [...el.children].map((c) => c.getBoundingClientRect());
     return k.slice(1).map((r, i) => Math.round(r.top - k[i].bottom));
   });
   // Field -> group, group -> buttons: the groups distance, not the items one.
   expect(gaps).toEqual([24, 24]);
-  const inner = await page.locator("section[aria-labelledby=field-group] .field-group").evaluate((el) => {
+  const inner = await page.locator("section[aria-labelledby=field-group] .field-group").first().evaluate((el) => {
     const f = [...el.querySelectorAll(":scope > .field")].map((c) => c.getBoundingClientRect());
     return Math.round(f[1].top - f[0].bottom);
   });
   expect(inner).toBe(16);
+  // Nested groups: their fields keep the items distance, the groups are
+  // further apart, so each one's fields stay together.
+  const nested = await page.locator("section[aria-labelledby=field-group] .field-group .field-group").evaluateAll((groups) => {
+    const [a, b] = groups.map((g) => g.getBoundingClientRect());
+    const f = [...groups[0].querySelectorAll(":scope > .field")].map((c) => c.getBoundingClientRect());
+    return { between: Math.round(b.top - a.bottom), inside: Math.round(f[1].top - f[0].bottom) };
+  });
+  expect(nested.inside).toBe(16);
+  expect(nested.between).toBeGreaterThan(nested.inside);
 });
 
 test("conf_design_03_buttons_keep_their_width_and_errors_link", async ({ page }) => {

@@ -106,6 +106,11 @@ const NOT_USER_TEXT: &[(&str, &str, &str)] = &[
         "nested in CommitStatus, which carries the markers",
     ),
     (
+        "BriefItemBody",
+        "text",
+        "nested in BriefBody, which carries the markers",
+    ),
+    (
         "HeldFinding",
         "description",
         "Slath's own text: a push protection rule's description",

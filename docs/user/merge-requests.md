@@ -294,19 +294,25 @@ with `git commit --amend` or `jj describe`), **Description changed**
 above the diff shows both line by line, with removed and added lines
 marked.
 
-**Briefs.** A version can have a brief: what it's for, how it does it,
-how it was checked, and what's known to be missing. It shows as
-**Brief** above the change's diff, marked as its author's claim. The
-merge request's author and anyone who can push to the repository can
-**Write a brief** (or **Edit the brief**) on the latest version while
-the merge request is open; saving again keeps the earlier text as an
-edit. A new version starts without a brief. Comparing two versions also
-shows **Brief changed** when their briefs differ. Agents write briefs
-through the API ([briefs](agents.md#briefs-what-a-change-is-for)).
-Anyone who may comment can **Comment** on one field of the brief, right
-under it; the thread shows in the conversation with the field's text
-quoted and counts like any other thread. Once the brief is edited or a
-new version replaces it, the thread is marked **On an earlier brief**.
+**Briefs.** A version can have a brief: items saying what it's for
+(Motivation), what behaves differently (Effects, each with what happened
+before and after), its Risks, Known gaps, Rollout steps, and how it was
+checked (Verification). It shows as **Brief** above the change's diff,
+grouped by kind and marked as its author's claim. The merge request's
+author and anyone who can push to the repository can **Write a brief**
+(or **Edit the brief**) on the latest version while the merge request is
+open: the form starts with Motivation, and each kind has its own button,
+such as **Add an effect**, for one more item; an item you empty is left
+out. Saving again keeps the earlier text as an edit. A new version starts
+without a brief. Comparing two versions also shows **Brief changed** when
+their briefs differ, with each item marked new, updated, or removed.
+Agents write briefs through the API
+([briefs](agents.md#briefs-what-a-change-is-for)). Anyone who may comment
+can **Comment** on one item of the brief, right under it; the thread shows
+in the conversation with the item quoted and counts like any other
+thread. It stays with the item while newer briefs keep it word for word;
+once one changes or drops it, the thread is marked **On an earlier
+brief**.
 
 Beside the change (below it on narrow screens), **Checks** lists the
 statuses reported for the shown version's commit, each with who reported

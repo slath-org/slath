@@ -154,9 +154,16 @@ impl World {
     }
 }
 
+/// A brief: what it's for (item 0), an effect (1), and a verification (2).
 fn brief(intent: &str) -> Value {
-    json!({"schema": "slath-brief/1", "intent": intent, "approach": "Line one\nLine two",
-           "verification": "Ran the tests", "gaps": ""})
+    json!({"schema": "slath-brief/2", "items": [
+        {"kind": "motivation", "text": intent},
+        {"kind": "effect", "text": "Line one\nLine two", "after": ""},
+        {"kind": "verification", "text": "Ran the tests"}]})
+}
+
+fn item(b: &Value, i: usize) -> &Value {
+    &b["items"][i]
 }
 
 #[test]
@@ -169,9 +176,10 @@ fn conf_agent_15_briefs_belong_to_versions_and_keep_every_edit() {
     assert_eq!(b["commit"], v1.as_str());
     assert_eq!(b["version"], 1);
     assert_eq!(b["author"], "alice");
-    assert_eq!(b["approach"], "Line one\nLine two");
-    // An empty optional field is absent.
-    assert_eq!(b["gaps"], Value::Null);
+    assert_eq!(item(&b, 1)["kind"], "effect");
+    assert_eq!(item(&b, 1)["text"], "Line one\nLine two");
+    // An empty before or after is absent.
+    assert_eq!(item(&b, 1).get("after"), None);
     assert_eq!(b["untrusted_content"], true);
     assert_eq!(b["origin"], "writer");
     // Writing again adds an edit; the newest comes first.
@@ -179,7 +187,7 @@ fn conf_agent_15_briefs_belong_to_versions_and_keep_every_edit() {
     assert_eq!(r.status, 201, "{}", r.body);
     let all = w.list(&w.alice, &id, "");
     assert_eq!(all.len(), 2);
-    assert_eq!(all[0]["intent"], "Add a, edited");
+    assert_eq!(item(&all[0], 0)["text"], "Add a, edited");
     assert_eq!(all[0]["author"], "bob");
 
     // A new version starts without a brief; the old one keeps its own.
@@ -202,17 +210,21 @@ fn conf_agent_15_briefs_belong_to_versions_and_keep_every_edit() {
     // The change can be named by a version's commit too.
     assert_eq!(w.list(&w.alice, &v2, "").len(), 4);
 
-    // Refused: another commit, another schema, unknown keys, no intent.
+    // Refused: another commit, another schema, unknown keys, no items,
+    // an empty text, before and after on a non-effect, a text too long.
     let mut wrong = brief("x");
     wrong["commit"] = json!("0".repeat(40));
     let r = w.write(&w.alice, &id, wrong);
     assert_eq!(r.status, 422, "{}", r.body);
     assert!(r.body.contains("/commit"), "{}", r.body);
     for bad in [
-        json!({"schema": "slath-brief/2", "intent": "x"}),
-        json!({"schema": "slath-brief/1", "intent": "x", "risks": "y"}),
-        json!({"schema": "slath-brief/1", "intent": " "}),
-        json!({"schema": "slath-brief/1", "intent": "x", "approach": "y".repeat(16 * 1024 + 1)}),
+        json!({"schema": "slath-brief/1", "intent": "x"}),
+        json!({"schema": "slath-brief/2", "items": [{"kind": "risk", "text": "x"}], "risks": "y"}),
+        json!({"schema": "slath-brief/2", "items": [{"kind": "wish", "text": "x"}]}),
+        json!({"schema": "slath-brief/2", "items": []}),
+        json!({"schema": "slath-brief/2", "items": [{"kind": "risk", "text": " "}]}),
+        json!({"schema": "slath-brief/2", "items": [{"kind": "risk", "text": "x", "before": "y"}]}),
+        json!({"schema": "slath-brief/2", "items": [{"kind": "gap", "text": "y".repeat(16 * 1024 + 1)}]}),
     ] {
         let r = w.write(&w.alice, &id, bad.clone());
         assert_eq!(r.status, 422, "{bad}: {}", r.body);
@@ -285,10 +297,10 @@ fn conf_agent_06_a_brief_with_a_secret_is_refused_with_its_location() {
     let (id, _) = w.change();
     let secret = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
     let mut b = brief("Deploy");
-    b["verification"] = json!(format!("Deployed\nwith {secret} to staging"));
+    b["items"][2]["text"] = json!(format!("Deployed\nwith {secret} to staging"));
     let r = w.write(&w.alice, &id, b.clone());
     assert_eq!(r.status, 422, "{}", r.body);
-    assert!(r.body.contains("/verification"), "{}", r.body);
+    assert!(r.body.contains("/items/2/text"), "{}", r.body);
     assert!(r.body.contains("\"secret\""), "{}", r.body);
     assert!(r.body.contains("Line 2"), "{}", r.body);
     assert!(!r.body.contains(&secret), "{}", r.body);
@@ -299,7 +311,7 @@ fn conf_agent_06_a_brief_with_a_secret_is_refused_with_its_location() {
         "0"
     );
     // The redacted retry is accepted.
-    b["verification"] = json!("Deployed with [redacted] to staging");
+    b["items"][2]["text"] = json!("Deployed with [redacted] to staging");
     assert_eq!(w.write(&w.alice, &id, b).status, 201);
 }
 
@@ -324,13 +336,22 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         &form,
         &form,
         &[
-            ("intent", "Add the a file"),
-            ("approach", "One line\nper letter"),
-            ("verification", ""),
-            ("gaps", "No b yet"),
+            ("item-motivation-0-text", "Add the a file"),
+            ("item-effect-0-text", "One line\nper letter"),
+            ("item-effect-0-before", "No a"),
+            ("item-verification-0-text", ""),
+            ("item-gap-0-text", "No b yet"),
         ],
     );
     assert_eq!(r.status, 303, "{}", r.body);
+    // Items in the order the form groups them; the empty one is left out.
+    let kinds: Vec<Value> = w.list(&w.alice, &id, "")[0]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["kind"].clone())
+        .collect();
+    assert_eq!(kinds, [json!("motivation"), json!("effect"), json!("gap")]);
     assert_eq!(r.header("location"), Some(format!("{page}#brief").as_str()));
     let shown = carol.get(&page).body;
     for text in [
@@ -338,17 +359,43 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         "Author&#39;s claim",
         "Add the a file",
         "One line\nper letter",
-        "Known gaps",
+        "<dt>Before</dt><dd><pre class=\"commit-body\">No a</pre>",
+        "<h3 id=\"brief-item-2\">Known gap</h3>",
         "No b yet",
     ] {
         assert!(shown.contains(text), "{text}\n{shown}");
     }
-    assert!(!shown.contains("id=\"brief-verification\""), "{shown}");
+    assert!(!shown.contains(">Verification</h3>"), "{shown}");
     assert!(!shown.contains("Edit the brief"));
     // The form opens prefilled for an edit.
     let f = bob.get(&form);
     assert!(f.body.contains("Edit the brief of change"), "{}", f.body);
     assert!(f.body.contains(">No b yet</textarea>"), "{}", f.body);
+    // A kind without items offers only its Add button; Add shows the form
+    // again with an empty item there, focused, and saves nothing.
+    assert!(!f.body.contains("item-risk-0-text"), "{}", f.body);
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("item-motivation-0-text", "Typed, not saved"),
+            ("add", "risk"),
+        ],
+    );
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(
+        r.body.contains(">Typed, not saved</textarea>"),
+        "{}",
+        r.body
+    );
+    assert!(
+        r.body
+            .contains("name=\"item-risk-0-text\" rows=\"3\" autocomplete=\"off\" autofocus"),
+        "{}",
+        r.body
+    );
+    assert_eq!(w.list(&w.alice, &id, "").len(), 1);
 
     // A secret is refused on the form, which keeps what was typed.
     let secret = format!("ghp_{}", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8");
@@ -357,18 +404,48 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         &mut bob,
         &form,
         &form,
-        &[("intent", "Add the a file"), ("verification", &typed)],
+        &[
+            ("item-motivation-0-text", "Add the a file"),
+            ("item-verification-0-text", &typed),
+        ],
     );
     assert_eq!(r.status, 422, "{}", r.body);
-    assert!(r.body.contains("href=\"#verification\""), "{}", r.body);
-    assert!(r.body.contains("id=\"verification-error\""), "{}", r.body);
+    assert!(
+        r.body.contains("href=\"#item-verification-0-text\""),
+        "{}",
+        r.body
+    );
+    assert!(
+        r.body.contains("id=\"item-verification-0-text-error\""),
+        "{}",
+        r.body
+    );
     assert!(r.body.contains("Line 2"), "{}", r.body);
     assert!(r.body.contains("aria-invalid=\"true\""), "{}", r.body);
     assert_eq!(w.list(&w.alice, &id, "").len(), 1);
-    // An empty intent too.
-    let r = submit(&mut bob, &form, &form, &[("intent", " ")]);
+    // A brief without items too, and before on an effect without text.
+    let r = submit(&mut bob, &form, &form, &[("item-motivation-0-text", " ")]);
     assert_eq!(r.status, 422, "{}", r.body);
-    assert!(r.body.contains("id=\"intent-error\""), "{}", r.body);
+    assert!(
+        r.body.contains("id=\"item-motivation-0-text-error\""),
+        "{}",
+        r.body
+    );
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("item-motivation-0-text", "x"),
+            ("item-effect-0-before", "slow"),
+        ],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("id=\"item-effect-0-text-error\""),
+        "{}",
+        r.body
+    );
 
     // An edit, then a new version: comparing shows how the brief changed.
     let r = submit(
@@ -376,8 +453,8 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         &form,
         &form,
         &[
-            ("intent", "Add the a file, carefully"),
-            ("gaps", "No b yet"),
+            ("item-motivation-0-text", "Add the a file, carefully"),
+            ("item-gap-0-text", "No b yet"),
         ],
     );
     assert_eq!(r.status, 303, "{}", r.body);
@@ -393,18 +470,29 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
         !v2.contains("brief-heading"),
         "a new version starts without one"
     );
-    assert!(w.write(&w.alice, &id, json!({"schema": "slath-brief/1", "intent": "Add the a file, carefully", "approach": "Only now", "gaps": "b comes next"})).status == 201);
+    let v2_brief = json!({"schema": "slath-brief/2", "items": [
+        {"kind": "motivation", "text": "Add the a file, carefully"},
+        {"kind": "effect", "text": "Only now"},
+        {"kind": "gap", "text": "b comes next"}]});
+    assert_eq!(w.write(&w.alice, &id, v2_brief).status, 201);
     let cmp = carol.get(&format!("{page}?from=1&rev=2")).body;
     assert!(cmp.contains("Brief changed"), "{cmp}");
-    assert!(cmp.contains("<h3>Known gaps</h3>"), "{cmp}");
+    assert!(cmp.contains("1 new, 1 updated, 1 unchanged"), "{cmp}");
+    assert!(
+        cmp.contains("<h3>Known gap <span class=\"text-secondary\">· updated</span></h3>"),
+        "{cmp}"
+    );
     assert!(cmp.contains("Removed: </span>No b yet"), "{cmp}");
     assert!(cmp.contains("Added: </span>b comes next"), "{cmp}");
-    // Only version 2's brief has an approach: all of it is added.
-    assert!(cmp.contains("<h3>Approach</h3>"), "{cmp}");
+    // Only version 2's brief has an effect: all of it is added.
+    assert!(
+        cmp.contains("<h3>Effect <span class=\"text-secondary\">· new</span></h3>"),
+        "{cmp}"
+    );
     assert!(cmp.contains("Added: </span>Only now"), "{cmp}");
     assert!(
-        !cmp.contains("<h3>Intent</h3>"),
-        "the same intent shows nothing"
+        !cmp.contains("<h3>Motivation"),
+        "the same item shows nothing"
     );
     // An older version's page offers no form; a closed merge request none.
     assert!(
@@ -423,13 +511,13 @@ fn conf_agent_15_briefs_on_the_change_page_and_their_form() {
     assert_eq!(bob.get(&form).status, 404);
 }
 
-/// Starts a thread on `field` of brief edit `brief` as `token`.
-fn on_field(w: &World, token: &str, brief: &str, field: &str) -> slath_tests::http::Resp {
+/// Starts a thread on item `item` of brief edit `brief` as `token`.
+fn on_item(w: &World, token: &str, brief: &str, item: usize) -> slath_tests::http::Resp {
     w.api(
         token,
         "POST",
         &format!("/merge-requests/{}/threads", w.n),
-        Some(json!({"body": "Which lines?", "brief": {"id": brief, "field": field}})),
+        Some(json!({"body": "Which lines?", "brief": {"id": brief, "item": item}})),
     )
 }
 
@@ -444,21 +532,22 @@ fn threads(w: &World) -> Vec<Value> {
 }
 
 #[test]
-fn conf_agent_15_threads_anchor_to_brief_fields() {
+fn conf_agent_15_threads_anchor_to_brief_items() {
     let w = World::start();
     let (id, _) = w.change();
     let b = w.write(&w.alice, &id, brief("Add a")).json();
     let brief_id = b["id"].as_str().unwrap().to_owned();
 
-    // A reader comments on a field; the thread keeps the field's text.
-    let r = on_field(&w, &w.carol, &brief_id, "approach");
+    // A reader comments on an item; the thread keeps the item's text.
+    let r = on_item(&w, &w.carol, &brief_id, 1);
     assert_eq!(r.status, 201, "{}", r.body);
     let t = r.json();
     assert_eq!(t["path"], Value::Null);
     assert_eq!(t["brief"]["id"], brief_id.as_str());
     assert_eq!(t["brief"]["change"], id.as_str());
     assert_eq!(t["brief"]["version"], 1);
-    assert_eq!(t["brief"]["field"], "approach");
+    assert_eq!(t["brief"]["item"], 1);
+    assert_eq!(t["brief"]["kind"], "effect");
     assert_eq!(t["brief"]["current"], true);
     let kept = w.s.db.query_one(&format!(
         "SELECT context->>'lines' FROM mr_threads WHERE id = '{}'",
@@ -466,14 +555,13 @@ fn conf_agent_15_threads_anchor_to_brief_fields() {
     ));
     assert_eq!(kept, r#"["Line one", "Line two"]"#);
 
-    // Refused: a field the edit lacks, an unknown field, a path as well,
-    // and a brief of another merge request.
+    // Refused: an item the edit lacks, a path as well, and a brief of
+    // another merge request.
     let path = json!({"body": "x", "path": "a.txt", "line_start": 1, "line_end": 1,
-                      "brief": {"id": brief_id, "field": "intent"}});
+                      "brief": {"id": brief_id, "item": 0}});
     for r in [
-        on_field(&w, &w.carol, &brief_id, "gaps"),
-        on_field(&w, &w.carol, &brief_id, "risks"),
-        on_field(&w, &w.carol, &uuid::Uuid::now_v7().to_string(), "intent"),
+        on_item(&w, &w.carol, &brief_id, 3),
+        on_item(&w, &w.carol, &uuid::Uuid::now_v7().to_string(), 0),
         w.api(
             &w.carol,
             "POST",
@@ -486,33 +574,41 @@ fn conf_agent_15_threads_anchor_to_brief_fields() {
     }
     // Who can't read the merge request gets 404.
     let dave = token(&w.s, "dave", &["repo:write", "mrs:write"]);
-    assert_eq!(on_field(&w, &dave, &brief_id, "intent").status, 404);
+    assert_eq!(on_item(&w, &dave, &brief_id, 0).status, 404);
     assert_eq!(threads(&w).len(), 1);
 
-    // A newer edit replaces the brief: the thread is on an earlier one.
-    assert_eq!(w.write(&w.bob, &id, brief("Add a, edited")).status, 201);
+    // A newer edit that keeps the item keeps the thread current, wherever
+    // the item now is; one without it puts the thread on an earlier brief.
+    let mut moved = brief("Add a, edited");
+    let effect = moved["items"][1].take();
+    moved["items"] = json!([moved["items"][0].clone(), {"kind": "risk", "text": "r"}, effect]);
+    assert_eq!(w.write(&w.bob, &id, moved).status, 201);
+    assert_eq!(threads(&w)[0]["brief"]["current"], true);
+    let mut changed = brief("Add a, edited");
+    changed["items"][1]["text"] = json!("Line one only");
+    assert_eq!(w.write(&w.bob, &id, changed).status, 201);
     assert_eq!(threads(&w)[0]["brief"]["current"], false);
 }
 
 #[test]
-fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
+fn conf_agent_15_brief_items_take_comments_on_the_change_page() {
     use slath_tests::http::submit;
     let w = World::start();
     let (id, _) = w.change();
     let b = w.write(&w.alice, &id, brief("Add a")).json();
     let brief_id = b["id"].as_str().unwrap().to_owned();
-    let tid = on_field(&w, &w.carol, &brief_id, "approach").json()["id"]
+    let tid = on_item(&w, &w.carol, &brief_id, 1).json()["id"]
         .as_str()
         .unwrap()
         .to_owned();
 
-    // The conversation locates the thread and quotes the field.
+    // The conversation locates the thread and quotes the item.
     let mut carol = w.s.login("carol", PASSWORD);
     let conversation = format!("/alice/demo/merge-requests/{}", w.n);
     let conv = carol.get(&conversation).body;
     let short: String = id.chars().take(8).collect();
     assert!(
-        conv.contains(&format!("Brief of change {short}, version 1: Approach")),
+        conv.contains(&format!("Brief of change {short}, version 1: Effect")),
         "{conv}"
     );
     assert!(
@@ -520,7 +616,7 @@ fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
         "{conv}"
     );
 
-    // On the change's page, each field lists its threads and has a
+    // On the change's page, each item lists its threads and has a
     // Comment link that opens a form under it.
     let page = format!("{conversation}/changes/{id}");
     let shown = carol.get(&page).body;
@@ -529,19 +625,19 @@ fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
         "{shown}"
     );
     assert!(
-        shown.contains(&format!("{page}?brief_comment=intent#brief-intent")),
+        shown.contains(&format!("{page}?brief_comment=0#brief-item-0")),
         "{shown}"
     );
     assert!(
-        !shown.contains("name=\"brief_field\""),
+        !shown.contains("name=\"brief_item\""),
         "no form until opened"
     );
-    let opened = format!("{page}?brief_comment=intent");
+    let opened = format!("{page}?brief_comment=0");
     assert!(
         carol
             .get(&opened)
             .body
-            .contains("name=\"brief_field\" value=\"intent\"")
+            .contains("name=\"brief_item\" value=\"0\"")
     );
     let r = submit(
         &mut carol,
@@ -549,23 +645,23 @@ fn conf_agent_15_brief_fields_take_comments_on_the_change_page() {
         &format!("{conversation}/threads"),
         &[
             ("brief", &brief_id),
-            ("brief_field", "intent"),
+            ("brief_item", "0"),
             ("back", &page),
             ("mode", "single"),
             ("body", "Why a?"),
         ],
     );
     assert_eq!(r.status, 303, "{}", r.body);
-    let fields: Vec<String> = threads(&w)
+    let kinds: Vec<String> = threads(&w)
         .iter()
-        .filter_map(|t| t["brief"]["field"].as_str().map(str::to_owned))
+        .filter_map(|t| t["brief"]["kind"].as_str().map(str::to_owned))
         .collect();
-    assert_eq!(fields, ["approach", "intent"]);
+    assert_eq!(kinds, ["effect", "motivation"]);
     // Signed out, the page offers no Comment link.
     let anon = w.s.client().get(&page);
     assert!(!anon.body.contains("brief_comment"), "{}", anon.body);
 
-    // Once a newer edit replaces the brief, they're on an earlier one.
+    // Once a newer edit drops the item, its thread is on an earlier one.
     assert_eq!(w.write(&w.bob, &id, brief("Add a, edited")).status, 201);
     assert!(
         carol

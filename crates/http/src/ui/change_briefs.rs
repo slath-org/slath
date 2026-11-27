@@ -4,17 +4,16 @@
 //! shown version's newest edit), the comparison of two versions' briefs,
 //! and the page that writes one
 //! (`…/merge-requests/{n}/changes/{change}/brief`). A brief is its
-//! author's claim, shown as plain text.
+//! author's claim, shown as plain text: a list of items, grouped by kind.
 
 use askama::Template;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Form, Router};
-use serde::Deserialize;
-use slath_db::change_briefs::Brief;
 use slath_db::merge_requests::MergeRequest;
-use slath_service::change_briefs::{ChangeBrief, SCHEMA};
+use slath_service::brief_schema::{Compared, Item, Kind, SCHEMA, compare, numbered};
+use slath_service::change_briefs::ChangeBrief;
 use slath_service::{FieldError, ServiceError};
 
 use super::repos::RepoHeader;
@@ -25,35 +24,6 @@ use crate::auth::RequireSession;
 use crate::error::AppError;
 use crate::routes::{Access, RouteExt};
 
-/// The fields in the order shown, with their names and form hints.
-const FIELDS: [(&str, &str, &str); 4] = [
-    ("intent", "Intent", "What the change is for."),
-    ("approach", "Approach", "How it does it."),
-    (
-        "verification",
-        "Verification",
-        "How it was checked: tests run, what was tried.",
-    ),
-    ("gaps", "Known gaps", "What's known to be missing or wrong."),
-];
-
-/// A field's name as the page shows it.
-pub fn field_label(field: &str) -> &'static str {
-    FIELDS
-        .iter()
-        .find(|(id, _, _)| *id == field)
-        .map_or("Brief", |(_, label, _)| label)
-}
-
-fn field_texts(b: &Brief) -> [Option<&str>; 4] {
-    [
-        Some(b.intent.as_str()),
-        b.approach.as_deref(),
-        b.verification.as_deref(),
-        b.gaps.as_deref(),
-    ]
-}
-
 /// A version's brief as the change's page shows it.
 pub struct BriefView {
     pub id: String,
@@ -61,25 +31,29 @@ pub struct BriefView {
     pub created: Time,
     /// How many edits the version's brief has (1 without edits).
     pub edits: usize,
-    /// Each present field.
-    pub fields: Vec<FieldView>,
+    /// Its items, by kind in the order a brief shows them.
+    pub items: Vec<ItemView>,
 }
 
-/// One field of the shown brief, with the threads on it.
-pub struct FieldView {
-    pub id: &'static str,
-    pub label: &'static str,
+/// One item of the shown brief, with the threads on it.
+pub struct ItemView {
+    /// Its index in the edit's items, and its name ("Effect 2").
+    pub index: usize,
+    pub name: String,
     pub text: String,
+    pub before: Option<String>,
+    pub after: Option<String>,
     /// Each thread's ID, starter, number of comments, and whether it's
     /// resolved.
     pub threads: Vec<(String, Who, usize, bool)>,
-    /// Opens the comment form under the field, for those who may comment.
+    /// Opens the comment form under the item, for those who may comment.
     pub comment_href: Option<String>,
     /// The comment form is open here.
     pub form_open: bool,
-    /// For the verification field: the checks reported on the version's
-    /// own commit (context, state, reporter), since what it claims can be
-    /// held against them, and never statuses of another commit.
+    /// Under the last verification item: the checks reported on the
+    /// version's own commit (context, state, reporter), since what it
+    /// claims can be held against them, and never statuses of another
+    /// commit.
     pub checks: Option<Vec<(String, String, Who)>>,
 }
 
@@ -89,13 +63,15 @@ pub struct Viewer<'a> {
     /// May write briefs (the latest version's) and comment.
     pub write: bool,
     pub comment: bool,
-    /// The field whose comment form is open (`?brief_comment=`).
-    pub open: Option<&'a str>,
+    /// The item whose comment form is open (`?brief_comment=`).
+    pub open: Option<usize>,
 }
 
-/// One field of two versions' briefs compared.
-pub struct FieldDiff {
-    pub label: &'static str,
+/// One item of two versions' briefs compared: its name, `new`,
+/// `updated`, or `removed`, and its lines compared.
+pub struct ItemDiff {
+    pub name: String,
+    pub mark: &'static str,
     pub diff: Result<Vec<super::merge_requests::DescriptionLine>, ()>,
 }
 
@@ -103,14 +79,44 @@ pub struct FieldDiff {
 pub struct BriefParts {
     /// The shown version's brief, when not comparing.
     pub shown: Option<BriefView>,
-    /// The changed fields when comparing two versions.
-    pub changed: Vec<FieldDiff>,
+    /// The items that differ when comparing two versions, and how many
+    /// are the same.
+    pub changed: Vec<ItemDiff>,
+    pub unchanged: usize,
     /// The page that writes the brief of the latest version, for those
     /// who may, with whether one exists.
     pub write: Option<(String, bool)>,
-    /// Where a field's comment form posts, and the page it returns to.
+    /// Where an item's comment form posts, and the page it returns to.
     pub threads_action: String,
     pub back: String,
+}
+
+impl BriefParts {
+    /// "1 new, 1 updated, 3 unchanged" for a comparison.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let count = |mark: &str| self.changed.iter().filter(|d| d.mark == mark).count();
+        [
+            (count("new"), "new"),
+            (count("updated"), "updated"),
+            (count("removed"), "removed"),
+            (self.unchanged, "unchanged"),
+        ]
+        .into_iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, what)| format!("{n} {what}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+    }
+}
+
+/// Indexes of `items` in the order a brief shows them: by kind, then as
+/// the author ordered them.
+fn shown_order(items: &[Item]) -> Vec<usize> {
+    Kind::ALL
+        .iter()
+        .flat_map(|k| (0..items.len()).filter(move |i| items[*i].kind == *k))
+        .collect()
 }
 
 /// The briefs of `change` for its page: `shown` is the version shown,
@@ -149,13 +155,18 @@ pub async fn parts(
                     .brief_threads(viewer.subject, m, v.brief.id)
                     .await?;
                 let mut b = view(v, edits(shown), &threads, &page, viewer);
-                if let Some(f) = b.fields.iter_mut().find(|f| f.id == "verification") {
+                if let Some(it) = b
+                    .items
+                    .iter_mut()
+                    .rev()
+                    .find(|it| v.items[it.index].kind == Kind::Verification)
+                {
                     let mut statuses = state
                         .services
                         .commit_statuses(viewer.subject, (ns, repo), shown)
                         .await?;
                     statuses.sort_by(|a, b| a.context.cmp(&b.context));
-                    f.checks = Some(
+                    it.checks = Some(
                         statuses
                             .into_iter()
                             .map(|st| (st.context, st.state, Who::account(st.reporter)))
@@ -168,25 +179,40 @@ pub async fn parts(
         return Ok(BriefParts {
             shown,
             changed: Vec::new(),
+            unchanged: 0,
             write,
             threads_action: format!("/{ns}/{repo}/merge-requests/{}/threads", m.number),
             back: page,
         });
     };
-    let empty = [None; 4];
-    let a = of(from).map_or(empty, |v| field_texts(&v.brief));
-    let b = of(shown).map_or(empty, |v| field_texts(&v.brief));
-    let changed = FIELDS
-        .iter()
-        .zip(a.iter().zip(b.iter()))
-        .filter_map(|((_, label, _), (x, y))| {
-            super::merge_requests::description_diff(x.unwrap_or(""), y.unwrap_or(""))
-                .map(|diff| FieldDiff { label, diff })
-        })
-        .collect();
+    let old = of(from).map(|v| v.items.clone()).unwrap_or_default();
+    let new = of(shown).map(|v| v.items.clone()).unwrap_or_default();
+    let (old_names, new_names) = (numbered(&old), numbered(&new));
+    let lines = |it: &Item| it.lines().join("\n");
+    let mut changed = Vec::new();
+    let mut unchanged = 0;
+    for c in compare(&old, &new) {
+        let (name, mark, a, b) = match c {
+            Compared::Same(..) => {
+                unchanged += 1;
+                continue;
+            }
+            Compared::Updated(i, j) => (&new_names[j].1, "updated", lines(&old[i]), lines(&new[j])),
+            Compared::New(j) => (&new_names[j].1, "new", String::new(), lines(&new[j])),
+            Compared::Removed(i) => (&old_names[i].1, "removed", lines(&old[i]), String::new()),
+        };
+        if let Some(diff) = super::merge_requests::description_diff(&a, &b) {
+            changed.push(ItemDiff {
+                name: name.clone(),
+                mark,
+                diff,
+            });
+        }
+    }
     Ok(BriefParts {
         shown: None,
         changed,
+        unchanged,
         write: None,
         threads_action: String::new(),
         back: String::new(),
@@ -200,23 +226,26 @@ fn view(
     page: &str,
     viewer: &Viewer<'_>,
 ) -> BriefView {
+    let names = numbered(&v.items);
     BriefView {
         id: v.brief.id.to_string(),
         author: Who::account(v.author.clone()),
         created: v.brief.created_at.into(),
         edits,
-        fields: FIELDS
-            .iter()
-            .zip(field_texts(&v.brief))
-            .filter_map(|((id, label, _), text)| {
-                let text = text?;
-                Some(FieldView {
-                    id,
-                    label,
-                    text: slath_markup::reveal_bidi(text).into_owned(),
+        items: shown_order(&v.items)
+            .into_iter()
+            .map(|i| {
+                let it = &v.items[i];
+                let reveal = |s: &str| slath_markup::reveal_bidi(s).into_owned();
+                ItemView {
+                    index: i,
+                    name: names[i].1.clone(),
+                    text: reveal(&it.text),
+                    before: it.before.as_deref().map(reveal),
+                    after: it.after.as_deref().map(reveal),
                     threads: threads
                         .iter()
-                        .filter(|t| t.field == *id)
+                        .filter(|t| t.item == i)
                         .map(|t| {
                             (
                                 t.id.to_string(),
@@ -228,13 +257,33 @@ fn view(
                         .collect(),
                     comment_href: viewer
                         .comment
-                        .then(|| format!("{page}?brief_comment={id}#brief-{id}")),
-                    form_open: viewer.comment && viewer.open == Some(*id),
+                        .then(|| format!("{page}?brief_comment={i}#brief-item-{i}")),
+                    form_open: viewer.comment && viewer.open == Some(i),
                     checks: None,
-                })
+                }
             })
             .collect(),
     }
+}
+
+/// One kind's items in the form.
+struct GroupView {
+    kind: &'static str,
+    heading: &'static str,
+    hint: &'static str,
+    /// "Add an effect".
+    add: String,
+    items: Vec<SlotView>,
+}
+
+/// One item in the form: its fields' ID prefix (`item-effect-0`), its
+/// name, its text, and an effect's Before and After fields (ID, label,
+/// value).
+struct SlotView {
+    id: String,
+    name: String,
+    text: String,
+    extra: Vec<(String, &'static str, String)>,
 }
 
 #[derive(Template)]
@@ -246,8 +295,9 @@ struct FormPage {
     action: String,
     back: String,
     commit: String,
-    /// Each field's id, name, hint, and value.
-    fields: Vec<(&'static str, &'static str, &'static str, String)>,
+    groups: Vec<GroupView>,
+    /// The field to focus (the item just added).
+    focus: Option<String>,
     errors: Vec<FieldError>,
 }
 
@@ -255,29 +305,150 @@ impl FormPage {
     fn error(&self, field: &str) -> Option<&str> {
         error_for(&self.errors, field)
     }
+
+    fn is_effect(kind: &str) -> bool {
+        kind == Kind::Effect.as_str()
+    }
 }
 
-#[derive(Deserialize)]
-struct BriefForm {
-    #[serde(default)]
-    commit: String,
-    #[serde(default)]
-    intent: String,
-    #[serde(default)]
-    approach: String,
-    #[serde(default)]
-    verification: String,
-    #[serde(default)]
-    gaps: String,
+/// The form's items: for each kind, its items in order (text, before,
+/// after).
+#[derive(Default, Clone)]
+struct Slots(Vec<(Kind, Vec<[String; 3]>)>);
+
+impl Slots {
+    fn of_items(items: &[Item]) -> Self {
+        Self(
+            Kind::ALL
+                .iter()
+                .map(|k| {
+                    let mine = items
+                        .iter()
+                        .filter(|it| it.kind == *k)
+                        .map(|it| {
+                            [
+                                it.text.clone(),
+                                it.before.clone().unwrap_or_default(),
+                                it.after.clone().unwrap_or_default(),
+                            ]
+                        })
+                        .collect();
+                    (*k, mine)
+                })
+                .collect(),
+        )
+    }
+
+    /// Reads `item-<kind>-<n>-<text|before|after>` fields.
+    fn of_form(fields: &[(String, String)]) -> Self {
+        let mut out = Self::of_items(&[]);
+        for (key, value) in fields {
+            let Some(rest) = key.strip_prefix("item-") else {
+                continue;
+            };
+            let mut parts = rest.splitn(3, '-');
+            let (Some(kind), Some(n), Some(part)) = (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            let (Some(kind), Ok(n)) = (Kind::parse(kind), n.parse::<usize>()) else {
+                continue;
+            };
+            let at = match part {
+                "text" => 0,
+                "before" => 1,
+                "after" => 2,
+                _ => continue,
+            };
+            // A form names at most a few dozen items per kind.
+            if n > 200 {
+                continue;
+            }
+            if let Some((_, slots)) = out.0.iter_mut().find(|(k, _)| *k == kind) {
+                if slots.len() <= n {
+                    slots.resize(n + 1, Default::default());
+                }
+                slots[n][at].clone_from(value);
+            }
+        }
+        out
+    }
+
+    /// The items to save, and each one's field ID prefix; items with
+    /// nothing typed are dropped.
+    fn items(&self) -> (Vec<serde_json::Value>, Vec<String>) {
+        let mut items = Vec::new();
+        let mut ids = Vec::new();
+        for (kind, slots) in &self.0 {
+            for (n, [text, before, after]) in slots.iter().enumerate() {
+                if text.trim().is_empty() && before.trim().is_empty() && after.trim().is_empty() {
+                    continue;
+                }
+                let mut v = serde_json::json!({"kind": kind.as_str(), "text": text});
+                if *kind == Kind::Effect {
+                    v["before"] = before.clone().into();
+                    v["after"] = after.clone().into();
+                }
+                items.push(v);
+                ids.push(format!("item-{}-{n}", kind.as_str()));
+            }
+        }
+        (items, ids)
+    }
+
+    fn groups(&self) -> Vec<GroupView> {
+        self.0
+            .iter()
+            .map(|(kind, slots)| {
+                let label = kind.label();
+                let article = if label.starts_with(['A', 'E', 'I', 'O', 'U']) {
+                    "an"
+                } else {
+                    "a"
+                };
+                GroupView {
+                    kind: kind.as_str(),
+                    heading: kind.heading(),
+                    hint: kind.hint(),
+                    add: format!("Add {article} {}", label.to_lowercase()),
+                    items: slots
+                        .iter()
+                        .enumerate()
+                        .map(|(n, [text, before, after])| {
+                            let id = format!("item-{}-{n}", kind.as_str());
+                            SlotView {
+                                name: if slots.len() > 1 {
+                                    format!("{label} {}", n + 1)
+                                } else {
+                                    label.to_owned()
+                                },
+                                text: text.clone(),
+                                extra: if *kind == Kind::Effect {
+                                    vec![
+                                        (format!("{id}-before"), "Before", before.clone()),
+                                        (format!("{id}-after"), "After", after.clone()),
+                                    ]
+                                } else {
+                                    Vec::new()
+                                },
+                                id,
+                            }
+                        })
+                        .collect(),
+                }
+            })
+            .collect()
+    }
 }
 
-/// The form page's frame for merge request `n`'s change `change`.
+/// The form page's frame for merge request `n`'s change `change`, with
+/// `values` typed so far (and errors), or the version's brief.
 async fn form_page(
     state: &AppState,
     s: &slath_core::authz::Subject,
     (ns, repo, n, change): (&str, &str, i32, &str),
     ctx: PageCtx,
-    values: Option<(&BriefForm, Vec<FieldError>)>,
+    values: Option<(Slots, String, Vec<FieldError>, Option<String>)>,
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(s, ns, repo, n).await?;
     if !slath_service::Services::may_write_brief(s, &a, &m) {
@@ -295,24 +466,18 @@ async fn form_page(
         .await?
         .into_iter()
         .next();
-    let (texts, commit, errors) = match values {
-        Some((f, errors)) => (
-            [
-                f.intent.clone(),
-                f.approach.clone(),
-                f.verification.clone(),
-                f.gaps.clone(),
-            ],
-            f.commit.clone(),
-            errors,
-        ),
-        None => (
-            current.as_ref().map_or_else(Default::default, |c| {
-                field_texts(&c.brief).map(|t| t.unwrap_or_default().to_owned())
-            }),
-            latest.commit_oid.clone(),
-            Vec::new(),
-        ),
+    let (slots, commit, errors, focus) = match values {
+        Some(v) => v,
+        None => {
+            let mut slots = Slots::of_items(current.as_ref().map_or(&[][..], |c| &c.items));
+            // A new brief starts with what the change is for.
+            if let Some((_, first)) = slots.0.first_mut()
+                && first.is_empty()
+            {
+                first.push(Default::default());
+            }
+            (slots, latest.commit_oid.clone(), Vec::new(), None)
+        }
     };
     let status = if errors.is_empty() {
         StatusCode::OK
@@ -330,11 +495,8 @@ async fn form_page(
         action: format!("{page_url}/brief"),
         back: page_url,
         commit,
-        fields: FIELDS
-            .iter()
-            .zip(texts)
-            .map(|((id, label, hint), v)| (*id, *label, *hint, v))
-            .collect(),
+        groups: slots.groups(),
+        focus,
         errors,
         ctx,
     });
@@ -352,23 +514,64 @@ async fn show_form(
     form_page(&state, &s.subject, (&ns, &repo, n, &change), ctx, None).await
 }
 
+/// The form field an error's JSON pointer (`/items/2/text`) names.
+fn field_of(pointer: &str, ids: &[String]) -> String {
+    let mut parts = pointer.trim_start_matches('/').split('/');
+    match (
+        parts.next(),
+        parts.next().and_then(|i| i.parse::<usize>().ok()),
+    ) {
+        (Some("items"), Some(i)) if i < ids.len() => {
+            let part = parts.next().unwrap_or("text");
+            format!("{}-{part}", ids[i])
+        }
+        // No items at all: at the first one, what the change is for.
+        (Some("items"), None) => "item-motivation-0-text".to_owned(),
+        _ => pointer.trim_start_matches('/').to_owned(),
+    }
+}
+
 async fn write(
     State(state): State<AppState>,
     ctx: PageCtx,
     RequireSession(s): RequireSession,
     Path((ns, repo, n, change)): Path<(String, String, String, String)>,
-    Form(f): Form<BriefForm>,
+    Form(fields): Form<Vec<(String, String)>>,
 ) -> Result<Response, AppError> {
     let n: i32 = n.parse().map_err(|_| AppError::not_found())?;
+    let field = |name: &str| {
+        fields
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
+    };
+    let commit = field("commit");
+    let mut slots = Slots::of_form(&fields);
+    // "Add …" shows the form again with one more empty item, saving
+    // nothing.
+    if let Some(kind) = Kind::parse(&field("add")) {
+        let mut focus = None;
+        if let Some((_, items)) = slots.0.iter_mut().find(|(k, _)| *k == kind) {
+            focus = Some(format!("item-{}-{}-text", kind.as_str(), items.len()));
+            items.push(Default::default());
+        }
+        return form_page(
+            &state,
+            &s.subject,
+            (&ns, &repo, n, &change),
+            ctx,
+            Some((slots, commit, Vec::new(), focus)),
+        )
+        .await;
+    }
+    let (items, ids) = slots.items();
     let body = serde_json::json!({
         "schema": SCHEMA,
-        "intent": f.intent,
-        "approach": f.approach,
-        "verification": f.verification,
-        "gaps": f.gaps,
+        "items": items,
         // Opened on a version's commit; a form without one writes the
         // latest version's.
-        "commit": (!f.commit.is_empty()).then_some(&f.commit),
+        "commit": (!commit.is_empty()).then_some(&commit),
     });
     let body = serde_json::to_vec(&body).map_err(|e| AppError::internal(&e))?;
     match state
@@ -385,16 +588,22 @@ async fn write(
             let errors = errors
                 .into_iter()
                 .map(|e| FieldError {
-                    field: e.field.trim_start_matches('/').to_owned(),
+                    field: field_of(&e.field, &ids),
                     ..e
                 })
                 .collect();
+            // Keep an empty item where an error points at "no items".
+            if let Some((_, first)) = slots.0.first_mut()
+                && first.is_empty()
+            {
+                first.push(Default::default());
+            }
             form_page(
                 &state,
                 &s.subject,
                 (&ns, &repo, n, &change),
                 ctx,
-                Some((&f, errors)),
+                Some((slots, commit, errors, None)),
             )
             .await
         }
@@ -408,4 +617,39 @@ pub fn router() -> Router<AppState> {
         Access::Resource,
         axum::routing::get(show_form).post(write),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn form_fields_become_items_in_kind_order() {
+        let f = |k: &str, v: &str| (k.to_owned(), v.to_owned());
+        let slots = Slots::of_form(&[
+            f("item-effect-1-text", "second"),
+            f("item-effect-0-text", "first"),
+            f("item-effect-0-before", "slow"),
+            f("item-motivation-0-text", "why"),
+            f("item-risk-0-text", "  "),
+            f("item-wish-0-text", "ignored"),
+            f("commit", "x"),
+        ]);
+        let (items, ids) = slots.items();
+        let texts: Vec<&str> = items.iter().map(|v| v["text"].as_str().unwrap()).collect();
+        assert_eq!(texts, ["why", "first", "second"]);
+        assert_eq!(items[1]["before"], "slow");
+        assert_eq!(ids, ["item-motivation-0", "item-effect-0", "item-effect-1"]);
+        assert_eq!(field_of("/items/2/text", &ids), "item-effect-1-text");
+        assert_eq!(field_of("/items/1/before", &ids), "item-effect-0-before");
+        assert_eq!(field_of("/items", &ids), "item-motivation-0-text");
+        let names: Vec<String> = slots.groups()[1]
+            .items
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        assert_eq!(names, ["Effect 1", "Effect 2"]);
+        assert_eq!(slots.groups()[1].add, "Add an effect");
+        assert_eq!(slots.groups()[2].add, "Add a risk");
+    }
 }

@@ -121,6 +121,11 @@
 :is(.form-layout, .form-layout-wide) > .field-group:first-child {
   margin-block-start: 0;
 }
+/* A group inside a group (one item made of several fields) is the groups
+   distance from its neighbors, so its fields stay together. */
+.field-group > .field-group {
+  margin-block: calc(var(--gap-groups) - var(--gap-items));
+}
 
 /* The form's buttons: one row at its end, primary first, never stretched
    (except in a details column, where they fill it). */

@@ -19,14 +19,12 @@ pub struct Brief {
     pub author_id: Option<UserId>,
     pub origin: String,
     pub schema: String,
-    pub intent: String,
-    pub approach: Option<String>,
-    pub verification: Option<String>,
-    pub gaps: Option<String>,
+    /// The items (`slath-brief/2`), as the service checked and stored them.
+    pub items: serde_json::Value,
     pub created_at: OffsetDateTime,
 }
 
-/// A new edit; the caller has checked the fields.
+/// A new edit; the caller has checked the items.
 #[derive(Debug, Clone)]
 pub struct NewBrief<'a> {
     pub mr_id: MergeRequestId,
@@ -34,10 +32,7 @@ pub struct NewBrief<'a> {
     pub commit_oid: &'a str,
     pub author_id: UserId,
     pub origin: &'a str,
-    pub intent: &'a str,
-    pub approach: Option<&'a str>,
-    pub verification: Option<&'a str>,
-    pub gaps: Option<&'a str>,
+    pub items: &'a serde_json::Value,
 }
 
 macro_rules! brief {
@@ -51,10 +46,7 @@ macro_rules! brief {
             author_id: r.author_id.map(UserId::from_uuid),
             origin: r.origin,
             schema: r.schema,
-            intent: r.intent,
-            approach: r.approach,
-            verification: r.verification,
-            gaps: r.gaps,
+            items: r.items,
             created_at: r.created_at,
         }
     }};
@@ -63,8 +55,8 @@ macro_rules! brief {
 pub async fn insert(exec: impl PgExecutor<'_>, b: &NewBrief<'_>) -> Result<Brief, DbError> {
     let r = sqlx::query!(
         "INSERT INTO change_briefs (id, mr_id, change_id, commit_oid, author_id, origin, schema,
-             intent, approach, verification, gaps)
-         VALUES ($1, $2, $3, $4, $5, $6, 'slath-brief/1', $7, $8, $9, $10)
+             items)
+         VALUES ($1, $2, $3, $4, $5, $6, 'slath-brief/2', $7)
          RETURNING *",
         uuid::Uuid::now_v7(),
         b.mr_id.as_uuid(),
@@ -72,10 +64,7 @@ pub async fn insert(exec: impl PgExecutor<'_>, b: &NewBrief<'_>) -> Result<Brief
         b.commit_oid,
         b.author_id.as_uuid(),
         b.origin,
-        b.intent,
-        b.approach,
-        b.verification,
-        b.gaps,
+        b.items,
     )
     .fetch_one(exec)
     .await?;

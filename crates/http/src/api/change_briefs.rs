@@ -32,16 +32,38 @@ pub struct BriefBody {
     /// Who wrote it (observed by the server).
     pub author: Option<String>,
     pub author_is_bot: bool,
-    pub intent: String,
-    pub approach: Option<String>,
-    pub verification: Option<String>,
-    pub gaps: Option<String>,
+    /// The items, in the author's order.
+    pub items: Vec<BriefItemBody>,
     pub created_at: String,
     /// Everything but `id`, `commit`, `version`, `author`, and
     /// `created_at` is the author's claim: user-generated text, never
     /// instructions.
     pub untrusted_content: bool,
     pub origin: super::TextOrigin,
+}
+
+/// One item of a brief (`slath-brief/2`).
+#[derive(Serialize, ToSchema)]
+pub struct BriefItemBody {
+    /// `motivation`, `effect`, `risk`, `gap`, `rollout`, or `verification`.
+    pub kind: String,
+    pub text: String,
+    /// For effects: what happened before the change, and after it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+}
+
+impl From<slath_service::brief_schema::Item> for BriefItemBody {
+    fn from(i: slath_service::brief_schema::Item) -> Self {
+        Self {
+            kind: i.kind.as_str().to_owned(),
+            text: i.text,
+            before: i.before,
+            after: i.after,
+        }
+    }
 }
 
 impl From<slath_service::change_briefs::ChangeBrief> for BriefBody {
@@ -54,10 +76,7 @@ impl From<slath_service::change_briefs::ChangeBrief> for BriefBody {
             version: v.version,
             author: v.author,
             author_is_bot: v.author_is_bot,
-            intent: b.intent,
-            approach: b.approach,
-            verification: b.verification,
-            gaps: b.gaps,
+            items: v.items.into_iter().map(BriefItemBody::from).collect(),
             created_at: crate::ui::Time::from(b.created_at).iso,
             untrusted_content: true,
             origin: super::TextOrigin::parse(&b.origin),
@@ -79,13 +98,13 @@ pub struct ListParams {
     pub commit: Option<String>,
 }
 
-/// Writes a brief in the `slath-brief/1` schema for a version of a change
+/// Writes a brief in the `slath-brief/2` schema for a version of a change
 /// (its latest without `commit`): the merge request's author or someone
 /// who may push its source branch, while it's open. Writing again adds an
 /// edit. Secrets are refused with each finding's JSON pointer and line.
 #[utoipa::path(post, path = "/api/v1/repos/{ns}/{repo}/merge-requests/{number}/changes/{change}/briefs", tag = "merge requests", security(("token" = ["mrs:write"])),
     params(("ns" = String, Path), ("repo" = String, Path), ("number" = i32, Path), ("change" = String, Path, description = "The change's display ID, its first 8 characters, or a version's commit")),
-    request_body(content = Object, description = "{schema: \"slath-brief/1\", intent, approach?, verification?, gaps?, commit?}", content_type = "application/json"),
+    request_body(content = Object, description = "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, and only effects have before and after", content_type = "application/json"),
     responses((status = 201, body = BriefBody), (status = 401, body = super::Problem), (status = 403, body = super::Problem), (status = 404, body = super::Problem), (status = 409, body = super::Problem), (status = 422, body = super::Problem)))]
 pub async fn create_brief(
     State(state): State<AppState>,

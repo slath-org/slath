@@ -53,7 +53,7 @@ header instead. If a client insists on OAuth, it gets `401` and stops.
 | `get_group` | Merge requests linked to land together |
 | `list_threads`, `list_reviews`, `list_merge_request_comments` | Review threads, reviews, and the conversation |
 | `list_statuses` | The checks on a commit |
-| `list_change_briefs` | A change's briefs: what each version is for, how it was checked, what's missing ([briefs](agents.md#briefs-what-a-change-is-for)); writing is through the API |
+| `list_change_briefs` | A change's briefs: items saying what each version is for, what it changes, and how it was checked ([briefs](agents.md#briefs-what-a-change-is-for)); writing is through the API |
 | `list_context_records`, `get_context_record` | Agents' records of how changes were made, where you may see them ([context records](agents.md#context-records-how-a-change-was-made)); uploading is through the API |
 | `list_assigned_work_orders`, `list_work_orders`, `get_work_order`, `list_work_order_events`, `get_work_order_state`, `get_merge_request_state` | Work orders: the ones assigned to your bot, a repository's, one order, and what happened under it, and an order's or merge request's state in one read ([work orders](agents.md#work-orders-delegating-one-task)); claiming is through the API |
 

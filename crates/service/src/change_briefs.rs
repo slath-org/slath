@@ -8,103 +8,31 @@
 //! revision that keeps a change's commit keeps its brief. Writing again
 //! adds an edit; a version's brief is its newest edit. Everyone who can
 //! read the merge request reads its briefs; its author and those who may
-//! push its source branch write them, while it's open. Every field is
-//! scanned for secrets before anything is stored.
+//! push its source branch write them, while it's open. Every text is
+//! scanned for secrets before anything is stored. The schema is in
+//! [`crate::brief_schema`].
 
-use serde::Deserialize;
 use slath_core::authz::{Subject, UserKind};
 use slath_db::change_briefs::{Brief, NewBrief};
 use slath_db::merge_requests::MergeRequest;
 
 use crate::Services;
+use crate::brief_schema::{Item, Upload, stored_items};
 use crate::error::{Result, ServiceError};
 use crate::mr_changes::ChangeInfo;
 use crate::repos::RepoAccess;
 
-/// The one schema this version accepts.
-pub const SCHEMA: &str = "slath-brief/1";
-/// The longest field, in bytes.
-pub const FIELD_MAX_BYTES: usize = 16 * 1024;
+pub use crate::brief_schema::SCHEMA;
 
 /// A brief as its readers see it.
 #[derive(Debug, Clone)]
 pub struct ChangeBrief {
     pub brief: Brief,
+    pub items: Vec<Item>,
     pub author: Option<String>,
     pub author_is_bot: bool,
     /// The number of the change's first version with this commit.
     pub version: Option<usize>,
-}
-
-/// A brief as written (`slath-brief/1`).
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Upload {
-    pub schema: String,
-    pub intent: String,
-    #[serde(default)]
-    pub approach: Option<String>,
-    #[serde(default)]
-    pub verification: Option<String>,
-    #[serde(default)]
-    pub gaps: Option<String>,
-    /// A version's commit; the change's latest version without it.
-    #[serde(default)]
-    pub commit: Option<String>,
-}
-
-/// An optional field, with empty text counting as absent.
-fn present(s: Option<&String>) -> Option<&str> {
-    s.map(|s| s.as_str()).filter(|s| !s.trim().is_empty())
-}
-
-impl Upload {
-    /// Its fields by JSON pointer, absent ones left out.
-    fn fields(&self) -> Vec<(String, &str)> {
-        [
-            ("/intent", Some(self.intent.as_str())),
-            ("/approach", present(self.approach.as_ref())),
-            ("/verification", present(self.verification.as_ref())),
-            ("/gaps", present(self.gaps.as_ref())),
-        ]
-        .into_iter()
-        .filter_map(|(k, v)| v.map(|v| (k.to_owned(), v)))
-        .collect()
-    }
-
-    fn check(&self) -> Result<()> {
-        if self.schema != SCHEMA {
-            return Err(ServiceError::invalid(
-                "/schema",
-                "schema",
-                format!("Send \"schema\": \"{SCHEMA}\"."),
-            ));
-        }
-        if self.intent.trim().is_empty() {
-            return Err(ServiceError::invalid(
-                "/intent",
-                "invalid",
-                "Say what the change is for.",
-            ));
-        }
-        let long: Vec<_> = self
-            .fields()
-            .into_iter()
-            .filter(|(_, v)| v.len() > FIELD_MAX_BYTES)
-            .map(|(k, _)| {
-                crate::error::FieldError::new(
-                    &k,
-                    "too_long",
-                    format!("Keep it to {} KiB.", FIELD_MAX_BYTES / 1024),
-                )
-            })
-            .collect();
-        if long.is_empty() {
-            Ok(())
-        } else {
-            Err(ServiceError::Invalid(long))
-        }
-    }
 }
 
 impl Services {
@@ -157,10 +85,7 @@ impl Services {
                 format!("Send a brief of at most {} KiB.", limit / 1024),
             ));
         }
-        let upload: Upload = serde_json::from_slice(body).map_err(|e| {
-            ServiceError::invalid("body", "invalid", format!("This isn't a valid brief: {e}."))
-        })?;
-        upload.check()?;
+        let upload = Upload::parse(body)?;
         let commit = match &upload.commit {
             None => info
                 .versions
@@ -180,7 +105,8 @@ impl Services {
                     )
                 })?,
         };
-        self.refuse_secrets(upload.fields())?;
+        self.refuse_secrets(upload.texts())?;
+        let items = serde_json::to_value(&upload.items).map_err(ServiceError::internal)?;
         let origin = self.origin_of(subject, &a.repo).await?;
         let brief = slath_db::change_briefs::insert(
             &self.pool,
@@ -190,10 +116,7 @@ impl Services {
                 commit_oid: &commit,
                 author_id: *author,
                 origin: origin.as_str(),
-                intent: upload.intent.trim_end(),
-                approach: present(upload.approach.as_ref()).map(str::trim_end),
-                verification: present(upload.verification.as_ref()).map(str::trim_end),
-                gaps: present(upload.gaps.as_ref()).map(str::trim_end),
+                items: &items,
             },
         )
         .await?;
@@ -213,6 +136,7 @@ impl Services {
                 .map(|v| v.number),
             author_is_bot: author.as_ref().is_some_and(|u| u.kind == UserKind::Bot),
             author: author.map(|u| u.name),
+            items: stored_items(&brief.items),
             brief,
         })
     }
@@ -252,31 +176,5 @@ impl Services {
             out.push(self.brief_view(&info, b).await?);
         }
         Ok(out)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn upload(json: &str) -> std::result::Result<Upload, serde_json::Error> {
-        serde_json::from_str(json)
-    }
-
-    #[test]
-    fn briefs_need_the_schema_and_an_intent() {
-        assert!(upload(r#"{"schema":"slath-brief/1","intent":"x","extra":1}"#).is_err());
-        let wrong = upload(r#"{"schema":"slath-brief/2","intent":"x"}"#).unwrap();
-        assert!(wrong.check().is_err());
-        let empty = upload(r#"{"schema":"slath-brief/1","intent":"  "}"#).unwrap();
-        assert!(empty.check().is_err());
-        let ok = upload(r#"{"schema":"slath-brief/1","intent":"x","gaps":""}"#).unwrap();
-        assert!(ok.check().is_ok());
-        assert_eq!(ok.fields().len(), 1);
-        let long = Upload {
-            approach: Some("a".repeat(FIELD_MAX_BYTES + 1)),
-            ..ok
-        };
-        assert!(long.check().is_err());
     }
 }

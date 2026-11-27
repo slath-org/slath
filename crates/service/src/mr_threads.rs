@@ -34,22 +34,23 @@ pub struct NewThread {
     pub commit: Option<String>,
     /// Part of the author's pending review.
     pub pending: bool,
-    /// A field of a change brief's edit (its ID and `intent`, `approach`,
-    /// `verification`, or `gaps`), in place of a path and lines.
-    pub brief: Option<(uuid::Uuid, String)>,
+    /// An item of a brief edit (its ID and the item's index), in place of
+    /// a path and lines.
+    pub brief: Option<(uuid::Uuid, usize)>,
 }
 
 /// A thread on a brief, as the change's page lists it.
 #[derive(Debug, Clone)]
 pub struct BriefThread {
     pub id: uuid::Uuid,
-    pub field: String,
+    /// The index of its item in the edit shown.
+    pub item: usize,
     pub author: Option<String>,
     pub comments: usize,
     pub resolved: bool,
 }
 
-/// Where a thread on a brief is: the change, the version, and the field.
+/// Where a thread on a brief is: the change, the version, and the item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BriefPlace {
     pub brief_id: uuid::Uuid,
@@ -57,9 +58,59 @@ pub struct BriefPlace {
     pub change: String,
     /// The number of the change's first version with the brief's commit.
     pub version: Option<usize>,
-    pub field: String,
-    /// The edit is still the brief of the change's latest version.
+    /// The item's index in its edit, its kind, and its name ("Effect 2").
+    pub item: usize,
+    pub kind: crate::brief_schema::Kind,
+    pub name: String,
+    /// The change's current brief (its latest version's newest edit) still
+    /// has the item: the same kind and text.
     pub current: bool,
+}
+
+/// A merge request's brief edits, for locating threads on them.
+#[derive(Debug, Default)]
+struct BriefPlaces {
+    /// Each edit: its change, the change's display ID, the version, and
+    /// its items.
+    edits: std::collections::HashMap<
+        uuid::Uuid,
+        (
+            uuid::Uuid,
+            String,
+            Option<usize>,
+            Vec<crate::brief_schema::Item>,
+        ),
+    >,
+    /// Each change's current brief's items.
+    current: std::collections::HashMap<uuid::Uuid, Vec<crate::brief_schema::Item>>,
+}
+
+impl BriefPlaces {
+    /// Where thread `t` is, if it's on a brief item.
+    fn place(&self, t: &Thread) -> Option<BriefPlace> {
+        let id = t.anchor.brief_id?;
+        let idx = usize::try_from(t.anchor.brief_item?).ok()?;
+        let (change_id, change, version, items) = self.edits.get(&id)?;
+        let item = items.get(idx)?;
+        let name = crate::brief_schema::numbered(items)
+            .into_iter()
+            .nth(idx)
+            .map(|(_, n)| n)
+            .unwrap_or_default();
+        let current = self.current.get(change_id).is_some_and(|cur| {
+            cur.iter()
+                .any(|x| x.kind == item.kind && Some(x.hash()) == t.anchor.line_hash)
+        });
+        Some(BriefPlace {
+            brief_id: id,
+            change: change.clone(),
+            version: *version,
+            item: idx,
+            kind: item.kind,
+            name,
+            current,
+        })
+    }
 }
 
 /// Where a thread shows in the current revision.
@@ -200,7 +251,7 @@ impl Services {
             }
             (None, None) => Anchor::default(),
             (Some(path), None) => self.anchor(&m, seq, t, path).await?,
-            (None, Some((id, field))) => self.brief_anchor(&m, *id, field).await?,
+            (None, Some((id, item))) => self.brief_anchor(&m, *id, *item).await?,
         };
         let origin = self.origin_of(subject, &a.repo).await?;
         let mut tx = self.pool.begin().await.map_err(ServiceError::internal)?;
@@ -318,47 +369,34 @@ impl Services {
         })
     }
 
-    /// The anchor on a field of brief edit `id` of `m`, with the field's
-    /// text as the anchored lines.
-    async fn brief_anchor(&self, m: &MergeRequest, id: uuid::Uuid, field: &str) -> Result<Anchor> {
+    /// The anchor on item `item` of brief edit `id` of `m`, with the
+    /// item's text as the anchored lines.
+    async fn brief_anchor(&self, m: &MergeRequest, id: uuid::Uuid, item: usize) -> Result<Anchor> {
         let b = slath_db::change_briefs::get(&self.pool, id)
             .await?
             .filter(|b| b.mr_id == m.id)
             .ok_or_else(|| {
                 ServiceError::invalid("brief", "invalid", "Choose a brief of this merge request.")
             })?;
-        let text = match field {
-            "intent" => Some(b.intent.as_str()),
-            "approach" => b.approach.as_deref(),
-            "verification" => b.verification.as_deref(),
-            "gaps" => b.gaps.as_deref(),
-            _ => None,
-        }
-        .ok_or_else(|| {
-            ServiceError::invalid(
-                "brief",
-                "invalid",
-                "Choose a field the brief has: intent, approach, verification, or gaps.",
-            )
+        let items = crate::brief_schema::stored_items(&b.items);
+        let it = items.get(item).ok_or_else(|| {
+            ServiceError::invalid("brief", "invalid", "Choose an item the brief has.")
         })?;
-        let lines: Vec<Vec<u8>> = text.lines().map(|l| l.as_bytes().to_vec()).collect();
         Ok(Anchor {
-            line_hash: Some(hash_lines(&lines)),
-            context: serde_json::json!({"lines": text.lines().collect::<Vec<_>>()}),
+            line_hash: Some(it.hash()),
+            context: serde_json::json!({"lines": it.lines()}),
             brief_id: Some(b.id),
-            brief_field: Some(field.to_owned()),
+            brief_item: Some(i32::try_from(item).map_err(ServiceError::internal)?),
             ..Anchor::default()
         })
     }
 
-    /// Where each brief of `m` is: its edit's change, version, and whether
-    /// it's still the brief of the change's latest version.
-    async fn brief_places(
-        &self,
-        m: &MergeRequest,
-    ) -> Result<std::collections::HashMap<uuid::Uuid, (String, Option<usize>, bool)>> {
+    /// Every brief edit of `m`: its change's display ID, its version, and
+    /// its items; and for each change, the items of its current brief
+    /// (its latest version's newest edit).
+    async fn brief_places(&self, m: &MergeRequest) -> Result<BriefPlaces> {
         let briefs = slath_db::change_briefs::for_mr(&self.pool, m.id).await?;
-        let mut out = std::collections::HashMap::new();
+        let mut out = BriefPlaces::default();
         if briefs.is_empty() {
             return Ok(out);
         }
@@ -374,26 +412,28 @@ impl Services {
                 .position(|v| v.commit_oid == b.commit_oid)
                 .map(|i| i + 1);
             let latest = mine.last().map(|v| v.commit_oid.as_str());
-            // The newest edit of the latest version (briefs are oldest first).
-            let newest = briefs
-                .iter()
-                .rev()
-                .find(|x| x.change_id == b.change_id && Some(x.commit_oid.as_str()) == latest)
-                .map(|x| x.id);
             let display = changes
                 .iter()
                 .find(|c| c.id == b.change_id)
                 .map(|c| c.display_id.clone())
                 .unwrap_or_default();
-            out.insert(b.id, (display, version, newest == Some(b.id)));
+            let items = crate::brief_schema::stored_items(&b.items);
+            // Briefs are oldest first, so the last one seen is the newest.
+            if Some(b.commit_oid.as_str()) == latest {
+                out.current.insert(b.change_id, items.clone());
+            }
+            out.edits
+                .insert(b.id, (b.change_id, display, version, items));
         }
         Ok(out)
     }
 
-    /// The threads on fields of brief edit `brief` of `m` that the viewer
+    /// The threads on items of brief edit `brief` of `m` that the viewer
     /// sees (published, or their own pending ones), oldest first: each
-    /// thread's ID, field, starter, number of comments, and whether it's
-    /// resolved. No code positions are computed.
+    /// thread's ID, the item's index, starter, number of comments, and
+    /// whether it's resolved. A thread started on an earlier edit of the
+    /// change shows under the item with the same kind and text. No code
+    /// positions are computed.
     pub async fn brief_threads(
         &self,
         subject: &Subject,
@@ -404,12 +444,38 @@ impl Services {
             Subject::User { id, .. } => Some(*id),
             _ => None,
         };
+        let edits = slath_db::change_briefs::for_mr(&self.pool, m.id).await?;
+        let Some(shown) = edits.iter().find(|b| b.id == brief) else {
+            return Ok(Vec::new());
+        };
+        let shown_items = crate::brief_schema::stored_items(&shown.items);
         let comments = db::comments(&self.pool, m.id).await?;
         let mut out = Vec::new();
         for t in db::threads(&self.pool, m.id).await? {
-            if t.anchor.brief_id != Some(brief) {
+            let (Some(id), Some(idx)) = (t.anchor.brief_id, t.anchor.brief_item) else {
                 continue;
-            }
+            };
+            let Ok(idx) = usize::try_from(idx) else {
+                continue;
+            };
+            let item = if id == brief {
+                Some(idx)
+            } else {
+                edits
+                    .iter()
+                    .find(|b| b.id == id && b.change_id == shown.change_id)
+                    .and_then(|b| {
+                        crate::brief_schema::stored_items(&b.items)
+                            .get(idx)
+                            .cloned()
+                    })
+                    .and_then(|it| {
+                        shown_items
+                            .iter()
+                            .position(|x| x.kind == it.kind && Some(x.hash()) == t.anchor.line_hash)
+                    })
+            };
+            let Some(item) = item else { continue };
             let n = comments
                 .iter()
                 .filter(|c| {
@@ -423,7 +489,7 @@ impl Services {
             }
             out.push(BriefThread {
                 id: t.id,
-                field: t.anchor.brief_field.clone().unwrap_or_default(),
+                item,
                 author: t.author.clone(),
                 comments: n,
                 resolved: t.resolved_at.is_some(),
@@ -689,20 +755,7 @@ impl Services {
                 Some(cur) => self.position(m, &t, cur).await?,
                 None => Position::Outdated,
             };
-            let brief = match (t.anchor.brief_id, &t.anchor.brief_field) {
-                (Some(id), Some(field)) => {
-                    places
-                        .get(&id)
-                        .map(|(change, version, current)| BriefPlace {
-                            brief_id: id,
-                            change: change.clone(),
-                            version: *version,
-                            field: field.clone(),
-                            current: *current,
-                        })
-                }
-                _ => None,
-            };
+            let brief = places.place(&t);
             let finding_state = t.finding.as_ref().map(|_| {
                 if t.resolved_at.is_some() {
                     "resolved"

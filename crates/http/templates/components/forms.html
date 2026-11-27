@@ -63,7 +63,11 @@
 </div>
 {%- endmacro -%}
 
-{#- A group of fields with a legend in the subsection heading's style. -#}
+{#- A group of fields with a legend in the subsection heading's style. A
+    group inside a group (one item made of several fields) is written out
+    as `<fieldset class="field-group">`, as macros can't nest in
+    themselves; its legend may be `visually-hidden` when its first
+    field's label names it. -#}
 {%- macro field_group(legend) -%}
 <fieldset class="field-group">
   <legend>{{ legend }}</legend>

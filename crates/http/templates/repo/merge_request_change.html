@@ -128,9 +128,10 @@
 {%- if !brief.changed.is_empty() %}
 <section class="section" aria-labelledby="brief-changed-heading">
   <h2 id="brief-changed-heading">Brief changed</h2>
-  {%- for fd in brief.changed %}
-  <h3>{{ fd.label }}</h3>
-  {%- match fd.diff %}
+  <p class="text-secondary">{{ brief.summary() }}</p>
+  {%- for d in brief.changed %}
+  <h3>{{ d.name }} <span class="text-secondary">· {{ d.mark }}</span></h3>
+  {%- match d.diff %}
   {%- when Ok(lines) %}
   <pre class="commit-body description-diff">{% for l in lines %}{% if l.kind == "removed" %}<span class="diff-del"><span class="description-marker" aria-hidden="true">−</span><span class="visually-hidden">Removed: </span>{{ l.text }}</span>{% else if l.kind == "added" %}<span class="diff-add"><span class="description-marker" aria-hidden="true">+</span><span class="visually-hidden">Added: </span>{{ l.text }}</span>{% else %}<span><span class="description-marker" aria-hidden="true"></span>{{ l.text }}</span>{% endif %}{% endfor %}</pre>
   {%- when Err(_) %}
@@ -145,34 +146,40 @@
 <section class="section" id="brief" aria-labelledby="brief-heading">
   <h2 id="brief-heading">Brief</h2>
   <p class="text-secondary">{% call p::who(ctx, b.author) %}{% endcall %} {% call m::evidence("Author's claim") %}{% endcall %} · {% call c::time(b.created) %}{% endcall %}{% if b.edits > 1 %} · Edited ({{ b.edits }} edits){% endif %}{% if let Some((href, _)) = brief.write %} · <a href="{{ href }}">Edit the brief</a>{% endif %}</p>
-  {%- for fv in b.fields %}
-  <h3 id="brief-{{ fv.id }}">{{ fv.label }}</h3>
-  <pre class="commit-body">{{ fv.text }}</pre>
-  {%- if let Some(checks) = fv.checks %}
+  {%- for it in b.items %}
+  <h3 id="brief-item-{{ it.index }}">{{ it.name }}</h3>
+  <pre class="commit-body">{{ it.text }}</pre>
+  {%- if it.before.is_some() || it.after.is_some() %}
+  <dl class="facts">
+    {%- if let Some(v) = it.before %}<dt>Before</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+    {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+  </dl>
+  {%- endif %}
+  {%- if let Some(checks) = it.checks %}
   {%- if checks.is_empty() %}
   {%- call msg::empty("No checks on this commit.") %}{% endcall %}
   {%- else %}
   <p class="text-secondary">Checks on this commit: {% for (context, st, who) in checks %}{% if !loop.first %}; {% endif %}<code>{{ context }}</code> {{ st }} by {% call p::who(ctx, who, false) %}{% endcall %}{% endfor %} {% call m::evidence("Observed") %}{% endcall %}</p>
   {%- endif %}
   {%- endif %}
-  {%- if !fv.threads.is_empty() || (fv.comment_href.is_some() && !fv.form_open) %}
+  {%- if !it.threads.is_empty() || (it.comment_href.is_some() && !it.form_open) %}
   <p class="text-secondary">
-    {%- for (tid, who, n, resolved) in fv.threads %}{% if !loop.first %} · {% endif %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}#thread-{{ tid }}">Thread</a> by {% call p::who(ctx, who, false) %}{% endcall %} ({{ n }} comment{% if *n != 1 %}s{% endif %}{% if *resolved %}, resolved{% endif %}){% endfor %}
-    {%- if !fv.form_open %}{% if let Some(href) = fv.comment_href %}{% if !fv.threads.is_empty() %} · {% endif %}<a href="{{ href }}">Comment<span class="visually-hidden"> on the {{ fv.label.to_lowercase() }}</span></a>{% endif %}{% endif %}</p>
+    {%- for (tid, who, n, resolved) in it.threads %}{% if !loop.first %} · {% endif %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}#thread-{{ tid }}">Thread</a> by {% call p::who(ctx, who, false) %}{% endcall %} ({{ n }} comment{% if *n != 1 %}s{% endif %}{% if *resolved %}, resolved{% endif %}){% endfor %}
+    {%- if !it.form_open %}{% if let Some(href) = it.comment_href %}{% if !it.threads.is_empty() %} · {% endif %}<a href="{{ href }}">Comment<span class="visually-hidden"> on {{ it.name }}</span></a>{% endif %}{% endif %}</p>
   {%- endif %}
-  {%- if fv.form_open %}
+  {%- if it.form_open %}
   <form method="post" action="{{ brief.threads_action }}" class="form-layout">
     <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
     <input type="hidden" name="brief" value="{{ b.id }}">
-    <input type="hidden" name="brief_field" value="{{ fv.id }}">
+    <input type="hidden" name="brief_item" value="{{ it.index }}">
     <input type="hidden" name="back" value="{{ brief.back }}">
     <input type="hidden" name="mode" value="single">
-    {%- let cid = format!("brief-comment-{}", fv.id) %}
-    {%- let clabel = format!("Comment on the {}", fv.label.to_lowercase()) %}
+    {%- let cid = format!("brief-comment-{}", it.index) %}
+    {%- let clabel = format!("Comment on {}", it.name) %}
     {%- call f::field(cid, clabel) %}
     <textarea id="{{ cid }}" name="body" rows="4" required autofocus></textarea>
     {%- endcall %}
-    {%- call f::buttons() %}<button type="submit" class="button">Add comment</button><a class="button button-quiet" href="{{ brief.back }}#brief-{{ fv.id }}">Cancel</a>{% endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">Add comment</button><a class="button button-quiet" href="{{ brief.back }}#brief-item-{{ it.index }}">Cancel</a>{% endcall %}
   </form>
   {%- endif %}
   {%- endfor %}

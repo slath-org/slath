@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author,\n                  (au.kind = 'bot') IS TRUE AS \"author_bot!\", t.resolved_at,\n                  rn.name::text AS resolved_by, t.addressed_by AS addressed_by_id,\n                  dn.name::text AS addressed_by, t.addressed_at, t.created_at, f.context AS \"finding_context?\",\n                  f.severity AS \"finding_severity?\", f.category AS \"finding_category?\",\n                  t.brief_id, t.brief_field\n           FROM mr_threads t\n           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           LEFT JOIN users du ON du.id = t.addressed_by AND du.state <> 'deleted'\n           LEFT JOIN namespaces dn ON dn.id = du.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
+  "query": "SELECT t.id, t.revision_seq, t.old_oid, t.new_oid, t.path, t.side, t.line_start, t.line_end,\n                  t.line_hash, t.context, t.author_id, an.name::text AS author,\n                  (au.kind = 'bot') IS TRUE AS \"author_bot!\", t.resolved_at,\n                  rn.name::text AS resolved_by, t.addressed_by AS addressed_by_id,\n                  dn.name::text AS addressed_by, t.addressed_at, t.created_at, f.context AS \"finding_context?\",\n                  f.severity AS \"finding_severity?\", f.category AS \"finding_category?\",\n                  t.brief_id, t.brief_item\n           FROM mr_threads t\n           LEFT JOIN mr_thread_findings f ON f.thread_id = t.id\n           LEFT JOIN users au ON au.id = t.author_id AND au.state <> 'deleted'\n           LEFT JOIN namespaces an ON an.id = au.namespace_id\n           LEFT JOIN users ru ON ru.id = t.resolved_by AND ru.state <> 'deleted'\n           LEFT JOIN namespaces rn ON rn.id = ru.namespace_id\n           LEFT JOIN users du ON du.id = t.addressed_by AND du.state <> 'deleted'\n           LEFT JOIN namespaces dn ON dn.id = du.namespace_id\n           WHERE t.mr_id = $1 ORDER BY t.created_at, t.id",
   "describe": {
     "columns": [
       {
@@ -238,12 +238,12 @@
       },
       {
         "ordinal": 23,
-        "name": "brief_field",
-        "type_info": "Text",
+        "name": "brief_item",
+        "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "mr_threads",
-            "name": "brief_field"
+            "name": "brief_item"
           }
         }
       }
@@ -280,5 +280,5 @@
       true
     ]
   },
-  "hash": "32c1f88a62d3f34648219b03f8c955da8ef2877a011395345f8dd565dd6f066a"
+  "hash": "3621e12e2a0dcfc53e7d7e0f3cc91bb2e0d0ccac7f29b6e3181c11fa503f992a"
 }

@@ -214,34 +214,40 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await tapOrClick(page, page.getByRole("link", { name: /^(Write a brief|Edit the brief)$/ }));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/brief .*change [k-z]{8}$/);
   await expectAccessible(page);
-  // Without an intent the form says what's missing and keeps the rest.
-  await page.getByLabel("Intent").fill("");
-  await page.getByLabel("Known gaps").fill(`Gaps seen in ${testInfo.project.name}`);
+  // A kind's Add button shows one more empty item there, saving nothing;
+  // an effect's Before without its text says what's missing and keeps it.
+  await tapOrClick(page, page.getByRole("button", { name: "Add an effect" }));
+  const effect = page.getByRole("group", { name: /^Effect( \d+)?$/ }).last();
+  const before = `Slow before, seen in ${p}`;
+  await effect.getByRole("textbox", { name: "Before" }).fill(before);
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
-  await expect(page.getByRole("alert")).toContainText("Say what the change is for.");
-  await expect(page.getByLabel("Known gaps")).toHaveValue(`Gaps seen in ${testInfo.project.name}`);
+  await expect(page.getByRole("alert")).toContainText("Write the item's text.");
+  await expect(page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: "Before" })).toHaveValue(before);
   await expectAccessible(page);
-  const intent = `Reworded notes, checked in ${testInfo.project.name}`;
-  await page.getByLabel("Intent").fill(intent);
-  await page.getByLabel("Verification").fill("Read it twice");
+  const intent = `Reworded notes, checked in ${p}`;
+  await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(intent);
+  await page.getByRole("group", { name: /^Effect( \d+)?$/ }).last().getByRole("textbox", { name: /^Effect( \d+)?$/ }).fill("Reads well");
+  await tapOrClick(page, page.getByRole("button", { name: "Add a verification" }));
+  await page.getByRole("textbox", { name: /^Verification( \d+)?$/ }).last().fill("Read it twice");
   await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
   const brief = page.getByRole("region", { name: "Brief", exact: true });
   await expect(brief).toContainText("Author's claim");
   await expect(brief).toContainText(intent);
+  await expect(brief).toContainText(before);
   // What it says it checked stands next to the checks on its commit.
   await expect(brief).toContainText("Read it twice");
   await expect(brief).toContainText("No checks on this commit.");
   await expect(brief.getByRole("link", { name: "Edit the brief" })).toBeVisible();
   await expectAccessible(page);
-  // A comment on one field opens a form under it and starts a thread.
-  await tapOrClick(page, brief.getByRole("link", { name: "Comment on the intent" }));
-  const question = `Why reword, asked in ${testInfo.project.name}?`;
-  await page.getByLabel("Comment on the intent").fill(question);
+  // A comment on one item opens a form under it and starts a thread.
+  await tapOrClick(page, brief.getByRole("link", { name: /^Comment on Motivation( 1)?$/ }));
+  const question = `Why reword, asked in ${p}?`;
+  await page.getByLabel(/^Comment on Motivation( 1)?$/).fill(question);
   await expectAccessible(page);
   await tapOrClick(page, page.getByRole("button", { name: "Add comment" }));
   await tapOrClick(page, brief.getByRole("link", { name: "Thread" }).last());
   const thread = page.locator(".timeline-thread").filter({ hasText: question });
-  await expect(thread).toContainText(/Brief of change [k-z]{8}, version 1: Intent/);
+  await expect(thread).toContainText(/Brief of change [k-z]{8}, version 1: Motivation/);
   await expect(thread).toContainText(intent);
   await expectAccessible(page);
   // Closed again, so the fixture's open merge requests stay few.

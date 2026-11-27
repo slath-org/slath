@@ -328,24 +328,33 @@ delegating it is refused with that reason.
 
 ## Briefs: what a change is for
 
-A brief says what one version of a change is for, how it does it, how it
-was checked, and what's known to be missing. Reviewers see it on the
-change's page next to the code, marked as its author's claim. Where a
-context record is the agent's own log, a brief is the short account a
-reviewer reads first.
+A brief says what one version of a change is for, what it changes, how it
+was checked, and what's known to be missing, one item at a time. Reviewers
+see it on the change's page next to the code, marked as its author's
+claim. Where a context record is the agent's own log, a brief is the short
+account a reviewer reads first.
 
 ```sh
 curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
   -H "Content-Type: application/json" \
   https://slath.example.org/api/v1/repos/acme/app/merge-requests/12/changes/wtmqulxn/briefs -d '{
-  "schema": "slath-brief/1",
-  "intent": "Fix the redirect after login",
-  "approach": "Keep the target in the session instead of the query",
-  "verification": "Added a test for the redirect; ran the suite",
-  "gaps": "The logout redirect has the same problem"
+  "schema": "slath-brief/2",
+  "items": [
+    {"kind": "motivation", "text": "Fix the redirect after login"},
+    {"kind": "effect", "text": "Login returns to the page you came from",
+     "before": "Always the start page", "after": "The page in the session"},
+    {"kind": "verification", "text": "Added a test for the redirect; ran the suite"},
+    {"kind": "gap", "text": "The logout redirect has the same problem"}
+  ]
 }'
 ```
 
+- **Items:** each has a `kind` and a `text`. The kinds are `motivation`
+  (what it's for), `effect` (what behaves differently, optionally with
+  `before` and `after`), `risk`, `gap` (known to be missing or wrong),
+  `rollout` (a step for deploying it), and `verification` (how it was
+  checked). Only effects take `before` and `after`. The page groups items
+  by kind and names them "Effect 2" when a kind has several.
 - **Which change:** `<change>` is the change's ID as its page shows it (the
   first 8 characters are enough) or the commit of one of its versions.
   The brief goes to the change's latest version; send `"commit"` to
@@ -353,26 +362,28 @@ curl -sS -X POST -H "Authorization: Bearer $SLATH_TOKEN" \
 - **One per version, with edits:** a brief belongs to that version's
   commit. A push that leaves the commit as it is keeps the brief; a new
   version starts without one. Writing again adds an edit, and the newest
-  edit is the version's brief. Earlier edits stay readable.
+  edit is the version's brief. Earlier edits stay readable, and comparing
+  two versions on the change's page marks items new, updated, or removed.
 - **Who:** the merge request's author (with `mrs:write`) and anyone who
   can push to the repository (with `repo:write`), while it's open.
   Everyone who can read the merge request reads its briefs, with
   `GET …/briefs` or the MCP tool `list_change_briefs`.
-- **Plain text:** `intent` is required, the other fields are optional,
-  each up to 16 KiB and the whole brief up to 64 KiB
-  (`[limits] brief_max_bytes`). Slath shows them as plain text and checks
-  nothing they say, but it shows the verification field next to the
-  checks reported on that version's own commit ("Checks on this commit:
-  ci success by ci-bot", or "No checks on this commit."), never those of
-  another commit.
+- **Plain text:** a brief needs at least one item; every text is up to
+  16 KiB and the whole brief up to 64 KiB (`[limits] brief_max_bytes`).
+  Errors name the place, such as `/items/2/text`. Slath shows the texts
+  as plain text and checks nothing they say, but it shows the
+  verification items next to the checks reported on that version's own
+  commit ("Checks on this commit: ci success by ci-bot", or "No checks on
+  this commit."), never those of another commit.
 - **Secrets are refused** like in context records: a finding rejects the
-  brief with its place (such as `/verification`, line 2) and keeps
+  brief with its place (such as `/items/2/text`, line 2) and keeps
   nothing.
-- **Threads on a field:** to comment on what a brief says, start a
-  thread with `"brief": {"id": "<the edit's id>", "field": "approach"}`
-  in place of `path` on `POST …/merge-requests/12/threads`. Threads list
-  it as `brief` with the change, the version, and `current`, which turns
-  false once a newer edit or version replaces that brief.
+- **Threads on an item:** to comment on what a brief says, start a thread
+  with `"brief": {"id": "<the edit's id>", "item": 1}` (the item's index,
+  from 0) in place of `path` on `POST …/merge-requests/12/threads`.
+  Threads list it as `brief` with the change, the version, the item's
+  kind, and `current`, which stays true while the change's current brief
+  still has that item, word for word.
 
 ## Context records: how a change was made
 

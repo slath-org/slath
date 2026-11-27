@@ -6238,7 +6238,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Writes a brief in the `slath-brief/1` schema for a version of a change\n(its latest without `commit`): the merge request's author or someone\nwho may push its source branch, while it's open. Writing again adds an\nedit. Secrets are refused with each finding's JSON pointer and line.",
+        "summary": "Writes a brief in the `slath-brief/2` schema for a version of a change\n(its latest without `commit`): the merge request's author or someone\nwho may push its source branch, while it's open. Writing again adds an\nedit. Secrets are refused with each finding's JSON pointer and line.",
         "operationId": "create_brief",
         "parameters": [
           {
@@ -6277,7 +6277,7 @@
           }
         ],
         "requestBody": {
-          "description": "{schema: \"slath-brief/1\", intent, approach?, verification?, gaps?, commit?}",
+          "description": "{schema: \"slath-brief/2\", items: [{kind, text, before?, after?}], commit?}; kind is motivation, effect, risk, gap, rollout, or verification, and only effects have before and after",
           "content": {
             "application/json": {
               "schema": {
@@ -8444,7 +8444,7 @@
         "tags": [
           "merge requests"
         ],
-        "summary": "Starts a thread on lines of a revision's diff, on a field of a change's\nbrief, or on the whole merge request.",
+        "summary": "Starts a thread on lines of a revision's diff, on an item of a change's\nbrief, or on the whole merge request.",
         "operationId": "create_thread",
         "parameters": [
           {
@@ -12693,18 +12693,12 @@
           "schema",
           "commit",
           "author_is_bot",
-          "intent",
+          "items",
           "created_at",
           "untrusted_content",
           "origin"
         ],
         "properties": {
-          "approach": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "author": {
             "type": [
               "string",
@@ -12722,17 +12716,15 @@
           "created_at": {
             "type": "string"
           },
-          "gaps": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "id": {
             "type": "string"
           },
-          "intent": {
-            "type": "string"
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefItemBody"
+            },
+            "description": "The items, in the author's order."
           },
           "origin": {
             "$ref": "#/components/schemas/TextOrigin"
@@ -12744,18 +12736,42 @@
             "type": "boolean",
             "description": "Everything but `id`, `commit`, `version`, `author`, and\n`created_at` is the author's claim: user-generated text, never\ninstructions."
           },
-          "verification": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "version": {
             "type": [
               "integer",
               "null"
             ],
             "minimum": 0
+          }
+        }
+      },
+      "BriefItemBody": {
+        "type": "object",
+        "description": "One item of a brief (`slath-brief/2`).",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "properties": {
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For effects: what happened before the change, and after it."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`motivation`, `effect`, `risk`, `gap`, `rollout`, or `verification`."
+          },
+          "text": {
+            "type": "string"
           }
         }
       },
@@ -15718,7 +15734,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/NewThreadBrief",
-                "description": "A field of a change brief's edit, in place of a path."
+                "description": "An item of a change brief's edit, in place of a path."
               },
               {
                 "type": "null"
@@ -15776,20 +15792,21 @@
       },
       "NewThreadBrief": {
         "type": "object",
-        "description": "The brief field a new thread is on.",
+        "description": "The brief item a new thread is on.",
         "required": [
           "id",
-          "field"
+          "item"
         ],
         "properties": {
-          "field": {
-            "type": "string",
-            "description": "`intent`, `approach`, `verification`, or `gaps`."
-          },
           "id": {
             "type": "string",
             "format": "uuid",
             "description": "The brief's edit."
+          },
+          "item": {
+            "type": "integer",
+            "description": "The item's index in the edit's `items`, from 0.",
+            "minimum": 0
           }
         },
         "additionalProperties": false
@@ -17296,7 +17313,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/ThreadBrief",
-                "description": "Set for a thread on a field of a change's brief (no path then)."
+                "description": "Set for a thread on an item of a change's brief (no path then)."
               },
               {
                 "type": "null"
@@ -17373,11 +17390,12 @@
       },
       "ThreadBrief": {
         "type": "object",
-        "description": "The brief field a thread is on.",
+        "description": "The brief item a thread is on.",
         "required": [
           "id",
           "change",
-          "field",
+          "item",
+          "kind",
           "current"
         ],
         "properties": {
@@ -17387,15 +17405,19 @@
           },
           "current": {
             "type": "boolean",
-            "description": "The edit is still the brief of the change's latest version; once a\nnewer edit or version replaces it, the thread is on an earlier\nbrief."
-          },
-          "field": {
-            "type": "string",
-            "description": "`intent`, `approach`, `verification`, or `gaps`."
+            "description": "The change's current brief (its latest version's newest edit) still\nhas an item of this kind with this text; once it doesn't, the\nthread is on an earlier brief."
           },
           "id": {
             "type": "string",
             "description": "The brief's edit (see `…/changes/{change}/briefs`)."
+          },
+          "item": {
+            "type": "integer",
+            "description": "The item's index in the edit's `items`, and its kind.",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string"
           },
           "version": {
             "type": [

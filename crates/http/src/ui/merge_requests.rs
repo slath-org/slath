@@ -2079,10 +2079,10 @@ async fn thread_item(
     let anchor = &t.thread.anchor;
     let brief_location = t.brief.as_ref().map(|b| {
         let short: String = b.change.chars().take(8).collect();
-        let field = super::change_briefs::field_label(&b.field);
+        let item = &b.name;
         match b.version {
-            Some(v) => format!("Brief of change {short}, version {v}: {field}"),
-            None => format!("Brief of change {short}: {field}"),
+            Some(v) => format!("Brief of change {short}, version {v}: {item}"),
+            None => format!("Brief of change {short}: {item}"),
         }
     });
     let location = brief_location.or_else(|| {
@@ -3258,7 +3258,7 @@ async fn change(
             write: slath_service::Services::may_write_brief(&subject, &a, &m),
             comment: matches!(subject, Subject::User { .. })
                 && a.can(&subject, slath_core::authz::Action::MrComment),
-            open: q.brief_comment.as_deref(),
+            open: q.brief_comment.as_deref().and_then(|x| x.parse().ok()),
         },
     )
     .await?;
@@ -3888,9 +3888,9 @@ struct ThreadForm {
     mode: String,
     #[serde(default)]
     back: String,
-    /// A brief edit's ID and field, for a thread on a brief.
+    /// A brief edit's ID and an item's index, for a thread on a brief.
     brief: Option<String>,
-    brief_field: Option<String>,
+    brief_item: Option<String>,
 }
 
 async fn new_thread(
@@ -3915,7 +3915,7 @@ async fn new_thread(
             .brief
             .as_deref()
             .and_then(|b| b.parse().ok())
-            .zip(f.brief_field.clone().filter(|x| !x.is_empty())),
+            .zip(f.brief_item.as_deref().and_then(|x| x.parse().ok())),
     };
     match state
         .services

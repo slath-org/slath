@@ -6,16 +6,38 @@
 <div class="page page-form-wide">
 <header class="page-head">
   <div class="page-head-row"><h1>{{ heading }}</h1></div>
-  <p class="page-head-intro">What this version of the change is for, as you see it. Reviewers read it next to the code as your claim; it's plain text. Saving again keeps the earlier text as an edit.</p>
+  <p class="page-head-intro">What this version of the change is for, as you see it, one item at a time. Reviewers read it next to the code as your claim; it's plain text. Saving again keeps the earlier text as an edit. An item you empty is left out.</p>
 </header>
 <form method="post" action="{{ action }}" class="form-layout-wide" novalidate>
 {% include "settings/errors.html" %}
   <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
   <input type="hidden" name="commit" value="{{ commit }}">
-  {%- for (id, label, hint, value) in fields %}
-  {%- let error = self.error(id).unwrap_or_default() %}
-  {%- call f::field(id, label, hint, error, *id != "intent") %}
-  <textarea id="{{ id }}" name="{{ id }}" rows="{% if *id == "intent" %}3{% else %}5{% endif %}" autocomplete="off"{% if *id == "intent" %} required{% endif %}{% call f::described(id, hint, error) %}{% endcall %}>{{ value }}</textarea>
+  {%- for g in groups %}
+  {%- call f::field_group(g.heading) %}
+  <p class="hint">{{ g.hint }}</p>
+  {%- for it in g.items %}
+  {%- let tid = format!("{}-text", it.id) %}
+  {%- let terror = self.error(tid).unwrap_or_default() %}
+  {%- if Self::is_effect(g.kind) %}
+  <fieldset class="field-group">
+    <legend class="visually-hidden">{{ it.name }}</legend>
+    {%- call f::field(tid, it.name, "", terror) %}
+    <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
+    {%- endcall %}
+    {%- for (pid, label, value) in it.extra %}
+    {%- let perror = self.error(pid).unwrap_or_default() %}
+    {%- call f::field(pid, label, "", perror, true) %}
+    <textarea id="{{ pid }}" name="{{ pid }}" rows="2" autocomplete="off"{% call f::described(pid, "", perror) %}{% endcall %}>{{ value }}</textarea>
+    {%- endcall %}
+    {%- endfor %}
+  </fieldset>
+  {%- else %}
+  {%- call f::field(tid, it.name, "", terror) %}
+  <textarea id="{{ tid }}" name="{{ tid }}" rows="3" autocomplete="off"{% if focus.as_deref() == Some(tid.as_str()) %} autofocus{% endif %}{% call f::described(tid, "", terror) %}{% endcall %}>{{ it.text }}</textarea>
+  {%- endcall %}
+  {%- endif %}
+  {%- endfor %}
+  <div class="cluster"><button type="submit" name="add" value="{{ g.kind }}" class="button button-quiet">{{ g.add }}</button></div>
   {%- endcall %}
   {%- endfor %}
   {%- call f::buttons() %}<button type="submit" class="button button-primary">Save brief</button><a class="button button-quiet" href="{{ back }}">Cancel</a>{% endcall %}
