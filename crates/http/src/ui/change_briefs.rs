@@ -150,8 +150,9 @@ pub struct CarriedView {
     /// What it's from ("version 1", "revision 2"), and as a mark ("v1").
     pub from: String,
     pub mark: String,
-    /// The earlier brief.
-    pub href: String,
+    /// The earlier brief's page (a change version's; a revision's brief
+    /// has none of its own).
+    pub href: Option<String>,
     pub items: Vec<ItemView>,
     /// How many of its items stay there.
     pub left: usize,
@@ -173,7 +174,12 @@ pub struct BriefParts {
     /// Where an item's comment form posts, and the page it returns to.
     pub threads_action: String,
     pub back: String,
+    /// What the brief is of (`version`, `revision`), and why to write one.
+    pub what: &'static str,
+    pub write_hint: &'static str,
 }
+
+const VERSION_HINT: &str = "for reviewers: what this version is for and how it was checked.";
 
 impl BriefParts {
     /// Links each place of the shown brief to its hunk in `diff` (or to
@@ -186,21 +192,9 @@ impl BriefParts {
         // Hunks no item points at say so in their header, and the brief
         // links to them.
         if let Some(c) = &mut b.coverage {
-            for (i, h) in c.places.iter().enumerate() {
-                let head = format!("@@ -{} +{} @@", h.old_start, h.new_start);
-                let Some(f) = diff.files.iter_mut().find(|f| f.path == h.path) else {
-                    continue;
-                };
-                let found = f.hunks.iter().position(|x| x.head.starts_with(&head));
-                if let Some(k) = found {
-                    f.hunks[k].unbriefed = true;
-                }
-                if let Some(entry) = c.uncovered.get_mut(i) {
-                    entry.1 = Some(match found {
-                        Some(k) => format!("#{}-h{k}", f.anchor),
-                        None => format!("#{}", f.anchor),
-                    });
-                }
+            let hrefs = mark(&c.places, diff);
+            for (entry, href) in c.uncovered.iter_mut().zip(hrefs) {
+                entry.1 = href;
             }
         }
         link_places(&mut b.items, diff);
@@ -222,6 +216,36 @@ impl BriefParts {
         .collect::<Vec<_>>()
         .join(", ")
     }
+}
+
+/// Marks the hunks of `diff` that no item of a brief points at, and
+/// returns a link to each (its hunk, or its file while the hunk isn't
+/// loaded).
+fn mark(
+    places: &[slath_service::brief_schema::HunkPlace],
+    diff: &mut super::diff::DiffView,
+) -> Vec<Option<String>> {
+    places
+        .iter()
+        .map(|h| {
+            let head = format!("@@ -{} +{} @@", h.old_start, h.new_start);
+            let f = diff.files.iter_mut().find(|f| f.path == h.path)?;
+            let found = f.hunks.iter().position(|x| x.head.starts_with(&head));
+            if let Some(k) = found {
+                f.hunks[k].unbriefed = true;
+            }
+            Some(match found {
+                Some(k) => format!("#{}-h{k}", f.anchor),
+                None => format!("#{}", f.anchor),
+            })
+        })
+        .collect()
+}
+
+/// Marks the hunks of `diff` that the brief's coverage `c` says no item
+/// points at.
+pub fn mark_unbriefed(c: &slath_service::brief_schema::Coverage, diff: &mut super::diff::DiffView) {
+    mark(&c.uncovered, diff);
 }
 
 /// Links each place of `items` to its hunk in `diff` (or to its file,
@@ -290,7 +314,7 @@ pub async fn parts(
                 .services
                 .carried_brief(m, change, shown)
                 .await?
-                .map(|c| carried_view(&c, &page)),
+                .map(|c| carried_view(&c, Some(&page))),
         };
         let shown = match of(shown) {
             None => None,
@@ -329,6 +353,8 @@ pub async fn parts(
             write,
             threads_action: format!("/{ns}/{repo}/merge-requests/{}/threads", m.number),
             back: page,
+            what: "version",
+            write_hint: VERSION_HINT,
         });
     };
     let old = of(from).map(|v| v.items.clone()).unwrap_or_default();
@@ -363,6 +389,68 @@ pub async fn parts(
         write: None,
         threads_action: String::new(),
         back: String::new(),
+        what: "version",
+        write_hint: VERSION_HINT,
+    })
+}
+
+/// The merge request's own brief for its page: its current revision's,
+/// or what carries from an earlier revision's. Writing one is offered on
+/// merge requests with more than one change, as a single change's brief
+/// says the same; an existing one can always be edited.
+pub async fn mr_parts(
+    state: &AppState,
+    m: &MergeRequest,
+    (ns, repo): (&str, &str),
+    changes: usize,
+    viewer: &Viewer<'_>,
+) -> Result<BriefParts, AppError> {
+    let page = format!("/{ns}/{repo}/merge-requests/{}", m.number);
+    let all = state
+        .services
+        .mr_revision_briefs(m, Some(m.revisions), 1000)
+        .await?;
+    let shown = match all.first() {
+        None => None,
+        Some(v) => {
+            let threads = state
+                .services
+                .brief_threads(viewer.subject, m, v.brief.id)
+                .await?;
+            let mut b = view(v, all.len(), &threads, &page, viewer);
+            // The page has no diff: places lead to the whole one.
+            let files = format!("{page}/files");
+            for p in b.items.iter_mut().flat_map(|i| i.places.iter_mut()) {
+                p.href = Some(files.clone());
+            }
+            if let Some(c) = &mut b.coverage {
+                for entry in &mut c.uncovered {
+                    entry.1 = Some(files.clone());
+                }
+            }
+            Some(b)
+        }
+    };
+    let carried = match shown {
+        Some(_) => None,
+        None => state
+            .services
+            .carried_mr_brief(m, m.revisions)
+            .await?
+            .map(|c| carried_view(&c, None)),
+    };
+    let write = (viewer.write && m.revisions > 0 && (changes > 1 || shown.is_some()))
+        .then(|| (format!("{page}/brief"), shown.is_some()));
+    Ok(BriefParts {
+        shown,
+        carried,
+        changed: Vec::new(),
+        unchanged: 0,
+        write,
+        threads_action: format!("{page}/threads"),
+        back: page,
+        what: "revision",
+        write_hint: "for reviewers: what the changes do together, across the stack.",
     })
 }
 
@@ -430,7 +518,7 @@ fn item_views(
 
 /// What carries forward from an earlier version's brief, without threads
 /// or comments: they belong to the brief they were written on.
-fn carried_view(c: &slath_service::change_briefs::Carried, page: &str) -> CarriedView {
+fn carried_view(c: &slath_service::change_briefs::Carried, page: Option<&str>) -> CarriedView {
     let nobody = slath_core::authz::Subject::Anonymous;
     let viewer = Viewer {
         subject: &nobody,
@@ -448,8 +536,8 @@ fn carried_view(c: &slath_service::change_briefs::Carried, page: &str) -> Carrie
     CarriedView {
         from,
         mark,
-        href: format!("{page}?rev={}#brief", c.from_revision),
-        items: item_views(&c.items, |i| c.carries[i], &[], page, &viewer),
+        href: page.map(|p| format!("{p}?rev={}#brief", c.from_revision)),
+        items: item_views(&c.items, |i| c.carries[i], &[], page.unwrap_or(""), &viewer),
         left: c.carries.iter().filter(|x| !**x).count(),
     }
 }
@@ -484,7 +572,12 @@ struct FormPage {
     heading: String,
     action: String,
     back: String,
-    commit: String,
+    /// The first sentence of the intro, and what the diff is
+    /// (`version`, `revision`).
+    intro: &'static str,
+    what: &'static str,
+    /// Where the brief belongs: a version's commit, or a revision.
+    at: String,
     groups: Vec<GroupView>,
     /// The field to focus (the item just added).
     focus: Option<String>,
@@ -643,48 +736,79 @@ impl Slots {
     }
 }
 
-/// The form page's frame for merge request `n`'s change `change`, with
-/// `values` typed so far (and errors), or the version's brief.
+/// The form page's frame for merge request `n`'s change `change` (its
+/// own brief without one), with `values` typed so far (and errors), or
+/// the brief there is: the latest version's (or revision's), else the
+/// newest earlier one's, carried items at their new places.
 async fn form_page(
     state: &AppState,
     s: &slath_core::authz::Subject,
-    (ns, repo, n, change): (&str, &str, i32, &str),
+    (ns, repo, n, change): (&str, &str, i32, Option<&str>),
     ctx: PageCtx,
     values: Option<(Slots, String, Vec<FieldError>, Option<String>)>,
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(s, ns, repo, n).await?;
-    if !slath_service::Services::may_write_brief(s, &a, &m) {
+    if !slath_service::Services::may_write_brief(s, &a, &m) || m.revisions < 1 {
         return Err(AppError::not_found());
     }
-    let info = state.services.mr_change(&m, change).await?;
-    let latest = info.versions.last().ok_or_else(AppError::not_found)?;
-    let page_url = format!(
-        "/{ns}/{repo}/merge-requests/{n}/changes/{}",
-        info.display_id
-    );
-    let current = state
-        .services
-        .mr_change_briefs(&m, &info.display_id, Some(&latest.commit_oid), 1)
-        .await?
-        .into_iter()
-        .next();
-    let (slots, commit, errors, focus) = match values {
-        Some(v) => v,
-        None => {
-            // Without a brief of its own, the latest version starts from
-            // the newest earlier one's, carried items at their new places.
+    let mr_url = format!("/{ns}/{repo}/merge-requests/{n}");
+    // Where it goes back to, what it's for, its brief, what an earlier
+    // one carries, and where it belongs (a commit or a revision).
+    let (page_url, name, current, earlier, at) = match change {
+        Some(change) => {
+            let info = state.services.mr_change(&m, change).await?;
+            let latest = info.versions.last().ok_or_else(AppError::not_found)?;
+            let current = state
+                .services
+                .mr_change_briefs(&m, &info.display_id, Some(&latest.commit_oid), 1)
+                .await?
+                .into_iter()
+                .next();
             let earlier = match &current {
                 Some(_) => None,
-                None => state
-                    .services
-                    .carried_brief(&m, &info.display_id, &latest.commit_oid)
-                    .await?
-                    .map(|c| c.items),
+                None => {
+                    state
+                        .services
+                        .carried_brief(&m, &info.display_id, &latest.commit_oid)
+                        .await?
+                }
             };
+            let short: String = info.display_id.chars().take(8).collect();
+            (
+                format!("{mr_url}/changes/{}", info.display_id),
+                format!("change {short}"),
+                current,
+                earlier,
+                latest.commit_oid.clone(),
+            )
+        }
+        None => {
+            let current = state
+                .services
+                .mr_revision_briefs(&m, Some(m.revisions), 1)
+                .await?
+                .into_iter()
+                .next();
+            let earlier = match &current {
+                Some(_) => None,
+                None => state.services.carried_mr_brief(&m, m.revisions).await?,
+            };
+            (
+                mr_url.clone(),
+                format!("!{n}"),
+                current,
+                earlier,
+                m.revisions.to_string(),
+            )
+        }
+    };
+    let (slots, at, errors, focus) = match values {
+        Some(v) => v,
+        None => {
             let items = current
                 .as_ref()
                 .map(|c| c.items.as_slice())
-                .or(earlier.as_deref())
+                .or(earlier.as_ref().map(|c| c.items.as_slice()))
                 .unwrap_or_default();
             let mut slots = Slots::of_items(items);
             // A new brief starts with what the change is for.
@@ -693,7 +817,7 @@ async fn form_page(
             {
                 first.push(Default::default());
             }
-            (slots, latest.commit_oid.clone(), Vec::new(), None)
+            (slots, at, Vec::new(), None)
         }
     };
     let status = if errors.is_empty() {
@@ -701,17 +825,26 @@ async fn form_page(
     } else {
         StatusCode::UNPROCESSABLE_ENTITY
     };
-    let short: String = info.display_id.chars().take(8).collect();
     let mut res = render(&FormPage {
         header: RepoHeader::load(state, &a, s, "merge-requests").await,
         heading: if current.is_some() {
-            format!("Edit the brief of change {short}")
+            format!("Edit the brief of {name}")
         } else {
-            format!("Write a brief for change {short}")
+            format!("Write a brief for {name}")
+        },
+        intro: if change.is_some() {
+            "What this version of the change is for, as you see it, one item at a time."
+        } else {
+            "What the merge request's changes do together, as you see it, one item at a time."
+        },
+        what: if change.is_some() {
+            "version"
+        } else {
+            "revision"
         },
         action: format!("{page_url}/brief"),
         back: page_url,
-        commit,
+        at,
         groups: slots.groups(),
         focus,
         errors,
@@ -728,7 +861,24 @@ async fn show_form(
     Path((ns, repo, n, change)): Path<(String, String, String, String)>,
 ) -> Result<Response, AppError> {
     let n: i32 = n.parse().map_err(|_| AppError::not_found())?;
-    form_page(&state, &s.subject, (&ns, &repo, n, &change), ctx, None).await
+    form_page(
+        &state,
+        &s.subject,
+        (&ns, &repo, n, Some(&change)),
+        ctx,
+        None,
+    )
+    .await
+}
+
+async fn show_mr_form(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+) -> Result<Response, AppError> {
+    let n: i32 = n.parse().map_err(|_| AppError::not_found())?;
+    form_page(&state, &s.subject, (&ns, &repo, n, None), ctx, None).await
 }
 
 /// The form field an error's JSON pointer (`/items/2/text`) names.
@@ -755,6 +905,36 @@ async fn write(
     Path((ns, repo, n, change)): Path<(String, String, String, String)>,
     Form(fields): Form<Vec<(String, String)>>,
 ) -> Result<Response, AppError> {
+    save(
+        &state,
+        ctx,
+        &s.subject,
+        (&ns, &repo, &n, Some(&change)),
+        &fields,
+    )
+    .await
+}
+
+async fn write_mr(
+    State(state): State<AppState>,
+    ctx: PageCtx,
+    RequireSession(s): RequireSession,
+    Path((ns, repo, n)): Path<(String, String, String)>,
+    Form(fields): Form<Vec<(String, String)>>,
+) -> Result<Response, AppError> {
+    save(&state, ctx, &s.subject, (&ns, &repo, &n, None), &fields).await
+}
+
+/// Saves the form's brief for `change` (the merge request's own without
+/// one), or shows it again: with one more empty item after "Add …", or
+/// with the errors.
+async fn save(
+    state: &AppState,
+    ctx: PageCtx,
+    subject: &slath_core::authz::Subject,
+    (ns, repo, n, change): (&str, &str, &str, Option<&str>),
+    fields: &[(String, String)],
+) -> Result<Response, AppError> {
     let n: i32 = n.parse().map_err(|_| AppError::not_found())?;
     let field = |name: &str| {
         fields
@@ -763,8 +943,8 @@ async fn write(
             .map(|(_, v)| v.clone())
             .unwrap_or_default()
     };
-    let commit = field("commit");
-    let mut slots = Slots::of_form(&fields);
+    let at = field("at");
+    let mut slots = Slots::of_form(fields);
     // "Add …" shows the form again with one more empty item, saving
     // nothing.
     if let Some(kind) = Kind::parse(&field("add")) {
@@ -774,31 +954,48 @@ async fn write(
             items.push(Default::default());
         }
         return form_page(
-            &state,
-            &s.subject,
-            (&ns, &repo, n, &change),
+            state,
+            subject,
+            (ns, repo, n, change),
             ctx,
-            Some((slots, commit, Vec::new(), focus)),
+            Some((slots, at, Vec::new(), focus)),
         )
         .await;
     }
     let (items, ids) = slots.items();
-    let body = serde_json::json!({
-        "schema": SCHEMA,
-        "items": items,
-        // Opened on a version's commit; a form without one writes the
-        // latest version's.
-        "commit": (!commit.is_empty()).then_some(&commit),
-    });
+    // Opened on a version's commit (or a revision); a form without one
+    // writes the latest's.
+    let mut body = serde_json::json!({"schema": SCHEMA, "items": items});
+    if !at.is_empty() {
+        body[if change.is_some() {
+            "commit"
+        } else {
+            "revision"
+        }] = match change {
+            Some(_) => at.clone().into(),
+            None => at.parse::<i32>().unwrap_or(0).into(),
+        };
+    }
     let body = serde_json::to_vec(&body).map_err(|e| AppError::internal(&e))?;
-    match state
-        .services
-        .write_change_brief(&s.subject, (&ns, &repo, n), &change, &body)
-        .await
-    {
-        Ok(_) => Ok(Redirect::to(&format!(
-            "/{ns}/{repo}/merge-requests/{n}/changes/{change}#brief"
-        ))
+    let saved = match change {
+        Some(c) => {
+            state
+                .services
+                .write_change_brief(subject, (ns, repo, n), c, &body)
+                .await
+        }
+        None => {
+            state
+                .services
+                .write_mr_brief(subject, (ns, repo, n), &body)
+                .await
+        }
+    };
+    match saved {
+        Ok(_) => Ok(Redirect::to(&match change {
+            Some(c) => format!("/{ns}/{repo}/merge-requests/{n}/changes/{c}#brief"),
+            None => format!("/{ns}/{repo}/merge-requests/{n}#brief"),
+        })
         .into_response()),
         Err(ServiceError::Invalid(errors)) => {
             // The service names fields by JSON pointer; the form by id.
@@ -816,11 +1013,11 @@ async fn write(
                 first.push(Default::default());
             }
             form_page(
-                &state,
-                &s.subject,
-                (&ns, &repo, n, &change),
+                state,
+                subject,
+                (ns, repo, n, change),
                 ctx,
-                Some((slots, commit, errors, None)),
+                Some((slots, at, errors, None)),
             )
             .await
         }
@@ -829,11 +1026,17 @@ async fn write(
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new().route_as(
-        "/{ns}/{repo}/merge-requests/{n}/changes/{change}/brief",
-        Access::Resource,
-        axum::routing::get(show_form).post(write),
-    )
+    Router::new()
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/changes/{change}/brief",
+            Access::Resource,
+            axum::routing::get(show_form).post(write),
+        )
+        .route_as(
+            "/{ns}/{repo}/merge-requests/{n}/brief",
+            Access::Resource,
+            axum::routing::get(show_mr_form).post(write_mr),
+        )
 }
 
 #[cfg(test)]

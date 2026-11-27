@@ -316,7 +316,16 @@ A new version starts without a brief, but its page shows the items of the
 earlier version's brief whose places are unchanged in it, at their new
 lines and marked **from v1**; the others stay on that version, which the
 page links to. **Write a brief** then starts from the earlier brief, so
-you confirm or correct it instead of starting over. Saving again keeps the earlier text as an edit. A new version starts
+you confirm or correct it instead of starting over.
+
+A merge request with several changes can also have a brief of its own,
+for what the changes do together: **Write a brief** above the
+conversation, with the same items, whose places point into the whole
+diff of the revision. It shows there as **Brief**, its places leading to
+the Changes tab, where hunks none of its items points at say so. Each
+revision has its own; a new revision shows the items of the earlier one
+whose places are unchanged. A merge request of one change doesn't offer
+it, as that change's brief already says the same. Saving again keeps the earlier text as an edit. A new version starts
 without a brief. Comparing two versions also shows **Brief changed** when
 their briefs differ, with each item marked new, updated, or removed.
 Agents write briefs through the API

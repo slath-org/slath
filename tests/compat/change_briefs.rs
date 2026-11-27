@@ -1189,3 +1189,127 @@ fn conf_agent_17_a_merge_request_brief_points_across_its_changes() {
         r.body
     );
 }
+
+#[test]
+fn conf_agent_17_the_merge_request_page_shows_and_writes_its_brief() {
+    use slath_tests::http::submit;
+    let w = World::start();
+    let mr = format!("/alice/demo/merge-requests/{}", w.n);
+    let mut bob = w.s.login("bob", PASSWORD);
+    // One change: its own brief says it all, so no second one is offered.
+    assert!(!bob.get(&mr).body.contains(&format!("{mr}/brief\"")));
+    w.commit("b.txt", "b\n", "Add b");
+    w.push("topic");
+    w.wait_revisions(2);
+    let page = bob.get(&mr).body;
+    assert!(
+        page.contains(&format!("<a href=\"{mr}/brief\">Write a brief</a>")),
+        "{page}"
+    );
+    assert!(page.contains("what the changes do together"), "{page}");
+    assert!(
+        !w.s.login("carol", PASSWORD)
+            .get(&mr)
+            .body
+            .contains(&format!("{mr}/brief\""))
+    );
+
+    // The form writes the revision's brief, its places in the whole diff.
+    let form = format!("{mr}/brief");
+    let f = bob.get(&form).body;
+    assert!(f.contains(&format!("Write a brief for !{}", w.n)), "{f}");
+    assert!(
+        f.contains("this revision&#39;s diff") || f.contains("this revision's diff"),
+        "{f}"
+    );
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("item-motivation-0-text", "Add a and b"),
+            ("item-motivation-0-anchors", "README"),
+        ],
+    );
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(
+        r.body.contains("README isn&#39;t in this diff.")
+            || r.body.contains("README isn't in this diff."),
+        "{}",
+        r.body
+    );
+    let r = submit(
+        &mut bob,
+        &form,
+        &form,
+        &[
+            ("item-motivation-0-text", "Add a and b"),
+            ("item-motivation-0-anchors", "b.txt"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    assert_eq!(r.header("location"), Some(format!("{mr}#brief").as_str()));
+
+    // Its page shows it above the conversation, places leading to the
+    // whole diff, whose other hunk says no item points there.
+    let mut carol = w.s.login("carol", PASSWORD);
+    let page = carol.get(&mr).body;
+    for text in [
+        "<h2 id=\"brief-heading\">Brief</h2>",
+        "Add a and b",
+        &format!("<a href=\"{mr}/files\"><code>b.txt</code></a>"),
+        "Items point at 1 of 2 changed hunks",
+        &format!("{mr}?brief_comment=0#brief-item-0"),
+    ] {
+        assert!(page.contains(text), "{text}\n{page}");
+    }
+    let files = carol.get(&format!("{mr}/files")).body;
+    assert_eq!(
+        files.matches("No brief item points here").count(),
+        1,
+        "{files}"
+    );
+
+    // A comment on one of its items starts a thread located by revision.
+    let opened = format!("{mr}?brief_comment=0");
+    let shown = carol.get(&opened).body;
+    let brief_id = w
+        .api(
+            &w.alice,
+            "GET",
+            &format!("/merge-requests/{}/briefs", w.n),
+            None,
+        )
+        .json()["items"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(shown.contains("name=\"brief_item\" value=\"0\""), "{shown}");
+    let r = submit(
+        &mut carol,
+        &opened,
+        &format!("{mr}/threads"),
+        &[
+            ("brief", &brief_id),
+            ("brief_item", "0"),
+            ("back", &mr),
+            ("mode", "single"),
+            ("body", "Why both?"),
+        ],
+    );
+    assert_eq!(r.status, 303, "{}", r.body);
+    let page = carol.get(&mr).body;
+    assert!(page.contains("Brief of revision 2: Motivation"), "{page}");
+
+    // A new revision starts without one; the earlier one's items whose
+    // places survive carry over.
+    w.commit("c.txt", "c\n", "Add c");
+    w.push("topic");
+    w.wait_revisions(3);
+    let page = carol.get(&mr).body;
+    assert!(
+        page.contains("This revision has no brief of its own."),
+        "{page}"
+    );
+    assert!(page.contains("· from r2</span>"), "{page}");
+}

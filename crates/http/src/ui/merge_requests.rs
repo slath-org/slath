@@ -1917,6 +1917,8 @@ async fn heading(
 #[derive(Template)]
 #[template(path = "repo/merge_request.html")]
 struct MrPage {
+    /// The merge request's own brief.
+    brief: super::change_briefs::BriefParts,
     /// Its work order, or the link to delegate a follow-up.
     work_order: Option<super::work_orders::Side>,
     ctx: PageCtx,
@@ -2229,7 +2231,7 @@ pub(super) async fn mr_page(
         mr,
         message,
         (errors, None),
-        ("all", false),
+        ("all", false, None),
     )
     .await
 }
@@ -2244,7 +2246,7 @@ async fn mr_page_showing(
     message: Option<&'static str>,
     // A failed submit's errors, and the review form as it was sent.
     (errors, sent): (Vec<FieldError>, Option<&ReviewForm>),
-    (show, all_unviewed): (&'static str, bool),
+    (show, all_unviewed, brief_open): (&'static str, bool, Option<usize>),
 ) -> Result<Response, AppError> {
     let (a, m) = state.services.mr(subject, ns, repo, number).await?;
     let rc = RefContext {
@@ -2256,6 +2258,23 @@ async fn mr_page_showing(
         .render_markdown(subject, Some(&rc), &m.description)
         .await?;
     let summaries = state.services.revision_summaries(&m).await?;
+    let changes = summaries.get(&m.revisions).map_or(0, |r| {
+        r.unchanged + r.modified + r.added + r.returned + r.unresolved
+    });
+    let brief = super::change_briefs::mr_parts(
+        state,
+        &m,
+        (ns, repo),
+        changes,
+        &super::change_briefs::Viewer {
+            subject,
+            write: slath_service::Services::may_write_brief(subject, &a, &m),
+            comment: matches!(subject, Subject::User { .. })
+                && a.can(subject, slath_core::authz::Action::MrComment),
+            open: brief_open,
+        },
+    )
+    .await?;
     let last_review = state
         .services
         .since_last_review(subject, &a, &m)
@@ -2532,6 +2551,7 @@ async fn mr_page_showing(
     )
     .await?;
     let mut res = render(&MrPage {
+        brief,
         work_order,
         header: RepoHeader::load(state, &a, subject, TAB).await,
         can_request: open && state.services.mr_perms(subject, &a, &m).edit,
@@ -2579,6 +2599,8 @@ struct StatusQuery {
     show: Option<String>,
     /// `unviewed`: the merge box names every file not viewed by an approver.
     files: Option<String>,
+    /// The item of the merge request's brief whose comment form is open.
+    brief_comment: Option<usize>,
 }
 
 async fn view(
@@ -2626,7 +2648,11 @@ async fn view(
         (&ns, &repo, number(&n)?),
         message,
         (Vec::new(), None),
-        (show, q.files.as_deref() == Some("unviewed")),
+        (
+            show,
+            q.files.as_deref() == Some("unviewed"),
+            q.brief_comment,
+        ),
     )
     .await
 }
@@ -2941,6 +2967,17 @@ async fn files(
         None => mr_url(&ns, &repo, m.number, "/files"),
     };
     let mut diff = super::diff::view(&raw, limits, &generated, &highlights, &dq, &ctx, href);
+    if q.since.is_none() {
+        // The merge request's brief claims what its items cover; the
+        // other changed hunks say so.
+        let brief = state
+            .services
+            .mr_revision_briefs(&m, Some(m.revisions), 1)
+            .await?;
+        if let Some(c) = brief.first().and_then(|b| b.coverage.as_ref()) {
+            super::change_briefs::mark_unbriefed(c, &mut diff);
+        }
+    }
     if q.since.is_none() && m.state == "open" {
         attach_review(&state, &subject, &a, &m, &mut diff, &dq, None).await?;
     }
@@ -4302,7 +4339,7 @@ async fn review(
                 (&ns, &repo, n),
                 None,
                 (errors, Some(&f)),
-                ("all", false),
+                ("all", false, None),
             )
             .await
         }

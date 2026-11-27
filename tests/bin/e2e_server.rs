@@ -565,8 +565,9 @@ fn seed_outcomes(server: &TestServer, git: &GitClient, w: &Path, url: &str) {
 }
 
 /// `brief/<project>`: a branch per project to open a merge request from
-/// and write a brief, without one yet (before the "Recently pushed"
-/// branch, which must be the newest without a merge request).
+/// and write a brief, without one yet; `mrbrief/<project>` the same with
+/// two changes, for the merge request's own brief (before the "Recently
+/// pushed" branch, which must be the newest without a merge request).
 fn seed_brief_branches(git: &GitClient, w: &Path, url: &str) {
     // One push for all of them keeps the server's start quick.
     let mut push = vec!["push".to_owned(), "-q".to_owned(), url.to_owned()];
@@ -579,6 +580,17 @@ fn seed_brief_branches(git: &GitClient, w: &Path, url: &str) {
             w,
             &["commit", "-q", "-m", &format!("Add a briefed note for {p}")],
         );
+        push.push(branch);
+        let branch = format!("mrbrief/{p}");
+        git.ok(w, &["switch", "-q", "-c", &branch, "main"]);
+        for step in ["one", "two"] {
+            std::fs::write(w.join(format!("mrbrief-{p}-{step}.md")), "Step\n").unwrap();
+            git.ok(w, &["add", "-A"]);
+            git.ok(
+                w,
+                &["commit", "-q", "-m", &format!("Brief step {step} for {p}")],
+            );
+        }
         push.push(branch);
     }
     git.ok(w, &push.iter().map(String::as_str).collect::<Vec<_>>());

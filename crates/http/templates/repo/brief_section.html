@@ -1,0 +1,71 @@
+{#- The Brief section of a change's page or a merge request's page: the
+    shown brief with its items and their threads, or the items carried
+    from an earlier brief, or the link to write one. Needs `brief`
+    (`BriefParts`), `header`, and `h`. -#}
+{%- macro brief_item(it) -%}
+  <pre class="commit-body">{{ it.text }}</pre>
+  {%- if it.before.is_some() || it.after.is_some() %}
+  <dl class="facts">
+    {%- if let Some(v) = it.before %}<dt>Before</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+    {%- if let Some(v) = it.after %}<dt>After</dt><dd><pre class="commit-body">{{ v }}</pre></dd>{% endif %}
+  </dl>
+  {%- endif %}
+  {%- if !it.places.is_empty() %}
+  <p class="text-secondary">Points at {% for pl in it.places %}{% if !loop.first %}, {% endif %}{% if let Some(h) = pl.href %}<a href="{{ h }}"><code>{{ pl.text }}</code></a>{% else %}<code>{{ pl.text }}</code>{% endif %}{% endfor %}</p>
+  {%- endif %}
+{%- endmacro -%}
+{%- if let Some(b) = brief.shown %}
+<section class="section" id="brief" aria-labelledby="brief-heading">
+  <h2 id="brief-heading">Brief</h2>
+  <p class="text-secondary">{% call p::who(ctx, b.author) %}{% endcall %} {% call m::evidence("Author's claim") %}{% endcall %} · {% call c::time(b.created) %}{% endcall %}{% if b.edits > 1 %} · Edited ({{ b.edits }} edits){% endif %}{% if let Some((href, _)) = brief.write %} · <a href="{{ href }}">Edit the brief</a>{% endif %}</p>
+  {%- if let Some(cov) = b.coverage %}
+  <p class="text-secondary">Items point at {{ cov.covered }} of {{ cov.hunks }} changed hunk{% if cov.hunks != 1 %}s{% endif %} {% call m::evidence("Author's claim") %}{% endcall %}{% if !cov.uncovered.is_empty() %}. None points at {% for (name, href) in cov.uncovered %}{% if !loop.first %}; {% endif %}{% if let Some(h) = href %}<a href="{{ h }}">{{ name }}</a>{% else %}{{ name }}{% endif %}{% endfor %}{% if cov.more > 0 %}; and {{ cov.more }} more{% endif %}{% endif %}.</p>
+  {%- endif %}
+  {%- for it in b.items %}
+  <h3 id="brief-item-{{ it.index }}">{{ it.name }}</h3>
+  {%- call brief_item(it) %}{% endcall %}
+  {%- if let Some(checks) = it.checks %}
+  {%- if checks.is_empty() %}
+  {%- call msg::empty("No checks on this commit.") %}{% endcall %}
+  {%- else %}
+  <p class="text-secondary">Checks on this commit: {% for (context, st, who) in checks %}{% if !loop.first %}; {% endif %}<code>{{ context }}</code> {{ st }} by {% call p::who(ctx, who, false) %}{% endcall %}{% endfor %} {% call m::evidence("Observed") %}{% endcall %}</p>
+  {%- endif %}
+  {%- endif %}
+  {%- if !it.threads.is_empty() || (it.comment_href.is_some() && !it.form_open) %}
+  <p class="text-secondary">
+    {%- for (tid, who, n, resolved) in it.threads %}{% if !loop.first %} · {% endif %}<a href="/{{ header.namespace }}/{{ header.name }}/merge-requests/{{ h.mr.number }}#thread-{{ tid }}">Thread</a> by {% call p::who(ctx, who, false) %}{% endcall %} ({{ n }} comment{% if *n != 1 %}s{% endif %}{% if *resolved %}, resolved{% endif %}){% endfor %}
+    {%- if !it.form_open %}{% if let Some(href) = it.comment_href %}{% if !it.threads.is_empty() %} · {% endif %}<a href="{{ href }}">Comment<span class="visually-hidden"> on {{ it.name }}</span></a>{% endif %}{% endif %}</p>
+  {%- endif %}
+  {%- if it.form_open %}
+  <form method="post" action="{{ brief.threads_action }}" class="form-layout">
+    <input type="hidden" name="_csrf" value="{{ ctx.csrf_token() }}">
+    <input type="hidden" name="brief" value="{{ b.id }}">
+    <input type="hidden" name="brief_item" value="{{ it.index }}">
+    <input type="hidden" name="back" value="{{ brief.back }}">
+    <input type="hidden" name="mode" value="single">
+    {%- let cid = format!("brief-comment-{}", it.index) %}
+    {%- let clabel = format!("Comment on {}", it.name) %}
+    {%- call f::field(cid, clabel) %}
+    <textarea id="{{ cid }}" name="body" rows="4" required autofocus></textarea>
+    {%- endcall %}
+    {%- call f::buttons() %}<button type="submit" class="button">Add comment</button><a class="button button-quiet" href="{{ brief.back }}#brief-item-{{ it.index }}">Cancel</a>{% endcall %}
+  </form>
+  {%- endif %}
+  {%- endfor %}
+</section>
+{%- else if let Some(c) = brief.carried %}
+{%- if c.items.is_empty() %}
+<p id="brief" class="text-secondary">This {{ brief.what }} has no brief of its own; {% if let Some(href) = c.href %}<a href="{{ href }}">{{ c.from }} has one</a>{% else %}{{ c.from }} has one{% endif %}.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+{%- else %}
+<section class="section" id="brief" aria-labelledby="brief-heading">
+  <h2 id="brief-heading">Brief</h2>
+  <p class="text-secondary">This {{ brief.what }} has no brief of its own. From {% if let Some(href) = c.href %}<a href="{{ href }}">{{ c.from }}'s brief</a>{% else %}{{ c.from }}'s brief{% endif %}, the items whose lines are unchanged here{% if c.left > 0 %}; {{ c.left }} more stay there{% endif %}.{% if let Some((href, _)) = brief.write %} <a href="{{ href }}">Write a brief</a>{% endif %}</p>
+  {%- for it in c.items %}
+  <h3>{{ it.name }} <span class="text-secondary">· from {{ c.mark }}</span></h3>
+  {%- call brief_item(it) %}{% endcall %}
+  {%- endfor %}
+</section>
+{%- endif %}
+{%- else if let Some((href, _)) = brief.write %}
+<p id="brief"><a href="{{ href }}">Write a brief</a> <span class="text-secondary">{{ brief.write_hint }}</span></p>
+{%- endif %}

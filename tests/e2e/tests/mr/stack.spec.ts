@@ -255,3 +255,36 @@ test("conf_agent_15_a_brief_written_on_its_page_shows_on_the_change", async ({ p
   await tapOrClick(page, page.getByRole("button", { name: "Close merge request" }));
   await expect(page.locator(".state-label")).toHaveText("Closed");
 });
+
+test("conf_agent_17_a_merge_request_brief_is_written_on_its_page", async ({ page }, testInfo) => {
+  test.slow();
+  await signIn(page, USERS.alice);
+  const p = testInfo.project.name;
+  await page.goto(`/alice/demo/compare?source=${encodeURIComponent(`mrbrief/${p}`)}`);
+  const create = page.getByRole("button", { name: "Create merge request" });
+  if (await create.isVisible()) {
+    await page.getByLabel("Title").fill(`Two steps briefed in ${p}`);
+    await tapOrClick(page, create);
+  } else {
+    // A retry: the merge request is open already.
+    await tapOrClick(page, page.getByRole("note").getByRole("link"));
+  }
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(`Two steps briefed in ${p}`);
+  // Two changes: the merge request can have its own brief, across them.
+  await tapOrClick(page, page.getByRole("link", { name: /^(Write a brief|Edit the brief)$/ }));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/brief .*!\d+$/);
+  await expectAccessible(page);
+  const why = `Both steps, briefed in ${p}`;
+  await page.getByRole("textbox", { name: /^Motivation( 1)?$/ }).fill(why);
+  await page.getByRole("textbox", { name: "Points at" }).first().fill(`mrbrief-${p}-two.md`);
+  await tapOrClick(page, page.getByRole("button", { name: "Save brief" }));
+  const brief = page.getByRole("region", { name: "Brief", exact: true });
+  await expect(brief).toContainText(why);
+  await expect(brief).toContainText("Items point at 1 of 2 changed hunks");
+  await expectAccessible(page);
+  // Its place leads to the whole diff, where the other hunk says so.
+  await tapOrClick(page, brief.getByRole("link", { name: `mrbrief-${p}-two.md` }));
+  await expect(page.getByText("No brief item points here")).toHaveCount(1);
+  await expectAccessible(page);
+});
+
