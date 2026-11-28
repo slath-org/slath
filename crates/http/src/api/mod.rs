@@ -211,7 +211,7 @@ impl utoipa::Modify for SecurityAddon {
         repos::create_fork, repos::get_fork, repos::sync_fork,
         repos::list_branches, repos::list_tags, repos::list_commits, repos::get_commit, repos::get_commit_diff, repos::get_commit_patch, repos::get_tree, repos::get_blob,
         repos::list_collaborators, repos::put_collaborator, repos::delete_collaborator,
-        repos::list_protections, repos::post_protection, repos::delete_protection, repos::get_sensitive_paths, repos::put_sensitive_paths,
+        repos::list_protections, repos::post_protection, repos::delete_protection, repos::get_sensitive_paths, repos::put_sensitive_paths, repos::get_path_classes,
         repos::list_deploy_keys, repos::add_deploy_key, repos::remove_deploy_key,
         issues::list_issues, issues::create_issue, issues::get_issue, issues::update_issue,
         issues::list_comments, issues::create_comment, issues::update_comment, issues::delete_comment,

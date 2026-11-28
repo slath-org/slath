@@ -931,7 +931,7 @@ made with Git or jj. Nothing about them is stored: they're worked out
 again whenever you look. The **Facts** panel beside the conversation
 shows them for what would be merged, and the panel on a change's page
 for that change. It starts with the size and lists only the facts that
-apply; a long list shows three items and folds the rest.
+apply; a long list shows five items and folds the rest.
 
 - **Size:** files changed, lines added and removed.
 - **Outside the work order's scope:** for a merge request a bot opened
@@ -939,6 +939,8 @@ apply; a long list shows three items and folds the rest.
   scope doesn't cover.
 - **Sensitive paths:** changed files on the repository's
   [sensitive path list](bots.md#sensitive-paths).
+- **Path classes:** the [path classes](#path-classes) with changed files,
+  each with its one file or how many.
 - **Dependencies:** changed manifests and lockfiles. For `Cargo.lock`,
   `poetry.lock`, `uv.lock`, `package-lock.json`, `npm-shrinkwrap.json`,
   `go.mod`, and `requirements*.txt`, also the packages added, removed, and
@@ -950,7 +952,8 @@ apply; a long list shows three items and folds the rest.
 - **Deleted tests:** deleted files in a directory named `test`, `tests`,
   `__tests__`, `spec`, or `specs`, or named like a test (`*_test.*`,
   `*_tests.*`, `test_*.py`, `*.test.*`, `*.spec.*`, `*Test.java`,
-  `*Tests.java`, `*Test.kt`, `*_spec.rb`).
+  `*Tests.java`, `*Test.kt`, `*_spec.rb`). A repository
+  that defines the path class `tests` decides by it instead.
 - **Added binaries:** new files Git treats as binary.
 - **Mode changes:** files that became executable or stopped being so, and
   new executables and symbolic links.
@@ -987,6 +990,55 @@ approves again, since an approval records what was viewed at that moment.
 In the API, a rule's `fact_rules` lists the facts (`outside_scope`,
 `dependencies`, `deleted_tests`, `added_binaries`, `mode_changes`,
 `secrets`) and `require_viewed_files` the other setting.
+
+### Path classes
+
+A path class names a group of files, such as the database migrations or
+the CI workflows, so that facts and branch protection can talk about them.
+Five classes are built in and apply everywhere:
+
+- `ci`: CI workflows (`.slath/workflows/**`, `.github/workflows/**`,
+  `.gitea/workflows/**`, `.forgejo/workflows/**`);
+- `containers`: `Dockerfile`, `Containerfile`, `*.Dockerfile`,
+  `Dockerfile.*`, `Containerfile.*`, compose files, and `.dockerignore`,
+  in any folder;
+- `dependencies`: the manifests and lockfiles of the Dependencies fact;
+- `instructions`: agent instruction files such as `AGENTS.md` and
+  `CLAUDE.md`, the same as on the [sensitive path list](bots.md#sensitive-paths);
+- `owners`: `CODEOWNERS` files and `.slath/REVIEWERS`.
+
+A repository adds its own classes, and paths to the built-in ones, in
+`.slath/paths.toml`. Each table is a class:
+
+```toml
+[migration]
+paths = ["db/migrations/**", "db/schema.sql"]
+
+[ci]
+paths = ["build/pipeline.yml"]   # adds to the built-in class
+```
+
+Class names use lowercase letters, digits, and `-`, and start with a
+letter. Paths are globs from the repository root: `**` matches any path,
+`*` anything within a folder name, `?` one character; letter case doesn't
+matter. A file can define at most 50 classes of 100 paths each, in at most
+64 KiB. Paths can be added to a built-in class, never taken away.
+
+Only the file on the default branch counts. A merge request that changes
+it is still checked against the classes the default branch has, so a
+change can't reclassify itself; the file is under `.slath/`, so changing
+it needs a maintainer's approval like any [sensitive path](bots.md#sensitive-paths).
+
+Mistakes in the file are reported, not ignored: `GET
+/api/v1/repos/{ns}/{repo}/path-classes` lists the classes in effect, how
+many files of the default branch each one has, and each error with its
+class. A class with an error doesn't apply; the others still do, and a
+file that isn't valid TOML leaves only the built-in classes. The same
+answer proposes classes that names in the tree only suggest, `migration`
+(folders named `migrations`, `migrate`, or `alembic`) and `auth` (names
+with `auth`, `login`, `oauth`, `oidc`, `session`, or `password`), with
+the paths to put in the file. Slath never applies a proposal by itself:
+it takes a merge request that adds it to `.slath/paths.toml`.
 
 ## Reading diffs
 

@@ -40,6 +40,7 @@ mod mr_groups;
 mod oidc_providers;
 mod one_maintainer;
 mod partial_landing;
+mod path_classes;
 mod readiness;
 mod reserved_refs;
 mod reviews;

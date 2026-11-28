@@ -61,6 +61,7 @@ pub mod orgs;
 pub mod origins;
 pub mod partial_landing;
 pub mod passkeys;
+pub mod path_classes;
 pub mod protections;
 pub mod push;
 pub mod push_protection;

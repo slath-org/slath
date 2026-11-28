@@ -63,6 +63,13 @@ pub struct SecretFact {
     pub tier: &'static str,
 }
 
+/// A path class the diff touches, with its changed paths.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ClassFact {
+    pub class: String,
+    pub paths: Vec<String>,
+}
+
 /// The facts of one diff.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct Facts {
@@ -71,6 +78,8 @@ pub struct Facts {
     /// without a work order or a scope.
     pub outside_scope: Option<Vec<String>>,
     pub sensitive_paths: Vec<String>,
+    /// The path classes with a changed path, by class name.
+    pub classes: Vec<ClassFact>,
     pub dependencies: Vec<DependencyFact>,
     pub deleted_tests: Vec<String>,
     pub added_binaries: Vec<String>,
@@ -78,6 +87,18 @@ pub struct Facts {
     pub secrets: Vec<SecretFact>,
     /// What couldn't be computed exactly, in words.
     pub incomplete: Vec<String>,
+}
+
+/// Adds `path` to `name`'s fact, once.
+fn add_class_path(classes: &mut Vec<ClassFact>, name: &str, path: &str) {
+    match classes.iter_mut().find(|c| c.class == name) {
+        Some(c) if !c.paths.iter().any(|p| p == path) => c.paths.push(path.to_owned()),
+        Some(_) => {}
+        None => classes.push(ClassFact {
+            class: name.to_owned(),
+            paths: vec![path.to_owned()],
+        }),
+    }
 }
 
 fn text(p: &[u8]) -> String {
@@ -114,7 +135,8 @@ fn added_text(f: &FileDiff) -> (Vec<u8>, Vec<u32>) {
 struct GitFile {
     /// The paths its change touches (a rename: old and new).
     touched: Vec<String>,
-    deleted_test: Option<String>,
+    /// Its old path, if the change deletes it.
+    deleted: Option<String>,
     added_binary: Option<String>,
     mode_change: Option<ModeChange>,
     dependency: Option<DependencyFact>,
@@ -187,6 +209,11 @@ impl Services {
         let (repo, default_branch) = repo;
         let git = self.git_facts(repo, base, head).await?;
         let sensitive = self.sensitive_paths(repo).await?;
+        let classes = self.path_classes(repo, default_branch).await;
+        // A repository's own `tests` class replaces the built-in guess.
+        let tests = classes.get("tests");
+        let is_test =
+            |p: &str| tests.map_or_else(|| is_test_path(p.as_bytes()), |c| c.matches(p.as_bytes()));
         let allowlist = self.allowlist(repo, default_branch).await;
         let in_scope = |p: &str| {
             scope.is_none_or(|globs| globs.iter().any(|g| glob_match(g.as_bytes(), p.as_bytes())))
@@ -205,8 +232,13 @@ impl Services {
                 if !in_scope(p) && !outside.contains(p) {
                     outside.push(p.clone());
                 }
+                for name in classes.of(p.as_bytes()) {
+                    add_class_path(&mut facts.classes, name, p);
+                }
             }
-            facts.deleted_tests.extend(f.deleted_test.clone());
+            facts
+                .deleted_tests
+                .extend(f.deleted.clone().filter(|p| is_test(p)));
             facts.added_binaries.extend(f.added_binary.clone());
             facts.mode_changes.extend(f.mode_change.clone());
             facts.dependencies.extend(f.dependency.clone());
@@ -218,6 +250,7 @@ impl Services {
             );
         }
         facts.outside_scope = scope.map(|_| outside);
+        facts.classes.sort_by(|a, b| a.class.cmp(&b.class));
         Ok(facts)
     }
 
@@ -281,7 +314,7 @@ impl Services {
                 .iter()
                 .map(|p| GitFile {
                     touched: vec![text(p)],
-                    deleted_test: None,
+                    deleted: None,
                     added_binary: None,
                     mode_change: None,
                     dependency: None,
@@ -328,8 +361,7 @@ impl Services {
                 .await?;
             let mut file = GitFile {
                 touched: touched(f).into_iter().map(text).collect(),
-                deleted_test: (f.status == Status::Deleted && is_test_path(&f.old_path))
-                    .then(|| text(&f.old_path)),
+                deleted: (f.status == Status::Deleted).then(|| text(&f.old_path)),
                 added_binary: (matches!(f.status, Status::Added | Status::Copied) && f.binary)
                     .then(|| text(f.path())),
                 mode_change,

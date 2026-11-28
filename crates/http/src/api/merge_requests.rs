@@ -1129,6 +1129,15 @@ pub struct FactSecret {
     pub tier: String,
 }
 
+/// A path class with changed paths: a class of `.slath/paths.toml` on the
+/// default branch, or a built-in one.
+#[derive(Serialize, ToSchema)]
+pub struct FactClass {
+    pub class: String,
+    /// Its changed paths (a rename: both).
+    pub paths: Vec<String>,
+}
+
 /// What Slath itself sees in a diff (evidence class `observed`), computed
 /// from Git on every read. A list is empty when nothing applies.
 #[derive(Serialize, ToSchema)]
@@ -1139,8 +1148,11 @@ pub struct FactsBody {
     pub outside_scope: Option<Vec<String>>,
     /// Changed paths (a rename: both) on the sensitive path list.
     pub sensitive_paths: Vec<String>,
+    /// The path classes the diff touches, by class name.
+    pub classes: Vec<FactClass>,
     pub dependencies: Vec<FactDependency>,
-    /// Deleted files that look like tests.
+    /// Deleted files that look like tests, or of the repository's path
+    /// class `tests` if it defines one.
     pub deleted_tests: Vec<String>,
     /// Added or copied files Git treats as binary.
     pub added_binaries: Vec<String>,
@@ -1166,6 +1178,14 @@ impl From<slath_service::facts::Facts> for FactsBody {
             },
             outside_scope: f.outside_scope,
             sensitive_paths: f.sensitive_paths,
+            classes: f
+                .classes
+                .into_iter()
+                .map(|c| FactClass {
+                    class: c.class,
+                    paths: c.paths,
+                })
+                .collect(),
             dependencies: f
                 .dependencies
                 .into_iter()

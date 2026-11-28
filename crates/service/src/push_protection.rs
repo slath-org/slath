@@ -519,7 +519,23 @@ impl Services {
         repo: RepoId,
         default_branch: &str,
     ) -> slath_core::secret_scan::Allowlist {
-        let spec = format!("refs/heads/{default_branch}:{ALLOWLIST_PATH}");
+        match self
+            .blob_at(
+                repo,
+                &format!("refs/heads/{default_branch}"),
+                ALLOWLIST_PATH,
+            )
+            .await
+        {
+            Some(b) if b.len() <= 64 * 1024 => parse_allowlist(&String::from_utf8_lossy(&b)),
+            _ => slath_core::secret_scan::Allowlist::default(),
+        }
+    }
+
+    /// The file at `path` in the commit `rev` names (a full ref name or an
+    /// object ID), if it's there and can be read.
+    pub(crate) async fn blob_at(&self, repo: RepoId, rev: &str, path: &str) -> Option<Vec<u8>> {
+        let spec = format!("{rev}:{path}");
         let out = self
             .runner
             .repo(&self.repo_path(repo))
@@ -528,10 +544,8 @@ impl Services {
             .output()
             .await;
         match out {
-            Ok(o) if o.status.success() && o.stdout.len() <= 64 * 1024 => {
-                parse_allowlist(&String::from_utf8_lossy(&o.stdout))
-            }
-            _ => slath_core::secret_scan::Allowlist::default(),
+            Ok(o) if o.status.success() => Some(o.stdout),
+            _ => None,
         }
     }
 

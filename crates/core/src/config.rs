@@ -456,6 +456,9 @@ pub struct Limits {
     pub facts_file_max_bytes: Bytes,
     /// Diffs whose Git facts are kept in memory (0: none).
     pub facts_cache_entries: usize,
+    /// Files of the default branch's tree the path classes page counts
+    /// and proposes classes from; past it, counts are cut and say so.
+    pub path_classes_tree_max_files: usize,
     /// Most revisions a work order may make, over all its merge requests.
     pub work_order_max_revisions: u32,
     /// Longest a work order may run, in days.
@@ -521,6 +524,7 @@ impl Default for Limits {
             brief_max_bytes: Bytes(64 * 1024),
             facts_file_max_bytes: Bytes(8 * 1024 * 1024),
             facts_cache_entries: 512,
+            path_classes_tree_max_files: 100_000,
             work_order_max_revisions: 200,
             work_order_max_days: 30,
             task_token_minutes: 60,

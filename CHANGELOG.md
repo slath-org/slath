@@ -38,6 +38,8 @@ Before 1.0.0, minor versions may contain breaking changes.
 - Bots push at most 600 times per hour over HTTP and SSH together (`[limits] bot_pushes_per_hour`); a push over it says when to try again. People aren't limited.
 - Each revision and change has facts Slath computes from Git (size, sensitive paths, dependency and lockfile changes, deleted tests, binaries, modes, possible secrets), by API and MCP.
 - A Facts panel on merge request and change pages lists what Slath sees in the diff: its size, then only the facts that apply.
+- Path classes name groups of files, such as migrations or CI workflows: five are built in, and `.slath/paths.toml` on the default branch adds more.
+- Facts and the Facts panel list the path classes a diff touches; the path classes API reports mistakes in `.slath/paths.toml` and proposes classes from the tree.
 - Branch protection can require a person's approval when a merge request changes dependencies, deletes tests, adds binaries or possible secrets, changes modes, or leaves a work order's scope.
 - Branch protection can require every changed file to have been viewed by an approver when they approved.
 - A branch protection rule opens in its form to be changed, and a rule that fails to save keeps what was entered.

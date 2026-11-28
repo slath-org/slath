@@ -112,6 +112,19 @@ pub fn panel(f: &Facts) -> Panel {
         paths(f.outside_scope.as_deref().unwrap_or_default()),
     );
     row("Sensitive paths", paths(&f.sensitive_paths));
+    row(
+        "Path classes",
+        f.classes
+            .iter()
+            .map(|c| Item {
+                path: None,
+                note: Some(match c.paths.as_slice() {
+                    [one] => format!("{} ({one})", c.class),
+                    many => format!("{} ({} files)", c.class, many.len()),
+                }),
+            })
+            .collect(),
+    );
     let mut deps = Vec::new();
     for d in &f.dependencies {
         let c = &d.changes;
@@ -192,6 +205,34 @@ mod tests {
         f.deleted_tests.truncate(6);
         let p = panel(&f);
         assert_eq!((p.rows[0].shown().len(), p.rows[0].rest().len()), (6, 0));
+    }
+
+    #[test]
+    fn path_classes_name_their_file_or_count() {
+        let f = Facts {
+            classes: vec![
+                slath_service::facts::ClassFact {
+                    class: "ci".into(),
+                    paths: vec![".github/workflows/a.yml".into()],
+                },
+                slath_service::facts::ClassFact {
+                    class: "migration".into(),
+                    paths: vec!["m/1.sql".into(), "m/2.sql".into()],
+                },
+            ],
+            ..Facts::default()
+        };
+        let p = panel(&f);
+        assert_eq!(p.rows[0].label, "Path classes");
+        let notes: Vec<_> = p.rows[0]
+            .items
+            .iter()
+            .filter_map(|i| i.note.as_deref())
+            .collect();
+        assert_eq!(
+            notes,
+            ["ci (.github/workflows/a.yml)", "migration (2 files)"]
+        );
     }
 
     #[test]

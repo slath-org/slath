@@ -12,7 +12,7 @@ use slath_tests::server::{DEMO, GitClient, TestServer};
 use crate::fork_merge_requests::{api, eventually, token};
 use crate::jj::{Jj, jj_binaries};
 
-fn write(w: &Path, file: &str, data: &[u8]) {
+pub(crate) fn write(w: &Path, file: &str, data: &[u8]) {
     if let Some(dir) = Path::new(file).parent() {
         std::fs::create_dir_all(w.join(dir)).unwrap();
     }
@@ -82,12 +82,50 @@ fn fixture(git: &GitClient, w: &Path, url: &str) {
     git.ok(w, &["push", "-q", url, "git-stack"]);
 }
 
+/// `branch` (a two-commit stack) and the same trees rewritten by jj: every
+/// change (`jj-stack`) and only the top one (`mixed-stack`), when jj is
+/// there to make them.
+pub(crate) fn with_jj_and_mixed(d: &Path, url: &str, branch: &str) -> Vec<String> {
+    let mut stacks = vec![branch.to_owned()];
+    if let Some((version, bin)) = jj_binaries().into_iter().last() {
+        let jj = Jj::new(&version, &bin);
+        let j = d.join("jj");
+        jj.ok(d, &["git", "clone", url, j.to_str().unwrap()]);
+        jj.ok(&j, &["bookmark", "track", &format!("{branch}@origin")]);
+        jj.ok(&j, &["describe", "-r", branch, "-m", "Second (jj)"]);
+        jj.ok(&j, &["bookmark", "create", "mixed-stack", "-r", branch]);
+        jj.ok(
+            &j,
+            &["describe", "-r", &format!("{branch}-"), "-m", "First (jj)"],
+        );
+        jj.ok(&j, &["bookmark", "create", "jj-stack", "-r", branch]);
+        jj.ok(
+            &j,
+            &[
+                "git",
+                "push",
+                "--bookmark",
+                "mixed-stack",
+                "--bookmark",
+                "jj-stack",
+            ],
+        );
+        stacks.extend(["jj-stack".to_owned(), "mixed-stack".to_owned()]);
+    }
+    stacks
+}
+
 /// The facts of the whole stack.
 fn whole() -> Value {
     json!({
         "size": {"files": 10, "additions": 9, "deletions": 8},
         "outside_scope": null,
         "sensitive_paths": ["AGENTS.md"],
+        "classes": [
+            {"class": "dependencies",
+             "paths": ["Cargo.lock", "package.json", "requirements.txt"]},
+            {"class": "instructions", "paths": ["AGENTS.md"]},
+        ],
         "dependencies": [
             {"path": "Cargo.lock", "ecosystem": "cargo", "packages": true,
              "added": [{"name": "rand", "version": "0.9.0"}],
@@ -123,35 +161,7 @@ fn conf_agent_14_facts_are_exact_for_git_jj_and_mixed_stacks() {
     let url = s.url(&DEMO);
     fixture(&git, &w, &url);
 
-    // The same trees, rewritten by jj (every change) and mixed (only the
-    // second).
-    let mut stacks = vec!["git-stack"];
-    if let Some((version, bin)) = jj_binaries().into_iter().last() {
-        let jj = Jj::new(&version, &bin);
-        let j = d.path().join("jj");
-        jj.ok(d.path(), &["git", "clone", &url, j.to_str().unwrap()]);
-        jj.ok(&j, &["bookmark", "track", "git-stack@origin"]);
-        jj.ok(&j, &["describe", "-r", "git-stack", "-m", "Second (jj)"]);
-        jj.ok(
-            &j,
-            &["bookmark", "create", "mixed-stack", "-r", "git-stack"],
-        );
-        jj.ok(&j, &["describe", "-r", "git-stack-", "-m", "First (jj)"]);
-        jj.ok(&j, &["bookmark", "create", "jj-stack", "-r", "git-stack"]);
-        jj.ok(
-            &j,
-            &[
-                "git",
-                "push",
-                "--bookmark",
-                "mixed-stack",
-                "--bookmark",
-                "jj-stack",
-            ],
-        );
-        stacks.extend(["jj-stack", "mixed-stack"]);
-    }
-
+    let stacks = with_jj_and_mixed(d.path(), &url, "git-stack");
     for branch in &stacks {
         let r = api(
             &s,

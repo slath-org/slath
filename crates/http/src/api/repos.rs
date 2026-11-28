@@ -1114,6 +1114,107 @@ pub async fn get_sensitive_paths(
     ))
 }
 
+/// A path class in effect.
+#[derive(Serialize, ToSchema)]
+pub struct PathClassBody {
+    pub name: String,
+    /// Whether Slath defines it; `.slath/paths.toml` can only add to it.
+    pub built_in: bool,
+    /// Its built-in globs.
+    pub built_in_globs: Vec<String>,
+    /// The globs `.slath/paths.toml` adds.
+    pub file_globs: Vec<String>,
+    /// Whether its files fold in diffs.
+    pub fold: bool,
+    /// Files of the default branch's tree in the class.
+    pub files: usize,
+}
+
+/// An entry of `.slath/paths.toml` that doesn't apply, and why.
+#[derive(Serialize, ToSchema)]
+pub struct PathClassError {
+    /// The class's table, or null for the whole file.
+    pub class: Option<String>,
+    pub message: String,
+}
+
+/// A class the tree suggests, with the globs that would define it. It
+/// changes nothing until a merge request adds it to `.slath/paths.toml`.
+#[derive(Serialize, ToSchema)]
+pub struct PathClassProposal {
+    pub name: String,
+    pub globs: Vec<String>,
+}
+
+/// The path classes of a repository: the built-in ones and those of
+/// `.slath/paths.toml` on its default branch.
+#[derive(Serialize, ToSchema)]
+pub struct PathClassesBody {
+    pub classes: Vec<PathClassBody>,
+    pub errors: Vec<PathClassError>,
+    pub proposals: Vec<PathClassProposal>,
+    /// Whether the default branch has `.slath/paths.toml`.
+    pub has_file: bool,
+    /// Whether the tree had more files than `limits.path_classes_tree_max_files`;
+    /// the counts and proposals then cover only those.
+    pub files_cut: bool,
+}
+
+impl From<slath_service::path_classes::PathClassesView> for PathClassesBody {
+    fn from(v: slath_service::path_classes::PathClassesView) -> Self {
+        Self {
+            classes: v
+                .classes
+                .into_iter()
+                .map(|c| PathClassBody {
+                    name: c.class.name,
+                    built_in: c.class.built_in,
+                    built_in_globs: c.class.built_in_globs,
+                    file_globs: c.class.file_globs,
+                    fold: c.class.fold,
+                    files: c.files,
+                })
+                .collect(),
+            errors: v
+                .errors
+                .into_iter()
+                .map(|e| PathClassError {
+                    class: e.class,
+                    message: e.message,
+                })
+                .collect(),
+            proposals: v
+                .proposals
+                .into_iter()
+                .map(|p| PathClassProposal {
+                    name: p.name.to_owned(),
+                    globs: p.globs,
+                })
+                .collect(),
+            has_file: v.has_file,
+            files_cut: v.files_cut,
+        }
+    }
+}
+
+/// The repository's path classes as its default branch defines them, with
+/// the errors of `.slath/paths.toml` and the classes its tree suggests.
+#[utoipa::path(get, path = "/api/v1/repos/{ns}/{repo}/path-classes", tag = "repos", security((), ("token" = ["repo:read"])), params(("ns" = String, Path), ("repo" = String, Path)),
+    responses((status = 200, body = PathClassesBody), (status = 404, body = super::Problem)))]
+pub async fn get_path_classes(
+    State(state): State<AppState>,
+    ApiSubject(s): ApiSubject,
+    Path((ns, repo)): Path<(String, String)>,
+) -> Result<Json<PathClassesBody>, AppError> {
+    Ok(Json(
+        state
+            .services
+            .repo_path_classes(&s, &ns, &repo)
+            .await?
+            .into(),
+    ))
+}
+
 /// The repository's own sensitive paths to set.
 #[derive(Deserialize, ToSchema)]
 pub struct PutSensitivePaths {
@@ -1521,6 +1622,11 @@ pub fn router() -> Router<AppState> {
             "/api/v1/repos/{ns}/{repo}/protections",
             Access::Resource,
             get(list_protections).post(post_protection),
+        )
+        .route_as(
+            "/api/v1/repos/{ns}/{repo}/path-classes",
+            Access::Resource,
+            get(get_path_classes),
         )
         .route_as(
             "/api/v1/repos/{ns}/{repo}/sensitive-paths",

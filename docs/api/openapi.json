@@ -9552,6 +9552,61 @@
         ]
       }
     },
+    "/api/v1/repos/{ns}/{repo}/path-classes": {
+      "get": {
+        "tags": [
+          "repos"
+        ],
+        "summary": "The repository's path classes as its default branch defines them, with\nthe errors of `.slath/paths.toml` and the classes its tree suggests.",
+        "operationId": "get_path_classes",
+        "parameters": [
+          {
+            "name": "ns",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathClassesBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "token": [
+              "repo:read"
+            ]
+          }
+        ]
+      }
+    },
     "/api/v1/repos/{ns}/{repo}/protections": {
       "get": {
         "tags": [
@@ -13857,6 +13912,26 @@
           }
         }
       },
+      "FactClass": {
+        "type": "object",
+        "description": "A path class with changed paths: a class of `.slath/paths.toml` on the\ndefault branch, or a built-in one.",
+        "required": [
+          "class",
+          "paths"
+        ],
+        "properties": {
+          "class": {
+            "type": "string"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its changed paths (a rename: both)."
+          }
+        }
+      },
       "FactDependency": {
         "type": "object",
         "description": "A dependency manifest or lockfile the diff changes.",
@@ -14021,6 +14096,7 @@
         "required": [
           "size",
           "sensitive_paths",
+          "classes",
           "dependencies",
           "deleted_tests",
           "added_binaries",
@@ -14036,12 +14112,19 @@
             },
             "description": "Added or copied files Git treats as binary."
           },
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactClass"
+            },
+            "description": "The path classes the diff touches, by class name."
+          },
           "deleted_tests": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Deleted files that look like tests."
+            "description": "Deleted files that look like tests, or of the repository's path\nclass `tests` if it defines one."
           },
           "dependencies": {
             "type": "array",
@@ -16579,6 +16662,127 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "PathClassBody": {
+        "type": "object",
+        "description": "A path class in effect.",
+        "required": [
+          "name",
+          "built_in",
+          "built_in_globs",
+          "file_globs",
+          "fold",
+          "files"
+        ],
+        "properties": {
+          "built_in": {
+            "type": "boolean",
+            "description": "Whether Slath defines it; `.slath/paths.toml` can only add to it."
+          },
+          "built_in_globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its built-in globs."
+          },
+          "file_globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The globs `.slath/paths.toml` adds."
+          },
+          "files": {
+            "type": "integer",
+            "description": "Files of the default branch's tree in the class.",
+            "minimum": 0
+          },
+          "fold": {
+            "type": "boolean",
+            "description": "Whether its files fold in diffs."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PathClassError": {
+        "type": "object",
+        "description": "An entry of `.slath/paths.toml` that doesn't apply, and why.",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The class's table, or null for the whole file."
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PathClassProposal": {
+        "type": "object",
+        "description": "A class the tree suggests, with the globs that would define it. It\nchanges nothing until a merge request adds it to `.slath/paths.toml`.",
+        "required": [
+          "name",
+          "globs"
+        ],
+        "properties": {
+          "globs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PathClassesBody": {
+        "type": "object",
+        "description": "The path classes of a repository: the built-in ones and those of\n`.slath/paths.toml` on its default branch.",
+        "required": [
+          "classes",
+          "errors",
+          "proposals",
+          "has_file",
+          "files_cut"
+        ],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathClassBody"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathClassError"
+            }
+          },
+          "files_cut": {
+            "type": "boolean",
+            "description": "Whether the tree had more files than `limits.path_classes_tree_max_files`;\nthe counts and proposals then cover only those."
+          },
+          "has_file": {
+            "type": "boolean",
+            "description": "Whether the default branch has `.slath/paths.toml`."
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathClassProposal"
+            }
           }
         }
       },

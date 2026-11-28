@@ -81,6 +81,11 @@ const TEXT_FIELDS: &[&str] = &[
 /// Free-text fields without origin labels, and why (spec: origin labels).
 const NOT_USER_TEXT: &[(&str, &str, &str)] = &[
     (
+        "PathClassError",
+        "message",
+        "Slath's own wording about the default branch's .slath/paths.toml, which is Git content",
+    ),
+    (
         "FactSecret",
         "description",
         "a push protection rule's description, from the built-in or the operator's rule set",
