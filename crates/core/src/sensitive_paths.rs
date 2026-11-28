@@ -36,6 +36,39 @@ pub const DEFAULTS: &[&str] = &[
     "REVIEW.md",
 ];
 
+/// The CI workflow globs of [`DEFAULTS`], also the built-in path class `ci`.
+pub const CI: &[&str] = &[
+    ".slath/workflows/**",
+    ".github/workflows/**",
+    ".gitea/workflows/**",
+    ".forgejo/workflows/**",
+];
+
+/// The code-owner globs of [`DEFAULTS`]; with the reviewer file, the
+/// built-in path class `owners`.
+pub const OWNERS: &[&str] = &[
+    "CODEOWNERS",
+    ".github/CODEOWNERS",
+    ".gitea/CODEOWNERS",
+    "docs/CODEOWNERS",
+];
+
+/// The agent instruction globs of [`DEFAULTS`], also the built-in path
+/// class `instructions`.
+pub const INSTRUCTIONS: &[&str] = &[
+    "**/AGENTS.md",
+    "**/AGENT.md",
+    "**/CLAUDE.md",
+    "**/GEMINI.md",
+    ".github/copilot-instructions.md",
+    ".github/instructions/**",
+    ".cursorrules",
+    ".cursor/rules/**",
+    ".windsurfrules",
+    ".clinerules",
+    "REVIEW.md",
+];
+
 /// Most globs a repository may add.
 pub const MAX_EXTRA: usize = 100;
 /// Longest glob a repository may add, in bytes.
@@ -161,6 +194,18 @@ mod tests {
         assert!(s.matches(b"makefile"));
         assert!(s.matches(b"AGENTS.md"), "defaults stay");
         assert!(!s.matches(b"src/deploy.rs"));
+    }
+
+    #[test]
+    fn defaults_are_their_groups() {
+        let groups: Vec<&str> = CI
+            .iter()
+            .chain([".slath/**"].iter())
+            .chain(OWNERS)
+            .chain(INSTRUCTIONS)
+            .copied()
+            .collect();
+        assert_eq!(groups, DEFAULTS);
     }
 
     #[test]

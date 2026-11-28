@@ -19,6 +19,7 @@ pub mod ids;
 pub mod names;
 pub mod net;
 pub mod origin;
+pub mod path_classes;
 pub mod secret;
 pub mod secret_scan;
 pub mod sensitive_paths;
